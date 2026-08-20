@@ -1,0 +1,107 @@
+<!doctype html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<title>סלטיז ראשים · Head Soccer mock</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<!-- ═══ PICK ═══ choose a card for each head ══════════════════════════════ -->
+<section id="pick" class="screen">
+  <header class="pick-head">
+    <h1>סלטיז <span>ראשים</span></h1>
+    <p class="sub">בחר את הקלף שיילחם בשבילך</p>
+  </header>
+
+  <div class="slots">
+    <button class="slot" id="slotMe"  data-who="me">
+      <div class="slot-art"></div>
+      <div class="slot-cap">אני</div>
+      <div class="slot-shot">—</div>
+    </button>
+    <div class="vs">VS</div>
+    <button class="slot" id="slotFoe" data-who="foe">
+      <div class="slot-art"></div>
+      <div class="slot-cap">יריב</div>
+      <div class="slot-shot">—</div>
+    </button>
+  </div>
+
+  <nav class="rarity-tabs" id="rarityTabs">
+    <button data-r="legendary" class="on">אגדי</button>
+    <button data-r="epic">אדיר</button>
+    <button data-r="rare">נדיר</button>
+    <button data-r="common">רגיל</button>
+  </nav>
+
+  <div class="grid" id="cardGrid"></div>
+
+  <footer class="pick-foot">
+    <label class="diff">
+      <span>רמת יריב</span>
+      <input type="range" id="diff" min="0" max="5" step="1" value="3">
+      <b id="diffName">קשה</b>
+    </label>
+    <button class="play" id="playBtn">שחק</button>
+  </footer>
+</section>
+
+<!-- ═══ MATCH ═══════════════════════════════════════════════════════════ -->
+<section id="match" class="screen hidden">
+  <div id="stage">
+    <canvas id="cv"></canvas>
+    <!-- Heads are DOM, never canvas-blitted: card art drawn into a canvas comes out
+         blank in WKWebView, so the one thing that MUST survive the app is an <img>/CSS layer. -->
+    <div class="head" id="head0"><i></i></div>
+    <div class="head" id="head1"><i></i></div>
+
+    <div class="hud">
+      <div class="gauge g0"><div class="fill"></div><span class="nm"></span></div>
+      <div class="scoreboard">
+        <b id="s0">0</b><i id="clock">60</i><b id="s1">0</b>
+      </div>
+      <div class="gauge g1"><div class="fill"></div><span class="nm"></span></div>
+    </div>
+
+    <div class="banner" id="banner"></div>
+
+    <!-- touch pad: left = walk, right = act -->
+    <div class="pad">
+      <div class="pad-l">
+        <button class="btn" data-k="left">◀</button>
+        <button class="btn" data-k="right">▶</button>
+      </div>
+      <div class="pad-r">
+        <button class="btn jump" data-k="jump">קפיצה</button>
+        <button class="btn kick" data-k="kick">בעיטה</button>
+        <button class="btn power" data-k="power" id="powerBtn">POWER</button>
+      </div>
+    </div>
+
+    <button class="gear" id="gear">⚙</button>
+    <button class="quit" id="quit">✕</button>
+  </div>
+
+  <div class="over hidden" id="over">
+    <h2 id="overTitle"></h2>
+    <p id="overScore"></p>
+    <div class="over-btns">
+      <button id="again">עוד פעם</button>
+      <button id="back">קלפים</button>
+    </div>
+  </div>
+</section>
+
+<!-- ═══ TUNER ═══ live feel dials ════════════════════════════════════════ -->
+<aside id="tuner" class="hidden">
+  <header>כיוונון <button id="tunerClose">✕</button></header>
+  <div id="tunerBody"></div>
+  <footer><button id="tunerReset">אתחל</button><button id="tunerCopy">העתק JSON</button></footer>
+</aside>
+
+<script type="module" src="game.js"></script>
+</body>
+</html>

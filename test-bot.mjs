@@ -1,0 +1,113 @@
+// Bot tests — headless bot-vs-bot matches. Run: node test-bot.mjs
+// These answer the only questions that matter for a feel test: does a match actually
+// produce football, and does the difficulty dial do anything?
+import * as C from './shared/constants.js';
+import { createMatch, step } from './shared/sim.js';
+import { createBot, botInput, DIFFICULTIES } from './shared/bot.js';
+
+let pass = 0, fail = 0;
+const ok = (name, cond, extra = '') => {
+  if (cond) pass++;
+  else { fail++; console.log(`  ✗ ${name}${extra ? '  — ' + extra : ''}`); }
+};
+
+// Deterministic RNG so a red run is reproducible.
+function mulberry32(a) {
+  return function () {
+    a |= 0; a = (a + 0x6D2B79F5) | 0;
+    let t = Math.imul(a ^ (a >>> 15), 1 | a);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+
+function playMatch(levelA, levelB, seed, duration = C.MATCH_DURATION) {
+  const rng = mulberry32(seed);
+  const m = createMatch({ rarity: 'legendary', number: 3 }, { rarity: 'legendary', number: 2 }, { duration });
+  const bots = [createBot(levelA, rng), createBot(levelB, rng)];
+  const stats = { touches: 0, kicks: 0, powershots: 0, counters: 0, knocks: 0, moved: [0, 0], maxTicks: 0 };
+  const startX = m.players.map((p) => p.x);
+  let ticks = 0;
+  // Every goal freezes the clock for ~2s, so a high-scoring match needs generous headroom.
+  const limit = Math.ceil((duration + 90) / C.TICK);
+  while (m.phase !== 'over' && ticks < limit) {
+    const inputs = [botInput(bots[0], m, 0, C.TICK), botInput(bots[1], m, 1, C.TICK)];
+    step(m, inputs);
+    ticks++;
+    for (const e of m.events) {
+      if (e.type === 'strike') stats.touches++;
+      if (e.type === 'kick') stats.kicks++;
+      if (e.type === 'powershot') stats.powershots++;
+      if (e.type === 'counter') stats.counters++;
+      if (e.type === 'knocked') stats.knocks++;
+    }
+    m.events.length = 0;
+    for (let i = 0; i < 2; i++) stats.moved[i] = Math.max(stats.moved[i], Math.abs(m.players[i].x - startX[i]));
+  }
+  stats.maxTicks = ticks;
+  return { m, stats, ticks, limit };
+}
+
+// --- a bot match is actually a match ----------------------------------------
+{
+  const { m, stats, ticks, limit } = playMatch(3, 3, 12345);
+  ok('the match reaches full time', m.phase === 'over' && ticks < limit, `phase=${m.phase} ticks=${ticks}/${limit}`);
+  ok('both bots move around', stats.moved[0] > 120 && stats.moved[1] > 120, stats.moved.map((v) => v.toFixed(0)).join('/'));
+  ok('the ball gets struck a lot', stats.touches > 30, `touches=${stats.touches}`);
+  ok('bots fire power shots', stats.powershots >= 2, `powershots=${stats.powershots}`);
+  ok('somebody scores', m.score[0] + m.score[1] > 0, m.score.join('-'));
+  // This guards against runaway physics, not against taste: it is what caught the ball
+  // tunnelling through a defender (matches finished 15-12) and the inverted aggression
+  // dial. Where exactly the goal rate should sit is Adam's call at the tuner, not a test's.
+  ok('the scoreline stays arcade-plausible', m.score[0] + m.score[1] <= 20, m.score.join('-'));
+}
+
+// --- no stuck states --------------------------------------------------------
+{
+  let stalls = 0;
+  for (let s = 0; s < 6; s++) {
+    const { m } = playMatch(2, 4, 900 + s, 25);
+    if (m.phase !== 'over') stalls++;
+  }
+  ok('no match stalls', stalls === 0, `${stalls}/6 stalled`);
+}
+{
+  // The ball must never leave the pitch, at any difficulty pairing.
+  const rng = mulberry32(77);
+  const m = createMatch({ rarity: 'epic', number: 7 }, { rarity: 'rare', number: 22 }, { duration: 40 });
+  const bots = [createBot(5, rng), createBot(0, rng)];
+  let escaped = false, nan = false;
+  for (let i = 0; i < 40 / C.TICK && m.phase !== 'over'; i++) {
+    step(m, [botInput(bots[0], m, 0, C.TICK), botInput(bots[1], m, 1, C.TICK)]);
+    m.events.length = 0;
+    const b = m.ball;
+    if (!isFinite(b.x) || !isFinite(b.y) || !isFinite(b.vx)) { nan = true; break; }
+    if (b.x < -2 || b.x > C.W + 2 || b.y > C.GROUND_Y + 2 || b.y < C.CEIL_Y - 2) { escaped = true; break; }
+  }
+  ok('the ball never leaves the pitch', !escaped);
+  ok('no NaN in the sim', !nan);
+}
+
+// --- the difficulty dial does something -------------------------------------
+{
+  let hardWins = 0, easyWins = 0, draws = 0;
+  const N = 9;
+  for (let s = 0; s < N; s++) {
+    const { m } = playMatch(5, 0, 4000 + s * 37);      // legendary bot vs very-easy bot
+    if (m.score[0] > m.score[1]) hardWins++;
+    else if (m.score[1] > m.score[0]) easyWins++;
+    else draws++;
+  }
+  ok('the hardest bot beats the easiest', hardWins > easyWins,
+     `hard ${hardWins} / easy ${easyWins} / draw ${draws} of ${N}`);
+}
+{
+  ok('there are six difficulty tiers', DIFFICULTIES.length === 6);
+  const r = DIFFICULTIES.map((d) => d.react);
+  ok('reaction time falls monotonically', r.every((v, i) => i === 0 || v < r[i - 1]), r.join(','));
+  const e = DIFFICULTIES.map((d) => d.error);
+  ok('aim error falls monotonically', e.every((v, i) => i === 0 || v < e[i - 1]), e.join(','));
+}
+
+console.log(`test-bot: ${pass} passed, ${fail} failed`);
+process.exit(fail ? 1 : 0);
