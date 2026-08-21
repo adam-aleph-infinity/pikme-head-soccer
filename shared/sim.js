@@ -480,6 +480,22 @@ function resolveBallPlayers(m, dt, fx) {
       if (b.power && b.power.owner !== p.index) { hitByPowerShot(m, p, b, fx); return; }
       const nx = dx / d, ny = dy / d;
       b.x = p.x + nx * min; b.y = hy + ny * min;
+
+      // "Head bounces, body deadens" has to be a rule about HEIGHT, not about which collider
+      // you clipped. At real Head Soccer proportions the character is ~80% head, so the torso
+      // is a 12px sliver and a box-based rule almost never fired. Contact on the upper part
+      // of the silhouette is a header; chest height and below is a body touch and dies.
+      if (ny > C.DEADEN_ZONE) {
+        m.idle = 0;
+        const dot = b.vx * nx + b.vy * ny;
+        if (dot < 0) { b.vx -= dot * nx; b.vy -= dot * ny; }   // cancel, do not reflect
+        b.vx = b.vx * C.BODY_DEADEN + p.vx * 0.22;
+        b.vy *= C.BODY_DEADEN;
+        b.spin *= 0.5;
+        fx.hit(b.x, b.y, '#cfd8ea', 0.4);
+        continue;
+      }
+
       const rel = (b.vx - p.vx) * nx + (b.vy - p.vy) * ny;
       if (rel < 0) {
         b.vx -= (1 + C.HEAD_POWER) * rel * nx;

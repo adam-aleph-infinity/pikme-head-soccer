@@ -105,6 +105,27 @@ pixels of screen shake underneath. It costs nothing and is most of what makes a 
 Input held across the freeze is not lost — the sim's edge detection sees it the moment play
 resumes.
 
+## Proportions
+
+Measured off a real Head Soccer gameplay screenshot rather than guessed:
+
+| | Head Soccer | here |
+|---|---|---|
+| head : body height | 3.9 : 1 | **4.0 : 1** |
+| goal height : character height | 2.04 : 1 | **1.96 : 1** |
+| goal depth : goal height | 0.28 | **0.29** |
+| ground line | 84% down screen | **86%** |
+
+The character is ~80% head with a stubby body — that silhouette *is* the game, and the old
+1.7:1 read as an ordinary chibi. The one deliberate departure: a strict match would put the
+head at 6.7% of pitch width (`HEAD_R` 32); it is held at 40 because the head is a Saltiz
+card face and the hook stops working when you cannot tell who it is.
+
+A consequence worth knowing: at these proportions the torso is a 12px sliver, so
+"head bounces, body deadens" had to become a rule about HEIGHT on the silhouette
+(`DEADEN_ZONE`) rather than about which collider you clipped — the box-based version almost
+never fired.
+
 ## The goal
 
 The whole ball must be **past the line and under the bar** — testing the ball's centre meant

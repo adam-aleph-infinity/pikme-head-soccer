@@ -397,13 +397,25 @@ const run = (m, ticks, inputs = NONE) => {
   ok('the head still bounces the ball', m.ball.vy < -100, `vy=${m.ball.vy.toFixed(0)}`);
 }
 {
+  // Low contact — chest height and below — kills it. At Head Soccer proportions the torso
+  // is a sliver, so this is a rule about HEIGHT on the silhouette, not about which box.
   const m = fresh();
   const p = m.players[0];
-  m.ball.x = p.x + C.BODY_W / 2 + C.BALL_R - 3; m.ball.y = p.y - C.BODY_H / 2;
+  const hy = headY(p);
+  m.ball.x = p.x + (C.HEAD_R + C.BALL_R) * 0.7;
+  m.ball.y = hy + (C.HEAD_R + C.BALL_R) * 0.7;      // ny ≈ 0.7, well past DEADEN_ZONE
   m.ball.vx = -600; m.ball.vy = 0;
   step(m, NONE);
-  ok('the body deadens the ball', Math.abs(m.ball.vx) < 200, `vx=${m.ball.vx.toFixed(0)} (was -600)`);
+  ok('low contact deadens the ball', Math.abs(m.ball.vx) < 200, `vx=${m.ball.vx.toFixed(0)} (was -600)`);
   ok('and it does not fly back', m.ball.vx > -200);
+}
+{
+  // …but the top of the head still bounces, or heading stops being a tool.
+  const m = fresh();
+  const p = m.players[0];
+  m.ball.x = p.x; m.ball.y = headY(p) - C.HEAD_R - C.BALL_R + 3; m.ball.vy = 400;
+  step(m, NONE);
+  ok('the crown of the head still bounces', m.ball.vy < -100, `vy=${m.ball.vy.toFixed(0)}`);
 }
 
 // --- tackling ---------------------------------------------------------------

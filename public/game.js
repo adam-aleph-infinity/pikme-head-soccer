@@ -598,7 +598,11 @@ function drawStadium(g) {
   const gy = C.GROUND_Y;
   // Bands are fractions of the ground line, so dragging GROUND_Y in the tuner doesn't
   // leave the crowd floating in space.
-  const standTop = gy * 0.08, standBot = gy * 0.50, wallBot = gy * 0.88;
+  // The hoardings sit behind the players' HEADS with clear grass below, as in the real
+  // game. Running them down to the ground line made the characters look like they were
+  // standing on the advertising boards rather than on the pitch.
+  const standTop = gy * 0.08, standBot = gy * 0.46;
+  const ledTop = gy * 0.63, ledBot = gy * 0.77;
 
   const sky = g.createLinearGradient(0, 0, 0, gy);
   sky.addColorStop(0, '#070c1c');
@@ -638,9 +642,10 @@ function drawStadium(g) {
   }
   g.globalAlpha = 1;
 
-  // stand front / barrier
+  // stand front / barrier — all the way down to the grass, so the players are silhouetted
+  // against a wall rather than floating over a gap.
   g.fillStyle = '#070b16';
-  g.fillRect(0, standBot, C.W, wallBot - standBot);
+  g.fillRect(0, standBot, C.W, gy - standBot);
   g.strokeStyle = '#ffffff14';
   g.lineWidth = 2;
   g.beginPath();
@@ -652,14 +657,15 @@ function drawStadium(g) {
   g.fillStyle = '#fff';
   g.textAlign = 'center';
   g.textBaseline = 'middle';
-  g.font = `900 ${Math.round((wallBot - standBot) * 0.8)}px -apple-system, Arial`;
-  g.fillText('SALTIZ', C.W / 2, (standBot + wallBot) / 2);
+  g.font = `900 ${Math.round((gy - standBot) * 0.6)}px -apple-system, Arial`;
+  g.fillText('SALTIZ', C.W / 2, (standBot + gy) / 2);
   g.restore();
 
   // LED hoardings running the touchline
-  const ledH = gy - wallBot;
+  const ledH = ledBot - ledTop;
+  const wallBot = ledTop;
   g.fillStyle = '#0a1224';
-  g.fillRect(C.GOAL_W, wallBot, C.W - C.GOAL_W * 2, ledH);
+  g.fillRect(C.GOAL_W, ledTop, C.W - C.GOAL_W * 2, ledH);
   const scroll = (t * 90) % 240;
   g.save();
   // Only BETWEEN the goals: advertising hoardings run along the touchline, and letting them

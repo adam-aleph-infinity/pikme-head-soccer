@@ -14,8 +14,10 @@ export const CEIL_Y = 30;             // invisible ceiling the ball bounces off
 export const TICK = 1 / 60;           // sim step (fixed)
 
 // ---- Goals -----------------------------------------------------------------
-export let GOAL_W = 84;              // depth of the goal mouth
-export let GOAL_H = 170;             // mouth height, ~1.2x a standing player (138).
+export let GOAL_W = 52;              // depth. Measured ratio depth:height is 0.28; this was 0.49.
+export let GOAL_H = 180;             // 1.96x the 92px player — the real game measures 2.04x. Also swept:
+                                      // 160 -> 4.7 goals and 7:4, 180 -> 4.9 and 9:2, 200 -> 8.5 and 8:3.
+                                      // 180 is both the closest to the reference AND the best gradient.
                                       // Swept against bot-vs-bot outcomes: at 146 the game gave
                                       // 2.6 goals a match and the legendary bot LOST 4-6 to the
                                       // very-easy one — too few goals for skill to show. At 170 it
@@ -25,7 +27,7 @@ export let GOAL_H = 170;             // mouth height, ~1.2x a standing player (1
 export const POST_R = 5;              // crossbar radius (ball bounces off it)
 
 // ---- Ball ------------------------------------------------------------------
-export const BALL_R = 15;
+export const BALL_R = 13;
 export let BALL_GRAV = 1180;
 export let BALL_AIR = 0.9955;       // per-tick horizontal air drag
 export let BALL_GROUND_FRICTION = 0.988;
@@ -38,9 +40,14 @@ export const BALL_SPIN_DECAY = 0.985;
 // The single most important ratio in the whole game: PLAYER_SPEED vs how fast a struck
 // ball crosses the pitch. At 3-4x the bot could never recover and matches finished 15-12;
 // keeping the ball to roughly 2x a running player is what makes defending possible at all.
-export let HEAD_R = 46;             // the big head — the primary ball collider
-export const BODY_W = 40;
-export const BODY_H = 54;             // torso+legs box that sits under the head
+export let HEAD_R = 40;              // Their head is ~6.7% of pitch width; a strict match would be 32.
+                                      // Held at 40 on purpose: the head is a SALTIZ card face, and the
+                                      // whole hook stops working when you cannot tell who it is.
+export const BODY_W = 36;
+export const BODY_H = 20;             // torso+legs. MEASURED off a real Head Soccer gameplay shot:
+                                      // their characters are ~80% head, head:body about 3.9:1, and a
+                                      // stubby body under a big head IS the silhouette. This was 54,
+                                      // which read as an ordinary chibi rather than a head-with-legs.
 export let PLAYER_GRAV = 2300;
 export let PLAYER_SPEED = 430;
 export let PLAYER_ACCEL = 3400;     // ground responsiveness
@@ -59,8 +66,8 @@ export const DASH_COOLDOWN = 0.55;
 // ---- Kick ------------------------------------------------------------------
 export let KICK_TIME = 0.20;        // s the leg stays out
 export const KICK_COOLDOWN = 0.26;
-export let KICK_REACH = 62;         // from body centre, in the facing direction
-export let KICK_R = 26;             // kick hitbox radius
+export let KICK_REACH = 48;          // from body centre. Scaled with the smaller body (was 62/48 wide).
+export let KICK_R = 22;              // kick hitbox radius
 export let KICK_POWER = 640;
 export let KICK_LIFT = 620;         // upward component — deliberately > half of KICK_POWER, so a
                                       // clean kick LOBS. Flat rockets made every clearance a goal.
@@ -69,6 +76,9 @@ export let LOB_DRIVE = 0.62;
 // Body contact KILLS the ball's pace (Adam: 'if it dosnt kick, the ball kinda stops and
 // rolles'). The head still bounces — that is the aerial tool — but your torso deadens.
 export let BODY_DEADEN = 0.18;
+// Where the header ends and the chest begins, as the vertical component of the contact
+// normal. 0.35 puts the split a bit below the head's equator.
+export let DEADEN_ZONE = 0.35;
 export let HEAD_POWER = 1.14;       // head hits multiply the bounce-out speed
 
 // ---- Jump feel -------------------------------------------------------------
@@ -142,6 +152,7 @@ export const BALL_SPAWN = { x: W / 2, y: 120 };
 // between restarts. These are `let` so the debug panel can move them mid-match; `import *`
 // gives every module a live binding, so a slider change lands on the very next tick.
 const SETTERS = {
+  DEADEN_ZONE: (v) => { DEADEN_ZONE = v; },
   BODY_DEADEN: (v) => { BODY_DEADEN = v; },
   LOB_LIFT: (v) => { LOB_LIFT = v; },
   LOB_DRIVE: (v) => { LOB_DRIVE = v; },
@@ -203,6 +214,7 @@ export function tune(patch) {
 
 export function snapshot() {
   return {
+    DEADEN_ZONE,
     BODY_DEADEN,
     LOB_LIFT,
     LOB_DRIVE,
