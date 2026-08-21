@@ -7,6 +7,7 @@ import { createBot, botInput, DIFFICULTIES } from '../shared/bot.js';
 import { shotFor, SHOTS } from '../shared/powershots.js';
 import { createNet } from './net.js';
 import { playEvent, SFX, setAudioEnabled, audioEnabled } from './audio.js';
+import { STAGES, randomStage, stageById } from './stages.js';
 
 const CARD_ART = 'https://pxsjmychuxwufcvqixgu.supabase.co/storage/v1/object/public/cards';
 const RARITIES = ['legendary', 'epic', 'rare', 'common'];
@@ -316,6 +317,7 @@ function stepParts(dt) {
 // ═══════════════════════════════════════════════════════════════════════════
 let ONLINE = false;
 let NET = null;
+let PIN_STAGE = null;
 
 const shareLink = (code) => `${location.origin}/?room=${code}`;
 
@@ -390,6 +392,7 @@ function renderLobby(room) {
 
 function startOnlineMatch(msg) {
   ONLINE = true;
+  STAGE = PIN_STAGE || randomStage();
   M = NET.match;
   parts.length = 0;
   last = performance.now();
@@ -432,6 +435,7 @@ let M = null, BOT = null, raf = 0, acc = 0, last = 0, running = false;
 
 function startMatch() {
   ONLINE = false;
+  STAGE = PIN_STAGE || randomStage();
   M = createMatch(pick.me, pick.foe, {});
   BOT = createBot(pick.level);
   parts.length = 0;
@@ -508,13 +512,19 @@ function drainEvents() {
     }
     else if (e.type === 'armed') banner(SHOTS[e.shot].name, SHOTS[e.shot].color);
     else if (e.type === 'ballReset') banner('כדור חדש', '#8ea0be');
-    else if (e.type === 'powershot') banner(SHOTS[e.shot].name, SHOTS[e.shot].color);
+    else if (e.type === 'powershot') { banner(SHOTS[e.shot].name, SHOTS[e.shot].color); flash(SHOTS[e.shot].glow, 0.22); }
+    else if (e.type === 'blocked') flash('#ffffff', 0.16);
     else if (e.type === 'golden') banner('מוות פתאומי', '#ffb800');
     else if (e.type === 'fulltime') { playEvent(e.winner === (ONLINE ? NET.you : 0) ? 'win' : 'lose'); endMatch(); }
     else if (e.type === 'ballReset') playEvent('reset');
   }
   M.events.length = 0;
 }
+
+// A full-screen flash on a special. Two frames of white is most of what sells an impact in
+// a fighting game, and it costs nothing.
+let flashT = 0, flashCol = '#fff', flashLife = 0.2;
+function flash(col, life) { flashT = life; flashLife = life; flashCol = col; }
 
 // ---- loop ------------------------------------------------------------------
 function frame(now) {
@@ -547,6 +557,7 @@ function frame(now) {
   }
   stepParts(dt);
   if (bannerT > 0) bannerT -= dt;
+  if (flashT > 0) flashT -= dt;
   draw();
   syncHud();
 }
@@ -578,7 +589,7 @@ function resize() {
   ctx.setTransform(1 / PIXEL, 0, 0, 1 / PIXEL, 0, 0);   // draw in WORLD units, land on texels
   ctx.imageSmoothingEnabled = false;
   if (!crowd.length) {
-    for (let i = 0; i < 260; i++) {
+    for (let i = 0; i < 520; i++) {
       crowd.push({ x: Math.random() * C.W, f: Math.random(), r: 4 + Math.random() * 5,
         c: `hsl(${Math.random() * 360} 45% ${26 + Math.random() * 26}%)`, ph: Math.random() * 6.28 });
     }
@@ -600,11 +611,19 @@ function draw() {
   drawStadium(g);
   drawGoal(g, true);
   drawGoal(g, false);
+  for (const p of M.players) drawAura(g, p);
   for (const p of M.players) drawBody(g, p);
   drawParts(g, false);
   drawBall(g, M.ball);
   drawParts(g, true);
   if (shake > 0) g.restore();
+  if (flashT > 0) {
+    g.save();
+    g.globalAlpha = (flashT / flashLife) * 0.75;
+    g.fillStyle = flashCol;
+    g.fillRect(0, 0, C.W, C.H);
+    g.restore();
+  }
   drawHeads();
   if (M.freeze > 0 && M.phase !== 'over') drawReady(g);
 }
@@ -612,117 +631,50 @@ function draw() {
 // SF2 stages are warm, saturated and built from hard bands — no gradients anywhere, and a
 // dense pixel crowd behind a railing. The night-blue stadium this replaced was atmospheric
 // but soft, which is the opposite of the look.
+// A stage per match, drawn by public/stages.js. Everything from the hoardings down —
+// boards, wall, grass, goals, players — stays here, because that furniture is the same
+// wherever you are playing; only sky, horizon and crowd change.
+let STAGE = randomStage();
+
 function drawStadium(g) {
   const t = performance.now() / 1000;
   const gy = C.GROUND_Y;
-  // Bands as fractions of the ground line, measured off a real kickoff screenshot:
-  // sky 0-25%, stands 25-68%, hoardings 69-78%, grass below.
+  // Bands measured off a real kickoff screenshot: stands 25-68% of screen height,
+  // hoardings 69-78%, grass below.
   const standTop = gy * 0.30, standBot = gy * 0.81;
   const ledTop = gy * 0.82, ledBot = gy * 0.93;
 
-  // sky — flat bands, not a gradient
-  const sky = ['#ffd98a', '#ffb85c', '#ff9440'];
-  for (let i = 0; i < sky.length; i++) {
-    g.fillStyle = sky[i];
-    g.fillRect(0, (standTop / sky.length) * i, C.W, standTop / sky.length + 1);
-  }
+  // The stage owns everything down to the wall, with its crowd band at the BOTTOM of its
+  // own art. Handing it only the strip above standTop squeezed each backdrop into ~25% of
+  // the frame and left a big flat crowd block underneath — the opposite of SF2, where the
+  // backdrop IS most of what you see.
+  STAGE.draw(g, {
+    W: C.W, t, crowd,
+    horizon: gy * 0.60,
+    crowdTop: gy * 0.61,
+    crowdBot: standBot - 8,
+    gy,
+  });
 
-  // floodlight rigs on masts
-  for (let i = 0; i < 4; i++) {
-    const x = Math.round(C.W * (0.14 + i * 0.24));
-    g.fillStyle = '#4a3a2a';
-    g.fillRect(x - 2, 0, 4, standTop - 6);
-    g.fillStyle = OUTLINE;
-    g.fillRect(x - 26, standTop - 16, 52, 12);
-    g.fillStyle = '#fff6c8';
-    for (let l = 0; l < 4; l++) g.fillRect(x - 22 + l * 12, standTop - 14, 8, 8);
-  }
+  // railing across the front of the crowd, common to every stage
+  R2(g, 0, standBot - 6, C.W, 6, OUTLINE);
+  R2(g, 0, standBot - 5, C.W, 2, '#c9c9d2');
 
-  // Distant hills, then the SF2 stage furniture: two stone guardians flanking the pitch and
-  // a run of hanging banners. SF2 stages are memorable because of their PROPS — the temple
-  // statues, the marching soldiers, the market stalls — not because of the backdrop colour.
-  g.fillStyle = '#a85c2e';
-  for (let i = 0; i < 7; i++) {
-    const hx = i * 160 - 40, hw = 190, hh = 42 + (i % 3) * 16;
-    g.beginPath();
-    g.moveTo(hx, standTop);
-    g.lineTo(hx + hw / 2, standTop - hh);
-    g.lineTo(hx + hw, standTop);
-    g.closePath();
-    g.fill();
-  }
-
-  // birds, because an SF2 sky is never empty
-  for (let i = 0; i < 5; i++) {
-    const bx = ((t * (16 + i * 5) + i * 260) % (C.W + 80)) - 40;
-    const by = 24 + i * 13 + Math.sin(t * 2 + i) * 5;
-    const flap = Math.sin(t * 9 + i) > 0 ? 3 : -2;
-    g.fillStyle = '#5a3a20';
-    g.fillRect(bx, by, 4, 2);
-    g.fillRect(bx - 4, by + flap, 4, 2);
-    g.fillRect(bx + 4, by + flap, 4, 2);
-  }
-
-  // stands: a dark block, a railing, then a dense pixel crowd
-  g.fillStyle = '#6b3f2a';
-  g.fillRect(0, standTop, C.W, standBot - standTop);
-  g.fillStyle = '#8a5436';
-  for (let y = standTop; y < standBot; y += 26) g.fillRect(0, y, C.W, 3);
-  for (const c of crowd) {
-    const y = standTop + 6 + c.f * (standBot - standTop - 12);
-    const bob = Math.sin(t * 3 + c.ph) > 0 ? 0 : 2;
-    g.fillStyle = OUTLINE;
-    g.fillRect(Math.round(c.x) - 1, Math.round(y + bob) - 1, 6, 8);
-    g.fillStyle = c.c;
-    g.fillRect(Math.round(c.x), Math.round(y + bob) + 2, 4, 4);
-    g.fillStyle = '#f0b48a';
-    g.fillRect(Math.round(c.x), Math.round(y + bob), 4, 3);
-  }
-  // Props go in FRONT of the crowd — drawn before it, the stands fill painted straight
-  // over them and nothing showed.
-  drawGuardian(g, 108, standTop, standBot);
-  drawGuardian(g, C.W - 108, standTop, standBot);
-
-  // hanging banners strung between the floodlight masts
-  for (let i = 0; i < 9; i++) {
-    const bx = 60 + i * 108;
-    const sway = Math.sin(t * 1.4 + i) * 3;
-    const bh2 = 34 + (i % 2) * 10;
-    g.fillStyle = OUTLINE;
-    g.fillRect(bx - 12, standTop + 4, 24, bh2 + 2);
-    g.fillStyle = i % 2 ? '#c81e37' : '#1b3f8a';
-    g.fillRect(bx - 10 + sway * 0.2, standTop + 6, 20, bh2);
-    g.fillStyle = '#ffd23c';
-    g.fillRect(bx - 6 + sway * 0.2, standTop + 12, 12, 4);
-    g.fillRect(bx - 6 + sway * 0.2, standTop + 22, 12, 4);
-  }
-
-
-  // railing in front of the crowd
-  g.fillStyle = OUTLINE;
-  g.fillRect(0, standBot - 6, C.W, 6);
-  g.fillStyle = '#c9c9d2';
-  g.fillRect(0, standBot - 5, C.W, 2);
-
-  // Perimeter wall from the railing down to the grass. Without it there was an undrawn
-  // strip exactly where the players stand, so they appeared to be floating in a dark gap.
-  g.fillStyle = '#2b1d3f';
-  g.fillRect(0, standBot, C.W, gy - standBot);
-  g.fillStyle = '#3b2a55';
-  for (let x = 0; x < C.W; x += 34) g.fillRect(x, standBot, 2, gy - standBot);
+  // perimeter wall down to the grass, tinted to the stage
+  R2(g, 0, standBot, C.W, gy - standBot, STAGE.wall);
+  g.globalAlpha = .25;
+  for (let x = 0; x < C.W; x += 34) R2(g, x, standBot, 2, gy - standBot, '#ffffff');
+  g.globalAlpha = 1;
 
   // hoardings
   const ledH = ledBot - ledTop;
-  g.fillStyle = OUTLINE;
-  g.fillRect(C.GOAL_W, ledTop - 2, C.W - C.GOAL_W * 2, ledH + 4);
+  R2(g, C.GOAL_W, ledTop - 2, C.W - C.GOAL_W * 2, ledH + 4, OUTLINE);
   const scroll = Math.round((t * 60) % 240);
   g.save();
   g.beginPath(); g.rect(C.GOAL_W, ledTop, C.W - C.GOAL_W * 2, ledH); g.clip();
   for (let x = -240; x < C.W + 240; x += 240) {
-    g.fillStyle = '#1b3f8a';
-    g.fillRect(x + scroll, ledTop, 118, ledH);
-    g.fillStyle = '#c81e37';
-    g.fillRect(x + scroll + 120, ledTop, 118, ledH);
+    R2(g, x + scroll, ledTop, 118, ledH, '#1b3f8a');
+    R2(g, x + scroll + 120, ledTop, 118, ledH, '#c81e37');
     g.fillStyle = '#ffd23c';
     g.textAlign = 'center'; g.textBaseline = 'middle';
     g.font = `900 ${Math.round(ledH * 0.62)}px -apple-system, Arial`;
@@ -731,22 +683,20 @@ function drawStadium(g) {
   }
   g.restore();
 
-  // pitch — flat mown stripes, a hard white line, no gradient
-  g.fillStyle = '#2f9e3e';
-  g.fillRect(0, gy, C.W, C.H - gy);
-  g.fillStyle = '#3cb84a';
-  for (let x = 0; x < C.W; x += 80) g.fillRect(x, gy, 40, C.H - gy);
-  g.fillStyle = OUTLINE;
-  g.fillRect(0, gy - 3, C.W, 3);
-  g.fillStyle = '#eaffea';
-  g.fillRect(0, gy, C.W, 2);
-  g.fillRect(C.W / 2 - 1, gy, 2, C.H - gy);
+  // pitch — flat mown stripes in the stage's own greens
+  R2(g, 0, gy, C.W, C.H - gy, STAGE.grass[0]);
+  for (let x = 0; x < C.W; x += 80) R2(g, x, gy, 40, C.H - gy, STAGE.grass[1]);
+  R2(g, 0, gy - 3, C.W, 3, OUTLINE);
+  R2(g, 0, gy, C.W, 2, '#eaffea');
+  R2(g, C.W / 2 - 1, gy, 2, C.H - gy, '#eaffea');
   g.strokeStyle = '#eaffeaaa';
   g.lineWidth = 2;
   g.beginPath();
   g.ellipse(C.W / 2, gy, 68, (C.H - gy) * 0.5, 0, 0, Math.PI);
   g.stroke();
 }
+
+const R2 = (g, x, y, w, h, c) => { g.fillStyle = c; g.fillRect(Math.round(x), Math.round(y), Math.round(w), Math.round(h)); };
 
 // A stone guardian, the way Sagat's temple stage frames its pitch. Blocky, three flat
 // stone tones, black keyline — same rules as the fighters, so it sits in the same world.
@@ -905,6 +855,36 @@ function roundRect(g, x, y, w, h, r) {
   g.closePath();
 }
 
+// Charging aura. SF2 tells you a special is coming before it lands — the character flashes
+// and the air around them moves. Without that tell, POWER MODE is invisible to the opponent
+// and there is nothing to react to.
+function drawAura(g, p) {
+  if (p.armed <= 0) return;
+  const t = performance.now() / 1000;
+  const col = p.shot.color;
+  const hy = headY(p);
+  g.save();
+  for (let i = 0; i < 3; i++) {
+    const ph = (t * 1.6 + i / 3) % 1;
+    g.globalAlpha = (1 - ph) * 0.55;
+    g.strokeStyle = col;
+    g.lineWidth = 3;
+    g.beginPath();
+    g.ellipse(p.x, (hy + p.y) / 2, C.HEAD_R * (0.6 + ph * 1.5), C.BODY_H * 1.6 * (0.6 + ph * 1.2), 0, 0, 6.2832);
+    g.stroke();
+  }
+  // sparks rising off the shoulders
+  g.globalAlpha = 1;
+  for (let i = 0; i < 6; i++) {
+    const ph = (t * 2.4 + i / 6) % 1;
+    const sx = p.x + Math.sin(i * 2.1 + t * 3) * C.HEAD_R * 0.9;
+    const sy = p.y - ph * (C.BODY_H + C.HEAD_R * 2.2);
+    g.fillStyle = i % 2 ? col : '#ffffff';
+    g.fillRect(Math.round(sx), Math.round(sy), 3, 5);
+  }
+  g.restore();
+}
+
 function drawBall(g, b) {
   g.save();
   g.globalAlpha = .3;
@@ -921,7 +901,29 @@ function drawBall(g, b) {
     g.shadowColor = b.power.glow;
     g.shadowBlur = 26;
   }
-  g.fillStyle = b.power ? b.power.color : '#f6f9ff';
+  if (b.power) {
+    // A fireball, not a coloured football: white-hot core, a saturated shell, and a spinning
+    // ring — the three layers every SF2 projectile is built from.
+    const t = performance.now() / 1000;
+    const sp = b.r * 2.6;
+    g.globalAlpha = .35;
+    g.fillStyle = b.power.glow;
+    g.beginPath(); g.ellipse(0, 0, sp * 1.5, sp * 0.75, 0, 0, 6.2832); g.fill();
+    g.globalAlpha = 1;
+    g.fillStyle = b.power.color;
+    g.beginPath(); g.ellipse(0, 0, sp, sp * 0.8, 0, 0, 6.2832); g.fill();
+    g.fillStyle = b.power.glow;
+    g.beginPath(); g.ellipse(0, 0, sp * 0.62, sp * 0.5, 0, 0, 6.2832); g.fill();
+    g.fillStyle = '#ffffff';
+    g.beginPath(); g.ellipse(0, 0, sp * 0.3, sp * 0.26, 0, 0, 6.2832); g.fill();
+    g.strokeStyle = '#ffffffcc';
+    g.lineWidth = 2;
+    g.beginPath(); g.ellipse(0, 0, sp * 1.05, sp * 0.34, t * 9, 0, 6.2832); g.stroke();
+    g.shadowBlur = 0;
+    g.restore();
+    return;
+  }
+  g.fillStyle = '#f6f9ff';
   g.beginPath(); g.arc(0, 0, b.r, 0, 6.2832); g.fill();
   g.shadowBlur = 0;
   g.fillStyle = b.power ? '#ffffffcc' : '#1b2436';
@@ -1165,6 +1167,8 @@ $('#tunerCopy').onclick = async () => {
   renderGrid();
   buildTuner();
   if (q.has('solo')) window.BOT_OFF = true;
+  // ?stage=japan|harbor|china|airbase|jungle|temple|factory pins one, for screenshots.
+  if (q.has('stage')) PIN_STAGE = stageById(q.get('stage'));
   if (q.has('room')) {
     // A share link is an invite: land straight in the lobby, pre-joined.
     const code = String(q.get('room')).trim().toUpperCase().slice(0, 4);

@@ -201,6 +201,21 @@ server.js              static host + ws host + one 60Hz loop over all rooms
 The `shared/` split is what made online cheap: the server and the client run the identical
 sim, which is the precondition for rollback.
 
+## Stages
+
+Seven Street Fighter II locales in [`public/stages.js`](public/stages.js), one picked at
+random per match: a moonlit castle, a dockyard, a market street, an air base, the Amazon,
+a temple, a steel mill. `?stage=japan|harbor|china|airbase|jungle|temple|factory` pins one.
+
+**None of Capcom's art is copied** — what is borrowed is the stage-design *language*, which
+is the part that actually matters: a strong silhouette on the horizon, one big readable
+landmark, a band of onlookers, and two or three props that move. That is why an SF2 stage is
+recognisable from a thumbnail, and it reproduces fine without touching their pixels.
+
+A stage owns sky → horizon → crowd; the hoardings, wall, grass, goals and players are drawn
+over it, because that furniture is the same wherever you play. Each stage also supplies its
+own grass and wall tints so the pitch belongs to the place.
+
 ## The tuner ⚙
 
 Tap the gear in-match for live sliders over all 28 gameplay constants — speed, kick power,
