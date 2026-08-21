@@ -2,10 +2,11 @@
 // Everything that decides the game lives in /shared; this file only draws it and reads keys.
 
 import * as C from '../shared/constants.js';
-import { createMatch, step, headY, NO_FX } from '../shared/sim.js';
+import { createMatch, step, headY, headR, NO_FX } from '../shared/sim.js';
 import { createBot, botInput, DIFFICULTIES } from '../shared/bot.js';
 import { shotFor, SHOTS } from '../shared/powershots.js';
 import { activeMeteors, isRobot, robotCharging, actKind, ACT } from '../shared/spectacle.js';
+import { activePickup, puBadges, PU, PU_NAME, PU_COLOR, PU_LABEL } from '../shared/powerups.js';
 import { createNet } from './net.js';
 import { playEvent, SFX, setAudioEnabled, audioEnabled } from './audio.js';
 import { STAGES, randomStage, stageById } from './stages.js';
@@ -14,8 +15,12 @@ import { DIRECTIONS } from './art-directions.js';
 // The eleven backdrops a match can roll: the seven Street Fighter II homages plus the four
 // original directions. DIRECTIONS uses the identical { id, name, grass, wall, draw(g, s) }
 // contract STAGES does, which is why this is a concat and not an adapter.
-const POOL = [...STAGES, ...DIRECTIONS];
-const pickStage = () => POOL[Math.floor(Math.random() * POOL.length)];
+const POOL = [...DIRECTIONS, ...STAGES];
+// A match only ever rolls one of the four ORIGINAL directions. Putting all eleven in the
+// hat meant 7-in-11 matches served a Street Fighter homage and the new art looked like it
+// had vanished — which is exactly how it was reported. The seven are superseded, not
+// deleted: every one is still reachable by ?stage=<id>.
+const pickStage = () => DIRECTIONS[Math.floor(Math.random() * DIRECTIONS.length)];
 const findStage = (id) => POOL.find((x) => x.id === id) || null;
 
 const CARD_ART = 'https://pxsjmychuxwufcvqixgu.supabase.co/storage/v1/object/public/cards';
@@ -535,6 +540,18 @@ function drainEvents() {
     else if (e.type === 'robotCharge') banner('רובוט!', e.player === 0 ? '#6cf0ff' : '#ffd24a');
     else if (e.type === 'robotOn') flash(e.player === 0 ? '#6cf0ff' : '#ffd24a', 0.2);
     else if (e.type === 'meteorHit') { fx.crater(e.x); flash('#ffb070', 0.09); }
+    // ---- power-ups ----
+    // No banner for the telegraph, for the same reason the meteor has none per rock: a line
+    // of Hebrew over the pitch at the exact moment you need to see WHERE the thing is.
+    // The token, its ring and its sound are the announcement. The banner is for the payoff.
+    else if (e.type === 'puTake') {
+      // The sim's event name is `puTake` for everything; the SOUND is per item, because
+      // knowing what you just grabbed without reading is most of what makes it feel good.
+      playEvent('pu' + e.name[0].toUpperCase() + e.name.slice(1));
+      banner(PU_LABEL[e.kind] + '!', PU_COLOR[e.kind]);
+      flash(PU_COLOR[e.kind], 0.12);
+    }
+    else if (e.type === 'puShieldBreak') banner('המגן ספג!', PU_COLOR[PU.SHIELD]);
     else if (e.type === 'golden') banner('מוות פתאומי', '#ffb800');
     else if (e.type === 'fulltime') { playEvent(e.winner === (ONLINE ? NET.you : 0) ? 'win' : 'lose'); endMatch(); }
     else if (e.type === 'ballReset') playEvent('reset');
@@ -660,6 +677,8 @@ function draw() {
   drawMeteorMarks(g);                // on the grass, under the players
   for (const p of M.players) drawAura(g, p);
   for (const p of M.players) drawBody(g, p);
+  drawPickup(g);                     // in front of the bodies — it must never be hidden
+  drawPuBadges(g);                   // and above the heads, clear of the DOM head layer
   drawParts(g, false);
   drawBall(g, M.ball);
   drawParts(g, true);
@@ -1009,6 +1028,191 @@ function drawWind(g) {
   g.restore();
 }
 
+// ═══ POWER-UPS ═════════════════════════════════════════════════════════════
+// A pickup has to be readable from a glance at a phone held at arm's length, at half
+// resolution, over eleven different backdrops. That budget buys three things and no more:
+// ONE saturated colour, ONE white glyph, and a black keyline thick enough to survive any
+// stage behind it. Everything else — the bob, the ring, the sparkle — is motion, which is
+// what makes you look at it in the first place but is never what tells you what it is.
+//
+// The glyphs are deliberately drawn from the crudest possible primitives (a circle, a bar,
+// a triangle) because at 22 texels across, detail is noise. Each one is a different
+// SILHOUETTE, not a different picture: bullseye, horseshoe, bolt, shield, arrow, asterisk.
+// Squint at them in greyscale and you can still tell them apart, which is the actual test.
+
+const puPoly = (g, pts) => {
+  g.beginPath();
+  g.moveTo(pts[0][0], pts[0][1]);
+  for (let i = 1; i < pts.length; i++) g.lineTo(pts[i][0], pts[i][1]);
+  g.closePath();
+  g.fill();
+};
+
+// The white mark inside the disc. `s` is the glyph half-box; everything scales off it, so
+// the same code draws the crate on the pitch and the little badge over a head.
+function drawPuGlyph(g, kind, s) {
+  g.fillStyle = '#ffffff';
+  g.strokeStyle = '#ffffff';
+  g.lineCap = 'butt';
+
+  if (kind === PU.GROW) {
+    // Bullseye: a head, and a ring growing off it.
+    g.beginPath(); g.arc(0, 0, s * 0.34, 0, 6.2832); g.fill();
+    g.lineWidth = Math.max(2, s * 0.24);
+    g.beginPath(); g.arc(0, 0, s * 0.86, 0, 6.2832); g.stroke();
+  } else if (kind === PU.MAGNET) {
+    // Horseshoe: a fat half-ring with two legs hanging off it.
+    g.lineWidth = Math.max(3, s * 0.42);
+    g.beginPath(); g.arc(0, s * 0.06, s * 0.66, Math.PI, 0); g.stroke();
+    const lw = Math.max(3, s * 0.42);
+    g.fillRect(Math.round(-s * 0.66 - lw / 2), Math.round(s * 0.06), Math.round(lw), Math.round(s * 0.78));
+    g.fillRect(Math.round(s * 0.66 - lw / 2), Math.round(s * 0.06), Math.round(lw), Math.round(s * 0.78));
+  } else if (kind === PU.CHARGE) {
+    // Lightning bolt. The one glyph everybody on earth already knows.
+    puPoly(g, [[s * 0.30, -s], [-s * 0.62, s * 0.14], [-s * 0.06, s * 0.14],
+               [-s * 0.34, s], [s * 0.62, -s * 0.18], [s * 0.04, -s * 0.18]]);
+  } else if (kind === PU.SHIELD) {
+    // Shield: square shoulders, a point at the bottom.
+    puPoly(g, [[-s * 0.72, -s * 0.78], [s * 0.72, -s * 0.78], [s * 0.72, s * 0.16],
+               [0, s * 0.92], [-s * 0.72, s * 0.16]]);
+  } else if (kind === PU.SPRING) {
+    // Up-arrow standing on a launch pad.
+    puPoly(g, [[0, -s * 0.95], [s * 0.78, -s * 0.06], [s * 0.30, -s * 0.06],
+               [s * 0.30, s * 0.42], [-s * 0.30, s * 0.42], [-s * 0.30, -s * 0.06],
+               [-s * 0.78, -s * 0.06]]);
+    g.fillRect(Math.round(-s * 0.8), Math.round(s * 0.6), Math.round(s * 1.6), Math.max(2, Math.round(s * 0.26)));
+  } else if (kind === PU.ICE) {
+    // Snowflake — three bars through the centre. Degrades into an asterisk, which is still
+    // nothing else in this set.
+    g.lineWidth = Math.max(2, s * 0.26);
+    for (let i = 0; i < 3; i++) {
+      const a = i * Math.PI / 3;
+      g.beginPath();
+      g.moveTo(-Math.cos(a) * s * 0.95, -Math.sin(a) * s * 0.95);
+      g.lineTo(Math.cos(a) * s * 0.95, Math.sin(a) * s * 0.95);
+      g.stroke();
+    }
+  }
+}
+
+// The whole token: keyline, colour disc, a hard shadow across the bottom (no gradients
+// anywhere — SF2 shades with a second flat tone), a specular chip, then the glyph.
+function drawPuToken(g, kind, cx, cy, r, alpha = 1) {
+  const col = PU_COLOR[kind];
+  g.save();
+  g.globalAlpha = alpha;
+  g.translate(Math.round(cx), Math.round(cy));
+
+  g.fillStyle = OUTLINE;
+  g.beginPath(); g.arc(0, 0, r + 3, 0, 6.2832); g.fill();
+  g.fillStyle = col;
+  g.beginPath(); g.arc(0, 0, r, 0, 6.2832); g.fill();
+  // lower-right shading, clipped to the disc
+  g.save();
+  g.beginPath(); g.arc(0, 0, r, 0, 6.2832); g.clip();
+  g.globalAlpha = alpha * 0.28;
+  g.fillStyle = OUTLINE;
+  g.fillRect(-r, Math.round(r * 0.34), r * 2, r);
+  g.restore();
+  // specular chip, top left
+  g.globalAlpha = alpha * 0.75;
+  g.fillStyle = '#ffffff';
+  g.fillRect(Math.round(-r * 0.62), Math.round(-r * 0.72), Math.round(r * 0.3), Math.round(r * 0.16));
+  g.globalAlpha = alpha;
+
+  drawPuGlyph(g, kind, r * 0.60);
+  g.restore();
+}
+
+// The crate on the pitch. Two states, and they have to be unmistakably different: a GHOST
+// with a ring closing onto it (you cannot have this yet) and a SOLID one that bobs (go).
+function drawPickup(g) {
+  const pk = activePickup(M);
+  if (!pk) return;
+  const t = performance.now() / 1000;
+  const r = C.PICKUP_R;
+
+  // The spot on the grass it belongs to, so its x is never a guess — the same job the
+  // meteor's marker does, at a third of the volume, because this one is an invitation.
+  g.save();
+  g.globalAlpha = pk.live ? 0.5 : 0.28 + 0.4 * pk.f;
+  g.strokeStyle = pk.color;
+  g.lineWidth = 3;
+  g.beginPath(); g.ellipse(pk.x, C.GROUND_Y + 12, r * 0.9, r * 0.24, 0, 0, 6.2832); g.stroke();
+  g.globalAlpha = 0.3;
+  g.fillStyle = '#000';
+  g.beginPath(); g.ellipse(pk.x, C.GROUND_Y + 12, r * 0.62, r * 0.17, 0, 0, 6.2832); g.fill();
+  g.restore();
+
+  if (!pk.live) {
+    // TELEGRAPH. Faded, undersized, with a ring shrinking onto it — the countdown you can
+    // read without reading anything.
+    const grow = 0.62 + 0.38 * pk.f;
+    drawPuToken(g, pk.kind, pk.x, pk.y, r * grow, 0.30 + 0.45 * pk.f);
+    g.save();
+    g.globalAlpha = 0.5 + 0.5 * Math.sin(t * 12);
+    g.strokeStyle = '#ffffff';
+    g.lineWidth = 3;
+    const rr = r * (1 + 1.7 * (1 - pk.f));
+    g.beginPath(); g.arc(pk.x, pk.y, rr, 0, 6.2832); g.stroke();
+    g.restore();
+    return;
+  }
+
+  // LIVE. Bobbing, haloed, and flashing once it is nearly gone — an item about to expire
+  // has to say so, or it just vanishes and the race you were running was for nothing.
+  const bob = Math.sin(t * 3.4) * 4;
+  const dying = pk.lifeFrac < 0.34;
+  const blink = dying ? (Math.sin(t * (10 + (1 - pk.lifeFrac) * 26)) > -0.2 ? 1 : 0.28) : 1;
+
+  g.save();
+  g.globalAlpha = 0.22 * blink;
+  g.fillStyle = pk.color;
+  g.beginPath(); g.arc(pk.x, pk.y + bob, r + 10 + Math.sin(t * 3.4) * 3, 0, 6.2832); g.fill();
+  g.restore();
+
+  drawPuToken(g, pk.kind, pk.x, pk.y + bob, r, blink);
+
+  // Four sparks orbiting it. Motion is what pulls the eye across a busy pitch.
+  g.save();
+  g.globalAlpha = blink;
+  for (let i = 0; i < 4; i++) {
+    const a = t * 2.2 + i * 1.5708;
+    g.fillStyle = i % 2 ? '#ffffff' : pk.color;
+    g.fillRect(Math.round(pk.x + Math.cos(a) * (r + 9) - 1.5),
+               Math.round(pk.y + bob + Math.sin(a) * (r * 0.5 + 5) - 1.5), 3, 3);
+  }
+  g.restore();
+}
+
+// What you are currently carrying, over your own head: one token per effect with the time
+// left drawn as an arc around it. Small, because it is a reminder and not an event — you
+// already got the banner, the sound and the flash when you picked it up.
+function drawPuBadges(g) {
+  for (let i = 0; i < 2; i++) {
+    const list = puBadges(M, i);
+    if (!list.length) continue;
+    const p = M.players[i];
+    const r = 13;
+    const y = headY(p) - headR(M, p) - r - 8;
+    const x0 = p.x - ((list.length - 1) * (r * 2 + 6)) / 2;
+    for (let k = 0; k < list.length; k++) {
+      const b = list[k];
+      const x = x0 + k * (r * 2 + 6);
+      // The countdown arc first, so the token sits on top of it.
+      g.save();
+      g.strokeStyle = OUTLINE;
+      g.lineWidth = 6;
+      g.beginPath(); g.arc(x, y, r + 4, -1.5708, -1.5708 + 6.2832); g.stroke();
+      g.strokeStyle = b.color;
+      g.lineWidth = 4;
+      g.beginPath(); g.arc(x, y, r + 4, -1.5708, -1.5708 + 6.2832 * b.frac); g.stroke();
+      g.restore();
+      drawPuToken(g, b.kind, x, y, r, b.left < 1.2 && Math.sin(performance.now() / 60) < 0 ? 0.4 : 1);
+    }
+  }
+}
+
 // SF2 palettes: hard 3-tone ramps, no gradients, everything sitting inside a black
 // outline. Player 1 is a blue gi, player 2 a red one, both with the yellow belt.
 const GI = [
@@ -1188,15 +1392,15 @@ function drawAura(g, p) {
     g.strokeStyle = col;
     g.lineWidth = 3;
     g.beginPath();
-    g.ellipse(p.x, (hy + p.y) / 2, C.HEAD_R * (0.6 + ph * 1.5), C.BODY_H * 1.6 * (0.6 + ph * 1.2), 0, 0, 6.2832);
+    g.ellipse(p.x, (hy + p.y) / 2, headR(M, p) * (0.6 + ph * 1.5), C.BODY_H * 1.6 * (0.6 + ph * 1.2), 0, 0, 6.2832);
     g.stroke();
   }
   // sparks rising off the shoulders
   g.globalAlpha = 1;
   for (let i = 0; i < 6; i++) {
     const ph = (t * 2.4 + i / 6) % 1;
-    const sx = p.x + Math.sin(i * 2.1 + t * 3) * C.HEAD_R * 0.9;
-    const sy = p.y - ph * (C.BODY_H + C.HEAD_R * 2.2);
+    const sx = p.x + Math.sin(i * 2.1 + t * 3) * headR(M, p) * 0.9;
+    const sy = p.y - ph * (C.BODY_H + headR(M, p) * 2.2);
     g.fillStyle = i % 2 ? col : '#ffffff';
     g.fillRect(Math.round(sx), Math.round(sy), 3, 5);
   }
@@ -1348,9 +1552,12 @@ function drawReady(g) {
 
 // ---- DOM heads -------------------------------------------------------------
 function drawHeads() {
-  const size = C.HEAD_R * 2 * SC;
   for (let i = 0; i < 2; i++) {
     const p = M.players[i];
+    // The head is a DOM node, so a big-head pickup is a CSS size change, not a canvas one.
+    // The card art is repainted at the new size rather than transform-scaled: a scaled-up
+    // background is a blurry card, and the whole hook is being able to tell who it is.
+    const size = headR(M, p) * 2 * SC;
     const el = $('#head' + i);
     const key = `${p.char.rarity}_${p.char.number}_${Math.round(size)}`;
     if (el.dataset.card !== key) {
@@ -1469,6 +1676,14 @@ const RANGES = {
   WIND_TIME: [1, 20], WIND_FORCE: [0, 1400],
   ROBOT_DEFICIT: [1, 6], ROBOT_WARN: [.2, 4], ROBOT_TIME: [1, 30], ROBOT_COOLDOWN: [0, 40],
   ROBOT_SPEED: [.8, 1.8], ROBOT_KICK: [.8, 2], ROBOT_JUMP: [.6, 1.4], ROBOT_GRAV: [.6, 2],
+  // power-ups
+  PICKUPS_ON: [0, 1], PICKUP_FIRST: [1, 40], PICKUP_GAP: [1, 40], PICKUP_WARN: [.2, 5],
+  PICKUP_LIFE: [1, 20], PICKUP_QUIET_END: [0, 30], PICKUP_KEEPOUT: [60, 380],
+  PICKUP_R: [10, 60], PICKUP_Y: [30, 200], PICKUP_MERCY_LEAD: [1, 6], HIT_STOP_PICKUP: [0, .2],
+  PU_GROW_TIME: [1, 20], PU_GROW_SCALE: [1, 2.2],
+  PU_MAGNET_TIME: [1, 20], PU_MAGNET_FORCE: [0, 2400], PU_MAGNET_RANGE: [60, 700],
+  PU_SHIELD_TIME: [1, 20], PU_SPRING_TIME: [1, 20], PU_SPRING_JUMP: [1, 2], PU_SPRING_JUMPS: [0, 3],
+  PU_ICE_TIME: [0, 6],
   // One dial over all of them: PACE rescales speeds, gravities, drags and durations together
   // so the match slows down without any trajectory changing shape. 1 = the old pace.
   PACE: [0.5, 1.3],
@@ -1568,7 +1783,8 @@ $('#tunerCopy').onclick = async () => {
 // would copy the value at boot (null) and every probe would read stale.
 // SPEC/ACT are here so _spectacle-shots.mjs can force an event instead of waiting nine
 // seconds and hoping the dice pick the one it wants to photograph.
-Object.assign(window, { C, startMatch, pick, SHOTS, ACT, activeMeteors, isRobot });
+Object.assign(window, { C, startMatch, pick, SHOTS, ACT, activeMeteors, isRobot,
+                        PU, PU_NAME, PU_COLOR, PU_LABEL, activePickup, puBadges });
 Object.defineProperty(window, 'MATCH', { get: () => M });
 Object.defineProperty(window, 'HELD', { get: () => held });
 Object.defineProperty(window, 'EVENTS', { get: () => EVENT_LOG });
