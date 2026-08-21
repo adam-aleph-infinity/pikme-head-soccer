@@ -195,6 +195,12 @@ Mouth height was swept against bot-vs-bot outcomes rather than guessed. At 146 t
 2.6 goals a match and the legendary bot *lost* to the very-easy one — too few goals for skill
 to show through. 170 gives ~5 goals and a clear skill gradient.
 
+That sweep was run at `PACE` 1.0. Re-run at the shipped 0.80 it reads 146 → 3.3 goals and
+170 → 5.1, with the legendary bot at 10:1 over very-easy at **every** mouth height — a
+slower ball gives a defender time to be somewhere, so the goal size stopped being the thing
+holding the gradient up. The shipped 160 was chosen under the old numbers and is worth
+re-arguing now, not assumed.
+
 ## Netcode
 
 Server-authoritative at 60Hz, snapshots at 30Hz, **rollback + replay** on the client. The
@@ -265,6 +271,10 @@ This exists because arguing about `KICK_LIFT` between restarts is not how a feel
 ## Instruments
 
 Balance was measured, not guessed. Each of these answers one question:
+
+⚠ Every figure quoted elsewhere in this README, and in the comments in `shared/constants.js`,
+was measured at `PACE` 1.0 — before the match was slowed. Re-run the instrument before
+trusting a number against the game as it ships.
 
 | | question |
 |---|---|
