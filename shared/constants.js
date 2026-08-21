@@ -221,7 +221,10 @@ export let ROBOT_GRAV = 1.25;
 // it coming") but the one a 1v1 adds to it: could BOTH players have got it? That is why a
 // pickup spawns at the exact midpoint between the two of them, why there is a keep-out band
 // so the midpoint is never inside a goalmouth, and why the mercy lead exists.
-export let PICKUPS_ON = 1;           // 0 turns the whole system off, live, mid-match
+export let PICKUPS_ON = 0;           // 0 turns the whole system off, live, mid-match. OFF by
+                                     // default since the cards landed: the powers come out of
+                                     // your hand now, and crates on top of them is two of the
+                                     // same system. `?pickups=1` brings them back to A/B.
 export let PICKUP_FIRST = 7;         // s of ordinary football before the first one
 export let PICKUP_GAP = 9;           // s from one leaving the pitch to the next attempt
 export let PICKUP_WARN = 1.1;        // s of telegraph before it can be collected
@@ -265,6 +268,35 @@ export let PU_SPRING_JUMPS = 1;      // extra air jumps on top of MAX_JUMPS
 // Ice. The ONLY item that touches the other player, and it is a `slow`, never a root: you
 // keep every button, you are just heavy. Nothing here takes the controls off anybody.
 export let PU_ICE_TIME = 2.2;
+
+// ── CARDS — the hand of three ────────────────────────────────────────────────
+// You hold three cards; each is one of the six powers above, on its own cooldown. The
+// rarity of the card is the ladder: strength up, cooldown down, both geometric so the
+// ordering cannot invert wherever a slider is dragged. Rules in shared/cards.js.
+export let CARDS_ON = 1;             // 0 hides the row and takes the buttons out of the sim
+export let CARD_CD_BASE = 26;        // s — a COMMON card's cooldown, the slowest in the game.
+                                     // 18 first, and two bots then played 34 cards between
+                                     // them in a 60s match (measured): with three cards each
+                                     // on an 11s clock, somebody's power was live almost
+                                     // permanently and a card stopped being a moment. At 26
+                                     // a legendary comes round about three times a match.
+export let CARD_CD_STEP = 0.86;      // each rarity step multiplies it: 26 → 22.4 → 19.2 → 16.5
+// A card's effect is SHORTER than a crate's, and it has to be. The PU_*_TIME numbers were
+// authored for an object you race for and get maybe three times a match; a card is in your
+// hand and comes round on a clock. At full crate length a legendary hand kept a power live
+// for 81% of the playing time (measured, two level-5 bots) — which is not a power any more,
+// it is the baseline. At 0.55 a legendary card is live for about half its own cooldown.
+export let CARD_POWER_SCALE = 0.55;
+export let CARD_STR_BASE = 1;        // a common's effect is the authored PU_*_TIME × the scale
+export let CARD_STR_STEP = 1.18;     // and each step up stretches it: ×1 → 1.18 → 1.39 → 1.64
+
+// Two ways a card comes back, and the second one is the reason this is not just a timer.
+// A cooldown that only ticks rewards standing still; one that fills on CONTACT rewards
+// playing. So both: it ticks, and every touch knocks time off it — a little for kicking the
+// ball, a lot for landing a tackle on the opponent.
+export let CARD_CHARGE_KICK = 0.5;   // s off every card's cooldown when you kick the ball
+export let CARD_CHARGE_HIT = 2.5;    // s off when you tackle the opponent. Five kicks' worth.
+export let CARD_CHARGE_GOAL = 4;     // s off for scoring, so a goal restarts the exchange
 
 // ---- Anti-stall ------------------------------------------------------------
 // A ball nobody has touched for this long is returned to the centre spot. This exists
@@ -422,6 +454,13 @@ const SETTERS = {
   ROBOT_GRAV: (v) => { ROBOT_GRAV = v; },
   // ---- power-ups ----
   PICKUPS_ON: (v) => { PICKUPS_ON = v; },
+  CARDS_ON: (v) => { CARDS_ON = v; },
+  CARD_CD_BASE: (v) => { CARD_CD_BASE = v; },
+  CARD_CD_STEP: (v) => { CARD_CD_STEP = v; },
+  CARD_POWER_SCALE: (v) => { CARD_POWER_SCALE = v; },
+  CARD_STR_STEP: (v) => { CARD_STR_STEP = v; },
+  CARD_CHARGE_KICK: (v) => { CARD_CHARGE_KICK = v; },
+  CARD_CHARGE_HIT: (v) => { CARD_CHARGE_HIT = v; },
   PICKUP_FIRST: (v) => { PICKUP_FIRST = v; },
   PICKUP_GAP: (v) => { PICKUP_GAP = v; },
   PICKUP_WARN: (v) => { PICKUP_WARN = v; },

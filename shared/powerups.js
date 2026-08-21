@@ -211,15 +211,30 @@ export function stepPickups(m, fx) {
   const pu = m.pu;
   if (!pu) return;
 
-  // The tuner can switch the whole system off mid-match, and that has to take effect at
-  // once — including cancelling effects that are already running.
-  if (C.PICKUPS_ON < 0.5) { wipePickups(m, 'off'); return; }
   if (m.phase !== 'play' || m.freeze > 0) return;
 
   // FAIRNESS 5. Effect timers tick FIRST and unconditionally, before any of the gates
   // below can return early. An effect that stops counting down is an effect that never
   // ends, which is the one thing this file promises cannot happen.
   stepEffects(m, pu);
+
+  // The two switches, and the line between them is where a real bug lived.
+  //
+  // PICKUPS_ON governs the CRATES — spawning them, and whether one can be raced for. It
+  // used to govern the effects as well, and cancelled every running one the moment it went
+  // off. That was correct while a crate was the only way to get a power, and wrong the
+  // instant cards became the other way: with crates off by default, a pressed card applied
+  // its power and this line erased it on the very next tick. It survived every unit test in
+  // test-powerups because they all switch the crates ON.
+  //
+  // So: crates off takes the crate off the pitch and leaves the effects alone. Effects are
+  // only cancelled when NOTHING can produce them — both switches off — which is what the
+  // tuner's off switch actually means.
+  if (C.PICKUPS_ON < 0.5) {
+    if (C.CARDS_ON < 0.5) wipePickups(m, 'off');
+    else despawn(m, pu, 'off');
+    return;
+  }
 
   // FAIRNESS 5. The end of a match belongs to the players. Sudden death sets clock to 0,
   // so this covers overtime too. An uncollected pickup is taken off the pitch.
@@ -392,18 +407,24 @@ function reach(m, p, x, y) {
   return hit ? dHead : null;
 }
 
-function take(m, pu, p, fx) {
-  const kind = pu.kind;
-  const i = p.index;
+// WHAT A POWER DOES, in one place, with no idea where it came from.
+//
+// Two things fire these now — a crate you ran into, and a card you pressed — and there must
+// be exactly one definition of what "the magnet" means or the two will drift the first time
+// anyone tunes one. `mult` is the cards' rarity ladder: 1 for a crate and for a common
+// card, up to about 1.64 for a legendary. It stretches DURATIONS only; nothing here gets
+// stronger, just longer, which is the same bound the crates already lived inside.
+export function applyPower(m, i, kind, mult = 1, fx = null, at = null) {
+  const p = m.players[i];
   const foe = m.players[1 - i];
-  const y = pickupY();
-  const col = PU_COLOR[kind];
   const slot = SLOT[kind];
+  const col = PU_COLOR[kind];
+  const x = at ? at.x : p.x, y = at ? at.y : pickupY();
 
   if (slot !== undefined) {
-    // Re-collecting REFRESHES, it never stacks: two big-head crates do not make a
+    // Re-applying REFRESHES, it never stacks: two big-head crates do not make a
     // bigger head, they make a longer big head. That is what bounds the swing.
-    pu.eff[i * EFF_N + slot] = ticks(SLOT_TIME[slot]());
+    m.pu.eff[i * EFF_N + slot] = ticks(SLOT_TIME[slot]() * mult);
   } else if (kind === PU.CHARGE) {
     // The gauge fills on a 28-second clock anyway; this is a shortcut to a shot that is
     // still blockable, not a free goal.
@@ -411,13 +432,19 @@ function take(m, pu, p, fx) {
   } else if (kind === PU.ICE) {
     // Frozen boots. Deliberately `slow` and not `rooted`: you keep every button, you are
     // just heavy. Nothing in this file takes the controls off a player.
-    foe.slow = Math.max(foe.slow, C.PU_ICE_TIME);
+    foe.slow = Math.max(foe.slow, C.PU_ICE_TIME * mult);
   }
 
   m.hitStop = Math.max(m.hitStop, C.HIT_STOP_PICKUP);
-  m.events.push({ type: 'puTake', kind, name: PU_NAME[kind], player: i, x: pu.x, y });
-  fx.shockwave(pu.x, y, col);
-  fx.hit(pu.x, y, col, 2);
+  if (fx) { fx.shockwave(x, y, col); fx.hit(x, y, col, 2); }
+  return kind;
+}
+
+function take(m, pu, p, fx) {
+  const kind = pu.kind;
+  const y = pickupY();
+  applyPower(m, p.index, kind, 1, fx, { x: pu.x, y });
+  m.events.push({ type: 'puTake', kind, name: PU_NAME[kind], player: p.index, x: pu.x, y });
   retire(pu);
 }
 

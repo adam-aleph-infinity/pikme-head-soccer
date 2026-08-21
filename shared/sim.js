@@ -6,6 +6,8 @@ import * as C from './constants.js';
 import { launchPowerShot, stepPowerShot, counterPowerShot, applyEffect, shotFor, statsFor, SHOTS } from './powershots.js';
 import { createSpectacle, stepSpectacle, packSpectacle, unpackSpectacle,
          spSpeed, spKick, spJump, ballGrav, playerGrav, windAccel } from './spectacle.js';
+import { createCards, stepCards, useCard, chargeCards, packCards, unpackCards,
+         CARD_KEYS, CARD_SLOTS } from './cards.js';
 import { createPickups, stepPickups, collectPickups, wipePickups, applyMagnet, spendShield,
          packPickups, unpackPickups, puHeadScale, puJump, puMaxJumps } from './powerups.js';
 
@@ -65,6 +67,9 @@ export function createMatch(charA, charB, opts = {}) {
     // Collectable power-ups: what is on the pitch and what is running on each player.
     // Every field of it travels in serialize() too.
     pu: createPickups(charA, charB),
+    // The hand of three. Dealt from the two cards, so it never travels; only the six
+    // cooldown clocks inside it do.
+    cards: createCards(charA, charB),
     events: [],              // drained by the renderer each frame
   };
   return m;
@@ -139,6 +144,7 @@ export function step(m, inputs, dt = C.TICK, fx = NO_FX) {
   // Spawning and the effect clocks run here for the same reason: the spawn decision reads
   // the positions the telegraph will be drawn against. Collection is the other half and has
   // to wait until after the players have moved — see below.
+  stepCards(m);
   stepPickups(m, fx);
 
   for (let i = 0; i < 2; i++) stepPlayer(m, m.players[i], inputs[i] || {}, dt, fx);
@@ -262,6 +268,20 @@ function stepPlayer(m, p, input, dt, fx) {
     p.gauge = 0;
     p.armed = C.POWER_MODE_TIME;
     m.events.push({ type: 'armed', player: p.index, shot: p.shot.id });
+  }
+
+  // ---- THE THREE CARDS ----
+  // Rising edge ONLY, and this latch is the whole reason the block exists as its own loop
+  // rather than three lines inside the input reader: a card read as LEVEL rather than EDGE
+  // fires every tick the button is down, which on a rollback client means the ability
+  // machine-guns during every replayed frame. That is the football "shoots the wrong
+  // direction" bug wearing a different hat, and test-cards asserts both halves of it —
+  // held-does-not-refire, and still-held-after-a-restore-does-not-refire.
+  if (C.CARDS_ON) {
+    for (let s = 0; s < CARD_SLOTS; s++) {
+      const key = CARD_KEYS[s];
+      if (canAct && input[key] && !prev[key]) useCard(m, p, s, fx);
+    }
   }
 
   integrate(p, dt, playerGrav(m, p.index), puMaxJumps(m, p.index));
@@ -476,6 +496,11 @@ function tryTackle(m, p, fx) {
   }
   foe.tackleImmune = C.TACKLE_IMMUNE;
 
+  // A landed tackle is the biggest thing you can do to someone without the ball, so it is
+  // the biggest payment into your hand — five kicks' worth. This is what makes the cards a
+  // reward for going at your opponent rather than a clock you wait out.
+  chargeCards(m, p.index, C.CARD_CHARGE_HIT);
+
   p.kickT = 0;                                   // the boot is spent on them, not the ball
   m.hitStop = Math.max(m.hitStop, powered ? C.HIT_STOP_POWER : C.HIT_STOP_TACKLE);
   m.events.push({ type: 'tackle', by: p.index, on: foe.index, x: kx, y: ky,
@@ -512,6 +537,11 @@ function resolveBallPlayers(m, dt, fx) {
           p.kickT = 0;
           m.hitStop = Math.max(m.hitStop, C.HIT_STOP_KICK);
           m.idle = 0;
+          // A TOUCH pays into the hand, a swing at air does not. The first version paid for
+          // the swing, and a bot that swings on a hair trigger recharged its whole hand
+          // three times a match on thin air — 37 card uses a match between two of them,
+          // measured, which is not a moment any more, it is weather.
+          chargeCards(m, p.index, C.CARD_CHARGE_KICK);
           m.events.push({ type: 'strike', player: p.index, x: b.x, y: b.y, power: false });
           fx.hit(b.x, b.y, '#ffffff', 1);
           return;
@@ -636,6 +666,9 @@ function checkGoal(m, fx) {
 
   m.score[scorer]++;
   m.lastScorer = scorer;
+  // A goal restarts the exchange, and the scorer walks back to the spot with their hand
+  // part-refilled. The player who conceded gets nothing: this pays for what you DID.
+  chargeCards(m, scorer, C.CARD_CHARGE_GOAL);
   m.events.push({ type: 'goal', player: scorer, power: !!b.power, shot: b.power?.id || null });
   fx.goal(b.x, b.y, b.power?.color || '#ffffff');
 
@@ -664,7 +697,10 @@ export { resetPositions };
 // Deliberately lossless: no rounding. `test-net.mjs` asserts a restored sim stays in
 // lockstep, and that property is what makes rollback sound. A few extra bytes on the wire
 // is a trivial price for it at 1v1 scale.
-const PREV_KEYS = ['left', 'right', 'jump', 'kick', 'power'];
+// Every button whose EDGE the sim reads has to be here, cards included: this array is how a
+// restored client remembers that a button was already down. Leave a card out and a
+// reconciling client re-fires it on every replayed tick.
+const PREV_KEYS = ['left', 'right', 'jump', 'kick', 'power', ...CARD_KEYS];
 const P_FIELDS = [
   'x', 'y', 'vx', 'vy', 'onGround', 'facing', 'jumps',
   'kickT', 'kickCd', 'dashT', 'dashCd', 'dashDir', 'tapDir', 'tapT',
@@ -695,6 +731,9 @@ export function serialize(m) {
     // If this were left out, a reconciling client would replay the last 30 ticks with a
     // crate the server never spawned and a big head the server has never seen.
     pk: packPickups(m.pu),
+    // Six cooldown clocks. The hands themselves are dealt from the two cards at both ends
+    // and never travel.
+    cd: packCards(m.cards),
     b: {
       x: m.ball.x, y: m.ball.y, vx: m.ball.vx, vy: m.ball.vy, spin: m.ball.spin,
       // The shot itself is static data; only its live flight state travels.
@@ -721,6 +760,7 @@ export function restore(m, s) {
   }
   if (m.spec) unpackSpectacle(m.spec, s.sp || []);
   if (m.pu) unpackPickups(m.pu, s.pk || []);
+  if (m.cards) unpackCards(m.cards, s.cd || []);
   const b = m.ball, o = s.b;
   b.x = o.x; b.y = o.y; b.vx = o.vx; b.vy = o.vy; b.spin = o.spin;
   if (!o.pw) b.power = null;

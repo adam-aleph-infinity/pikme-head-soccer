@@ -107,8 +107,10 @@ const keysUi = await evalJs(`(() => {
   const acts = [...document.querySelectorAll('#keysGrid .act')].map(e => e.textContent);
   return { caps: caps.length, acts, labels: caps.map(c => c.textContent) };
 })()`);
-check('the keys screen lists every action', keysUi.acts.length === 5, keysUi.acts.join(','));
-check('each action has two slots', keysUi.caps === 10, `${keysUi.caps} caps`);
+// Eight actions now, not five: the three cards are bound keys like any other, and a card
+// you cannot rebind is a card a left-handed player cannot reach.
+check('the keys screen lists every action', keysUi.acts.length === 8, keysUi.acts.join(','));
+check('each action has two slots', keysUi.caps === 16, `${keysUi.caps} caps`);
 check('kick is bound and readable', keysUi.labels.includes('↓') && keysUi.labels.includes('S'),
       keysUi.labels.join(' '));
 
@@ -305,7 +307,7 @@ const phone = await evalJs(`(() => {
            padsInside: pads.every(r => r.right <= innerWidth + 1 && r.bottom <= innerHeight + 1 && r.left >= -1),
            bodyScroll: document.body.scrollWidth > innerWidth + 1 };
 })()`);
-check('the touch pad is actually rendered', phone.padCount === 5 && phone.padVisible === true,
+check('the touch pad is actually rendered', phone.padCount === 8 && phone.padVisible === true,
       `${phone.padCount} buttons, visible=${phone.padVisible}`);
 
 // The HUD is pinned to the pitch, not to the reading direction — under dir=rtl these all

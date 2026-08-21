@@ -7,6 +7,9 @@ import { createBot, botInput, DIFFICULTIES } from '../shared/bot.js';
 import { shotFor, SHOTS } from '../shared/powershots.js';
 import { activeMeteors, isRobot, robotCharging, actKind, ACT } from '../shared/spectacle.js';
 import { activePickup, puBadges, PU, PU_NAME, PU_COLOR, PU_LABEL } from '../shared/powerups.js';
+import { cardAt, cardKind, cardFill, cardReady, cardCd, liveKind, cardCooldown,
+         CARD_SLOTS } from '../shared/cards.js';
+import { createEditor, applyLayout } from './padlayout.js';
 import { createNet } from './net.js';
 import { playEvent, SFX, setAudioEnabled, audioEnabled } from './audio.js';
 import { STAGES, randomStage, stageById } from './stages.js';
@@ -117,7 +120,8 @@ $('#playBtn').onclick = () => startMatch();
 // ═══════════════════════════════════════════════════════════════════════════
 // INPUT
 // ═══════════════════════════════════════════════════════════════════════════
-const held = { left: false, right: false, jump: false, kick: false, power: false };
+const held = { left: false, right: false, jump: false, kick: false, power: false,
+               card1: false, card2: false, card3: false };
 
 // Bindings are DATA, not a frozen map, because nobody could find out how to kick. Two slots
 // per action so the arrow cluster and the letter cluster can both live, and the whole thing
@@ -128,6 +132,9 @@ const ACTIONS = [
   { id: 'jump', label: 'קפיצה' },
   { id: 'kick', label: 'בעיטה' },
   { id: 'power', label: 'כוח' },
+  { id: 'card1', label: 'קלף 1' },
+  { id: 'card2', label: 'קלף 2' },
+  { id: 'card3', label: 'קלף 3' },
 ];
 const DEFAULT_BINDS = {
   left: ['ArrowLeft', 'KeyA'],
@@ -135,6 +142,11 @@ const DEFAULT_BINDS = {
   jump: ['ArrowUp', 'Space'],
   kick: ['ArrowDown', 'KeyS'],
   power: ['KeyJ', 'ShiftLeft'],
+  // The number row, where every game with an ability bar has put them, plus the ZXC cluster
+  // for a left hand that is already on WASD.
+  card1: ['Digit1', 'KeyZ'],
+  card2: ['Digit2', 'KeyX'],
+  card3: ['Digit3', 'KeyC'],
 };
 const BIND_STORE = 'hs-binds';
 
@@ -192,18 +204,53 @@ addEventListener('keyup', (e) => {
   e.preventDefault();
 });
 
+// ── EDIT MODE ──────────────────────────────────────────────────────────────
+// Declared before the press handlers because they ask it whether a press is a press or a
+// drag. See padlayout.js for what gets saved and why it is saved as fractions.
+const stageBox = () => {
+  const r = $('#stage').getBoundingClientRect();
+  return { w: r.width || innerWidth, h: r.height || innerHeight };
+};
+let EDITOR = null;
+
 for (const btn of document.querySelectorAll('.pad .btn')) {
   const k = btn.dataset.k;
-  const set = (v) => (ev) => { ev.preventDefault(); held[k] = v; btn.classList.toggle('on', v); };
+  // While the layout is being edited a press MOVES the button instead of firing it. Guarded
+  // here as well as by the editor's capture-phase handler, because a pointerup that lands
+  // after edit mode closes would otherwise leave the key stuck down.
+  const set = (v) => (ev) => {
+    if (EDITOR && EDITOR.editing) return;
+    ev.preventDefault(); held[k] = v; btn.classList.toggle('on', v);
+  };
   btn.addEventListener('pointerdown', set(true));
   btn.addEventListener('pointerup', set(false));
   btn.addEventListener('pointercancel', set(false));
   btn.addEventListener('pointerleave', set(false));
 }
-// The pad shows on any touch device; ?pad=1 forces it on so a desktop browser (and the
-// screenshot harness) can check the phone layout without a phone.
-const FORCE_PAD = /[?&]pad=1\b/.test(location.search);
-if (!FORCE_PAD && !matchMedia('(pointer: coarse)').matches) document.body.classList.add('no-touch');
+// The pad is on every device now, thumb or mouse — it holds the three cards, and an ability
+// you cannot see is an ability nobody presses. `no-touch` survives as a flag for the few
+// places that still want to know (cursor, the key caps printed on the cards); `?pad=1` is
+// kept so old harness URLs keep working.
+if (!matchMedia('(pointer: coarse)').matches) document.body.classList.add('no-touch');
+
+EDITOR = createEditor({
+  pad: $('#pad'),
+  stageOf: stageBox,
+  // A resize can change the button's box, and the card art is painted at a fixed pixel size
+  // to fill it — so a card that has just been made bigger has to be repainted or it comes
+  // back as a blurry upscale.
+  onChange: () => { if (M) paintHand(); },
+});
+const setEditing = (on) => {
+  if (on) EDITOR.start(); else EDITOR.stop();
+  $('#editBar').classList.toggle('hidden', !on);
+  // Nothing should be held down across the transition in either direction.
+  for (const k of Object.keys(held)) held[k] = false;
+  for (const b of document.querySelectorAll('.pad .btn')) b.classList.remove('on');
+};
+$('#editBtn').onclick = () => setEditing(!EDITOR.editing);
+$('#editDone').onclick = () => setEditing(false);
+$('#editReset').onclick = () => { EDITOR.reset(); if (M) paintHand(); };
 
 // ═══════════════════════════════════════════════════════════════════════════
 // KEYS — view and rebind
@@ -423,6 +470,7 @@ function startOnlineMatch(msg) {
     $('#head' + i).dataset.card = '';
     $(`.gauge.g${i} .nm`).textContent = M.players[i].shot.name;
   }
+  paintHand();
   resize();
   cancelAnimationFrame(raf);
   raf = requestAnimationFrame(frame);
@@ -469,6 +517,7 @@ function startMatch() {
     const c = M.players[i].char;
     $(`.gauge.g${i} .nm`).textContent = M.players[i].shot.name;
   }
+  paintHand();
   resize();
   playEvent('whistle');
   cancelAnimationFrame(raf);
@@ -623,6 +672,9 @@ function resize() {
   stage.style.height = h + 'px';
   SC = w / C.W;
   sizePad(w, h, vw, vh);
+  // Saved offsets are fractions of the stage, so they have to be re-multiplied whenever the
+  // stage changes — rotation, a resized window, the keyboard opening on a phone.
+  applyLayout($('#pad'), { w, h });
   cv.width = Math.ceil(C.W / PIXEL);
   cv.height = Math.ceil(C.H / PIXEL);
   ctx.setTransform(1 / PIXEL, 0, 0, 1 / PIXEL, 0, 0);   // draw in WORLD units, land on texels
@@ -655,6 +707,57 @@ function sizePad(w, h, vw, vh) {
   padEl.style.setProperty('--pl', px(safeInset('l') - barX));
   padEl.style.setProperty('--pr', px(safeInset('r') - barX));
   padEl.style.setProperty('--pb', px(safeInset('b') - barY));
+  centreRow();
+}
+
+// The cards live BETWEEN the two thumbs, and the two thumbs are not symmetric — the act
+// group is three buttons wide against the walk group's two. Centring the row on the stage
+// therefore drops it on top of the right-hand group on a phone (measured: a 78px overlap on
+// a 844x390 frame). So the row is centred on the GAP, measured from the real boxes rather
+// than derived from a button count that the next design change would invalidate.
+const ROW_MARGIN = 14;             // px of daylight kept on each side of the hand
+
+function centreRow() {
+  const row = document.getElementById('cardRow');
+  const l = document.querySelector('.pad-l');
+  const r = document.querySelector('.pad-r');
+  if (!row || !l || !r) return;
+  // Measure UNSHIFTED and UNSCALED. Measuring while the previous frame's scale is still on
+  // the element makes the fit compound against itself — the first pass I wrote did exactly
+  // that and settled at a 3px overlap instead of the margin it was asked for.
+  row.style.setProperty('--rowx', '0px');
+  row.style.setProperty('--rows', '1');
+  const lb = l.getBoundingClientRect(), rb = r.getBoundingClientRect();
+  const rowb = row.getBoundingClientRect();
+  if (!rowb.width) return;
+
+  // If the hand does not fit between the thumbs, shrink it rather than overlap them: a card
+  // you cannot press because your own jump button is on top of it is worse than a small one.
+  const room = Math.max(0, rb.left - lb.right - ROW_MARGIN * 2);
+  let scale = rowb.width > room ? room / rowb.width : 1;
+
+  // ...but only down to the 44pt touch minimum, which is a hard floor and not a preference.
+  // A portrait phone has almost no gap between the two thumbs, and shrinking to fit it put
+  // the cards at 29px — a target you cannot reliably hit, measured by _pad.mjs. So when the
+  // hand cannot fit BESIDE the thumbs at a usable size, it goes ABOVE them at full size
+  // instead. Sideways when there is room, stacked when there is not.
+  const card = row.querySelector('.card');
+  const cardW = card ? card.getBoundingClientRect().width : 0;
+  const minScale = cardW ? Math.min(1, 44 / cardW) : 1;
+  const stacked = scale < minScale;
+  if (stacked) scale = 1;
+  row.style.setProperty('--rows', scale.toFixed(3));
+
+  if (stacked) {
+    // One row up: clear of the tallest thumb group, with the same margin.
+    const lift = Math.max(lb.height, rb.height) + ROW_MARGIN;
+    row.style.setProperty('--rowy', (-lift).toFixed(1) + 'px');
+    row.style.setProperty('--rowx', '0px');
+    return;
+  }
+  row.style.setProperty('--rowy', '0px');
+  row.style.setProperty('--rowx',
+    ((lb.right + rb.left) / 2 - (rowb.left + rowb.width / 2)).toFixed(1) + 'px');
 }
 
 addEventListener('resize', () => { if (M) resize(); });
@@ -1661,11 +1764,61 @@ function syncHud() {
   }
   const me = ONLINE ? NET.you : 0;
   const mine = M.players[me];
+  updateHand(me);
   const pb = $('#powerBtn');
   pb.classList.toggle('ready', mine.gauge >= 1 && mine.armed <= 0);
   pb.classList.toggle('live', mine.armed > 0);
   pb.textContent = mine.armed > 0 ? mine.armed.toFixed(1) : 'POWER';
   $('#rtt').textContent = ONLINE ? `${NET.rtt}ms` : '';
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// THE HAND — three cards under the pitch
+// ═══════════════════════════════════════════════════════════════════════════
+// Two jobs, deliberately split by how often they run. The ART is painted ONCE per match,
+// because a hand is dealt at kickoff and never changes; the STATE — cooling, ready, already
+// running — is written every frame. Repainting card art 60 times a second was the first
+// version and it cost more than the whole renderer.
+//
+// The art goes through paintHead, which is a CSS background-image. NOT a canvas blit: card
+// art drawn into a canvas comes out blank inside a WKWebView, and this game is aimed at one.
+const cardBtns = () => [...document.querySelectorAll('#cardRow .card')];
+
+function paintHand() {
+  const me = ONLINE ? NET.you : 0;
+  for (const btn of cardBtns()) {
+    const s = +btn.dataset.slot;
+    const c = cardAt(M, me, s);
+    if (!c) { btn.style.display = 'none'; continue; }
+    btn.style.display = '';
+    const kind = cardKind(M, me, s);
+    btn.style.setProperty('--pc', PU_COLOR[kind]);
+    btn.title = `${PU_LABEL[kind]} · ${HEB_RARITY[c.rarity]} ${c.number}`;
+    // Sized off the button's own box so the face fills the card at any edited size.
+    const px = Math.max(28, Math.round(btn.getBoundingClientRect().width || 62));
+    paintHead(btn.querySelector('.card-art'), c.rarity, c.number, px);
+    btn.dataset.painted = `${c.rarity}_${c.number}_${px}`;
+  }
+  $('#cardRow').style.display = C.CARDS_ON ? '' : 'none';
+}
+
+function updateHand(me) {
+  for (const btn of cardBtns()) {
+    const s = +btn.dataset.slot;
+    if (!cardAt(M, me, s)) continue;
+    const f = cardFill(M, me, s);
+    const kind = cardKind(M, me, s);
+    const live = liveKind(M, me, kind);
+    const ready = cardReady(M, me, s) && !live;
+    btn.style.setProperty('--f', f.toFixed(3));
+    btn.classList.toggle('ready', ready);
+    btn.classList.toggle('spent', !ready);
+    btn.classList.toggle('live', live);
+    // The seconds left, only while it means something. A full card shows its key instead.
+    const key = btn.querySelector('.card-key');
+    const left = cardCd(M, me, s);
+    key.textContent = left > 0.05 ? Math.ceil(left) : String(s + 1);
+  }
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -1781,6 +1934,10 @@ $('#tunerCopy').onclick = async () => {
     const [r, n] = v.split('_');
     if (RARITIES.includes(r) && +n >= 1 && +n <= CARDS_PER_RARITY) pick[who] = { rarity: r, number: +n };
   }
+  // ?pickups=1 brings the old crates back, ?cards=0 takes the hand away — the two power
+  // systems, switchable from a URL so the comparison is one link rather than a rebuild.
+  if (q.has('pickups')) C.tune({ PICKUPS_ON: +q.get('pickups') ? 1 : 0 });
+  if (q.has('cards')) C.tune({ CARDS_ON: +q.get('cards') ? 1 : 0 });
   // ?pace=0.7 — the whole match in slow motion, for arguing about speed on the phone
   // without a rebuild. Same scale as the PACE row in the tuner.
   if (q.has('pace')) C.setPace(+q.get('pace'));
@@ -1811,7 +1968,8 @@ $('#tunerCopy').onclick = async () => {
 // SPEC/ACT are here so _spectacle-shots.mjs can force an event instead of waiting nine
 // seconds and hoping the dice pick the one it wants to photograph.
 Object.assign(window, { C, startMatch, pick, SHOTS, ACT, activeMeteors, isRobot,
-                        PU, PU_NAME, PU_COLOR, PU_LABEL, activePickup, puBadges });
+                        PU, PU_NAME, PU_COLOR, PU_LABEL, activePickup, puBadges,
+                        paintHand, paintHead, cardAt, cardKind });
 Object.defineProperty(window, 'MATCH', { get: () => M });
 Object.defineProperty(window, 'HELD', { get: () => held });
 Object.defineProperty(window, 'EVENTS', { get: () => EVENT_LOG });

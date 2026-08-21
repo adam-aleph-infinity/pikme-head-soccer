@@ -7,7 +7,8 @@
 import * as C from './constants.js';
 import { headY } from './sim.js';
 import { activeMeteors } from './spectacle.js';
-import { activePickup } from './powerups.js';
+import { activePickup, PU } from './powerups.js';
+import { cardKind, cardReady, liveKind, CARD_SLOTS, CARD_KEYS } from './cards.js';
 
 // `aggression` runs BACKWARDS on purpose. Measured over 10 headless matches per setting,
 // it is the single dominant term in the scoreline — 0.00 → 0.0 goals a match, 0.15 → 8.3,
@@ -43,7 +44,9 @@ export function createBot(level = 2, rng = Math.random) {
     dodge: null,           // null = not dodging this rock; a number = ticking down to the step
     puGo: false,           // am I currently running at the crate?
     puFor: null, puWant: false,   // the crate I have already made my mind up about
-    out: { left: false, right: false, jump: false, kick: false, power: false },
+    cardWait: 0,           // s until it will consider its hand again — the reaction dial, again
+    out: { left: false, right: false, jump: false, kick: false, power: false,
+           card1: false, card2: false, card3: false },
   };
 }
 
@@ -315,5 +318,61 @@ export function botInput(bot, m, index, dt) {
                     bot.t > d.powerHold;
   out.power = wantPower;
 
+  playCards(bot, m, p, foe, b, dt, adxb);
+
   return out;
+}
+
+// ---------------------------------------------------------------------------
+// THE BOT'S HAND
+//
+// A hand only the human can press is not a mechanic, it is a handicap — so the bot holds
+// the same three cards and plays them by the same rules. What separates the tiers is the
+// same thing that separates everything else about this bot: WHEN. A legendary bot spends a
+// card at the moment it does something (the ball is live and near, the opponent is on it);
+// the easiest one presses on a slow timer whether or not the moment is right.
+//
+// Deliberately NOT modelled: holding a card back for a better moment later. A bot that
+// hoards is a bot that never uses its hand, and an opponent whose abilities never appear
+// teaches a player that the mechanic does not matter.
+function playCards(bot, m, p, foe, b, dt, adxb) {
+  const out = bot.out;
+  out.card1 = out.card2 = out.card3 = false;
+  if (!m.cards || C.CARDS_ON < 0.5) return;
+
+  bot.cardWait = Math.max(0, bot.cardWait - dt);
+  if (bot.cardWait > 0 || m.phase !== 'play') return;
+
+  const d = bot.d;
+  const i = p.index;
+  const ballNear = adxb < 260;
+  const foeOnBall = Math.abs(foe.x - b.x) < 90;
+
+  // Worth it right now? A weak bot barely asks the question — that IS the difficulty.
+  let best = -1, bestScore = 0;
+  for (let s = 0; s < CARD_SLOTS; s++) {
+    if (!cardReady(m, i, s)) continue;
+    const kind = cardKind(m, i, s);
+    if (liveKind(m, i, kind)) continue;              // already running: pressing wastes it
+
+    let score = 0.35;                                 // a card in hand is worth playing
+    if (kind === PU.MAGNET) score += ballNear ? 0.5 : -0.2;
+    if (kind === PU.ICE) score += foeOnBall ? 0.5 : -0.1;
+    if (kind === PU.CHARGE) score += p.gauge < 0.6 ? 0.45 : -0.3;
+    if (kind === PU.SHIELD) score += (foe.armed > 0 || foe.gauge >= 1) ? 0.5 : -0.05;
+    if (kind === PU.GROW) score += ballNear ? 0.35 : 0;
+    if (kind === PU.SPRING) score += b.y < C.GROUND_Y - 120 ? 0.4 : 0;
+    // The read itself is a skill: a weak bot's judgement is mostly noise, a strong one's is
+    // mostly the situation. Same shape as `aim` for the boot.
+    score = score * d.aim + bot.rng() * (1 - d.aim);
+    if (score > bestScore) { bestScore = score; best = s; }
+  }
+
+  if (best < 0) return;
+  // Even a good read is not instant, and nothing here should look like a machine.
+  if (bestScore < 0.45 && bot.rng() > 0.02) return;
+  out[CARD_KEYS[best]] = true;
+  // One press, then a pause scaled to the tier: the easiest bot goes quiet for four seconds
+  // after a card, the legendary one is thinking again inside one.
+  bot.cardWait = 0.8 + d.react * 12;
 }

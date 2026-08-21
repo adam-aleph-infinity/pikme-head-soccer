@@ -9,7 +9,10 @@
 
 import { serialize } from './sim.js';
 
-const BITS = { left: 1, right: 2, jump: 4, kick: 8, power: 16 };
+// Eight buttons, one byte. The three cards are inputs exactly like the other five — same
+// queue, same edge discipline — because an ability delivered on a different path than the
+// jump button is an ability that desyncs the first time the two paths disagree.
+const BITS = { left: 1, right: 2, jump: 4, kick: 8, power: 16, card1: 32, card2: 64, card3: 128 };
 const KEYS = Object.keys(BITS);
 
 export function packInput(input = {}) {

@@ -14,6 +14,11 @@ import { PU, PU_NAME, PU_KINDS, activePickup, puBadges, hasGrow, hasMagnet, hasS
          hasSpring, puMaxJumps, pickupY, packPickups, unpackPickups } from './shared/powerups.js';
 import { createBot, botInput } from './shared/bot.js';
 
+// Crates are OFF by default now that the cards deal the powers (see CARDS_ON / PICKUPS_ON
+// in constants.js). This file is the crate system's test, so it turns them on for itself —
+// the spawner and every rule below still work, they are simply no longer what a match uses.
+C.tune({ PICKUPS_ON: 1 });
+
 let pass = 0, fail = 0;
 const ok = (name, cond, extra = '') => {
   if (cond) { pass++; }

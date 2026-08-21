@@ -19,9 +19,12 @@ const CH = { rarity: 'legendary', number: 3 };
 
 // --- input packing ----------------------------------------------------------
 {
-  const all = { left: true, right: true, jump: true, kick: true, power: true };
+  // Eight now, not five: the three card buttons joined the byte when the hand landed.
+  const all = { left: true, right: true, jump: true, kick: true, power: true,
+                card1: true, card2: true, card3: true };
   ok('round-trips every button', JSON.stringify(unpackInput(packInput(all))) === JSON.stringify(all));
-  const none = { left: false, right: false, jump: false, kick: false, power: false };
+  const none = {};
+  for (const k of Object.keys(all)) none[k] = false;
   ok('round-trips empty input', JSON.stringify(unpackInput(packInput(none))) === JSON.stringify(none));
   ok('empty input is 0', packInput(none) === 0);
   const seen = new Set();
@@ -174,6 +177,21 @@ const CH = { rarity: 'legendary', number: 3 };
   step(clone, [{ jump: true }, {}]);
   ok('a held jump does not re-fire after restore', Math.abs(m.players[0].vy - clone.players[0].vy) < 0.001,
      `${m.players[0].vy.toFixed(1)} vs ${clone.players[0].vy.toFixed(1)}`);
+}
+
+// The three card buttons are inputs like any other, and if they do not survive the wire the
+// whole ability system is single-player only. Written as a round-trip of EVERY combination
+// because a bit that collides with another is invisible until two buttons are down at once.
+{
+  const KEYS = ['left', 'right', 'jump', 'kick', 'power', 'card1', 'card2', 'card3'];
+  let bad = 0;
+  for (let mask = 0; mask < (1 << KEYS.length); mask++) {
+    const input = {};
+    KEYS.forEach((k, i) => { input[k] = !!(mask & (1 << i)); });
+    const back = unpackInput(packInput(input));
+    if (KEYS.some((k) => !!back[k] !== !!input[k])) bad++;
+  }
+  ok('every combination of the eight buttons survives the wire', bad === 0, `${bad} of 256 wrong`);
 }
 
 console.log(`test-net: ${pass} passed, ${fail} failed`);

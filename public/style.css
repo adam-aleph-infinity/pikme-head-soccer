@@ -210,19 +210,105 @@ button { font: inherit; color: inherit; border: 0; background: none; cursor: poi
 .pad-l { left: calc(var(--edge) + var(--pl)); }    /* walk — physical left thumb, ◀ then ▶ */
 .pad-r { right: calc(var(--edge) + var(--pr)); align-items: flex-end; }
 .pad .btn {
-  pointer-events: auto; min-width: var(--u); height: var(--u);
-  padding: 0 calc(var(--u) * 0.19);
+  /* --s and --xf are the saved layout: size multiplier and translate. Untouched buttons
+     carry the defaults (1 and none), so a fresh device gets the tuned layout exactly. */
+  --s: 1;
+  transform: var(--xf, none);
+  pointer-events: auto; min-width: calc(var(--u) * var(--s)); height: calc(var(--u) * var(--s));
+  padding: 0 calc(var(--u) * var(--s) * 0.19);
   border-radius: 50%; background: #1620359e;
-  border: max(2px, calc(var(--u) * 0.032)) solid #ffffff26;
-  font-size: clamp(11px, calc(var(--u) * 0.24), 24px);
+  border: max(2px, calc(var(--u) * var(--s) * 0.032)) solid #ffffff26;
+  font-size: clamp(11px, calc(var(--u) * var(--s) * 0.24), 24px);
   font-weight: 800; backdrop-filter: blur(3px);
   touch-action: none; user-select: none; -webkit-user-select: none;
 }
-.pad .btn:active, .pad .btn.on { background: #3a4d78d0; transform: scale(.94); }
+.pad .btn:active, .pad .btn.on { background: #3a4d78d0; }
+.pad .btn:active, .pad .btn.on { transform: var(--xf, none) scale(.94); }
 .pad .kick { background: #2a5f3ba8; }
 .pad .power { background: #5a3a12a8; opacity: .35; pointer-events: none; }
 .pad .power.ready { opacity: 1; pointer-events: auto; animation: gaugeFull .5s infinite alternate; }
-body.no-touch .pad { display: none; }
+/* The pad used to be hidden on anything without a coarse pointer. It is the ability UI
+   now — three cards you cannot press if you cannot see them — so it shows everywhere, and
+   the keyboard keeps working alongside it. */
+body.no-touch .pad .btn { cursor: pointer; }
+
+/* ── THE HAND ─────────────────────────────────────────────────────────────────
+   Three cards, centred under the pitch between the two thumbs. Square rather than
+   round, because a card is a card: the art has to read as the thing in your album. */
+.pad-c {
+  position: absolute; bottom: calc(var(--edge) + var(--pb));
+  left: 50%; transform: translate(calc(-50% + var(--rowx, 0px)), var(--rowy, 0px)) scale(var(--rows, 1));
+  transform-origin: bottom center;
+  display: flex; gap: var(--gap); pointer-events: none;
+}
+.pad .card {
+  position: relative; overflow: hidden;
+  width: calc(var(--u) * var(--s)); min-width: 0; padding: 0;
+  border-radius: calc(var(--u) * var(--s) * 0.22);
+  background: #0b1428d9;
+  border-color: var(--pc, #ffffff26);
+}
+/* The card art. An <img>-style CSS background, never a canvas blit: canvas-drawn card art
+   comes out BLANK inside a WKWebView, which is where this game is headed. */
+.pad .card .card-art {
+  position: absolute; inset: 0; display: block;
+  background-repeat: no-repeat; background-color: #0b1428;
+}
+/* The cooldown. A dark sweep that unwinds anticlockwise off the card as it recharges —
+   readable at a glance in peripheral vision, which a number never is. */
+.pad .card::after {
+  content: ''; position: absolute; inset: 0; pointer-events: none;
+  background: conic-gradient(#04060cc2 calc((1 - var(--f, 1)) * 360deg), #0000 0);
+}
+.pad .card::before {
+  content: ''; position: absolute; inset: 0; pointer-events: none;
+  box-shadow: inset 0 0 0 max(2px, calc(var(--u) * var(--s) * 0.045)) var(--pc, #ffffff26);
+  border-radius: inherit; opacity: .9;
+}
+.pad .card .card-key {
+  position: absolute; right: 4px; bottom: 2px; font-size: calc(var(--u) * var(--s) * 0.2);
+  color: #ffffffc2; text-shadow: 0 1px 2px #000; font-weight: 800; pointer-events: none;
+}
+body.no-touch .pad .card .card-key { display: block; }
+.pad .card.ready { pointer-events: auto; }
+.pad .card.ready::before { opacity: 1; animation: cardReady 1.1s infinite alternate; }
+.pad .card:not(.ready) { pointer-events: none; }
+.pad .card.spent { filter: grayscale(.55) brightness(.72); }
+/* Already running: the power is live on you, so the button is not a thing to press. */
+.pad .card.live::before { box-shadow: inset 0 0 0 max(2px, calc(var(--u) * var(--s) * 0.06)) #fff; }
+@keyframes cardReady { from { filter: none; } to { filter: brightness(1.25); } }
+
+/* ── EDIT MODE ────────────────────────────────────────────────────────────── */
+body.editing .pad .btn { pointer-events: auto !important; opacity: 1 !important; touch-action: none; }
+/* A card clips its art to its rounded box. The grip hangs OUTSIDE that box, so while the
+   layout is being edited the clip has to come off or the corner cannot be grabbed at all —
+   it is drawn, it is just not there. */
+body.editing .pad .card { overflow: visible; }
+body.editing .pad .btn::after { content: none; }
+body.editing .pad .btn {
+  outline: 2px dashed #ffd54a; outline-offset: 2px; cursor: grab;
+}
+body.editing .pad .btn.dragging { cursor: grabbing; outline-color: #7bff7b; z-index: 3; }
+/* The resize corner. Its own hit area so a drag on the body always MOVES and a drag on the
+   corner always SIZES — one gesture, two meanings, decided by where the finger lands. */
+body.editing .pad .btn .grip {
+  position: absolute; right: -6px; bottom: -6px; width: 22px; height: 22px;
+  border-radius: 7px; background: #ffd54a; border: 2px solid #221a00;
+  display: block; z-index: 4; touch-action: none; cursor: nwse-resize;
+}
+.pad .btn .grip { display: none; }
+.editbar {
+  position: absolute; left: 50%; top: 46px; transform: translateX(-50%);
+  display: flex; align-items: center; gap: 10px; z-index: 12;
+  background: #0a0f1ce8; border: 1px solid #ffffff24; border-radius: 12px;
+  padding: 8px 12px; font-size: 13px; color: #dfe7ff; direction: rtl;
+}
+.editbar .ghost, .editbar .play { padding: 5px 12px; font-size: 13px; border-radius: 8px; }
+.editBtn {
+  position: absolute; top: 44px; width: 34px; height: 34px; border-radius: 10px;
+  background: #0a0f1cbb; border: 1px solid #ffffff1f; font-size: 15px;
+  right: 132px; color: #dfe7ff;
+}
 
 .gear, .quit {
   position: absolute; top: 44px; width: 34px; height: 34px; border-radius: 10px;

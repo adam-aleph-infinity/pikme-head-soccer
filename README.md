@@ -37,10 +37,15 @@ app and out of it.
 
 ## Controls
 
-| | walk | dash | jump | kick | power |
-|---|---|---|---|---|---|
-| **keys** | `A`/`D` or `←`/`→` | double-tap a direction | `W` `↑` `Space` | `S` `↓` `K` | `J` `L` `Shift` |
-| **touch** | ◀ ▶ (left thumb) | double-tap | קפיצה | בעיטה | POWER |
+| | walk | dash | jump | kick | power | cards |
+|---|---|---|---|---|---|---|
+| **keys** | `A`/`D` or `←`/`→` | double-tap a direction | `W` `↑` `Space` | `S` `↓` `K` | `J` `L` `Shift` | `1` `2` `3` (or `Z` `X` `C`) |
+| **touch** | ◀ ▶ (left thumb) | double-tap | קפיצה | בעיטה | POWER | the three cards |
+
+**The buttons are on screen on every device**, mouse or thumb — they hold your hand of
+cards, and an ability you cannot see is an ability nobody presses. **✥ in the top bar opens
+edit mode**: drag any button to move it, pull its corner to resize it. Saved on that device
+(as fractions of the stage, so it survives rotating the phone), with a reset in the bar.
 
 **POWER is a mode, not a shot.** With a full gauge, press POWER and you are *powered up*
 for ~4.5s. While it lasts:
@@ -60,6 +65,35 @@ their line, and the only aiming the game has.
 **Your head bounces the ball; your body deadens it.** Barging into the ball kills its pace
 and drops it at your feet — only a kick sends it anywhere, so every meaningful touch is a
 decision. Heading is still the aerial tool.
+
+## Your hand of three
+
+**The powers come out of your Saltiz cards.** You hold three of them under the pitch; press
+one and you get that card's power for a few seconds.
+
+**The number says WHICH power. The rarity says HOW GOOD.**
+
+| | |
+|---|---|
+| **ראש ענק** grow | a bigger head to meet the ball with — and a bigger thing to tackle |
+| **מגנט** magnet | pulls a loose ball toward you. It can pull one into your own net too |
+| **טעינה** charge | fills the power gauge instantly. The shot is still blockable |
+| **מגן** shield | eats one power shot, then it is gone |
+| **קפיצי** spring | a higher jump and one extra jump in the air |
+| **קרח** ice | frozen boots on your opponent. They keep every button, they are just heavy |
+
+**Slot 1 is the card you are playing as** — the face on the pitch is the first thing in your
+hand. The other two are dealt from the same rarity, always three different powers, and the
+deal is derived from the two cards so both players compute the identical hands with nothing
+crossing the wire.
+
+**A card comes back two ways.** It cools on a clock — 26s for a common down to 16.5s for a
+legendary — and **contact pays it off**: a touch on the ball takes a little off all three of
+your cards, a tackle takes five times as much, a goal more again. A hand you never use is a
+hand that recharges slowly.
+
+Crates on the pitch (the older power-up system) are off by default — `?pickups=1` brings
+them back to compare. `?cards=0` turns the hand off.
 
 **Kick the opponent to TACKLE them** — no ball required. Pays you a slice of power gauge and
 leaves them slowed for ~1.7s. There is a 1.1s immunity window afterwards so nobody can be

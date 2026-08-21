@@ -98,11 +98,18 @@
 
     <div class="banner" id="banner"></div>
 
-    <!-- touch pad: left = walk, right = act -->
-    <div class="pad">
+    <!-- The controls. Left = walk, right = act, middle = your three cards.
+         Always on screen now, mouse or thumb: they are the ability UI, not a phone
+         fallback, and a power you cannot see is a power nobody presses. -->
+    <div class="pad" id="pad">
       <div class="pad-l">
         <button class="btn" data-k="left">◀</button>
         <button class="btn" data-k="right">▶</button>
+      </div>
+      <div class="pad-c" id="cardRow">
+        <button class="btn card" data-k="card1" data-slot="0"><i class="card-art"></i><b class="card-key">1</b></button>
+        <button class="btn card" data-k="card2" data-slot="1"><i class="card-art"></i><b class="card-key">2</b></button>
+        <button class="btn card" data-k="card3" data-slot="2"><i class="card-art"></i><b class="card-key">3</b></button>
       </div>
       <div class="pad-r">
         <button class="btn jump" data-k="jump">קפיצה</button>
@@ -111,7 +118,15 @@
       </div>
     </div>
 
+    <!-- Edit mode: drag any button, pull its corner to resize, saved on this device. -->
+    <div class="editbar hidden" id="editBar">
+      <span>גרור כפתור להזזה · משוך את הפינה לשינוי גודל</span>
+      <button class="ghost" id="editReset">אפס</button>
+      <button class="play" id="editDone">סיום</button>
+    </div>
+
     <button class="gear" id="gear">⚙</button>
+    <button class="editBtn" id="editBtn" title="סדר כפתורים">✥</button>
     <button class="keysInGame" id="keysInGame" title="מקשים">⌨</button>
     <button class="sndBtn" id="sndBtn" title="צליל">🔊</button>
     <button class="quit" id="quit">✕</button>
