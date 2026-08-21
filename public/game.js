@@ -102,23 +102,75 @@ $('#playBtn').onclick = () => startMatch();
 // INPUT
 // ═══════════════════════════════════════════════════════════════════════════
 const held = { left: false, right: false, jump: false, kick: false, power: false };
-const KEYS = {
-  ArrowLeft: 'left', KeyA: 'left',
-  ArrowRight: 'right', KeyD: 'right',
-  ArrowUp: 'jump', KeyW: 'jump', Space: 'jump',
-  ArrowDown: 'kick', KeyS: 'kick', KeyK: 'kick',
-  KeyJ: 'power', KeyL: 'power', ShiftLeft: 'power', ShiftRight: 'power',
+
+// Bindings are DATA, not a frozen map, because nobody could find out how to kick. Two slots
+// per action so the arrow cluster and the letter cluster can both live, and the whole thing
+// is rebindable from the ⌨ screen and persisted.
+const ACTIONS = [
+  { id: 'left', label: 'שמאלה' },
+  { id: 'right', label: 'ימינה' },
+  { id: 'jump', label: 'קפיצה' },
+  { id: 'kick', label: 'בעיטה' },
+  { id: 'power', label: 'כוח' },
+];
+const DEFAULT_BINDS = {
+  left: ['ArrowLeft', 'KeyA'],
+  right: ['ArrowRight', 'KeyD'],
+  jump: ['ArrowUp', 'Space'],
+  kick: ['ArrowDown', 'KeyS'],
+  power: ['KeyJ', 'ShiftLeft'],
 };
-// RTL note: the pitch is NOT mirrored, so ← always means screen-left. The player
-// always defends the LEFT goal, which keeps the arrow keys honest in both directions.
+const BIND_STORE = 'hs-binds';
+
+function loadBinds() {
+  try {
+    const raw = JSON.parse(localStorage.getItem(BIND_STORE) || 'null');
+    if (!raw) return structuredClone(DEFAULT_BINDS);
+    // Merge over the defaults so a binding added in a later build is not missing for
+    // anyone who already saved a set.
+    const out = structuredClone(DEFAULT_BINDS);
+    for (const a of ACTIONS) if (Array.isArray(raw[a.id])) out[a.id] = raw[a.id].slice(0, 2);
+    return out;
+  } catch { return structuredClone(DEFAULT_BINDS); }
+}
+let BINDS = loadBinds();
+const saveBinds = () => { try { localStorage.setItem(BIND_STORE, JSON.stringify(BINDS)); } catch {} };
+
+// code -> action, rebuilt whenever the bindings change. One lookup per keystroke.
+let KEYMAP = {};
+function rebuildKeymap() {
+  KEYMAP = {};
+  for (const a of ACTIONS) for (const code of BINDS[a.id]) if (code) KEYMAP[code] = a.id;
+}
+rebuildKeymap();
+
+// Human-readable caps. The code is what the browser reports; this is what a person calls it.
+const KEY_LABEL = {
+  ArrowLeft: '←', ArrowRight: '→', ArrowUp: '↑', ArrowDown: '↓',
+  Space: 'רווח', ShiftLeft: 'Shift', ShiftRight: 'Shift ימין',
+  ControlLeft: 'Ctrl', AltLeft: 'Alt', Enter: 'Enter', Tab: 'Tab',
+};
+const keyLabel = (code) => {
+  if (!code) return '—';
+  if (KEY_LABEL[code]) return KEY_LABEL[code];
+  if (code.startsWith('Key')) return code.slice(3);
+  if (code.startsWith('Digit')) return code.slice(5);
+  return code;
+};
+
+// RTL note: the pitch is NOT mirrored, so ← always means screen-left. The player always
+// defends the LEFT goal, which keeps the arrow keys honest in both directions.
+let listening = null;            // {action, slot} while capturing a rebind
+
 addEventListener('keydown', (e) => {
-  const k = KEYS[e.code];
+  if (listening) { captureBind(e); return; }
+  const k = KEYMAP[e.code];
   if (!k) return;
   held[k] = true;
   e.preventDefault();
 });
 addEventListener('keyup', (e) => {
-  const k = KEYS[e.code];
+  const k = KEYMAP[e.code];
   if (!k) return;
   held[k] = false;
   e.preventDefault();
@@ -136,6 +188,83 @@ for (const btn of document.querySelectorAll('.pad .btn')) {
 // screenshot harness) can check the phone layout without a phone.
 const FORCE_PAD = /[?&]pad=1\b/.test(location.search);
 if (!FORCE_PAD && !matchMedia('(pointer: coarse)').matches) document.body.classList.add('no-touch');
+
+// ═══════════════════════════════════════════════════════════════════════════
+// KEYS — view and rebind
+// ═══════════════════════════════════════════════════════════════════════════
+function renderKeys() {
+  const grid = $('#keysGrid');
+  grid.innerHTML = '';
+  for (const a of ACTIONS) {
+    const label = document.createElement('div');
+    label.className = 'act';
+    label.textContent = a.label;
+    grid.appendChild(label);
+    for (let slot = 0; slot < 2; slot++) {
+      const code = BINDS[a.id][slot];
+      const cap = document.createElement('button');
+      cap.className = 'keycap' + (code ? '' : ' empty');
+      cap.textContent = keyLabel(code);
+      cap.onclick = () => startListening(a.id, slot, cap);
+      grid.appendChild(cap);
+    }
+  }
+}
+
+function startListening(action, slot, cap) {
+  document.querySelectorAll('.keycap.listening').forEach((el) => el.classList.remove('listening'));
+  listening = { action, slot };
+  cap.classList.add('listening');
+  cap.textContent = '…';
+  $('#keysHint').textContent = 'לחץ על מקש · Esc לביטול';
+  $('#keysHint').classList.add('arming');
+}
+
+function captureBind(e) {
+  e.preventDefault();
+  const { action, slot } = listening;
+  listening = null;
+  $('#keysHint').classList.remove('arming');
+
+  if (e.code === 'Escape') {
+    $('#keysHint').textContent = 'בוטל';
+  } else {
+    // A key may only drive one action, or holding it would fire two things at once.
+    for (const a of ACTIONS) {
+      BINDS[a.id] = BINDS[a.id].map((c) => (c === e.code ? null : c));
+    }
+    BINDS[action][slot] = e.code;
+    saveBinds();
+    rebuildKeymap();
+    $('#keysHint').textContent = `${keyLabel(e.code)} הוגדר`;
+  }
+  renderKeys();
+  setTimeout(() => { $('#keysHint').textContent = 'לחץ על משבצת ואז על המקש הרצוי'; }, 1600);
+}
+
+// Remember where we came from: the keys screen is reachable from the picker AND from
+// inside a match, and returning to the wrong one drops a dead 'pick' screen over a live game.
+let keysReturn = '#pick';
+function openKeys(from) {
+  keysReturn = from;
+  renderKeys();
+  $(from).classList.add('hidden');
+  $('#keys').classList.remove('hidden');
+}
+function closeKeys() {
+  listening = null;
+  $('#keys').classList.add('hidden');
+  $(keysReturn).classList.remove('hidden');
+  if (keysReturn === '#match' && M) resize();
+}
+$('#keysBtn').onclick = () => openKeys('#pick');
+$('#keysInGame').onclick = () => openKeys('#match');
+$('#keysBack').onclick = closeKeys;
+$('#keysReset').onclick = () => {
+  BINDS = structuredClone(DEFAULT_BINDS);
+  saveBinds(); rebuildKeymap(); renderKeys();
+  $('#keysHint').textContent = 'אופס לברירת מחדל';
+};
 
 // ═══════════════════════════════════════════════════════════════════════════
 // FX — particles the sim asks for, drawn by the renderer
@@ -756,17 +885,41 @@ function drawParts(g, front) {
 }
 
 function drawReady(g) {
-  // Only the pre-kickoff freeze dims the pitch. Blacking out the post-goal freeze too
-  // hid the one moment the game is showing off — the celebration.
+  // Only the pre-kickoff freeze dims the pitch. Blacking out the post-goal freeze too hid
+  // the one moment the game is showing off — the celebration.
   if (M.phase === 'goal') return;
   g.save();
-  g.fillStyle = '#000000aa';
+  g.fillStyle = '#000000b0';
   g.fillRect(0, 0, C.W, C.H);
-  g.fillStyle = '#fff';
   g.textAlign = 'center';
   g.textBaseline = 'middle';
-  g.font = '900 58px -apple-system, Arial';
-  g.fillText(M.freeze > 0.45 ? 'מוכן?' : 'קדימה!', C.W / 2, C.H * 0.45);
+  g.fillStyle = '#fff';
+  g.font = '900 52px -apple-system, Arial';
+  g.fillText(M.freeze > 0.45 ? 'מוכן?' : 'קדימה!', C.W / 2, C.H * 0.32);
+
+  // The controls, on the glass, every kickoff. "How do I kick?" should never need a README
+  // — and on desktop there is no touch pad to read the answer off.
+  if (!document.body.classList.contains('no-touch')) { g.restore(); return; }
+  const rows = [
+    ['זוז', BINDS.left.filter(Boolean).map(keyLabel).join(' / ') + '  ' + BINDS.right.filter(Boolean).map(keyLabel).join(' / ')],
+    ['בעיטה', BINDS.kick.filter(Boolean).map(keyLabel).join(' / ')],
+    ['קפיצה', BINDS.jump.filter(Boolean).map(keyLabel).join(' / ')],
+    ['כוח', BINDS.power.filter(Boolean).map(keyLabel).join(' / ')],
+    ['ריצה', 'לחיצה כפולה'],
+    ['הרמה', 'קפיצה + בעיטה'],
+  ];
+  const y0 = C.H * 0.5;
+  const lh = 26;
+  g.font = '700 17px -apple-system, Arial';
+  for (let i = 0; i < rows.length; i++) {
+    const y = y0 + i * lh;
+    g.textAlign = 'right';
+    g.fillStyle = '#8ea0be';
+    g.fillText(rows[i][0], C.W / 2 + 130, y);
+    g.textAlign = 'left';
+    g.fillStyle = '#ffd166';
+    g.fillText(rows[i][1], C.W / 2 - 120, y);
+  }
   g.restore();
 }
 

@@ -42,6 +42,7 @@
   <div class="online-row">
     <button class="ghost" id="hostBtn">🔗 שחק עם חבר</button>
     <button class="ghost" id="joinBtn">הצטרף לקוד</button>
+    <button class="ghost" id="keysBtn">⌨ מקשים</button>
     <b class="netdot" id="netdot" title="חיבור"></b>
   </div>
 
@@ -111,6 +112,7 @@
     </div>
 
     <button class="gear" id="gear">⚙</button>
+    <button class="keysInGame" id="keysInGame" title="מקשים">⌨</button>
     <button class="quit" id="quit">✕</button>
   </div>
 
@@ -122,6 +124,19 @@
       <button id="back">קלפים</button>
     </div>
   </div>
+</section>
+
+<!-- ═══ KEYS ═══ rebindable keyboard controls ════════════════════════════ -->
+<section id="keys" class="screen hidden">
+  <button class="lobby-back" id="keysBack">‹ חזרה</button>
+  <h2>מקשים</h2>
+  <p class="keys-hint" id="keysHint">לחץ על משבצת ואז על המקש הרצוי</p>
+  <div class="keys-grid" id="keysGrid"></div>
+  <div class="keys-extra">
+    <div><b>ריצה</b> — לחיצה כפולה על כיוון</div>
+    <div><b>הרמה</b> — קפיצה + בעיטה יחד</div>
+  </div>
+  <button class="ghost" id="keysReset">אתחל לברירת מחדל</button>
 </section>
 
 <!-- ═══ TUNER ═══ live feel dials ════════════════════════════════════════ -->

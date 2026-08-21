@@ -51,11 +51,21 @@ const shot = async (name) => {
 // Real key events, so the client's own listeners run — not a poke at the input object.
 const key = async (type, code, keyCode) =>
   send('Input.dispatchKeyEvent', { type, code, key: code, windowsVirtualKeyCode: keyCode, nativeVirtualKeyCode: keyCode });
-const KEYCODE = { ArrowLeft: 37, ArrowRight: 39, ArrowUp: 38, ArrowDown: 40, Space: 32, KeyJ: 74 };
+const KEYCODE = { ArrowLeft: 37, ArrowRight: 39, ArrowUp: 38, ArrowDown: 40, Space: 32, KeyJ: 74, KeyG: 71 };
 const hold = async (code, ms) => {
   await key('keyDown', code, KEYCODE[code]);
   await sleep(ms);
   await key('keyUp', code, KEYCODE[code]);
+};
+
+// Input is ignored while the match is frozen (kickoff / post-goal), so if the chase above
+// happened to end in a goal, every key press here lands in a dead window.
+const waitForPlay = async () => {
+  for (let i = 0; i < 40; i++) {
+    if (await evalJs('MATCH.phase === "play" && MATCH.freeze <= 0')) return true;
+    await sleep(150);
+  }
+  return false;
 };
 
 await send('Page.enable');
@@ -88,6 +98,37 @@ const artOk = await evalJs(`new Promise((res) => {
   i.src = 'https://pxsjmychuxwufcvqixgu.supabase.co/storage/v1/object/public/cards/${ME.split('_')[0]}/${ME.split('_')[1]}.webp';
 })`);
 check('card art loads over the network', artOk === '400x545', String(artOk));
+
+// ---- 1b. keyboard settings -------------------------------------------------
+await evalJs(`document.getElementById('keysBtn').click()`);
+await sleep(300);
+const keysUi = await evalJs(`(() => {
+  const caps = [...document.querySelectorAll('#keysGrid .keycap')];
+  const acts = [...document.querySelectorAll('#keysGrid .act')].map(e => e.textContent);
+  return { caps: caps.length, acts, labels: caps.map(c => c.textContent) };
+})()`);
+check('the keys screen lists every action', keysUi.acts.length === 5, keysUi.acts.join(','));
+check('each action has two slots', keysUi.caps === 10, `${keysUi.caps} caps`);
+check('kick is bound and readable', keysUi.labels.includes('↓') && keysUi.labels.includes('S'),
+      keysUi.labels.join(' '));
+
+// Rebind KICK's first slot to G and prove the GAME follows, not just the label.
+await evalJs(`document.querySelectorAll('#keysGrid .keycap')[6].click()`);   // kick, slot 0
+await sleep(150);
+await key('keyDown', 'KeyG', 71); await key('keyUp', 'KeyG', 71);
+await sleep(250);
+const rebound = await evalJs(`(() => {
+  const binds = JSON.parse(localStorage.getItem('hs-binds'));
+  return { kick: binds.kick, label: document.querySelectorAll('#keysGrid .keycap')[6].textContent };
+})()`);
+check('rebinding updates the binding', rebound.kick?.[0] === 'KeyG', JSON.stringify(rebound.kick));
+check('and the cap shows the new key', rebound.label === 'G', rebound.label);
+check('the binding is persisted', !!rebound.kick, 'nothing in localStorage');
+
+await evalJs(`document.getElementById('keysReset').click(); document.getElementById('keysBack').click();`);
+await sleep(200);
+const afterReset = await evalJs(`JSON.parse(localStorage.getItem('hs-binds')).kick[0]`);
+check('reset restores the default kick key', afterReset === 'ArrowDown', String(afterReset));
 
 // ---- 2. kick off -----------------------------------------------------------
 await evalJs('startMatch()');
@@ -136,15 +177,6 @@ await shot('03-play');
 check('the ball got moved by play', travelled > 60, `ball wandered ${travelled.toFixed(0)}px from the spot`);
 
 // ---- 4. power shot ---------------------------------------------------------
-// Input is ignored while the match is frozen (kickoff / post-goal), so if the chase above
-// happened to end in a goal, every key press here lands in a dead window.
-const waitForPlay = async () => {
-  for (let i = 0; i < 40; i++) {
-    if (await evalJs('MATCH.phase === "play" && MATCH.freeze <= 0')) return true;
-    await sleep(150);
-  }
-  return false;
-};
 check('play resumes after the chase', await waitForPlay());
 await evalJs('MATCH.players[0].gauge = 1');
 await sleep(120);
@@ -178,6 +210,34 @@ const fired = await evalJs(`EVENTS.filter(e => e.type === 'powershot' && e.playe
 check('the power shot fires', !!fired, String(fired));
 await sleep(160);
 await shot('04-powershot');
+
+// ---- 4b. a rebound key really drives the game ------------------------------
+{
+  await waitForPlay();
+  // Rebind through the UI exactly as a player would. Writing localStorage directly proved
+  // nothing: the live keymap is built in memory at load, so a stored binding the running
+  // game has not read is not a binding at all.
+  await evalJs(`document.getElementById('keysInGame').click()`);
+  await sleep(200);
+  await evalJs(`document.querySelectorAll('#keysGrid .keycap')[6].click()`);   // kick, slot 0
+  await sleep(150);
+  await key('keyDown', 'KeyG', 71); await key('keyUp', 'KeyG', 71);
+  await sleep(250);
+  await evalJs(`document.getElementById('keysBack').click()`);
+  await sleep(200);
+  await waitForPlay();
+  await evalJs('EVENTS.length = 0; MATCH.players[0].kickCd = 0;');
+  await key('keyDown', 'KeyG', 71); await sleep(120); await key('keyUp', 'KeyG', 71);
+  await sleep(200);
+  const kicked = await evalJs(`EVENTS.some(e => e.type === 'kick' && e.player === 0)`);
+  check('a rebound key actually kicks', kicked === true, 'G did nothing');
+
+  // Put the defaults back: the rebind REPLACED ArrowDown, and every later check in this
+  // file drives the game with the default keys.
+  await evalJs(`document.getElementById('keysInGame').click(); document.getElementById('keysReset').click(); document.getElementById('keysBack').click();`);
+  await sleep(200);
+  await evalJs(`localStorage.removeItem('hs-binds')`);
+}
 
 // ---- 5. a whole match, fast-forwarded -------------------------------------
 // A level scoreline is NOT full time — it is sudden death. Both endings get checked,
