@@ -1040,12 +1040,17 @@ function drawWind(g) {
 // SILHOUETTE, not a different picture: bullseye, horseshoe, bolt, shield, arrow, asterisk.
 // Squint at them in greyscale and you can still tell them apart, which is the actual test.
 
-const puPoly = (g, pts) => {
+// `thick` fattens a polygon by stroking its own outline on top of the fill. At 22 texels a
+// diagonal ribbon two pixels wide antialiases into grey mush — the first lightning bolt read
+// as a four-pointed sparkle for exactly that reason. Every limb of a glyph has to be at
+// least three texels or it is not there.
+const puPoly = (g, pts, thick = 0) => {
   g.beginPath();
   g.moveTo(pts[0][0], pts[0][1]);
   for (let i = 1; i < pts.length; i++) g.lineTo(pts[i][0], pts[i][1]);
   g.closePath();
   g.fill();
+  if (thick > 0) { g.lineJoin = 'round'; g.lineWidth = thick; g.stroke(); }
 };
 
 // The white mark inside the disc. `s` is the glyph half-box; everything scales off it, so
@@ -1061,26 +1066,48 @@ function drawPuGlyph(g, kind, s) {
     g.lineWidth = Math.max(2, s * 0.24);
     g.beginPath(); g.arc(0, 0, s * 0.86, 0, 6.2832); g.stroke();
   } else if (kind === PU.MAGNET) {
-    // Horseshoe: a fat half-ring with two legs hanging off it.
-    g.lineWidth = Math.max(3, s * 0.42);
-    g.beginPath(); g.arc(0, s * 0.06, s * 0.66, Math.PI, 0); g.stroke();
+    // Horseshoe: a fat half-ring with two legs hanging off it, and BLACK POLE TIPS. Without
+    // the tips this read as an arch, or as the letter n — the painted poles are the whole
+    // reason a horseshoe says "magnet" rather than "doorway".
     const lw = Math.max(3, s * 0.42);
-    g.fillRect(Math.round(-s * 0.66 - lw / 2), Math.round(s * 0.06), Math.round(lw), Math.round(s * 0.78));
-    g.fillRect(Math.round(s * 0.66 - lw / 2), Math.round(s * 0.06), Math.round(lw), Math.round(s * 0.78));
+    g.lineWidth = lw;
+    g.beginPath(); g.arc(0, s * 0.06, s * 0.66, Math.PI, 0); g.stroke();
+    const legY = Math.round(s * 0.06), legH = Math.round(s * 0.80);
+    const tipH = Math.max(2, Math.round(legH * 0.42));
+    for (const sx of [-1, 1]) {
+      const x = Math.round(sx * s * 0.66 - lw / 2);
+      g.fillStyle = '#ffffff';
+      g.fillRect(x, legY, Math.round(lw), legH - tipH);
+      g.fillStyle = OUTLINE;
+      g.fillRect(x, legY + legH - tipH, Math.round(lw), tipH);
+    }
+    g.fillStyle = '#ffffff';
   } else if (kind === PU.CHARGE) {
-    // Lightning bolt. The one glyph everybody on earth already knows.
+    // Lightning bolt, stroked fat. The one glyph everybody on earth already knows — but
+    // only once its arms survive the downscale.
     puPoly(g, [[s * 0.30, -s], [-s * 0.62, s * 0.14], [-s * 0.06, s * 0.14],
-               [-s * 0.34, s], [s * 0.62, -s * 0.18], [s * 0.04, -s * 0.18]]);
+               [-s * 0.34, s], [s * 0.62, -s * 0.18], [s * 0.04, -s * 0.18]], s * 0.26);
   } else if (kind === PU.SHIELD) {
     // Shield: square shoulders, a point at the bottom.
     puPoly(g, [[-s * 0.72, -s * 0.78], [s * 0.72, -s * 0.78], [s * 0.72, s * 0.16],
                [0, s * 0.92], [-s * 0.72, s * 0.16]]);
   } else if (kind === PU.SPRING) {
-    // Up-arrow standing on a launch pad.
-    puPoly(g, [[0, -s * 0.95], [s * 0.78, -s * 0.06], [s * 0.30, -s * 0.06],
-               [s * 0.30, s * 0.42], [-s * 0.30, s * 0.42], [-s * 0.30, -s * 0.06],
-               [-s * 0.78, -s * 0.06]]);
-    g.fillRect(Math.round(-s * 0.8), Math.round(s * 0.6), Math.round(s * 1.6), Math.max(2, Math.round(s * 0.26)));
+    // Double chevron — the universal "higher". This was an arrow standing on a launch pad,
+    // and the ink-distribution probe caught it: an arrow is a vertical stem with a bar
+    // across it, and so, at this size, is a snowflake. Only 30% of their ink landed in
+    // different places. Two chevrons have no stem and no horizontal, so the two items stop
+    // sharing a skeleton.
+    // WIDE and FLAT on purpose. A tall narrow chevron is an arch with legs, which is the
+    // magnet; a shallow one that runs the full width of the token is not.
+    g.lineWidth = Math.max(3, s * 0.30);
+    g.lineJoin = 'miter';
+    for (const dy of [-0.30, 0.54]) {
+      g.beginPath();
+      g.moveTo(-s * 0.94, s * dy);
+      g.lineTo(0, s * (dy - 0.50));
+      g.lineTo(s * 0.94, s * dy);
+      g.stroke();
+    }
   } else if (kind === PU.ICE) {
     // Snowflake — three bars through the centre. Degrades into an asterisk, which is still
     // nothing else in this set.

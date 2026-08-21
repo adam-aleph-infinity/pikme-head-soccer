@@ -213,6 +213,59 @@ export let ROBOT_KICK = 1.3;
 export let ROBOT_JUMP = 0.94;        // with ROBOT_GRAV that is a ~30% lower jump
 export let ROBOT_GRAV = 1.25;
 
+// ---- POWER-UPS -------------------------------------------------------------
+// Collectable pickups: a thing appears on the pitch, you go and get it, and for a few
+// seconds you can do something you could not do before. Rules in shared/powerups.js.
+//
+// The constraint every number here answers to is not the spectacle's ("could the player see
+// it coming") but the one a 1v1 adds to it: could BOTH players have got it? That is why a
+// pickup spawns at the exact midpoint between the two of them, why there is a keep-out band
+// so the midpoint is never inside a goalmouth, and why the mercy lead exists.
+export let PICKUPS_ON = 1;           // 0 turns the whole system off, live, mid-match
+export let PICKUP_FIRST = 7;         // s of ordinary football before the first one
+export let PICKUP_GAP = 9;           // s from one leaving the pitch to the next attempt
+export let PICKUP_WARN = 1.1;        // s of telegraph before it can be collected
+export let PICKUP_LIFE = 5.5;        // s it stays collectable, then it expires on its own
+export let PICKUP_QUIET_END = 10;    // s at the end where none spawns and any live one is
+                                      // removed. Must stay ABOVE the longest effect below,
+                                      // so nothing collected at the last legal moment is
+                                      // still running at the whistle — test-powerups checks
+                                      // that relation against the LIVE (paced) values.
+export let PICKUP_KEEPOUT = 96;      // px in front of each goal where none may appear
+export let PICKUP_R = 22;            // collect radius, and the drawn size
+export let PICKUP_Y = 86;            // px above the ground line it floats at. Low enough
+                                      // that a STANDING head touches it (head centre sits
+                                      // 49px up, head radius 30, pickup radius 22) — making
+                                      // you jump for it would turn a footrace into a timing
+                                      // puzzle, and the footrace IS the mechanic.
+export let PICKUP_MERCY_LEAD = 2;    // goals: at or above this, the one item that takes
+                                      // something off the other player stops spawning.
+                                      // Same number as ROBOT_DEFICIT on purpose — the
+                                      // moment the loser gets a robot is the moment ICE
+                                      // leaves the hat.
+export let HIT_STOP_PICKUP = 0.045;  // a small punch on collect. Half a power shot.
+
+// Big head. A bigger thing to head the ball with — and a bigger thing to boot, since
+// tryTackle tests the same circle. 1.55 puts the bottom of the head at 442 against a
+// 445 ground line, so it grows to exactly as big as the pitch allows.
+export let PU_GROW_TIME = 6;
+export let PU_GROW_SCALE = 1.55;
+// Magnet. An acceleration on a LOOSE ball only, falling off linearly to nothing at the rim.
+// Deliberately below BALL_GRAV at point-blank (781*k^2 vs 1180*k^2) so it BENDS a ball
+// toward you rather than levitating it.
+export let PU_MAGNET_TIME = 5;
+export let PU_MAGNET_FORCE = 780;    // px/s² at zero distance
+export let PU_MAGNET_RANGE = 300;    // px — about a third of the pitch
+// Shield. Absorbs exactly one power shot (fired or booted) and is then gone.
+export let PU_SHIELD_TIME = 5.5;
+// Spring boots: a higher jump AND one extra jump in the air. Both end together.
+export let PU_SPRING_TIME = 6;
+export let PU_SPRING_JUMP = 1.22;
+export let PU_SPRING_JUMPS = 1;      // extra air jumps on top of MAX_JUMPS
+// Ice. The ONLY item that touches the other player, and it is a `slow`, never a root: you
+// keep every button, you are just heavy. Nothing here takes the controls off anybody.
+export let PU_ICE_TIME = 2.2;
+
 // ---- Anti-stall ------------------------------------------------------------
 // A ball nobody has touched for this long is returned to the centre spot. This exists
 // because a ball CAN come to rest somewhere unreachable — it was found sitting on top of
@@ -250,14 +303,24 @@ const PACE_REF = {
           // The spectacle rides the pace dial too, or a meteor that throws you 470px/s
           // reads as violent next to a 344px/s run and the two systems drift apart.
           METEOR_PUSH, METEOR_LIFT, METEOR_BALL_POP, METEOR_BALL_PUSH },
-  acc:  { BALL_GRAV, PLAYER_GRAV, PLAYER_ACCEL, PLAYER_AIR_ACCEL, WIND_FORCE },
+  acc:  { BALL_GRAV, PLAYER_GRAV, PLAYER_ACCEL, PLAYER_AIR_ACCEL, WIND_FORCE,
+          // The magnet is an acceleration on the ball, exactly like the wind.
+          PU_MAGNET_FORCE },
   drag: { BALL_AIR, BALL_GROUND_FRICTION },
   // METEOR_WARN is here for a reason worth spelling out: velocities scale by k and this
   // scales by 1/k, so the distance a player can run inside the telegraph — the entire
   // fairness budget — is INVARIANT under the pace dial. Slow the game down and the warning
   // stretches with it. METEOR_KNOCK follows the same logic.
+  //
+  // Every pickup duration is here for that same reason: how far you can RUN inside a
+  // telegraph, how far you can run before a crate expires, and how much pitch you cover
+  // while a power-up is live are all things that must not move when the pace dial does.
+  // PICKUP_FIRST / PICKUP_GAP / PICKUP_QUIET_END are deliberately NOT here — they are match
+  // structure, like SPECTACLE_FIRST, not trajectories.
   time: { KICK_TIME, DASH_TIME, COYOTE_TIME, JUMP_BUFFER, POWER_SHOT_LIFE,
-          METEOR_WARN, METEOR_KNOCK },
+          METEOR_WARN, METEOR_KNOCK,
+          PICKUP_WARN, PICKUP_LIFE,
+          PU_GROW_TIME, PU_MAGNET_TIME, PU_SHIELD_TIME, PU_SPRING_TIME, PU_ICE_TIME },
 };
 
 export function setPace(k) {
@@ -357,6 +420,28 @@ const SETTERS = {
   ROBOT_KICK: (v) => { ROBOT_KICK = v; },
   ROBOT_JUMP: (v) => { ROBOT_JUMP = v; },
   ROBOT_GRAV: (v) => { ROBOT_GRAV = v; },
+  // ---- power-ups ----
+  PICKUPS_ON: (v) => { PICKUPS_ON = v; },
+  PICKUP_FIRST: (v) => { PICKUP_FIRST = v; },
+  PICKUP_GAP: (v) => { PICKUP_GAP = v; },
+  PICKUP_WARN: (v) => { PICKUP_WARN = v; },
+  PICKUP_LIFE: (v) => { PICKUP_LIFE = v; },
+  PICKUP_QUIET_END: (v) => { PICKUP_QUIET_END = v; },
+  PICKUP_KEEPOUT: (v) => { PICKUP_KEEPOUT = v; },
+  PICKUP_R: (v) => { PICKUP_R = v; },
+  PICKUP_Y: (v) => { PICKUP_Y = v; },
+  PICKUP_MERCY_LEAD: (v) => { PICKUP_MERCY_LEAD = v; },
+  HIT_STOP_PICKUP: (v) => { HIT_STOP_PICKUP = v; },
+  PU_GROW_TIME: (v) => { PU_GROW_TIME = v; },
+  PU_GROW_SCALE: (v) => { PU_GROW_SCALE = v; },
+  PU_MAGNET_TIME: (v) => { PU_MAGNET_TIME = v; },
+  PU_MAGNET_FORCE: (v) => { PU_MAGNET_FORCE = v; },
+  PU_MAGNET_RANGE: (v) => { PU_MAGNET_RANGE = v; },
+  PU_SHIELD_TIME: (v) => { PU_SHIELD_TIME = v; },
+  PU_SPRING_TIME: (v) => { PU_SPRING_TIME = v; },
+  PU_SPRING_JUMP: (v) => { PU_SPRING_JUMP = v; },
+  PU_SPRING_JUMPS: (v) => { PU_SPRING_JUMPS = v; },
+  PU_ICE_TIME: (v) => { PU_ICE_TIME = v; },
   PACE: (v) => { setPace(v); },
 };
 
@@ -450,6 +535,27 @@ export function snapshot() {
     ROBOT_KICK,
     ROBOT_JUMP,
     ROBOT_GRAV,
+    PICKUPS_ON,
+    PICKUP_FIRST,
+    PICKUP_GAP,
+    PICKUP_WARN,
+    PICKUP_LIFE,
+    PICKUP_QUIET_END,
+    PICKUP_KEEPOUT,
+    PICKUP_R,
+    PICKUP_Y,
+    PICKUP_MERCY_LEAD,
+    HIT_STOP_PICKUP,
+    PU_GROW_TIME,
+    PU_GROW_SCALE,
+    PU_MAGNET_TIME,
+    PU_MAGNET_FORCE,
+    PU_MAGNET_RANGE,
+    PU_SHIELD_TIME,
+    PU_SPRING_TIME,
+    PU_SPRING_JUMP,
+    PU_SPRING_JUMPS,
+    PU_ICE_TIME,
     PACE,
   };
 }

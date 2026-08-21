@@ -7,6 +7,7 @@
 import * as C from './constants.js';
 import { headY } from './sim.js';
 import { activeMeteors } from './spectacle.js';
+import { activePickup } from './powerups.js';
 
 // `aggression` runs BACKWARDS on purpose. Measured over 10 headless matches per setting,
 // it is the single dominant term in the scoreline — 0.00 → 0.0 goals a match, 0.15 → 8.3,
@@ -40,6 +41,8 @@ export function createBot(level = 2, rng = Math.random) {
     wantJump: false, wantKick: false,
     counterArmed: false, powerPlan: null,
     dodge: null,           // null = not dodging this rock; a number = ticking down to the step
+    puGo: false,           // am I currently running at the crate?
+    puFor: null, puWant: false,   // the crate I have already made my mind up about
     out: { left: false, right: false, jump: false, kick: false, power: false },
   };
 }
@@ -190,6 +193,41 @@ export function botInput(bot, m, index, dt) {
     } else {                                        // is the over-commit `aggression` buys
       bot.aim = myGoalX + p.side * 150;            // hold a defensive slot
     }
+
+    // ---- the crate ----------------------------------------------------------
+    // A pickup no opponent contests is not a mechanic, it is a free gift to the human. So
+    // the bot races for it — and it races for the TELEGRAPH, not for the live item, because
+    // reacting only once a thing is collectable is a second late and loses every race a
+    // human is also in.
+    //
+    // Skill-scaled like everything else on this ladder: `aim` is how reliably it wants the
+    // crate at all AND how far off its football job it is willing to wander. The very-easy
+    // bot walks past most of them; the legendary one is standing on the spot when it lights.
+    const pk = activePickup(m);
+    bot.puGo = false;
+    if (!pk) {
+      bot.puFor = null;
+    } else {
+      // Decide ONCE per crate, exactly like powerPlan. Rolling it every think would tie the
+      // dial to `react` and let the legendary bot (thinking 25x/s) re-roll its mind eight
+      // times for every roll the easy one gets — the bug that made `aggression` do the
+      // opposite of what its name said.
+      const id = pk.x * 8 + pk.kind;
+      if (bot.puFor !== id) {
+        bot.puFor = id;
+        bot.puWant = bot.rng() < 0.22 + d.aim * 0.78;
+      }
+      // Never enter a race that is already lost, and never take a detour so long that the
+      // net is open when the ball comes back. Those two are the whole safety here; the
+      // goal-side caps below then get the last word anyway.
+      const winnable = Math.abs(pk.x - p.x) <= Math.abs(pk.x - foe.x) + 40;
+      const detour = Math.abs(pk.x - bot.aim);
+      if (bot.puWant && winnable && !incoming && detour < C.W * (0.16 + d.aim * 0.34)) {
+        bot.aim = pk.x;
+        bot.puGo = true;
+      }
+    }
+
     // Never chase past the ball toward their goal while it's mine to defend, and never
     // abandon my half entirely — the two ways a chasing bot gifts an open net.
     const goalSideCap = b.x - p.side * 8;

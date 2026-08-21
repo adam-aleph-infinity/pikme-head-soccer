@@ -6,11 +6,17 @@ import * as C from './constants.js';
 import { launchPowerShot, stepPowerShot, counterPowerShot, applyEffect, shotFor, statsFor, SHOTS } from './powershots.js';
 import { createSpectacle, stepSpectacle, packSpectacle, unpackSpectacle,
          spSpeed, spKick, spJump, ballGrav, playerGrav, windAccel } from './spectacle.js';
+import { createPickups, stepPickups, collectPickups, wipePickups, applyMagnet, spendShield,
+         packPickups, unpackPickups, puHeadScale, puJump, puMaxJumps } from './powerups.js';
 
 // A player's geometry, derived (never stored) so nothing can drift out of sync.
 // `y` is the FEET line; the body box hangs above it and the head sits on the body.
 export const headY = (p) => p.y - C.BODY_H - C.HEAD_R + 8;
 export const bodyTop = (p) => p.y - C.BODY_H;
+// The head's RADIUS is not constant any more: the big-head pickup grows it. It grows around
+// the existing centre — headY above is deliberately untouched — so a player who collects one
+// gets bigger without moving. Everything that collides with a head goes through this.
+export const headR = (m, p) => C.HEAD_R * puHeadScale(m, p.index);
 
 const clamp = (v, lo, hi) => (v < lo ? lo : v > hi ? hi : v);
 
@@ -56,6 +62,9 @@ export function createMatch(charA, charB, opts = {}) {
     ball: { x: C.BALL_SPAWN.x, y: C.BALL_SPAWN.y, vx: 0, vy: 0, r: C.BALL_R, spin: 0, power: null },
     // Meteors, moon gravity, wind and robot mode. Every field of it travels in serialize().
     spec: createSpectacle(charA, charB),
+    // Collectable power-ups: what is on the pitch and what is running on each player.
+    // Every field of it travels in serialize() too.
+    pu: createPickups(charA, charB),
     events: [],              // drained by the renderer each frame
   };
   return m;
@@ -82,6 +91,10 @@ function resetPositions(m, towards) {
   // on a player who has just been teleported back to the spawn spot is the definition of
   // an unavoidable hit, so a goal cancels the shower's pending drops.
   if (m.spec) m.spec.met.length = 0;
+  // Same argument for pickups, one step further. A crate sitting at x=700 was equidistant
+  // from two players who are no longer there, and every live effect belongs to the passage
+  // of play that just ended — so a goal wipes the pitch AND every running power-up.
+  wipePickups(m, 'goal');
 }
 
 // ---------------------------------------------------------------------------
@@ -123,9 +136,16 @@ export function step(m, inputs, dt = C.TICK, fx = NO_FX) {
   // Before the players move, so a blast lands in the same tick it is drawn in. Everything
   // it can change lives in m.spec and travels in serialize().
   stepSpectacle(m, fx);
+  // Spawning and the effect clocks run here for the same reason: the spawn decision reads
+  // the positions the telegraph will be drawn against. Collection is the other half and has
+  // to wait until after the players have moved — see below.
+  stepPickups(m, fx);
 
   for (let i = 0; i < 2; i++) stepPlayer(m, m.players[i], inputs[i] || {}, dt, fx);
   separatePlayers(m);
+  // After the move and after separation, so the frame you touch a pickup is the frame you
+  // get it, and so a player shoved onto one by the separator still collects it.
+  collectPickups(m, fx);
   stepBall(m, dt, fx);
 
   // Backstop for every way a ball can end up somewhere nobody can reach it. Cheap, and it
@@ -165,7 +185,7 @@ function stepPlayer(m, p, input, dt, fx) {
   if (p.knocked > 0) {
     p.knocked -= dt;
     p.vx *= 0.86;
-    integrate(p, dt, playerGrav(m, p.index));
+    integrate(p, dt, playerGrav(m, p.index), puMaxJumps(m, p.index));
     p.prev = { ...input };
     return;                             // knocked down = no input at all
   }
@@ -211,7 +231,9 @@ function stepPlayer(m, p, input, dt, fx) {
   p.jumpBuf = (canAct && input.jump && !prev.jump) ? C.JUMP_BUFFER : Math.max(0, p.jumpBuf - dt);
 
   if (canAct && p.jumpBuf > 0 && (p.onGround || p.coyote > 0) && p.jumps > 0) {
-    p.vy = -C.JUMP_V * p.stats.jump * spJump(m, p.index);
+    // Spring boots multiply the launch AND hand out an extra air jump (see puMaxJumps in
+    // integrate). Both end together, and endEffect claws the spare jump back.
+    p.vy = -C.JUMP_V * p.stats.jump * spJump(m, p.index) * puJump(m, p.index);
     p.onGround = false;
     p.coyote = 0;
     p.jumpBuf = 0;
@@ -242,14 +264,14 @@ function stepPlayer(m, p, input, dt, fx) {
     m.events.push({ type: 'armed', player: p.index, shot: p.shot.id });
   }
 
-  integrate(p, dt, playerGrav(m, p.index));
+  integrate(p, dt, playerGrav(m, p.index), puMaxJumps(m, p.index));
   p.prev = { ...input };
 }
 
 // `gm` is the spectacle's gravity multiplier for this player: lighter under a moon phase,
-// heavier as a robot. It is an argument rather than a lookup so integrate() stays a pure
-// function of the player.
-function integrate(p, dt, gm = 1) {
+// heavier as a robot. `jumps` is how many the pickups say they get back on landing. Both
+// are arguments rather than lookups so integrate() stays a pure function of the player.
+function integrate(p, dt, gm = 1, maxJumps = C.MAX_JUMPS) {
   // Falling faster than you rose is what stops a jump reading as floaty.
   p.vy += C.PLAYER_GRAV * gm * (p.vy > 0 ? C.FALL_MULT : 1) * dt;
   p.x += p.vx * dt;
@@ -258,7 +280,7 @@ function integrate(p, dt, gm = 1) {
   if (p.y >= C.GROUND_Y) {
     p.y = C.GROUND_Y;
     if (p.vy > 0) p.vy = 0;
-    if (!p.onGround) p.jumps = C.MAX_JUMPS;
+    if (!p.onGround) p.jumps = maxJumps;
     p.onGround = true;
   } else {
     p.onGround = false;
@@ -293,6 +315,8 @@ function stepBall(m, dt, fx) {
     // Wind. Only ever on a LOOSE ball — a power shot flies the same dead-flat line every
     // time on purpose, and bending it would turn "get in the way" back into a guess.
     b.vx += windAccel(m) * dt;
+    // The magnet pickup, under exactly the same rule and for exactly the same reason.
+    applyMagnet(m, b, dt);
   }
   b.spin *= C.BALL_SPIN_DECAY;
 
@@ -422,7 +446,10 @@ function tryTackle(m, p, fx) {
   const kx = p.x + p.facing * C.KICK_REACH;
   const ky = p.y - C.BODY_H * 0.45;
   // Their whole silhouette counts: head circle or body box.
-  const hitHead = Math.hypot(kx - foe.x, ky - headY(foe)) < C.KICK_R + C.HEAD_R;
+  // Their whole silhouette, at whatever size it currently is: a big-head pickup makes you a
+  // bigger thing to head the ball with AND a bigger thing to boot, which is the drawback
+  // that keeps it from being a free buff.
+  const hitHead = Math.hypot(kx - foe.x, ky - headY(foe)) < C.KICK_R + headR(m, foe);
   const nx = clamp(kx, foe.x - C.BODY_W / 2, foe.x + C.BODY_W / 2);
   const ny = clamp(ky, bodyTop(foe), foe.y);
   const hitBody = Math.hypot(kx - nx, ky - ny) < C.KICK_R;
@@ -434,7 +461,9 @@ function tryTackle(m, p, fx) {
   if (powered) {
     // Kicking the OPPONENT while powered spends the mode on them instead of the ball and
     // lands your character's signature effect — Adam's "freeze them for half a second".
-    applyEffect(p.shot, foe, dir, C.POWER_TACKLE_SCALE);
+    // A SHIELD pickup eats it: the item's promise is "blocks one power shot", and a powered
+    // boot IS the power shot, just delivered by hand. The mode is still spent either way.
+    if (!spendShield(m, foe.index)) applyEffect(p.shot, foe, dir, C.POWER_TACKLE_SCALE);
     p.armed = 0;
   } else {
     foe.slow = C.TACKLE_SLOW_TIME;
@@ -493,7 +522,7 @@ function resolveBallPlayers(m, dt, fx) {
     // ---- head (circle) ----
     const dx = b.x - p.x, dy = b.y - hy;
     const d = Math.hypot(dx, dy);
-    const min = C.HEAD_R + b.r;
+    const min = headR(m, p) + b.r;
     if (d < min && d > 0.0001) {
       // No firing from the head: the power shot comes off the BOOT only. Firing on any
       // touch is what made the POWER button feel dead — the shot went off on a stray
@@ -577,13 +606,15 @@ function hitByPowerShot(m, p, b, fx) {
   const shot = pw.shot;
   m.hitStop = Math.max(m.hitStop, C.HIT_STOP_POWER);
 
-  applyEffect(shot, p, pw.dir);
+  // …unless you are carrying a SHIELD, in which case the block is free this once and the
+  // shield is gone. That is the whole item: it does not stop shots, it pays for one.
+  if (!spendShield(m, p.index)) applyEffect(shot, p, pw.dir);
 
   // The ball comes off the block, back toward the pitch.
   b.vx = -pw.dir * Math.abs(b.vx) * C.POWER_BLOCK_REBOUND;
   b.vy = -Math.abs(b.vy) * 0.4 - 180;
   b.power = null;
-  b.x = p.x - pw.dir * (C.HEAD_R + b.r + 4);
+  b.x = p.x - pw.dir * (headR(m, p) + b.r + 4);
   m.idle = 0;
 
   m.events.push({ type: 'blocked', player: p.index, by: pw.owner, shot: shot.id, effect: shot.effect.kind });
@@ -659,6 +690,11 @@ export function serialize(m) {
     // The spectacle: meteors in flight, the act clock, robot mode. All integers, trailing
     // zeros trimmed — about a dozen bytes when nothing is happening (see spectacle.js).
     sp: packSpectacle(m.spec),
+    // The pickups: what is on the pitch, and the effect clocks on both players. Same
+    // packing discipline — all integers, trailing zeros trimmed, about eleven bytes idle.
+    // If this were left out, a reconciling client would replay the last 30 ticks with a
+    // crate the server never spawned and a big head the server has never seen.
+    pk: packPickups(m.pu),
     b: {
       x: m.ball.x, y: m.ball.y, vx: m.ball.vx, vy: m.ball.vy, spin: m.ball.spin,
       // The shot itself is static data; only its live flight state travels.
@@ -684,6 +720,7 @@ export function restore(m, s) {
     PREV_KEYS.forEach((k, j) => { p.prev[k] = !!pv[j]; });
   }
   if (m.spec) unpackSpectacle(m.spec, s.sp || []);
+  if (m.pu) unpackPickups(m.pu, s.pk || []);
   const b = m.ball, o = s.b;
   b.x = o.x; b.y = o.y; b.vx = o.vx; b.vy = o.vy; b.spin = o.spin;
   if (!o.pw) b.power = null;
