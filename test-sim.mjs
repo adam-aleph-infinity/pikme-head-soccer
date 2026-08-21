@@ -159,7 +159,9 @@ const run = (m, ticks, inputs = NONE) => {
   m.ball.x = p.x + C.KICK_REACH; m.ball.y = p.y - C.BODY_H * 0.45;
   m.ball.vx = 0; m.ball.vy = 0;
   step(m, [{ kick: true }, {}]);
-  ok('kick launches the ball forward', m.ball.vx > 400, `vx=${m.ball.vx.toFixed(0)}`);
+  // Relative to KICK_POWER, not a literal: PACE rescales every speed, so an absolute
+  // threshold here just breaks the day someone slows the game down.
+  ok('kick launches the ball forward', m.ball.vx > C.KICK_POWER * 0.6, `vx=${m.ball.vx.toFixed(0)} of ${C.KICK_POWER.toFixed(0)}`);
   ok('kick lifts the ball', m.ball.vy < 0);
 }
 {
@@ -255,9 +257,26 @@ const run = (m, ticks, inputs = NONE) => {
   step(m, [{ kick: true }, {}]);
   run(m, 30);
   ok('the defender is knocked down', b.knocked > 0, `knocked=${b.knocked}`);
-  const x0 = b.x;
-  run(m, 5, [{}, { right: true }]);
-  ok('a knocked defender ignores input', Math.abs(b.vx) < 340);
+  // Test the PROPERTY, not a magnitude. Any threshold here is really measuring the
+  // knockback impulse — which is not what "ignores input" means, and broke the moment the
+  // push got bigger than a walking speed. Run the same knocked player with and without
+  // input and assert the two are identical.
+  const withInput = { ...b };
+  const ctrl = fresh();
+  const ca = ctrl.players[0], cb = ctrl.players[1];
+  ca.shot = SHOTS.blaze;
+  ca.gauge = 1; step(ctrl, [{ power: true }, {}]);
+  ctrl.hitStop = 0;
+  cb.x = ca.x + 300;
+  ctrl.ball.x = ca.x + C.KICK_REACH; ctrl.ball.y = headY(ca); ctrl.ball.vx = 0; ctrl.ball.vy = 0;
+  step(ctrl, [{ kick: true }, {}]);
+  ctrl.hitStop = 0;
+  run(ctrl, 30);
+  run(m, 5, [{}, { right: true }]);      // held right
+  run(ctrl, 5, [{}, {}]);                // held nothing
+  ok('a knocked defender ignores input',
+     Math.abs(b.vx - cb.vx) < 0.001 && Math.abs(b.x - cb.x) < 0.001,
+     `input ${b.vx.toFixed(1)} vs control ${cb.vx.toFixed(1)}`);
 }
 {
   // tentacles root the defender in place
@@ -267,7 +286,9 @@ const run = (m, ticks, inputs = NONE) => {
   a.gauge = 1; step(m, [{ power: true }, {}]);
   m.ball.x = a.x + C.KICK_REACH; m.ball.y = a.y - C.BODY_H * 0.45; m.ball.vx = 0; m.ball.vy = 0;
   step(m, [{ kick: true }, {}]);
-  run(m, 40);
+  // Wait for the shot to actually ARRIVE rather than for a fixed 40 ticks — at a slower
+  // PACE the ball had not reached the defender yet and the test read as "roots nothing".
+  for (let i = 0; i < 240 && b.rooted <= 0; i++) step(m, NONE);
   ok('tentacles root the defender', b.rooted > 0, `rooted=${b.rooted}`);
   const x0 = b.x;
   run(m, 20, [{}, { left: true }]);

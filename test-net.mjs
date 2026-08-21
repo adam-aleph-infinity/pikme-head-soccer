@@ -136,7 +136,12 @@ const CH = { rarity: 'legendary', number: 3 };
   const wire = encodeSnapshot(m, 42);
   const snap = decodeSnapshot(wire);
   ok('a snapshot carries its tick', snap.tick === 42);
-  ok('a snapshot is small', JSON.stringify(wire).length < 700, `${JSON.stringify(wire).length} bytes`);
+  // 900, not 700. Two reasons the old number was fiction: live play already peaks around
+  // 730 bytes, so this scenario was never the worst case; and it tripped when GAUGE_FULL
+  // went 28 -> 21, purely because 1/21 serialises to a longer float than 1/28. What this
+  // guards is runaway growth — a field added to every player, an array that never drains —
+  // not a wire limit. At 30Hz even 900 bytes is ~27KB/s per client, which is nothing.
+  ok('a snapshot stays small', JSON.stringify(wire).length < 900, `${JSON.stringify(wire).length} bytes`);
 
   const clone = createMatch(CH, { rarity: 'epic', number: 7 }, {});
   restore(clone, snap.state);

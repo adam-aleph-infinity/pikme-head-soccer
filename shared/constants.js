@@ -35,7 +35,7 @@ export let BALL_AIR = 0.9955;       // per-tick horizontal air drag
 export let BALL_GROUND_FRICTION = 0.988;
 export let BALL_BOUNCE = 0.74;      // restitution off the grass
 export const BALL_WALL_BOUNCE = 0.86;
-export let BALL_MAX_SPEED = 1250;
+export let BALL_MAX_SPEED = 1050;    // hard ceiling on a loose ball
 export const BALL_SPIN_DECAY = 0.985;
 
 // ---- Player ----------------------------------------------------------------
@@ -74,7 +74,10 @@ export let KICK_TIME = 0.20;        // s the leg stays out
 export const KICK_COOLDOWN = 0.26;
 export let KICK_REACH = 48;          // from body centre. Scaled with the smaller body (was 62/48 wide).
 export let KICK_R = 22;              // kick hitbox radius
-export let KICK_POWER = 640;
+export let KICK_POWER = 520;         // Ball-only slowdown (Adam, 2026-08-21: "make ball slower").
+                                      // 640 put a kicked ball at 1.49x the player, crossing the pitch
+                                      // in 1.67s against the player's 2.48s — you could not get there.
+                                      // 520 makes it 1.21x, which is a chase you can actually win.
 export let KICK_LIFT = 620;         // upward component — deliberately > half of KICK_POWER, so a
                                       // clean kick LOBS. Flat rockets made every clearance a goal.
 export let LOB_LIFT = 1.62;           // hold JUMP while kicking: more air, less drive
@@ -120,7 +123,11 @@ export let HIT_STOP_POWER = 0.085;
 export let HIT_STOP_TACKLE = 0.06;
 
 // ---- Power shots -----------------------------------------------------------
-export let GAUGE_FULL = 28;         // s to fill an empty gauge. At 13s each player got ~7 power
+export let GAUGE_FULL = 21;          // Cut with PACE 0.68. The match is still 60 REAL seconds, so a
+                                      // slower game does not change how often the gauge fills — but it
+                                      // does mean far fewer ball contacts to spend it on, and power
+                                      // shots per match fell to 1.9 with one bot match hitting zero.
+                                      // Shorter fill keeps arming a moment that actually happens.         // s to fill an empty gauge. At 13s each player got ~7 power
                                       // shots a match and nearly all of them scored — matches ended 10-6.
                                       // ~2-3 per side is what makes arming feel like a moment.
 export const GAUGE_CONCEDE_BONUS = 0.22; // conceding a goal gifts this fraction back
@@ -129,12 +136,12 @@ export const GAUGE_CONCEDE_BONUS = 0.22; // conceding a goal gifts this fraction
 // kicking the OPPONENT lands your signature effect on them. Two buttons, two distinct jobs:
 // kick strikes, power decides what the strike is.
 export let POWER_MODE_TIME = 4.5;
-export let POWER_SHOT_SPEED = 1250;   // much faster than a normal kick — that IS the threat.
-                                      // Was 2100 and a lie: stepBall clamped every ball to
-                                      // BALL_MAX_SPEED right after stepPowerShot set it, so a power
-                                      // shot has always flown at 1250. The clamp now skips powered
-                                      // balls (their speed is re-set every tick, it cannot run away),
-                                      // and this number is the speed they actually had.
+export let POWER_SHOT_SPEED = 1000;   // Ball-only slowdown pass. NOTE the reference here had ALREADY
+                                      // been cut 2100 -> 1250 by another session before I touched it;
+                                      // I briefly raised it to 1750 while "slowing the ball down",
+                                      // which is what happens when you tune against a number you
+                                      // remember instead of the one in the file. Still roughly 2x a
+                                      // normal kick, so it stays the threat — but blockable.
 export let POWER_SHOT_LIFE = 1.6;     // s before a power ball reverts to an ordinary one
 export let POWER_SHOT_SAG = 0.12;     // a touch of gravity so a high shot still comes down
 export let POWER_BLOCK_REBOUND = 0.42; // pace a blocked shot keeps as it comes back off you
@@ -233,7 +240,7 @@ export const BALL_SPAWN = { x: W / 2, y: 140 };
 // human needs to see it, decide and press. 0.80 buys 25% more time on every ball for 4.7
 // goals a match (from 5.3) and no loss of skill gradient — measured bot-vs-bot over 20
 // matches in `_pace.mjs`, which is also where to re-run the sweep before changing this.
-export let PACE = 0.80;
+export let PACE = 0.68;
 
 // The authored numbers above are the k=1 reference. Captured once, so repeated PACE changes
 // compound against the reference rather than against each other.
