@@ -1,5 +1,10 @@
 /* Head-soccer mock. Dark stadium chrome, Hebrew-first RTL, phone-first sizing. */
 :root {
+  /* Safe-area insets mirrored into custom properties so JS can read them — env() is not
+     otherwise legible from script, and the pad has to subtract the letterbox from them. */
+  --sa-l: env(safe-area-inset-left, 0px);
+  --sa-r: env(safe-area-inset-right, 0px);
+  --sa-b: env(safe-area-inset-bottom, 0px);
   --bg: #090c14;
   --panel: #131a29;
   --line: #24314a;
@@ -186,17 +191,32 @@ button { font: inherit; color: inherit; border: 0; background: none; cursor: poi
   100% { opacity: 0; transform: scale(1.05); }
 }
 
-/* touch pad */
-.pad { position: absolute; inset: 0; pointer-events: none; direction: ltr; }
-.pad-l, .pad-r {
-  position: absolute; bottom: 10px; display: flex; gap: 8px; pointer-events: none;
+/* touch pad — every dimension derives from --u, the thumb unit, which resize() sets from
+   the STAGE box (not the viewport: the stage is letterboxed, so a 62px button that looked
+   right on a phone was a tap-target on an iPad and half the pitch on a portrait phone).
+   --pl/--pr/--pb are the parts of the safe-area inset the letterbox does NOT already
+   cover — adding env() raw would shove the pad inward twice on a notched landscape phone. */
+.pad {
+  position: absolute; inset: 0; pointer-events: none; direction: ltr;
+  --u: 62px;
+  --gap: calc(var(--u) * 0.14);
+  --edge: calc(var(--u) * 0.17);
+  --pl: 0px; --pr: 0px; --pb: 0px;
 }
-.pad-l { left: 10px; }                    /* walk — physical left thumb, ◀ then ▶ */
-.pad-r { right: 10px; align-items: flex-end; }
+.pad-l, .pad-r {
+  position: absolute; bottom: calc(var(--edge) + var(--pb));
+  display: flex; gap: var(--gap); pointer-events: none;
+}
+.pad-l { left: calc(var(--edge) + var(--pl)); }    /* walk — physical left thumb, ◀ then ▶ */
+.pad-r { right: calc(var(--edge) + var(--pr)); align-items: flex-end; }
 .pad .btn {
-  pointer-events: auto; min-width: 62px; height: 62px; padding: 0 12px;
-  border-radius: 50%; background: #1620359e; border: 2px solid #ffffff26;
-  font-size: 15px; font-weight: 800; backdrop-filter: blur(3px);
+  pointer-events: auto; min-width: var(--u); height: var(--u);
+  padding: 0 calc(var(--u) * 0.19);
+  border-radius: 50%; background: #1620359e;
+  border: max(2px, calc(var(--u) * 0.032)) solid #ffffff26;
+  font-size: clamp(11px, calc(var(--u) * 0.24), 24px);
+  font-weight: 800; backdrop-filter: blur(3px);
+  touch-action: none; user-select: none; -webkit-user-select: none;
 }
 .pad .btn:active, .pad .btn.on { background: #3a4d78d0; transform: scale(.94); }
 .pad .kick { background: #2a5f3ba8; }

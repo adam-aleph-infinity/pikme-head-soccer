@@ -129,13 +129,79 @@ export const GAUGE_CONCEDE_BONUS = 0.22; // conceding a goal gifts this fraction
 // kicking the OPPONENT lands your signature effect on them. Two buttons, two distinct jobs:
 // kick strikes, power decides what the strike is.
 export let POWER_MODE_TIME = 4.5;
-export let POWER_SHOT_SPEED = 2100;   // much faster than a normal kick — that IS the threat
+export let POWER_SHOT_SPEED = 1250;   // much faster than a normal kick — that IS the threat.
+                                      // Was 2100 and a lie: stepBall clamped every ball to
+                                      // BALL_MAX_SPEED right after stepPowerShot set it, so a power
+                                      // shot has always flown at 1250. The clamp now skips powered
+                                      // balls (their speed is re-set every tick, it cannot run away),
+                                      // and this number is the speed they actually had.
 export let POWER_SHOT_LIFE = 1.6;     // s before a power ball reverts to an ordinary one
 export let POWER_SHOT_SAG = 0.12;     // a touch of gravity so a high shot still comes down
 export let POWER_BLOCK_REBOUND = 0.42; // pace a blocked shot keeps as it comes back off you
 export let POWER_TACKLE_SCALE = 0.55;  // effect strength when you kick the PLAYER, not the ball
 export let POWER_STUN = 1.25;         // plain knockdown length (non-signature knockdowns)
 export let COUNTER_WINDOW = 130;    // px: kick within this of an incoming power ball to counter
+
+// ---- SPECTACLE -------------------------------------------------------------
+// Events that happen TO the match: meteors, moon gravity, wind, and a losing player turning
+// into a robot. The rules live in shared/spectacle.js; these are the dials.
+//
+// The single constraint every number here answers to: a match must never be decided by
+// something the player could not see coming. That is why the telegraph times are the first
+// four values, why there is a keep-out band in front of both goals, and why the whole system
+// switches itself off for the last SPECTACLE_QUIET_END seconds.
+export let SPECTACLE_ON = 1;         // 0 turns the entire system off, live, mid-match
+export let SPECTACLE_FIRST = 9;      // s of ordinary football before the first act
+export let SPECTACLE_GAP = 12;       // s between acts. One thing at a time; chaos with no
+                                      // gaps stops being an event and becomes the weather.
+export let SPECTACLE_QUIET_END = 8;  // s at the end of the match where nothing may fire and
+                                      // anything pending is cancelled. The finish is theirs.
+
+// ---- Meteors ---------------------------------------------------------------
+// A marker on the grass FIRST, the rock second. METEOR_WARN is the whole fairness budget:
+// test-spectacle asserts a player standing dead centre of the marker, at the slowest speed
+// the game can produce (common card, freshly tackled), still clears the blast in time.
+export let METEOR_WARN = 1.15;       // s of telegraph before impact
+export let METEOR_SHOWER_TIME = 5.4; // s the shower lasts
+export let METEOR_INTERVAL = 0.9;    // s between rocks
+export let METEOR_SPREAD = 260;      // px either side of the ball a rock may aim
+export let METEOR_KEEPOUT = 120;     // px in front of each goal where none may ever land
+export let METEOR_R = 64;            // blast radius on a player
+export let METEOR_BALL_R = 76;       // and on the ball
+export let METEOR_PUSH = 470;        // knockback
+export let METEOR_LIFT = 380;
+export let METEOR_KNOCK = 0.34;      // s on the floor — a lost beat, not a stun-lock
+export let METEOR_BALL_POP = 780;    // the ball goes UP…
+export let METEOR_BALL_PUSH = 210;   // …far more than sideways, so a rock cannot score
+export const METEOR_FALL = 140;      // px above the ceiling the rock starts its fall (art)
+export let HIT_STOP_METEOR = 0.07;
+
+// ---- Moon phase ------------------------------------------------------------
+// Gravity drops away for both players at once — symmetric, so it is fair by construction.
+// The ball is lightened much more than the players: a floating ball is spectacle, a
+// floating player is somebody who has lost control of their own jump.
+export let MOON_TIME = 6.5;
+export let MOON_GRAV_BALL = 0.42;
+export let MOON_GRAV_PLAYER = 0.72;
+
+// ---- Wind ------------------------------------------------------------------
+// Pushes the ball only, never a player, so it can never take the controls off you. The
+// direction ALTERNATES every time it fires, so nobody gets it twice running.
+export let WIND_TIME = 6;
+export let WIND_FORCE = 560;         // px/s² on a loose ball (a live power shot ignores it)
+
+// ---- Robot mode ------------------------------------------------------------
+// Triggered by being ROBOT_DEFICIT goals BEHIND — see the long note in spectacle.js for why
+// that trigger and not a pickup. A trade, not a buff: quicker and a much harder boot, but
+// heavier, so a robot wins races and loses headers.
+export let ROBOT_DEFICIT = 2;        // goals behind before it arms
+export let ROBOT_WARN = 1;           // s of windup, announced, before the stats change
+export let ROBOT_TIME = 9;           // s it lasts. It ALWAYS ends.
+export let ROBOT_COOLDOWN = 12;      // s before the same player can turn again
+export let ROBOT_SPEED = 1.22;
+export let ROBOT_KICK = 1.3;
+export let ROBOT_JUMP = 0.94;        // with ROBOT_GRAV that is a ~30% lower jump
+export let ROBOT_GRAV = 1.25;
 
 // ---- Anti-stall ------------------------------------------------------------
 // A ball nobody has touched for this long is returned to the centre spot. This exists
@@ -152,6 +218,40 @@ export const GOLDEN_GOAL = true;      // draw → sudden death (gauges stop char
 // ---- Spawns ----------------------------------------------------------------
 export const SPAWN_X = [250, W - 250];
 export const BALL_SPAWN = { x: W / 2, y: 140 };
+
+// ---- Pace ------------------------------------------------------------------
+// One dial for how fast the whole match runs. It is a true slow-motion, NOT a speed nerf:
+// velocities scale by k, accelerations by k^2, per-tick drags by ^k and action durations by
+// 1/k, so every trajectory keeps its SHAPE — same jump height, same arc, same reach — and
+// only the clock on it changes. Scaling speeds alone would flatten every arc instead, which
+// is a different game rather than a slower one.
+//
+// Why below 1: at k=1 a struck ball crosses the pitch in 1.6s, which is inside the window a
+// human needs to see it, decide and press. 0.80 buys 25% more time on every ball for 4.7
+// goals a match (from 5.3) and no loss of skill gradient — measured bot-vs-bot over 20
+// matches in `_pace.mjs`, which is also where to re-run the sweep before changing this.
+export let PACE = 0.80;
+
+// The authored numbers above are the k=1 reference. Captured once, so repeated PACE changes
+// compound against the reference rather than against each other.
+const PACE_REF = {
+  vel:  { BALL_MAX_SPEED, KICK_POWER, KICK_LIFT, PLAYER_SPEED, DASH_V, JUMP_V,
+          TACKLE_PUSH, TACKLE_LIFT, POWER_SHOT_SPEED },
+  acc:  { BALL_GRAV, PLAYER_GRAV, PLAYER_ACCEL, PLAYER_AIR_ACCEL },
+  drag: { BALL_AIR, BALL_GROUND_FRICTION },
+  time: { KICK_TIME, DASH_TIME, COYOTE_TIME, JUMP_BUFFER, POWER_SHOT_LIFE },
+};
+
+export function setPace(k) {
+  if (!Number.isFinite(k) || k <= 0) return;
+  PACE = k;
+  const patch = {};
+  for (const [n, v] of Object.entries(PACE_REF.vel))  patch[n] = v * k;
+  for (const [n, v] of Object.entries(PACE_REF.acc))  patch[n] = v * k * k;
+  for (const [n, v] of Object.entries(PACE_REF.drag)) patch[n] = Math.pow(v, k);
+  for (const [n, v] of Object.entries(PACE_REF.time)) patch[n] = v / k;
+  tune(patch);
+}
 
 // ---- Live tuning -----------------------------------------------------------
 // The whole point of a feel mock is that the numbers get argued with while playing, not
@@ -208,6 +308,7 @@ const SETTERS = {
   POWER_STUN: (v) => { POWER_STUN = v; },
   COUNTER_WINDOW: (v) => { COUNTER_WINDOW = v; },
   MATCH_DURATION: (v) => { MATCH_DURATION = v; },
+  PACE: (v) => { setPace(v); },
 };
 
 export const TUNABLE = Object.keys(SETTERS);
@@ -270,5 +371,10 @@ export function snapshot() {
     POWER_STUN,
     COUNTER_WINDOW,
     MATCH_DURATION,
+    PACE,
   };
 }
+
+// Apply the shipped pace to the reference numbers. Everything downstream imports the
+// scaled values, so nothing else in the codebase has to know PACE exists.
+setPace(PACE);

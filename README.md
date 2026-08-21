@@ -65,6 +65,13 @@ decision. Heading is still the aerial tool.
 leaves them slowed for ~1.7s. There is a 1.1s immunity window afterwards so nobody can be
 stun-locked out of a match.
 
+**The touch pad scales with the device.** Every dimension derives from one thumb unit,
+`--u`, which `resize()` computes from the **stage** box — not the viewport, because the pitch
+is letterboxed: `clamp(46, min(stageH·0.20, stageW·0.115), 96)` CSS px. A fixed 62px button
+was a tap-target on an iPad and a quarter of the pitch on a portrait phone. Safe-area insets
+are added only for the part the letterbox bar does not already cover, so a notched phone in
+landscape does not get its pad shoved into the middle of the screen.
+
 `?pad=1` forces the touch pad on in a desktop browser.
 
 ## What was taken from the real game
@@ -109,6 +116,37 @@ as floaty).
 pixels of screen shake underneath. It costs nothing and is most of what makes a hit land.
 Input held across the freeze is not lost — the sim's edge detection sees it the moment play
 resumes.
+
+## Pace
+
+`PACE` (`shared/constants.js`, shipped at **0.80**) is one dial over how fast the whole match
+runs. It is **slow-motion, not a nerf**: velocities scale by *k*, accelerations by *k²*,
+per-tick drags by *^k* and action durations by *1/k*, so every trajectory keeps its **shape** —
+same jump height, same arc, same reach — and only the clock on it changes. Scaling speeds
+alone would flatten every arc instead, which is a different game rather than a slower one.
+
+At *k*=1 a struck ball crossed the pitch in **1.6s**, inside the window a human needs to see
+it, decide, and press. Measured over 20 bot-vs-bot matches per row (`node _pace.mjs`):
+
+| k | goals/match | ball avg | cross-pitch | jump apex | legendary : very-easy |
+|---|---|---|---|---|---|
+| 1.00 | 5.6 | 587 px/s | 1.64s | 143px | 21:3 |
+| **0.80** | **4.6** | **471 px/s** | **2.04s** | **144px** | **19:5** |
+| 0.60 | 3.5 | 376 px/s | 2.55s | 146px | 16:8 |
+
+0.80 buys **24% more time on every ball** while holding the goal rate at the target and
+losing nothing off the skill gradient. Below ~0.7 the goal rate falls away and skill starts
+washing out. The apex column is the proof it is a time change and not a physics change.
+
+Live: the `PACE` row in the tuner, or `?pace=0.7` on the URL. Both are client-side — in an
+online match the server keeps its own pace, so use them for solo feel-finding.
+
+**A power shot is now as fast as it says it is.** `stepBall` clamped every ball to
+`BALL_MAX_SPEED` *after* `stepPowerShot` had set its speed, so `POWER_SHOT_SPEED = 2100`
+silently flew at 1250 and the tuner knob above 1250 did nothing. Powered balls now skip that
+clamp — their velocity is re-set every tick, so it cannot run away — and the constant is set
+to 1250, the speed power shots actually had. Nothing about the balance changed; the number
+stopped lying.
 
 ## Proportions
 
@@ -236,6 +274,8 @@ Balance was measured, not guessed. Each of these answers one question:
 | `node _sweep.mjs` | isolate one bot dial and watch the scoreline move |
 | `node _shot.mjs` | drive one real Chrome client and screenshot it (`?solo=1` freezes the bot) |
 | `node _duo.mjs` | two real Chrome clients playing each other through the real server |
+| `node _pace.mjs` | how slow can the match get before it stops being a game? |
+| `node _pad.mjs` | is the touch pad thumb-sized, on-pitch and non-overlapping on 5 devices? |
 
 Three real bugs came out of them, all invisible to the unit tests:
 

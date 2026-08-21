@@ -278,8 +278,11 @@ function stepBall(m, dt, fx) {
   }
   b.spin *= C.BALL_SPIN_DECAY;
 
+  // Powered balls are exempt: stepPowerShot re-sets their velocity every tick, so there is
+  // nothing to run away, and clamping them here silently pinned POWER_SHOT_SPEED to
+  // BALL_MAX_SPEED — the power shot's speed knob did nothing for as long as it existed.
   const sp = Math.hypot(b.vx, b.vy);
-  if (sp > C.BALL_MAX_SPEED) { b.vx *= C.BALL_MAX_SPEED / sp; b.vy *= C.BALL_MAX_SPEED / sp; }
+  if (!powered && sp > C.BALL_MAX_SPEED) { b.vx *= C.BALL_MAX_SPEED / sp; b.vy *= C.BALL_MAX_SPEED / sp; }
 
   // Sub-step the ball so it can never skip past a body in one tick. Discrete stepping
   // let a 1250px/s shot jump the 40px-wide body box, after which the nearest-point

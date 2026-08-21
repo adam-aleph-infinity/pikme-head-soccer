@@ -584,6 +584,7 @@ function resize() {
   stage.style.width = w + 'px';
   stage.style.height = h + 'px';
   SC = w / C.W;
+  sizePad(w, h, vw, vh);
   cv.width = Math.ceil(C.W / PIXEL);
   cv.height = Math.ceil(C.H / PIXEL);
   ctx.setTransform(1 / PIXEL, 0, 0, 1 / PIXEL, 0, 0);   // draw in WORLD units, land on texels
@@ -595,6 +596,29 @@ function resize() {
     }
   }
 }
+// The touch pad is sized off the STAGE, not the viewport, and in one place. A thumb is a
+// thumb on every device, so the button has to be a fraction of the play area rather than a
+// fixed 62px that is a tap-target on a tablet and half the pitch on a portrait phone.
+// The clamp keeps it inside 46..96 CSS px: below 46 it is under the 44pt touch minimum,
+// above 96 it starts covering the goal.
+const padEl = document.querySelector('.pad');
+const safeInset = (side) => {
+  const v = getComputedStyle(document.documentElement).getPropertyValue('--sa-' + side);
+  const n = parseFloat(v);
+  return Number.isFinite(n) ? n : 0;
+};
+function sizePad(w, h, vw, vh) {
+  if (!padEl) return;
+  const u = Math.max(46, Math.min(96, Math.min(h * 0.20, w * 0.115)));
+  // The stage is centred, so the letterbox bar already eats this much of the inset.
+  const barX = (vw - w) / 2, barY = (vh - h) / 2;
+  const px = (n) => Math.max(0, Math.round(n)) + 'px';
+  padEl.style.setProperty('--u', u.toFixed(1) + 'px');
+  padEl.style.setProperty('--pl', px(safeInset('l') - barX));
+  padEl.style.setProperty('--pr', px(safeInset('r') - barX));
+  padEl.style.setProperty('--pb', px(safeInset('b') - barY));
+}
+
 addEventListener('resize', () => { if (M) resize(); });
 addEventListener('orientationchange', () => setTimeout(() => M && resize(), 120));
 
@@ -1095,25 +1119,33 @@ const RANGES = {
   // impact
   HIT_STOP_KICK: [0, .2], HIT_STOP_POWER: [0, .3], HIT_STOP_TACKLE: [0, .2],
   BALL_IDLE_RESET: [2, 20],
+  // One dial over all of them: PACE rescales speeds, gravities, drags and durations together
+  // so the match slows down without any trajectory changing shape. 1 = the old pace.
+  PACE: [0.5, 1.3],
 };
 const BASE = C.snapshot();
 
 function buildTuner() {
   const body = $('#tunerBody');
   body.innerHTML = '';
+  // Read the LIVE values, not the boot snapshot: moving PACE rewrites a dozen other numbers,
+  // and a panel still showing their old values is worse than no panel.
+  const cur = C.snapshot();
   for (const k of C.TUNABLE) {
     const [lo, hi] = RANGES[k] || [0, BASE[k] * 3 || 1];
     const stepv = (hi - lo) / 200;
     const row = document.createElement('div');
     row.className = 'tune-row';
-    row.innerHTML = `<label>${k}</label><output>${fmt(BASE[k])}</output>
-      <input type="range" min="${lo}" max="${hi}" step="${stepv}" value="${BASE[k]}">`;
+    row.innerHTML = `<label>${k}</label><output>${fmt(cur[k])}</output>
+      <input type="range" min="${lo}" max="${hi}" step="${stepv}" value="${cur[k]}">`;
     const inp = row.querySelector('input'), out = row.querySelector('output');
     inp.oninput = () => {
       const v = +inp.value;
       out.textContent = fmt(v);
       C.tune({ [k]: v });
       if (k === 'HEAD_R' || k === 'GROUND_Y') { for (let i = 0; i < 2; i++) $('#head' + i).dataset.card = ''; }
+      if (k === 'PACE') buildTuner();     // it just moved every other row
+
     };
     body.appendChild(row);
   }
@@ -1157,6 +1189,9 @@ $('#tunerCopy').onclick = async () => {
     const [r, n] = v.split('_');
     if (RARITIES.includes(r) && +n >= 1 && +n <= CARDS_PER_RARITY) pick[who] = { rarity: r, number: +n };
   }
+  // ?pace=0.7 — the whole match in slow motion, for arguing about speed on the phone
+  // without a rebuild. Same scale as the PACE row in the tuner.
+  if (q.has('pace')) C.setPace(+q.get('pace'));
   if (q.has('diff')) {
     pick.level = Math.max(0, Math.min(5, +q.get('diff')));
     $('#diff').value = pick.level;

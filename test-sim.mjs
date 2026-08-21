@@ -601,5 +601,59 @@ const run = (m, ticks, inputs = NONE) => {
   ok('the sim is deterministic', JSON.stringify(a.ball) === JSON.stringify(b.ball) && a.score.join() === b.score.join());
 }
 
+// --- pace -------------------------------------------------------------------
+// PACE has to be slow-motion, not a nerf: the same jump, the same arc, a longer clock.
+{
+  const shipped = C.PACE;
+  const arc = () => {
+    let y = 0, vy = -C.JUMP_V, t = 0, apex = 0;
+    while (y <= 0) { vy += C.PLAYER_GRAV * (vy > 0 ? C.FALL_MULT : 1) * C.TICK; y += vy * C.TICK; t += C.TICK; apex = Math.min(apex, y); }
+    return { apex: -apex, hang: t };
+  };
+  C.setPace(1); const fast = arc(), fastSpeed = C.PLAYER_SPEED;
+  C.setPace(0.5); const slow = arc(), slowSpeed = C.PLAYER_SPEED;
+  ok('pace keeps jump height', Math.abs(fast.apex - slow.apex) / fast.apex < 0.03, `${fast.apex.toFixed(1)} vs ${slow.apex.toFixed(1)}`);
+  ok('pace stretches hang time', Math.abs(slow.hang / fast.hang - 2) < 0.06, `x${(slow.hang / fast.hang).toFixed(2)}`);
+  ok('pace halves running speed', Math.abs(slowSpeed / fastSpeed - 0.5) < 1e-9);
+  C.setPace(shipped);
+  ok('pace is restorable', Math.abs(C.PLAYER_SPEED - fastSpeed * shipped) < 1e-6);
+  ok('setPace ignores nonsense', (C.setPace(0), C.setPace(NaN), C.PACE === shipped));
+}
+
+// --- a power shot is as fast as it says it is -------------------------------
+// The ball clamp used to run after stepPowerShot and pinned every power shot to
+// BALL_MAX_SPEED, which made POWER_SHOT_SPEED a knob wired to nothing.
+{
+  const m = fresh();
+  const p = m.players[0];
+  p.gauge = 1; p.armed = 0;
+  step(m, [{ power: true }, {}]);
+  ok('power arms the player', m.players[0].armed > 0);
+  m.ball.x = p.x + 30; m.ball.y = C.GROUND_Y - C.BALL_R; m.ball.vx = 0; m.ball.vy = 0;
+  for (let i = 0; i < 30 && !m.ball.power; i++) step(m, [{ kick: i % 3 === 0, right: true }, {}]);
+  ok('the kick fires a power shot', !!m.ball.power);
+  if (m.ball.power) {
+    const sp = Math.hypot(m.ball.vx, m.ball.vy);
+    const want = C.POWER_SHOT_SPEED * (m.ball.power.speed || 1);
+    ok('a power shot flies at POWER_SHOT_SPEED', sp > want * 0.9, `${sp.toFixed(0)} vs ${want.toFixed(0)}`);
+    // The knob is only real if it can push PAST the ordinary ball cap. Shipped, the two are
+    // equal, so prove it with a value the old clamp would have eaten.
+    const keep = C.POWER_SHOT_SPEED;
+    C.tune({ POWER_SHOT_SPEED: C.BALL_MAX_SPEED * 1.6 });
+    run(m, 8);                     // the launch hit-stop freezes the ball for ~5 ticks first
+    ok('POWER_SHOT_SPEED can exceed BALL_MAX_SPEED',
+       Math.hypot(m.ball.vx, m.ball.vy) > C.BALL_MAX_SPEED * 1.4,
+       `${Math.hypot(m.ball.vx, m.ball.vy).toFixed(0)} vs cap ${C.BALL_MAX_SPEED.toFixed(0)}`);
+    C.tune({ POWER_SHOT_SPEED: keep });
+  }
+  // …while an ordinary ball is still capped.
+  {
+    const n = fresh();
+    n.ball.vx = C.BALL_MAX_SPEED * 4; n.ball.vy = 0;
+    step(n, NONE);
+    ok('an ordinary ball is still capped', Math.hypot(n.ball.vx, n.ball.vy) <= C.BALL_MAX_SPEED + 1);
+  }
+}
+
 console.log(`test-sim: ${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);
