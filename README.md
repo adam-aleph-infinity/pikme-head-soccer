@@ -244,7 +244,12 @@ Three real bugs came out of them, all invisible to the unit tests:
    face crop. The alternative — the whole trading card as the body — is a different game.
 3. **Rarity stats.** Legendary is ~6% faster / 8% harder-hitting than common. Deliberately
    narrow. Real hook or pay-to-win?
-4. **No audio.** `../football assets/` has usable sounds if this goes further.
+4. **Audio is synthesised, not sampled.** The brief was "sounds from Street Fighter II";
+   those samples are Capcom's, so `public/audio.js` builds the same *vocabulary* out of
+   WebAudio primitives instead — noise burst through a bandpass for an impact, square sweep
+   for a whoosh, detuned pair for a fanfare. No files, nothing to preload, and it survives
+   the WebView with no asset pipeline. `../football assets/` has real sounds you own if you
+   would rather use those.
 
 ## Shipping
 

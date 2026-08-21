@@ -6,6 +6,7 @@ import { createMatch, step, headY, NO_FX } from '../shared/sim.js';
 import { createBot, botInput, DIFFICULTIES } from '../shared/bot.js';
 import { shotFor, SHOTS } from '../shared/powershots.js';
 import { createNet } from './net.js';
+import { playEvent, SFX, setAudioEnabled, audioEnabled } from './audio.js';
 
 const CARD_ART = 'https://pxsjmychuxwufcvqixgu.supabase.co/storage/v1/object/public/cards';
 const RARITIES = ['legendary', 'epic', 'rare', 'common'];
@@ -448,6 +449,7 @@ function startMatch() {
     $(`.gauge.g${i} .nm`).textContent = M.players[i].shot.name;
   }
   resize();
+  playEvent('whistle');
   cancelAnimationFrame(raf);
   raf = requestAnimationFrame(frame);
 }
@@ -489,6 +491,9 @@ function drainEvents() {
   for (const e of M.events) {
     EVENT_LOG.push({ ...e, t: +M.t.toFixed(2) });
     if (EVENT_LOG.length > 200) EVENT_LOG.shift();
+    // The sim's event names ARE the sound names, so a new event gets audio for free and a
+    // missing one is silently ignored rather than throwing mid-frame.
+    playEvent(e.type === 'strike' ? (e.head ? 'head' : 'kick') : e.type);
     if (e.type === 'goal') banner(e.power ? 'גול פאוור!' : 'גול!', e.player === 0 ? '#4ea0ff' : '#ff5c7a');
     else if (e.type === 'counter') banner('קאונטר!', '#ffffff');
     else if (e.type === 'tackle') {
@@ -505,7 +510,8 @@ function drainEvents() {
     else if (e.type === 'ballReset') banner('כדור חדש', '#8ea0be');
     else if (e.type === 'powershot') banner(SHOTS[e.shot].name, SHOTS[e.shot].color);
     else if (e.type === 'golden') banner('מוות פתאומי', '#ffb800');
-    else if (e.type === 'fulltime') endMatch();
+    else if (e.type === 'fulltime') { playEvent(e.winner === (ONLINE ? NET.you : 0) ? 'win' : 'lose'); endMatch(); }
+    else if (e.type === 'ballReset') playEvent('reset');
   }
   M.events.length = 0;
 }
@@ -632,6 +638,31 @@ function drawStadium(g) {
     for (let l = 0; l < 4; l++) g.fillRect(x - 22 + l * 12, standTop - 14, 8, 8);
   }
 
+  // Distant hills, then the SF2 stage furniture: two stone guardians flanking the pitch and
+  // a run of hanging banners. SF2 stages are memorable because of their PROPS — the temple
+  // statues, the marching soldiers, the market stalls — not because of the backdrop colour.
+  g.fillStyle = '#a85c2e';
+  for (let i = 0; i < 7; i++) {
+    const hx = i * 160 - 40, hw = 190, hh = 42 + (i % 3) * 16;
+    g.beginPath();
+    g.moveTo(hx, standTop);
+    g.lineTo(hx + hw / 2, standTop - hh);
+    g.lineTo(hx + hw, standTop);
+    g.closePath();
+    g.fill();
+  }
+
+  // birds, because an SF2 sky is never empty
+  for (let i = 0; i < 5; i++) {
+    const bx = ((t * (16 + i * 5) + i * 260) % (C.W + 80)) - 40;
+    const by = 24 + i * 13 + Math.sin(t * 2 + i) * 5;
+    const flap = Math.sin(t * 9 + i) > 0 ? 3 : -2;
+    g.fillStyle = '#5a3a20';
+    g.fillRect(bx, by, 4, 2);
+    g.fillRect(bx - 4, by + flap, 4, 2);
+    g.fillRect(bx + 4, by + flap, 4, 2);
+  }
+
   // stands: a dark block, a railing, then a dense pixel crowd
   g.fillStyle = '#6b3f2a';
   g.fillRect(0, standTop, C.W, standBot - standTop);
@@ -647,6 +678,26 @@ function drawStadium(g) {
     g.fillStyle = '#f0b48a';
     g.fillRect(Math.round(c.x), Math.round(y + bob), 4, 3);
   }
+  // Props go in FRONT of the crowd — drawn before it, the stands fill painted straight
+  // over them and nothing showed.
+  drawGuardian(g, 108, standTop, standBot);
+  drawGuardian(g, C.W - 108, standTop, standBot);
+
+  // hanging banners strung between the floodlight masts
+  for (let i = 0; i < 9; i++) {
+    const bx = 60 + i * 108;
+    const sway = Math.sin(t * 1.4 + i) * 3;
+    const bh2 = 34 + (i % 2) * 10;
+    g.fillStyle = OUTLINE;
+    g.fillRect(bx - 12, standTop + 4, 24, bh2 + 2);
+    g.fillStyle = i % 2 ? '#c81e37' : '#1b3f8a';
+    g.fillRect(bx - 10 + sway * 0.2, standTop + 6, 20, bh2);
+    g.fillStyle = '#ffd23c';
+    g.fillRect(bx - 6 + sway * 0.2, standTop + 12, 12, 4);
+    g.fillRect(bx - 6 + sway * 0.2, standTop + 22, 12, 4);
+  }
+
+
   // railing in front of the crowd
   g.fillStyle = OUTLINE;
   g.fillRect(0, standBot - 6, C.W, 6);
@@ -695,6 +746,42 @@ function drawStadium(g) {
   g.beginPath();
   g.ellipse(C.W / 2, gy, 68, (C.H - gy) * 0.5, 0, 0, Math.PI);
   g.stroke();
+}
+
+// A stone guardian, the way Sagat's temple stage frames its pitch. Blocky, three flat
+// stone tones, black keyline — same rules as the fighters, so it sits in the same world.
+function drawGuardian(g, cx, top, bot) {
+  const h = bot - top;
+  const w = 62;
+  const x = Math.round(cx - w / 2);
+  const stone = '#8a7a66', dark = '#5d5044', lite = '#b3a48c';
+
+  g.fillStyle = OUTLINE;
+  g.fillRect(x - 3, Math.round(top + h * 0.06) - 3, w + 6, Math.round(h * 0.94) + 3);
+
+  // plinth, torso, shoulders
+  g.fillStyle = dark;
+  g.fillRect(x, Math.round(bot - h * 0.18), w, Math.round(h * 0.18));
+  g.fillStyle = stone;
+  g.fillRect(x + 6, Math.round(top + h * 0.34), w - 12, Math.round(h * 0.48));
+  g.fillRect(x, Math.round(top + h * 0.30), w, Math.round(h * 0.10));
+  g.fillStyle = lite;
+  g.fillRect(x + 6, Math.round(top + h * 0.34), 4, Math.round(h * 0.48));
+
+  // head with a hard shadow and two lit eyes
+  const hw = Math.round(w * 0.52), hx = Math.round(cx - hw / 2), hh = Math.round(h * 0.24);
+  g.fillStyle = OUTLINE;
+  g.fillRect(hx - 2, Math.round(top + h * 0.06) - 2, hw + 4, hh + 4);
+  g.fillStyle = stone;
+  g.fillRect(hx, Math.round(top + h * 0.06), hw, hh);
+  g.fillStyle = dark;
+  g.fillRect(Math.round(cx + hw * 0.12), Math.round(top + h * 0.06), Math.round(hw * 0.38), hh);
+  g.fillStyle = '#ffd23c';
+  g.fillRect(hx + 5, Math.round(top + h * 0.13), 6, 4);
+  g.fillRect(hx + hw - 11, Math.round(top + h * 0.13), 6, 4);
+  // crossed arms
+  g.fillStyle = dark;
+  g.fillRect(x + 4, Math.round(top + h * 0.46), w - 8, 7);
 }
 
 function drawGoal(g, left) {
@@ -1032,6 +1119,13 @@ function buildTuner() {
 const fmt = (v) => (Math.abs(v) < 10 ? (+v).toFixed(3).replace(/0+$/, '').replace(/\.$/, '') : Math.round(v));
 
 $('#gear').onclick = () => { $('#tuner').classList.toggle('hidden'); };
+$('#sndBtn').onclick = () => {
+  const on = !audioEnabled();
+  setAudioEnabled(on);
+  $('#sndBtn').textContent = on ? '🔊' : '🔇';
+  $('#sndBtn').classList.toggle('off', !on);
+  if (on) SFX.whistle();          // also serves as the WKWebView audio unlock gesture
+};
 $('#tunerClose').onclick = () => $('#tuner').classList.add('hidden');
 $('#tunerReset').onclick = () => { C.tune(BASE); buildTuner(); for (let i = 0; i < 2; i++) $('#head' + i).dataset.card = ''; };
 $('#tunerCopy').onclick = async () => {

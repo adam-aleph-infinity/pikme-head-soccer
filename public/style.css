@@ -328,3 +328,9 @@ body.no-touch .pad { display: none; }
   position: absolute; top: 44px; right: 48px; width: 34px; height: 34px; border-radius: 10px;
   background: #0a0f1cbb; border: 1px solid #ffffff1f; font-size: 15px;
 }
+
+.sndBtn {
+  position: absolute; top: 44px; right: 90px; width: 34px; height: 34px; border-radius: 10px;
+  background: #0a0f1cbb; border: 1px solid #ffffff1f; font-size: 14px;
+}
+.sndBtn.off { opacity: .45; }
