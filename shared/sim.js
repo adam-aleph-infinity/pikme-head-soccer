@@ -4,6 +4,8 @@
 
 import * as C from './constants.js';
 import { launchPowerShot, stepPowerShot, counterPowerShot, applyEffect, shotFor, statsFor, SHOTS } from './powershots.js';
+import { createSpectacle, stepSpectacle, packSpectacle, unpackSpectacle,
+         spSpeed, spKick, spJump, ballGrav, playerGrav, windAccel } from './spectacle.js';
 
 // A player's geometry, derived (never stored) so nothing can drift out of sync.
 // `y` is the FEET line; the body box hangs above it and the head sits on the body.
@@ -52,6 +54,8 @@ export function createMatch(charA, charB, opts = {}) {
     idle: 0,                 // seconds since a player last touched the ball
     players: [makePlayer(0, charA), makePlayer(1, charB)],
     ball: { x: C.BALL_SPAWN.x, y: C.BALL_SPAWN.y, vx: 0, vy: 0, r: C.BALL_R, spin: 0, power: null },
+    // Meteors, moon gravity, wind and robot mode. Every field of it travels in serialize().
+    spec: createSpectacle(charA, charB),
     events: [],              // drained by the renderer each frame
   };
   return m;
@@ -74,6 +78,10 @@ function resetPositions(m, towards) {
   b.vx = towards ? towards * 90 : 0;
   b.vy = 0; b.spin = 0; b.power = null;
   m.idle = 0;
+  // Any rock still in the air belongs to the passage of play that just ended. Landing one
+  // on a player who has just been teleported back to the spawn spot is the definition of
+  // an unavoidable hit, so a goal cancels the shower's pending drops.
+  if (m.spec) m.spec.met.length = 0;
 }
 
 // ---------------------------------------------------------------------------
@@ -111,6 +119,10 @@ export function step(m, inputs, dt = C.TICK, fx = NO_FX) {
       }
     }
   }
+
+  // Before the players move, so a blast lands in the same tick it is drawn in. Everything
+  // it can change lives in m.spec and travels in serialize().
+  stepSpectacle(m, fx);
 
   for (let i = 0; i < 2; i++) stepPlayer(m, m.players[i], inputs[i] || {}, dt, fx);
   separatePlayers(m);
@@ -153,7 +165,7 @@ function stepPlayer(m, p, input, dt, fx) {
   if (p.knocked > 0) {
     p.knocked -= dt;
     p.vx *= 0.86;
-    integrate(p, dt);
+    integrate(p, dt, playerGrav(m, p.index));
     p.prev = { ...input };
     return;                             // knocked down = no input at all
   }
@@ -180,9 +192,9 @@ function stepPlayer(m, p, input, dt, fx) {
 
   if (p.dashT > 0) {
     p.dashT -= dt;
-    p.vx = p.dashDir * C.DASH_V * p.stats.speed * (p.slow > 0 ? C.TACKLE_SLOW : 1);
+    p.vx = p.dashDir * C.DASH_V * p.stats.speed * spSpeed(m, p.index) * (p.slow > 0 ? C.TACKLE_SLOW : 1);
   } else {
-    const target = dir * C.PLAYER_SPEED * p.stats.speed * (p.slow > 0 ? C.TACKLE_SLOW : 1);
+    const target = dir * C.PLAYER_SPEED * p.stats.speed * spSpeed(m, p.index) * (p.slow > 0 ? C.TACKLE_SLOW : 1);
     const accel = (p.onGround ? C.PLAYER_ACCEL : C.PLAYER_AIR_ACCEL) * dt;
     if (dir !== 0) {
       p.vx += clamp(target - p.vx, -accel, accel);
@@ -199,7 +211,7 @@ function stepPlayer(m, p, input, dt, fx) {
   p.jumpBuf = (canAct && input.jump && !prev.jump) ? C.JUMP_BUFFER : Math.max(0, p.jumpBuf - dt);
 
   if (canAct && p.jumpBuf > 0 && (p.onGround || p.coyote > 0) && p.jumps > 0) {
-    p.vy = -C.JUMP_V * p.stats.jump;
+    p.vy = -C.JUMP_V * p.stats.jump * spJump(m, p.index);
     p.onGround = false;
     p.coyote = 0;
     p.jumpBuf = 0;
@@ -230,13 +242,16 @@ function stepPlayer(m, p, input, dt, fx) {
     m.events.push({ type: 'armed', player: p.index, shot: p.shot.id });
   }
 
-  integrate(p, dt);
+  integrate(p, dt, playerGrav(m, p.index));
   p.prev = { ...input };
 }
 
-function integrate(p, dt) {
+// `gm` is the spectacle's gravity multiplier for this player: lighter under a moon phase,
+// heavier as a robot. It is an argument rather than a lookup so integrate() stays a pure
+// function of the player.
+function integrate(p, dt, gm = 1) {
   // Falling faster than you rose is what stops a jump reading as floaty.
-  p.vy += C.PLAYER_GRAV * (p.vy > 0 ? C.FALL_MULT : 1) * dt;
+  p.vy += C.PLAYER_GRAV * gm * (p.vy > 0 ? C.FALL_MULT : 1) * dt;
   p.x += p.vx * dt;
   p.y += p.vy * dt;
 
@@ -273,8 +288,11 @@ function stepBall(m, dt, fx) {
 
   const powered = stepPowerShot(b, m.players, dt, fx);
   if (!powered) {
-    b.vy += C.BALL_GRAV * dt;
+    b.vy += C.BALL_GRAV * ballGrav(m) * dt;
     b.vx *= C.BALL_AIR;
+    // Wind. Only ever on a LOOSE ball — a power shot flies the same dead-flat line every
+    // time on purpose, and bending it would turn "get in the way" back into a guess.
+    b.vx += windAccel(m) * dt;
   }
   b.spin *= C.BALL_SPIN_DECAY;
 
@@ -456,7 +474,7 @@ function resolveBallPlayers(m, dt, fx) {
       if (Math.hypot(b.x - kx, b.y - ky) < C.KICK_R + b.r) {
         if (firePowerIfArmed(m, p, b, fx)) return;
         if (!b.power) {
-          const mult = p.stats.kick;
+          const mult = p.stats.kick * spKick(m, p.index);
           const drive = p.kickLob ? C.LOB_DRIVE : 1;
           const lift = p.kickLob ? C.LOB_LIFT : 1;
           b.vx = p.facing * C.KICK_POWER * mult * drive + p.vx * 0.4;
@@ -638,6 +656,9 @@ export function serialize(m) {
       o.push(PREV_KEYS.map((k) => (p.prev && p.prev[k] ? 1 : 0)));
       return o;
     }),
+    // The spectacle: meteors in flight, the act clock, robot mode. All integers, trailing
+    // zeros trimmed — about a dozen bytes when nothing is happening (see spectacle.js).
+    sp: packSpectacle(m.spec),
     b: {
       x: m.ball.x, y: m.ball.y, vx: m.ball.vx, vy: m.ball.vy, spin: m.ball.spin,
       // The shot itself is static data; only its live flight state travels.
@@ -662,6 +683,7 @@ export function restore(m, s) {
     p.prev = {};
     PREV_KEYS.forEach((k, j) => { p.prev[k] = !!pv[j]; });
   }
+  if (m.spec) unpackSpectacle(m.spec, s.sp || []);
   const b = m.ball, o = s.b;
   b.x = o.x; b.y = o.y; b.vx = o.vx; b.vy = o.vy; b.spin = o.spin;
   if (!o.pw) b.power = null;

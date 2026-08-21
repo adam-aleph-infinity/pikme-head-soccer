@@ -110,6 +110,22 @@ function crowd({ dur = 1.4, peak = 0.5, t = 0 } = {}) {
   src.stop(t0 + dur + 0.05);
 }
 
+// A long low-passed noise bed: earth moving, not a hit. Used for the meteor impact and
+// for the shower's opening rumble.
+function rumble({ dur = 0.8, peak = 0.9, freq = 150, t = 0 } = {}) {
+  const a = ctx(), t0 = now() + t;
+  const src = noise();
+  const lp = a.createBiquadFilter();
+  lp.type = 'lowpass';
+  lp.frequency.setValueAtTime(freq, t0);
+  lp.frequency.exponentialRampToValueAtTime(50, t0 + dur);
+  lp.Q.value = 3;
+  src.connect(lp);
+  env(lp, t0, peak, 0.02, dur);
+  src.start(t0);
+  src.stop(t0 + dur + 0.05);
+}
+
 // ---------------------------------------------------------------------------
 // The kit. One entry per sim event, so game.js just forwards event types here.
 export const SFX = {
@@ -160,6 +176,67 @@ export const SFX = {
   win()       { [523, 659, 784, 1047, 1319].forEach((f, i) => blip({ freq: f, type: 'square', peak: 0.36, dur: 0.2, t: i * 0.1 })); crowd({ dur: 2.2, peak: 0.5 }); },
   lose()      { [523, 466, 392, 311].forEach((f, i) => blip({ freq: f, type: 'square', peak: 0.32, dur: 0.28, t: i * 0.14 })); },
   reset()     { blip({ freq: 880, type: 'triangle', peak: 0.22, dur: 0.1 }); },
+
+  // ---- SPECTACLE --------------------------------------------------------
+  // The telegraph has to be audible as well as visible: on a phone, in a pocket, the
+  // whistle is often what makes you look down before the rock lands.
+
+  // Shower incoming: an air-raid two-tone over a rumble.
+  meteorStart() {
+    rumble({ dur: 1.2, peak: 0.7, freq: 220 });
+    sweep({ from: 440, to: 880, type: 'square', peak: 0.28, dur: 0.34 });
+    sweep({ from: 880, to: 440, type: 'square', peak: 0.28, dur: 0.34, t: 0.34 });
+    sweep({ from: 440, to: 880, type: 'square', peak: 0.22, dur: 0.34, t: 0.68 });
+  },
+
+  // ONE rock, marked. The classic falling-bomb whistle: pitch drops the whole way down.
+  meteorWarn() {
+    sweep({ from: 1500, to: 260, type: 'sawtooth', peak: 0.20, dur: 1.0 });
+    sweep({ from: 1500, to: 260, type: 'sine', peak: 0.14, dur: 1.0, detune: 22 });
+  },
+
+  // Landing. Everything low, with a crack of debris on top.
+  meteorHit() {
+    rumble({ dur: 0.9, peak: 1.0, freq: 180 });
+    thud({ freq: 90, q: 0.7, peak: 1.0, decay: 0.45 });
+    thud({ freq: 1900, q: 4, peak: 0.45, decay: 0.1 });
+    blip({ freq: 70, type: 'square', peak: 0.4, dur: 0.4 });
+  },
+  meteorBall()  { thud({ freq: 700, q: 2, peak: 0.6, decay: 0.14 }); sweep({ from: 300, to: 1400, peak: 0.3, dur: 0.3 }); },
+  meteorKnock() { thud({ freq: 150, peak: 0.85, decay: 0.22 }); },
+
+  // Transforming: a servo ratchet under a rising whine, then the clunk of it locking in.
+  robotCharge() {
+    sweep({ from: 120, to: 760, type: 'sawtooth', peak: 0.26, dur: 0.9 });
+    sweep({ from: 120, to: 760, type: 'square', peak: 0.16, dur: 0.9, detune: -18 });
+    for (let i = 0; i < 7; i++) blip({ freq: 300 + i * 90, type: 'square', peak: 0.14, dur: 0.05, t: i * 0.11 });
+  },
+  robotOn() {
+    thud({ freq: 200, peak: 1.0, decay: 0.26 });
+    [131, 196, 262].forEach((f, i) => {
+      blip({ freq: f, type: 'sawtooth', peak: 0.3, dur: 0.42, t: i * 0.02 });
+      blip({ freq: f * 2, type: 'square', peak: 0.14, dur: 0.34, t: i * 0.02 });
+    });
+    sweep({ from: 900, to: 2400, type: 'square', peak: 0.2, dur: 0.24 });
+  },
+  // Powering down — the same chord falling apart.
+  robotOff() {
+    sweep({ from: 700, to: 90, type: 'sawtooth', peak: 0.3, dur: 0.55 });
+    blip({ freq: 160, type: 'square', peak: 0.22, dur: 0.3, t: 0.3 });
+  },
+
+  // Low gravity: a bell that will not settle.
+  moonStart() {
+    [784, 1047, 1319].forEach((f, i) => {
+      blip({ freq: f, type: 'sine', peak: 0.3, dur: 0.7, t: i * 0.09 });
+      blip({ freq: f * 1.005, type: 'sine', peak: 0.2, dur: 0.7, t: i * 0.09 });
+    });
+  },
+  moonEnd()   { [1319, 1047, 784].forEach((f, i) => blip({ freq: f, type: 'sine', peak: 0.22, dur: 0.34, t: i * 0.07 })); },
+
+  // Wind: bandpassed noise that swells and drops, an octave under the crowd.
+  windStart() { crowd({ dur: 1.6, peak: 0.42 }); sweep({ from: 300, to: 180, type: 'sine', peak: 0.16, dur: 1.2 }); },
+  windEnd()   { crowd({ dur: 0.7, peak: 0.18 }); },
 };
 
 export function setAudioEnabled(v) {

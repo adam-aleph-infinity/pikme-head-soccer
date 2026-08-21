@@ -135,7 +135,12 @@ check('reset restores the default kick key', afterReset === 'ArrowDown', String(
 // that could score, freeze the match and reset both players between one await and the
 // next — which made a different check fail on each run. Bot behaviour has its own coverage
 // in test-bot.mjs and _duo.mjs; what THIS file tests is rendering and input.
-await evalJs('window.BOT_OFF = true; startMatch();');
+// …and switch the spectacle off for the same reason, one layer up. A meteor knocks the
+// player down for a third of a second, and a knocked player cannot press POWER — so
+// "POWER arms the shot" failed whenever a rock happened to land between two awaits. This
+// file tests RENDERING and INPUT; the spectacle has its own harness in
+// _spectacle-shots.mjs, which forces each event instead of waiting for one.
+await evalJs('C.tune({ SPECTACLE_ON: 0 }); window.BOT_OFF = true; startMatch();');
 await sleep(1600);                       // ride out the kickoff freeze
 await shot('02-kickoff');
 

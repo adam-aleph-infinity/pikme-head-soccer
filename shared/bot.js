@@ -6,6 +6,7 @@
 
 import * as C from './constants.js';
 import { headY } from './sim.js';
+import { activeMeteors } from './spectacle.js';
 
 // `aggression` runs BACKWARDS on purpose. Measured over 10 headless matches per setting,
 // it is the single dominant term in the scoreline — 0.00 → 0.0 goals a match, 0.15 → 8.3,
@@ -38,8 +39,21 @@ export function createBot(level = 2, rng = Math.random) {
     aim: C.W / 2,          // the x it is currently walking to (re-picked on each think)
     wantJump: false, wantKick: false,
     counterArmed: false, powerPlan: null,
+    dodge: null,           // null = not dodging this rock; a number = ticking down to the step
     out: { left: false, right: false, jump: false, kick: false, power: false },
   };
+}
+
+// The meteor about to land closest to me, if one is close enough to be my problem. The
+// margin is the blast radius plus a body — standing on the rim still hurts.
+function nearestMeteor(m, p) {
+  const met = activeMeteors(m);
+  let best = null;
+  for (const r of met) {
+    if (Math.abs(r.x - p.x) > C.METEOR_R + C.BODY_W) continue;
+    if (!best || r.left < best.left) best = r;
+  }
+  return best;
 }
 
 // Where the ball will be when it next crosses this height, ignoring collisions.
@@ -65,6 +79,33 @@ export function botInput(bot, m, index, dt) {
   if (p.knocked > 0 || m.phase === 'over') {
     out.left = out.right = out.jump = out.kick = out.power = false;
     return out;
+  }
+
+  // ---- get out from under a meteor -----------------------------------------
+  // A telegraph nobody answers is not a telegraph. The bot has to prove the marker is
+  // readable, or "fair" is only true for a human who happens to be watching for it.
+  //
+  // Skill-scaled like everything else here: `aim` is how reliably it spots the marker at
+  // all, and `react` delays the step, so a very-easy bot wanders into rocks and the
+  // legendary one is never under one. Runs BEFORE the power-shot branch and outside the
+  // think cadence — nothing else matters while something is falling on your head.
+  const rock = nearestMeteor(m, p);
+  if (rock) {
+    if (bot.dodge == null) bot.dodge = bot.rng() < 0.35 + d.aim * 0.65 ? d.react * 0.8 : null;
+    if (bot.dodge != null) {
+      bot.dodge -= dt;
+      if (bot.dodge <= 0) {
+        // Step away from the impact, but never into the back of my own net.
+        const myGoalX = p.side > 0 ? C.GOAL_W : C.W - C.GOAL_W;
+        let away = Math.sign(p.x - rock.x) || -p.side;
+        if ((p.x + away * 120 - myGoalX) * p.side < 30) away = -away;
+        out.left = away < 0; out.right = away > 0;
+        out.jump = false; out.kick = false; out.power = false;
+        return out;
+      }
+    }
+  } else if (bot.dodge !== undefined) {
+    bot.dodge = null;
   }
 
   // ---- facing a power shot: counter it, or get in its way --------------------

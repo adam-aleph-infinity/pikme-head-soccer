@@ -1,0 +1,226 @@
+<!doctype html>
+<html lang="he" dir="ltr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>כיווני אמנות · art directions</title>
+<style>
+  :root { color-scheme: dark; }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: #0a0a10; color: #e8e8f0;
+         font: 15px/1.5 -apple-system, "Segoe UI", Arial, sans-serif; }
+  header.top { padding: 22px 26px 6px; }
+  header.top h1 { margin: 0 0 4px; font-size: 22px; letter-spacing: .5px; }
+  header.top p { margin: 0; color: #9a9ab0; font-size: 13px; max-width: 900px; }
+  .opts { padding: 10px 26px 18px; color: #9a9ab0; font-size: 13px; display: flex; gap: 18px; }
+  .opts label { cursor: pointer; user-select: none; }
+  /* Wrap rather than squeeze: the canvas is a fixed 900px because it is a 1:1.875 pixel
+     buffer, so letting flex shrink it would silently change what is being judged. */
+  .card { display: flex; flex-wrap: wrap; gap: 22px; align-items: flex-start; padding: 14px 26px 28px; }
+  .shot { position: relative; flex: 0 0 auto; }
+  canvas { display: block; width: 900px; height: 500px; image-rendering: pixelated;
+           background: #000; border: 1px solid #23233a; }
+  /* basis 260, not auto: an auto basis is the blurb's max-content width, which is wide
+     enough to push the whole column onto the next line at any sane window size. */
+  .meta { flex: 1 1 260px; min-width: 200px; max-width: 460px; padding-top: 4px; }
+  .meta h2 { margin: 0 0 2px; font-size: 20px; }
+  .meta code { color: #7ee0c0; font-size: 12px; }
+  .meta p { margin: 10px 0 0; color: #b8b8cc; font-size: 13px; }
+  .sw { display: flex; gap: 6px; margin-top: 12px; }
+  .sw b { width: 34px; height: 18px; border: 1px solid #00000066; display: block; }
+  .sw span { font-size: 11px; color: #7a7a92; align-self: center; margin-inline-end: 6px; }
+  /* Shot mode: one canvas, nothing else, so a plain 900x500 capture IS the frame. */
+  body.only { background: #000; }
+  body.only .card { padding: 0; }
+  body.only canvas { border: 0; }
+</style>
+</head>
+<body>
+
+<header class="top">
+  <h1>ארבעה כיווני אמנות · four art directions</h1>
+  <p>Each backdrop runs at least five independent animated systems. Rendered at the real
+     game's half-resolution pixel buffer and upscaled with smoothing off, over the real
+     wall / hoardings / grass / goals, so what you see is what a match looks like.</p>
+</header>
+
+<div class="opts">
+  <label><input type="checkbox" id="furn" checked> רהיטי המגרש (wall · hoardings · grass · goals)</label>
+  <label><input type="checkbox" id="slow"> חצי מהירות</label>
+</div>
+
+<div id="cards"></div>
+
+<script type="module">
+import { DIRECTIONS, directionById } from './art-directions.js';
+
+// World units, copied from shared/constants.js rather than imported — this page must keep
+// working while another agent is mid-edit in the sim.
+const W = 960, H = 530, GROUND_Y = 445, GOAL_W = 53, GOAL_H = 160, POST_R = 5;
+const OUTLINE = '#0b0710';
+const PIXEL = 2;   // the game renders at half res and upscales with smoothing off. Design
+                   // detail finer than 2 world px simply does not survive, so the preview
+                   // has to lie the same way the game does or every judgement here is wrong.
+
+const q = new URLSearchParams(location.search);
+const ONLY = q.get('only');
+const FIXED_T = q.has('t') ? parseFloat(q.get('t')) : null;
+const BARE = q.has('bare');
+
+// The same 520-strong crowd the game builds, same shape, so a direction that reads well
+// here reads the same in a match.
+const crowd = [];
+for (let i = 0; i < 520; i++) {
+  crowd.push({ x: Math.random() * W, f: Math.random(), r: 4 + Math.random() * 5,
+    c: `hsl(${Math.random() * 360} 45% ${26 + Math.random() * 26}%)`, ph: Math.random() * 6.28 });
+}
+
+const R2 = (g, x, y, w, h, c) => { g.fillStyle = c; g.fillRect(Math.round(x), Math.round(y), Math.round(w), Math.round(h)); };
+
+// ---- game.js furniture, copied verbatim in behaviour -----------------------
+// Everything from the railing down is the same wherever you play, so a direction can only
+// be judged with it on top of the art.
+function furniture(g, dir, t) {
+  const gy = GROUND_Y;
+  const standBot = gy * 0.81, ledTop = gy * 0.82, ledBot = gy * 0.93;
+
+  R2(g, 0, standBot - 6, W, 6, OUTLINE);
+  R2(g, 0, standBot - 5, W, 2, '#c9c9d2');
+
+  R2(g, 0, standBot, W, gy - standBot, dir.wall);
+  g.globalAlpha = .25;
+  for (let x = 0; x < W; x += 34) R2(g, x, standBot, 2, gy - standBot, '#ffffff');
+  g.globalAlpha = 1;
+
+  const ledH = ledBot - ledTop;
+  R2(g, GOAL_W, ledTop - 2, W - GOAL_W * 2, ledH + 4, OUTLINE);
+  const scroll = Math.round((t * 60) % 240);
+  g.save();
+  g.beginPath(); g.rect(GOAL_W, ledTop, W - GOAL_W * 2, ledH); g.clip();
+  for (let x = -240; x < W + 240; x += 240) {
+    R2(g, x + scroll, ledTop, 118, ledH, '#1b3f8a');
+    R2(g, x + scroll + 120, ledTop, 118, ledH, '#c81e37');
+    g.fillStyle = '#ffd23c';
+    g.textAlign = 'center'; g.textBaseline = 'middle';
+    g.font = `900 ${Math.round(ledH * 0.62)}px -apple-system, Arial`;
+    g.fillText('SALTIZ', x + scroll + 59, ledTop + ledH / 2);
+    g.fillText('ראשים', x + scroll + 179, ledTop + ledH / 2);
+  }
+  g.restore();
+
+  R2(g, 0, gy, W, H - gy, dir.grass[0]);
+  for (let x = 0; x < W; x += 80) R2(g, x, gy, 40, H - gy, dir.grass[1]);
+  R2(g, 0, gy - 3, W, 3, OUTLINE);
+  R2(g, 0, gy, W, 2, '#eaffea');
+  R2(g, W / 2 - 1, gy, 2, H - gy, '#eaffea');
+  g.strokeStyle = '#eaffeaaa';
+  g.lineWidth = 2;
+  g.beginPath();
+  g.ellipse(W / 2, gy, 68, (H - gy) * 0.5, 0, 0, Math.PI);
+  g.stroke();
+
+  goal(g, true); goal(g, false);
+}
+
+function goal(g, left) {
+  const x0 = left ? 0 : W - GOAL_W;
+  const x1 = x0 + GOAL_W;
+  const top = GROUND_Y - GOAL_H;
+  const postX = left ? x1 : x0;
+  const bar = POST_R * 2;
+  g.save();
+  g.fillStyle = '#05080f';
+  g.fillRect(x0, top, GOAL_W, GOAL_H);
+  g.beginPath(); g.rect(x0, top, GOAL_W, GOAL_H); g.clip();
+  g.strokeStyle = '#ffffff2e';
+  g.lineWidth = 1.2;
+  g.beginPath();
+  for (let d = -GOAL_H; d < GOAL_W + GOAL_H; d += 15) {
+    g.moveTo(x0 + d, top); g.lineTo(x0 + d + GOAL_H, GROUND_Y);
+    g.moveTo(x0 + d, top); g.lineTo(x0 + d - GOAL_H, GROUND_Y);
+  }
+  g.stroke();
+  g.restore();
+  g.save();
+  g.fillStyle = '#f4f8ff';
+  g.fillRect(x0, top - bar / 2, GOAL_W, bar);
+  g.fillRect(postX - bar / 2, top - bar / 2, bar, GOAL_H + bar / 2);
+  g.fillStyle = '#00000038';
+  g.fillRect(x0, top + bar / 2, GOAL_W, 4);
+  g.fillStyle = '#ffffff';
+  g.beginPath(); g.arc(postX, top, bar * 0.62, 0, 6.2832); g.fill();
+  g.fillStyle = '#ffffff88';
+  g.fillRect(Math.min(postX, x0), GROUND_Y - 2, GOAL_W, 3);
+  g.restore();
+}
+
+// ---- page ------------------------------------------------------------------
+const list = ONLY ? [directionById(ONLY)] : DIRECTIONS;
+const host = document.getElementById('cards');
+if (ONLY) {
+  document.body.classList.add('only');
+  document.querySelector('header.top').remove();
+  document.querySelector('.opts').remove();
+}
+
+const panes = list.map((dir) => {
+  const card = document.createElement('div');
+  card.className = 'card';
+  const cv = document.createElement('canvas');
+  cv.width = Math.ceil(W / PIXEL);
+  cv.height = Math.ceil(H / PIXEL);
+  const shot = document.createElement('div');
+  shot.className = 'shot';
+  shot.appendChild(cv);
+  card.appendChild(shot);
+  if (!ONLY) {
+    const meta = document.createElement('div');
+    meta.className = 'meta';
+    meta.innerHTML =
+      `<h2>${dir.name}</h2><code>${dir.id}</code><p dir="ltr">${dir.blurb}</p>` +
+      `<div class="sw"><span>דשא</span><b style="background:${dir.grass[0]}"></b>` +
+      `<b style="background:${dir.grass[1]}"></b><span>קיר</span>` +
+      `<b style="background:${dir.wall}"></b></div>`;
+    card.appendChild(meta);
+  }
+  host.appendChild(card);
+  const g = cv.getContext('2d');
+  g.setTransform(1 / PIXEL, 0, 0, 1 / PIXEL, 0, 0);
+  g.imageSmoothingEnabled = false;
+  return { dir, g };
+});
+
+const furnBox = document.getElementById('furn');
+const slowBox = document.getElementById('slow');
+
+function frame(t) {
+  for (const { dir, g } of panes) {
+    g.setTransform(1 / PIXEL, 0, 0, 1 / PIXEL, 0, 0);
+    g.imageSmoothingEnabled = false;
+    g.clearRect(0, 0, W, H);
+    g.fillStyle = '#000'; g.fillRect(0, 0, W, H);
+    dir.draw(g, {
+      W, t, crowd,
+      horizon: GROUND_Y * 0.60,
+      crowdTop: GROUND_Y * 0.61,
+      crowdBot: GROUND_Y * 0.81 - 8,
+      gy: GROUND_Y,
+    });
+    if (!BARE && (!furnBox || furnBox.checked)) furniture(g, dir, t);
+  }
+}
+
+if (FIXED_T !== null) {
+  // Deterministic frame, so "two shots two seconds apart" is a fact rather than a hope.
+  frame(FIXED_T);
+  requestAnimationFrame(() => { frame(FIXED_T); document.title = 'ready-' + FIXED_T; });
+} else {
+  const loop = () => {
+    frame(performance.now() / 1000 * (slowBox && slowBox.checked ? 0.5 : 1));
+    requestAnimationFrame(loop);
+  };
+  loop();
+}
+</script>
+</body>
+</html>

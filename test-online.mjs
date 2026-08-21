@@ -133,11 +133,17 @@ ok('snapshots arrive', await until(() => A.snaps.length > 5 && B.snaps.length > 
   ok('the survivor is told', await until(() => A.oppLeft), 'no opponentLeft');
   await sleep(700);
   ok('the match keeps running', A.snaps.length > n0 + 5, `${A.snaps.length - n0} more snapshots`);
-  const p1 = A.snaps.at(-1).state.p[1];
+  // Sample ACROSS the window, not just the two ends. A bot that steps out to meet the ball
+  // and comes back is at the same x 900ms later and read as "nobody is driving the seat" —
+  // this check failed roughly one run in five on that alone, with the seat visibly kicking
+  // in the very snapshot that condemned it. (Same fix, same reason, as the "the ball got
+  // moved by play" probe in _shot.mjs.)
+  const mark = A.snaps.length - 1;
   await sleep(900);
-  const p1b = A.snaps.at(-1).state.p[1];
-  ok('a bot is actually playing the empty seat', Math.abs(p1b[0] - p1[0]) > 5,
-     `x ${p1[0].toFixed(0)} → ${p1b[0].toFixed(0)}`);
+  const xs = A.snaps.slice(mark).map((s) => s.state.p[1][0]);
+  const swing = Math.max(...xs) - Math.min(...xs);
+  ok('a bot is actually playing the empty seat', swing > 5,
+     `moved ${swing.toFixed(0)}px across ${xs.length} snapshots`);
 }
 
 A.ws.close();

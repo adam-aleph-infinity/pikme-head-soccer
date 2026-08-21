@@ -173,7 +173,10 @@ export let METEOR_LIFT = 380;
 export let METEOR_KNOCK = 0.34;      // s on the floor — a lost beat, not a stun-lock
 export let METEOR_BALL_POP = 780;    // the ball goes UP…
 export let METEOR_BALL_PUSH = 210;   // …far more than sideways, so a rock cannot score
-export const METEOR_FALL = 140;      // px above the ceiling the rock starts its fall (art)
+export const METEOR_FALL = 40;       // px above the ceiling the rock starts its fall (art).
+                                      // Was 140 with a squared fall curve, which kept the rock
+                                      // off-screen for the first HALF of its own telegraph —
+                                      // the marker was doing all the work alone.
 export let HIT_STOP_METEOR = 0.07;
 
 // ---- Moon phase ------------------------------------------------------------
@@ -236,10 +239,18 @@ export let PACE = 0.80;
 // compound against the reference rather than against each other.
 const PACE_REF = {
   vel:  { BALL_MAX_SPEED, KICK_POWER, KICK_LIFT, PLAYER_SPEED, DASH_V, JUMP_V,
-          TACKLE_PUSH, TACKLE_LIFT, POWER_SHOT_SPEED },
-  acc:  { BALL_GRAV, PLAYER_GRAV, PLAYER_ACCEL, PLAYER_AIR_ACCEL },
+          TACKLE_PUSH, TACKLE_LIFT, POWER_SHOT_SPEED,
+          // The spectacle rides the pace dial too, or a meteor that throws you 470px/s
+          // reads as violent next to a 344px/s run and the two systems drift apart.
+          METEOR_PUSH, METEOR_LIFT, METEOR_BALL_POP, METEOR_BALL_PUSH },
+  acc:  { BALL_GRAV, PLAYER_GRAV, PLAYER_ACCEL, PLAYER_AIR_ACCEL, WIND_FORCE },
   drag: { BALL_AIR, BALL_GROUND_FRICTION },
-  time: { KICK_TIME, DASH_TIME, COYOTE_TIME, JUMP_BUFFER, POWER_SHOT_LIFE },
+  // METEOR_WARN is here for a reason worth spelling out: velocities scale by k and this
+  // scales by 1/k, so the distance a player can run inside the telegraph — the entire
+  // fairness budget — is INVARIANT under the pace dial. Slow the game down and the warning
+  // stretches with it. METEOR_KNOCK follows the same logic.
+  time: { KICK_TIME, DASH_TIME, COYOTE_TIME, JUMP_BUFFER, POWER_SHOT_LIFE,
+          METEOR_WARN, METEOR_KNOCK },
 };
 
 export function setPace(k) {
@@ -308,6 +319,37 @@ const SETTERS = {
   POWER_STUN: (v) => { POWER_STUN = v; },
   COUNTER_WINDOW: (v) => { COUNTER_WINDOW = v; },
   MATCH_DURATION: (v) => { MATCH_DURATION = v; },
+  // ---- spectacle ----
+  SPECTACLE_ON: (v) => { SPECTACLE_ON = v; },
+  SPECTACLE_FIRST: (v) => { SPECTACLE_FIRST = v; },
+  SPECTACLE_GAP: (v) => { SPECTACLE_GAP = v; },
+  SPECTACLE_QUIET_END: (v) => { SPECTACLE_QUIET_END = v; },
+  METEOR_WARN: (v) => { METEOR_WARN = v; },
+  METEOR_SHOWER_TIME: (v) => { METEOR_SHOWER_TIME = v; },
+  METEOR_INTERVAL: (v) => { METEOR_INTERVAL = v; },
+  METEOR_SPREAD: (v) => { METEOR_SPREAD = v; },
+  METEOR_KEEPOUT: (v) => { METEOR_KEEPOUT = v; },
+  METEOR_R: (v) => { METEOR_R = v; },
+  METEOR_BALL_R: (v) => { METEOR_BALL_R = v; },
+  METEOR_PUSH: (v) => { METEOR_PUSH = v; },
+  METEOR_LIFT: (v) => { METEOR_LIFT = v; },
+  METEOR_KNOCK: (v) => { METEOR_KNOCK = v; },
+  METEOR_BALL_POP: (v) => { METEOR_BALL_POP = v; },
+  METEOR_BALL_PUSH: (v) => { METEOR_BALL_PUSH = v; },
+  HIT_STOP_METEOR: (v) => { HIT_STOP_METEOR = v; },
+  MOON_TIME: (v) => { MOON_TIME = v; },
+  MOON_GRAV_BALL: (v) => { MOON_GRAV_BALL = v; },
+  MOON_GRAV_PLAYER: (v) => { MOON_GRAV_PLAYER = v; },
+  WIND_TIME: (v) => { WIND_TIME = v; },
+  WIND_FORCE: (v) => { WIND_FORCE = v; },
+  ROBOT_DEFICIT: (v) => { ROBOT_DEFICIT = v; },
+  ROBOT_WARN: (v) => { ROBOT_WARN = v; },
+  ROBOT_TIME: (v) => { ROBOT_TIME = v; },
+  ROBOT_COOLDOWN: (v) => { ROBOT_COOLDOWN = v; },
+  ROBOT_SPEED: (v) => { ROBOT_SPEED = v; },
+  ROBOT_KICK: (v) => { ROBOT_KICK = v; },
+  ROBOT_JUMP: (v) => { ROBOT_JUMP = v; },
+  ROBOT_GRAV: (v) => { ROBOT_GRAV = v; },
   PACE: (v) => { setPace(v); },
 };
 
@@ -371,6 +413,36 @@ export function snapshot() {
     POWER_STUN,
     COUNTER_WINDOW,
     MATCH_DURATION,
+    SPECTACLE_ON,
+    SPECTACLE_FIRST,
+    SPECTACLE_GAP,
+    SPECTACLE_QUIET_END,
+    METEOR_WARN,
+    METEOR_SHOWER_TIME,
+    METEOR_INTERVAL,
+    METEOR_SPREAD,
+    METEOR_KEEPOUT,
+    METEOR_R,
+    METEOR_BALL_R,
+    METEOR_PUSH,
+    METEOR_LIFT,
+    METEOR_KNOCK,
+    METEOR_BALL_POP,
+    METEOR_BALL_PUSH,
+    HIT_STOP_METEOR,
+    MOON_TIME,
+    MOON_GRAV_BALL,
+    MOON_GRAV_PLAYER,
+    WIND_TIME,
+    WIND_FORCE,
+    ROBOT_DEFICIT,
+    ROBOT_WARN,
+    ROBOT_TIME,
+    ROBOT_COOLDOWN,
+    ROBOT_SPEED,
+    ROBOT_KICK,
+    ROBOT_JUMP,
+    ROBOT_GRAV,
     PACE,
   };
 }
