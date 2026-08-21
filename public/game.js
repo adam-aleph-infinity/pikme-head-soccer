@@ -5,6 +5,7 @@ import * as C from '../shared/constants.js';
 import { createMatch, step, headY, NO_FX } from '../shared/sim.js';
 import { createBot, botInput, DIFFICULTIES } from '../shared/bot.js';
 import { shotFor, SHOTS } from '../shared/powershots.js';
+import { createNet } from './net.js';
 
 const CARD_ART = 'https://pxsjmychuxwufcvqixgu.supabase.co/storage/v1/object/public/cards';
 const RARITIES = ['legendary', 'epic', 'rare', 'common'];
@@ -37,6 +38,8 @@ function paintHead(el, r, n, sizePx) {
 // PICK SCREEN
 // ═══════════════════════════════════════════════════════════════════════════
 const pick = {
+  // The app injects these before the page boots, exactly as it does for football.
+  name: (typeof window !== 'undefined' && window.SALTIZ_NAME) || new URLSearchParams(location.search).get('name') || 'שחקן',
   me: { rarity: 'legendary', number: 3 },
   foe: { rarity: 'legendary', number: 2 },
   target: 'me',
@@ -179,11 +182,126 @@ function stepParts(dt) {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
+// ONLINE — private room by 4-char code. The share link IS the invite.
+// ═══════════════════════════════════════════════════════════════════════════
+let ONLINE = false;
+let NET = null;
+
+const shareLink = (code) => `${location.origin}/?room=${code}`;
+
+function net() {
+  if (NET) return NET;
+  NET = createNet({
+    onStatus: (st) => {
+      const d = $('#netdot');
+      d.classList.toggle('on', st === 'online');
+      d.classList.toggle('busy', st === 'connecting');
+      d.title = { online: 'מחובר', connecting: 'מתחבר…', offline: 'לא מחובר' }[st] || st;
+    },
+    onRoom: renderLobby,
+    onStart: startOnlineMatch,
+    onOver: () => { /* the local sim reaches full time too; endMatch already ran */ },
+    onOpponentLeft: () => banner('היריב עזב — בוט נכנס', '#ffb800'),
+    onError: (code) => {
+      $('#lobbyHint').textContent = {
+        'not-found': 'לא נמצא חדר עם הקוד הזה',
+        full: 'החדר מלא',
+        'in-match': 'המשחק כבר התחיל',
+        'no-codes': 'אין קודים פנויים, נסה שוב',
+      }[code] || code;
+    },
+  });
+  NET.connect();
+  return NET;
+}
+
+function openLobby(mode, code) {
+  const n = net();
+  $('#pick').classList.add('hidden');
+  $('#lobby').classList.remove('hidden');
+  $('#codeBox').classList.toggle('hidden', mode !== 'host');
+  $('#joinBox').classList.toggle('hidden', mode === 'host');
+  $('#roomCode').textContent = '····';
+  $('#seats').innerHTML = '';
+  $('#lobbyHint').textContent = mode === 'host' ? 'שלח את הקישור לחבר' : 'הכנס את הקוד שקיבלת';
+  $('#readyBtn').disabled = true;
+
+  const go = () => {
+    n.hello(pick.name || 'שחקן', pick.me);
+    if (mode === 'host') n.create();
+    else if (code) n.join(code);
+  };
+  // The socket may still be opening on a cold start; queue the intent rather than dropping it.
+  if (n.connected) go();
+  else {
+    $('#lobbyHint').textContent = 'מתחבר לשרת…';
+    const t = setInterval(() => { if (n.connected) { clearInterval(t); go(); } }, 200);
+    setTimeout(() => clearInterval(t), 60000);
+  }
+}
+
+function renderLobby(room) {
+  $('#roomCode').textContent = room.code;
+  const seats = $('#seats');
+  seats.innerHTML = '';
+  for (let i = 0; i < 2; i++) {
+    const m = room.members[i];
+    const el = document.createElement('div');
+    el.className = 'seat' + (m ? (m.ready ? ' ready' : '') : ' empty');
+    el.innerHTML = `<div class="face"></div><div class="nm">${m ? m.name : 'ממתין…'}</div>
+                    <div class="st">${m ? (m.ready ? 'מוכן ✓' : 'בוחר') : ''}</div>`;
+    if (m) paintHead(el.querySelector('.face'), m.card.rarity, m.card.number, 64);
+    seats.appendChild(el);
+  }
+  const full = room.members.length === 2;
+  $('#readyBtn').disabled = !full;
+  $('#lobbyHint').textContent = full ? 'שניכם כאן — לחצו מוכן' : 'שלח את הקישור לחבר';
+}
+
+function startOnlineMatch(msg) {
+  ONLINE = true;
+  M = NET.match;
+  parts.length = 0;
+  last = performance.now();
+  running = true;
+  $('#lobby').classList.add('hidden');
+  $('#pick').classList.add('hidden');
+  $('#match').classList.remove('hidden');
+  $('#over').classList.add('hidden');
+  for (let i = 0; i < 2; i++) {
+    $('#head' + i).className = 'head p' + i;
+    $('#head' + i).dataset.card = '';
+    $(`.gauge.g${i} .nm`).textContent = M.players[i].shot.name;
+  }
+  resize();
+  cancelAnimationFrame(raf);
+  raf = requestAnimationFrame(frame);
+}
+
+$('#hostBtn').onclick = () => openLobby('host');
+$('#joinBtn').onclick = () => openLobby('join');
+$('#joinGo').onclick = () => {
+  const code = $('#codeInput').value.trim().toUpperCase();
+  if (code.length === 4) net().join(code);
+};
+$('#codeInput').oninput = (e) => { e.target.value = e.target.value.toUpperCase(); };
+$('#readyBtn').onclick = () => { net().ready(true); $('#readyBtn').disabled = true; $('#lobbyHint').textContent = 'ממתין ליריב…'; };
+$('#lobbyBack').onclick = () => { net().leave(); $('#lobby').classList.add('hidden'); $('#pick').classList.remove('hidden'); };
+$('#copyLink').onclick = async () => {
+  const code = $('#roomCode').textContent;
+  const txt = shareLink(code);
+  try { await navigator.clipboard.writeText(txt); $('#copyLink').textContent = 'הועתק ✓'; }
+  catch { $('#lobbyHint').textContent = txt; }
+  setTimeout(() => ($('#copyLink').textContent = 'העתק קישור'), 1600);
+};
+
+// ═══════════════════════════════════════════════════════════════════════════
 // MATCH
 // ═══════════════════════════════════════════════════════════════════════════
 let M = null, BOT = null, raf = 0, acc = 0, last = 0, running = false;
 
 function startMatch() {
+  ONLINE = false;
   M = createMatch(pick.me, pick.foe, {});
   BOT = createBot(pick.level);
   parts.length = 0;
@@ -259,14 +377,21 @@ function frame(now) {
   if (!M) return;
 
   if (running) {
-    acc += dt;
-    let guard = 0;
-    while (acc >= C.TICK && guard++ < 8) {
-      const foe = botInput(BOT, M, 1, C.TICK);
-      step(M, [{ ...held }, foe], C.TICK, fx);
-      acc -= C.TICK;
-      drainEvents();
-      if (!running) break;
+    if (ONLINE) {
+      // The net module owns the tick clock online: it has to replay from whatever tick a
+      // snapshot lands on, so a second accumulator here would fight it.
+      const m = NET.advance(dt, held, fx);
+      if (m) { M = m; drainEvents(); }
+    } else {
+      acc += dt;
+      let guard = 0;
+      while (acc >= C.TICK && guard++ < 8) {
+        const foe = botInput(BOT, M, 1, C.TICK);
+        step(M, [{ ...held }, foe], C.TICK, fx);
+        acc -= C.TICK;
+        drainEvents();
+        if (!running) break;
+      }
     }
   }
   stepParts(dt);
@@ -637,7 +762,9 @@ function syncHud() {
     gEl.querySelector('.fill').style.width = (p.gauge * 100) + '%';
     gEl.classList.toggle('full', p.gauge >= 1 || p.armed > 0);
   }
-  $('#powerBtn').classList.toggle('ready', M.players[0].gauge >= 1 && M.players[0].armed <= 0);
+  const me = ONLINE ? NET.you : 0;
+  $('#powerBtn').classList.toggle('ready', M.players[me].gauge >= 1 && M.players[me].armed <= 0);
+  $('#rtt').textContent = ONLINE ? `${NET.rtt}ms` : '';
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -717,7 +844,12 @@ $('#tunerCopy').onclick = async () => {
   renderSlots();
   renderGrid();
   buildTuner();
-  if (q.has('play')) startMatch();
+  if (q.has('room')) {
+    // A share link is an invite: land straight in the lobby, pre-joined.
+    const code = String(q.get('room')).trim().toUpperCase().slice(0, 4);
+    $('#codeInput').value = code;
+    openLobby('join', code);
+  } else if (q.has('play')) startMatch();
 })();
 
 // Handy from the console / screenshot harness. MATCH must be a live getter — Object.assign

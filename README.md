@@ -21,6 +21,15 @@ npm test           # sim + bot tests, headless
 node _shot.mjs     # drives the real client in Chrome and screenshots it
 ```
 
+## Play with someone else
+
+Tap **🔗 שחק עם חבר** → you get a 4-char code and a share link. Send the link; opening it
+drops your friend straight into your lobby. Both tap מוכן and the match starts. If they
+never show, play the bot. If they drop mid-match, a bot takes the seat so your match finishes.
+
+The link is the whole invite — no accounts, no matchmaking, no friend list. Works inside the
+app and out of it.
+
 ## Controls
 
 | | walk | dash | jump | kick | power |
@@ -60,6 +69,33 @@ hand-picked cards get a themed one (the grill card throws fire, the tentacle car
 WKWebView — the trap that cost a day on `football-mock`. Pitch, ball, bodies and FX are
 canvas; the two heads are `<div>`s with a background image.
 
+## Netcode
+
+Server-authoritative at 60Hz, snapshots at 30Hz, **rollback + replay** on the client. The
+client runs the *same* `shared/sim.js`; on each snapshot it restores to the authoritative
+state and replays its own buffered inputs forward. Interpolating instead would have been
+simpler and wrong — your boot touches the ball constantly, and interpolation puts every one
+of your own kicks a full round-trip behind your foot. Rollback is cheap here because a 1v1
+snapshot is ~600 bytes and the sim is pure and deterministic.
+
+**The input stream is the whole ballgame.** Every input is edge-triggered, and dash is a
+double-tap — two rising edges inside 240ms. So the transport's job is not "which keys are
+held" but "deliver the per-tick stream without holes or reordering". Packets are sent
+redundantly (each carries the last 6 frames) and the server consumes them as an ordered FIFO.
+
+Two design bugs were found and fixed by the tests, both worth knowing about:
+
+1. **Inputs were first indexed by client tick**, which silently assumed the two clocks were
+   in sync. Under any latency the client's frame for tick N arrives when the server is past
+   N, so every input was dropped as stale and the player never moved. The tick is now a
+   *sequence number* and the server drains oldest-first — no clock sync anywhere.
+2. **Rollback needs `prev` on the wire.** `prev` is the previous frame's input, which is how
+   the sim finds edges. Leave it out of the snapshot and a held key re-fires the instant a
+   client reconciles.
+
+`test-net.mjs` proves dash survives the wire *and* proves that the naive collapsing
+transport would break it — so the canary is testing something real.
+
 ## Layout
 
 ```
@@ -67,12 +103,15 @@ shared/constants.js    every tunable number, live-bindable (see the tuner below)
 shared/sim.js          authoritative physics + rules. Pure, no DOM, no timers.
 shared/powershots.js   the five shot behaviours + the card→shot mapping
 shared/bot.js          the opponent. Emits the same input a human does.
-public/                pick screen, renderer, input, tuner
-server.js              static host. Becomes the authoritative server if this graduates.
+shared/rooms.js        private-room registry: codes, join, leave. Pure, no sockets.
+shared/net.js          wire format + the ordered input FIFO. Pure.
+public/                pick screen, lobby, renderer, input, tuner
+public/net.js          client socket, prediction, rollback reconciliation
+server.js              static host + ws host + one 60Hz loop over all rooms
 ```
 
-The `shared/` split is deliberate: it's the same shape as `football-mock`, so making this
-a real networked 1v1 is a lift-and-shift rather than a rewrite.
+The `shared/` split is what made online cheap: the server and the client run the identical
+sim, which is the precondition for rollback.
 
 ## The tuner ⚙
 
@@ -92,6 +131,8 @@ Balance was measured, not guessed. Each of these answers one question:
 | `node _why.mjs 3,3 8` | *where* do the goals come from — power shot, lob, out of position? |
 | `node _wall.mjs static` | can a positioned defender stop shots at all? (physics vs bot) |
 | `node _sweep.mjs` | isolate one bot dial and watch the scoreline move |
+| `node _shot.mjs` | drive one real Chrome client and screenshot it (27 checks) |
+| `node _duo.mjs` | two real Chrome clients playing each other through the real server |
 
 Three real bugs came out of them, all invisible to the unit tests:
 
@@ -115,5 +156,16 @@ Three real bugs came out of them, all invisible to the unit tests:
    face crop. The alternative — the whole trading card as the body — is a different game.
 3. **Rarity stats.** Legendary is ~6% faster / 8% harder-hitting than common. Deliberately
    narrow. Real hook or pay-to-win?
-4. **Networked 1v1** was explicitly deferred; the `shared/` split keeps it cheap.
-5. **No audio.** `../football assets/` has usable sounds if this goes further.
+4. **No audio.** `../football assets/` has usable sounds if this goes further.
+
+## Shipping
+
+- `render.yaml` provisions **`pikme-headsoccer`** on the **starter (paid)** plan. Free was
+  rejected on purpose: a free instance sleeps after 15 minutes and takes 30-50s to wake, and
+  the whole feature is a link you send a friend.
+- The app tile lives on branch **`feature/head-soccer-tile`** in `pikmeTV-saltiz`:
+  `/pages/head-soccer` plus one entry in the Game Store's `GAMES`. The other dev owns
+  TestFlight builds, so it ships in their next one.
+- Still to verify on a real device, not asserted: `SALTIZ_CARDS` arriving before the game
+  boots on the new screen, dash over real RTT, and whether the feel holds up at non-zero
+  latency (all tuning was found at 0ms).

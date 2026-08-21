@@ -3,7 +3,7 @@
 // football-mock's shared/sim.js, so wiring this to a server later is a lift-and-shift.
 
 import * as C from './constants.js';
-import { launchPowerShot, stepPowerShot, counterPowerShot, shotFor, statsFor } from './powershots.js';
+import { launchPowerShot, stepPowerShot, counterPowerShot, shotFor, statsFor, SHOTS } from './powershots.js';
 
 // A player's geometry, derived (never stored) so nothing can drift out of sync.
 // `y` is the FEET line; the body box hangs above it and the head sits on the body.
@@ -433,3 +433,64 @@ function checkGoal(m, fx) {
 }
 
 export { resetPositions };
+
+// ---------------------------------------------------------------------------
+// Rollback support. serialize() must capture EVERYTHING that can affect a future step —
+// including the cooldown timers, the double-tap window and `prev` (the previous frame's
+// input, which is how the sim detects edges). Miss `prev` and a held key re-fires the
+// instant a client reconciles; miss `tapT` and dash stops working right after a snapshot.
+//
+// Deliberately lossless: no rounding. `test-net.mjs` asserts a restored sim stays in
+// lockstep, and that property is what makes rollback sound. A few extra bytes on the wire
+// is a trivial price for it at 1v1 scale.
+const PREV_KEYS = ['left', 'right', 'jump', 'kick', 'power'];
+const P_FIELDS = [
+  'x', 'y', 'vx', 'vy', 'onGround', 'facing', 'jumps',
+  'kickT', 'kickCd', 'dashT', 'dashCd', 'dashDir', 'tapDir', 'tapT',
+  'gauge', 'armed', 'knocked', 'rooted', 'shoved',
+];
+
+export function serialize(m) {
+  return {
+    t: m.t, clock: m.clock, phase: m.phase, freeze: m.freeze,
+    score: [m.score[0], m.score[1]], golden: m.golden, lastScorer: m.lastScorer,
+    // Players travel POSITIONALLY, in P_FIELDS order. Field names were 60% of the whole
+    // snapshot — an array halves it at no cost in precision, and P_FIELDS is the schema.
+    p: m.players.map((p) => {
+      const o = P_FIELDS.map((f) => p[f]);
+      // `prev` packed as 0/1 flags: this is how the sim detects edges, so it must travel,
+      // but it does not need five object keys per player to do it.
+      o.push(PREV_KEYS.map((k) => (p.prev && p.prev[k] ? 1 : 0)));
+      return o;
+    }),
+    b: {
+      x: m.ball.x, y: m.ball.y, vx: m.ball.vx, vy: m.ball.vy, spin: m.ball.spin,
+      // The shot itself is static data; only its live flight state travels.
+      pw: m.ball.power ? {
+        id: m.ball.power.id, kind: m.ball.power.kind, owner: m.ball.power.owner,
+        dir: m.ball.power.dir, t: m.ball.power.t, life: m.ball.power.life, phase: m.ball.power.phase,
+      } : null,
+    },
+  };
+}
+
+// Restores INTO an existing match built with the same two characters — `char`, `shot`,
+// `side` and `stats` are match-constant and never travel.
+export function restore(m, s) {
+  m.t = s.t; m.clock = s.clock; m.phase = s.phase; m.freeze = s.freeze;
+  m.score[0] = s.score[0]; m.score[1] = s.score[1];
+  m.golden = s.golden; m.lastScorer = s.lastScorer;
+  for (let i = 0; i < 2; i++) {
+    const p = m.players[i], o = s.p[i];
+    P_FIELDS.forEach((f, j) => { p[f] = o[j]; });
+    const pv = o[P_FIELDS.length] || [];
+    p.prev = {};
+    PREV_KEYS.forEach((k, j) => { p.prev[k] = !!pv[j]; });
+  }
+  const b = m.ball, o = s.b;
+  b.x = o.x; b.y = o.y; b.vx = o.vx; b.vy = o.vy; b.spin = o.spin;
+  if (!o.pw) b.power = null;
+  else b.power = { ...o.pw, shot: SHOTS[o.pw.id], color: SHOTS[o.pw.id].color, glow: SHOTS[o.pw.id].glow };
+  m.events.length = 0;
+  return m;
+}

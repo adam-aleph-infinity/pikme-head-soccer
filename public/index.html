@@ -39,6 +39,12 @@
 
   <div class="grid" id="cardGrid"></div>
 
+  <div class="online-row">
+    <button class="ghost" id="hostBtn">🔗 שחק עם חבר</button>
+    <button class="ghost" id="joinBtn">הצטרף לקוד</button>
+    <b class="netdot" id="netdot" title="חיבור"></b>
+  </div>
+
   <footer class="pick-foot">
     <label class="diff">
       <span>רמת יריב</span>
@@ -47,6 +53,28 @@
     </label>
     <button class="play" id="playBtn">שחק</button>
   </footer>
+</section>
+
+<!-- ═══ LOBBY ═══ private room, joined by a 4-char code ═══════════════════ -->
+<section id="lobby" class="screen hidden">
+  <button class="lobby-back" id="lobbyBack">‹ חזרה</button>
+  <h2>חדר פרטי</h2>
+
+  <div class="code-box" id="codeBox">
+    <span class="code-label">הקוד שלך</span>
+    <b id="roomCode">····</b>
+    <button class="ghost" id="copyLink">העתק קישור</button>
+  </div>
+
+  <div class="join-box" id="joinBox">
+    <span class="code-label">הכנס קוד חבר</span>
+    <input id="codeInput" maxlength="4" inputmode="latin" autocapitalize="characters" placeholder="ABCD">
+    <button class="ghost" id="joinGo">הצטרף</button>
+  </div>
+
+  <div class="seats" id="seats"></div>
+  <p class="lobby-hint" id="lobbyHint">שלח את הקישור לחבר</p>
+  <button class="play" id="readyBtn" disabled>מוכן</button>
 </section>
 
 <!-- ═══ MATCH ═══════════════════════════════════════════════════════════ -->
@@ -62,6 +90,7 @@
       <div class="gauge g0"><div class="fill"></div><span class="nm"></span></div>
       <div class="scoreboard">
         <b id="s0">0</b><i id="clock">60</i><b id="s1">0</b>
+        <em class="rtt" id="rtt"></em>
       </div>
       <div class="gauge g1"><div class="fill"></div><span class="nm"></span></div>
     </div>

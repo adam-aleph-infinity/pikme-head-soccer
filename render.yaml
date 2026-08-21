@@ -1,0 +1,15 @@
+# Render Blueprint — the head-soccer game + online 1v1 server.
+# Render supplies PORT and TLS; the client connects over wss:// automatically.
+services:
+  - type: web
+    name: pikme-headsoccer
+    env: node
+    # PAID, not free, and deliberately so: a free instance sleeps after 15 minutes idle and
+    # takes 30-50s to wake. The entire feature is "send a friend a link" — a link that spins
+    # for most a minute before the lobby appears is not a shareable game. Approved by Adam
+    # 2026-08-21.
+    plan: starter
+    buildCommand: npm install --omit=dev
+    startCommand: npm start
+    healthCheckPath: /
+    autoDeploy: true

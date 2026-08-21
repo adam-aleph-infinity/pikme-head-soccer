@@ -9,6 +9,13 @@ import path from 'node:path';
 import os from 'node:os';
 import { fileURLToPath } from 'node:url';
 
+import { WebSocketServer } from 'ws';
+import * as C from './shared/constants.js';
+import { createMatch, step, serialize } from './shared/sim.js';
+import { createBot, botInput } from './shared/bot.js';
+import { createRegistry, createRoom, joinRoom, leave, setReady, bothReady, roomOf } from './shared/rooms.js';
+import { createInputQueue, ingest, takeNext, unpackInput, encodeSnapshot } from './shared/net.js';
+
 const ROOT = path.dirname(fileURLToPath(import.meta.url));
 const PORT = Number(process.env.PORT) || 3020;
 
@@ -63,3 +70,191 @@ server.listen(PORT, '0.0.0.0', () => {
   console.log(`   local   http://localhost:${PORT}`);
   for (const ip of nets) console.log(`   phone   http://${ip}:${PORT}`);
 });
+
+// ═══════════════════════════════════════════════════════════════════════════
+// ONLINE 1v1
+//
+// One global loop drives every room at the sim's own 60Hz and broadcasts every other tick
+// (30Hz). Per-room setIntervals were the obvious alternative and the wrong one: Node timers
+// are coarse, and N of them drift against each other, so two rooms on one box would run at
+// visibly different speeds.
+// ═══════════════════════════════════════════════════════════════════════════
+
+const reg = createRegistry();
+const wss = new WebSocketServer({ server, path: '/ws' });
+let nextId = 1;
+
+const send = (ws, msg) => { if (ws && ws.readyState === 1) ws.send(JSON.stringify(msg)); };
+const DEFAULT_CARD = { rarity: 'legendary', number: 3 };
+
+function sanitizeCard(card) {
+  const rarity = ['common', 'rare', 'epic', 'legendary'].includes(card?.rarity) ? card.rarity : DEFAULT_CARD.rarity;
+  const number = Math.max(1, Math.min(45, Number(card?.number) || DEFAULT_CARD.number));
+  return { rarity, number };
+}
+
+function roomView(room) {
+  return {
+    type: 'room',
+    code: room.code,
+    hostId: room.hostId,
+    phase: room.phase,
+    members: room.members.map((m) => ({ id: m.id, name: m.name, card: m.card, ready: room.ready.has(m.id) })),
+  };
+}
+const broadcast = (room, msg) => { for (const m of room.members) send(m.ws, msg); };
+
+function startMatch(room) {
+  const [a, b] = room.members;
+  room.phase = 'match';
+  room.match = createMatch(a.card, b.card, {});
+  room.tick = 0;
+  room.acc = 0;
+  room.lastInput = [0, 0];
+  for (const m of room.members) m.queue = createInputQueue();
+  room.bots = [null, null];
+  broadcast(room, {
+    type: 'start',
+    chars: [a.card, b.card],
+    names: [a.name, b.name],
+    duration: C.MATCH_DURATION,
+  });
+}
+
+// A disconnect mid-match must not strand the player who stayed. The empty seat becomes a
+// bot at the difficulty the abandoned player was already facing, and the match finishes.
+function seatBot(room, index) {
+  if (!room.bots) return;
+  room.bots[index] = createBot(3);
+  broadcast(room, { type: 'opponentLeft', index });
+}
+
+function stepRoom(room, dt) {
+  const m = room.match;
+  if (!m) return;
+  room.acc += dt;
+  let guard = 0;
+  while (room.acc >= C.TICK && guard++ < 6) {
+    room.acc -= C.TICK;
+    const inputs = [{}, {}];
+    for (let i = 0; i < 2; i++) {
+      const member = room.members.find((mm) => mm.index === i);
+      if (room.bots[i] || !member) {
+        if (!room.bots[i]) seatBot(room, i);
+        inputs[i] = botInput(room.bots[i], m, i, C.TICK);
+      } else {
+        const packed = takeNext(member.queue);
+        room.lastInput[i] = packed;
+        inputs[i] = unpackInput(packed);
+      }
+    }
+    step(m, inputs);
+    room.tick++;
+
+    if (m.phase === 'over') {
+      broadcast(room, { type: 'over', score: [m.score[0], m.score[1]] });
+      room.phase = 'lobby';
+      room.match = null;
+      room.ready.clear();
+      broadcast(room, roomView(room));
+      return;
+    }
+    // 30Hz on the wire: the client sims at 60 and rolls forward between snapshots.
+    if (room.tick % 2 === 0) {
+      for (const member of room.members) {
+        send(member.ws, encodeSnapshot(m, room.tick, room.lastInput[1 - member.index]));
+      }
+    }
+  }
+}
+
+let last = Date.now();
+setInterval(() => {
+  const now = Date.now();
+  const dt = Math.min(0.25, (now - last) / 1000);
+  last = now;
+  for (const room of [...reg.rooms.values()]) if (room.phase === 'match') stepRoom(room, dt);
+}, 8);
+
+wss.on('connection', (ws) => {
+  const member = { id: 'p' + (nextId++), ws, name: 'שחקן', card: DEFAULT_CARD, index: 0, queue: createInputQueue() };
+  send(ws, { type: 'welcome', id: member.id });
+
+  ws.on('message', (raw) => {
+    let msg;
+    try { msg = JSON.parse(raw); } catch { return; }
+    const room = roomOf(reg, member.id);
+
+    switch (msg.type) {
+      case 'hello':
+        member.name = String(msg.name || 'שחקן').slice(0, 24);
+        member.card = sanitizeCard(msg.card);
+        if (room) broadcast(room, roomView(room));
+        break;
+
+      case 'create': {
+        const r = createRoom(reg, member);
+        if (r.error) { send(ws, { type: 'error', code: r.error }); break; }
+        member.index = 0;
+        send(ws, roomView(r.room));
+        break;
+      }
+
+      case 'join': {
+        const r = joinRoom(reg, member, msg.code);
+        if (r.error) { send(ws, { type: 'error', code: r.error }); break; }
+        // Seat by position: members[0] defends the left goal, members[1] the right.
+        r.room.members.forEach((mm, i) => { mm.index = i; });
+        broadcast(r.room, roomView(r.room));
+        break;
+      }
+
+      case 'card':
+        member.card = sanitizeCard(msg.card);
+        if (room && room.phase === 'lobby') broadcast(room, roomView(room));
+        break;
+
+      case 'ready': {
+        if (!room || room.phase !== 'lobby') break;
+        setReady(reg, member.id, !!msg.v);
+        broadcast(room, roomView(room));
+        if (bothReady(room)) startMatch(room);
+        break;
+      }
+
+      case 'input':
+        if (room && room.phase === 'match') ingest(member.queue, msg.t0 | 0, msg.f);
+        break;
+
+      case 'leave': {
+        if (!room) break;
+        const wasMatch = room.phase === 'match';
+        const idx = member.index;
+        leave(reg, member.id);
+        if (room.members.length) {
+          if (wasMatch) seatBot(room, idx);
+          broadcast(room, roomView(room));
+        }
+        break;
+      }
+
+      case 'ping':
+        send(ws, { type: 'pong', t: msg.t });
+        break;
+    }
+  });
+
+  ws.on('close', () => {
+    const room = roomOf(reg, member.id);
+    if (!room) return;
+    const wasMatch = room.phase === 'match';
+    const idx = member.index;
+    leave(reg, member.id);
+    if (room.members.length) {
+      if (wasMatch) seatBot(room, idx);
+      broadcast(room, roomView(room));
+    }
+  });
+});
+
+console.log(`   ws      /ws  (online 1v1, ${C.MATCH_DURATION}s matches)`);
