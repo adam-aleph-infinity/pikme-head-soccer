@@ -229,8 +229,8 @@ const run = (m, ticks, inputs = NONE) => {
   const m = fresh();
   const p = m.players[0];
   p.gauge = 1; step(m, [{ power: true }, {}]);
-  run(m, Math.ceil(C.ARMED_TIME / C.TICK) + 4, [{}, {}]);
-  ok('an unused armed state burns out', p.armed === 0);
+  run(m, Math.ceil(C.POWER_MODE_TIME / C.TICK) + 4, [{}, {}]);
+  ok('power mode times out if unused', p.armed === 0);
 }
 {
   // a straight power shot ignores gravity
@@ -303,6 +303,107 @@ const run = (m, ticks, inputs = NONE) => {
   m.ball.x = C.W / 2; m.ball.y = 200;
   step(m, [{}, { kick: true }]);
   ok('an out-of-range kick does not counter', m.ball.power.owner === 0);
+}
+
+// --- power MODE: the button arms, the KICK fires --------------------------
+{
+  // Head contact must NOT spend power mode. Firing on any touch is what made the POWER
+  // button feel like it did nothing: the shot went off on a stray header seconds later.
+  const m = fresh();
+  const p = m.players[0];
+  p.gauge = 1; step(m, [{ power: true }, {}]);
+  m.hitStop = 0;
+  m.ball.x = p.x; m.ball.y = headY(p) - C.HEAD_R - C.BALL_R + 4; m.ball.vy = 300;
+  step(m, NONE);
+  ok('a header does not fire the power shot', !m.ball.power);
+  ok('power mode survives a header', p.armed > 0);
+}
+{
+  const m = fresh();
+  const p = m.players[0];
+  p.gauge = 1; step(m, [{ power: true }, {}]);
+  m.hitStop = 0;
+  m.ball.x = p.x + C.BODY_W / 2; m.ball.y = p.y - C.BODY_H / 2; m.ball.vx = -100;
+  step(m, NONE);
+  ok('a body bump does not fire the power shot', !m.ball.power);
+  ok('power mode survives a body bump', p.armed > 0);
+}
+{
+  const m = fresh();
+  const p = m.players[0];
+  p.gauge = 1; step(m, [{ power: true }, {}]);
+  m.hitStop = 0;
+  m.ball.x = p.x + C.KICK_REACH; m.ball.y = p.y - C.BODY_H * 0.45; m.ball.vx = 0; m.ball.vy = 0;
+  step(m, [{ kick: true }, {}]);
+  ok('the KICK is what fires it', !!m.ball.power);
+  ok('and it flies flat and fast', Math.abs(m.ball.vx) > C.KICK_POWER * 1.5 && Math.abs(m.ball.vy) < 60,
+     `v=(${m.ball.vx.toFixed(0)}, ${m.ball.vy.toFixed(0)})`);
+  ok('firing spends power mode', p.armed === 0);
+}
+{
+  // Blockable, not a battering ram: getting in the way has to save the goal, or the
+  // defender has nothing to do and every power shot is an automatic goal.
+  const m = fresh();
+  const a = m.players[0], b = m.players[1];
+  a.shot = SHOTS.blaze;
+  a.gauge = 1; step(m, [{ power: true }, {}]);
+  m.hitStop = 0;
+  b.x = a.x + 260;
+  m.ball.x = a.x + C.KICK_REACH; m.ball.y = headY(a); m.ball.vx = 0; m.ball.vy = 0;
+  step(m, [{ kick: true }, {}]);
+  m.hitStop = 0;
+  run(m, 30);
+  ok('a defender in the path blocks it', m.events.some((e) => e.type === 'blocked') || !m.ball.power,
+     'shot went through');
+  ok('a blocked shot comes back out', m.ball.vx <= 0 || !m.ball.power, `vx=${m.ball.vx.toFixed(0)}`);
+  ok('but the blocker pays for it', b.knocked > 0 || b.rooted > 0 || b.slow > 0 || b.effectId !== null,
+     'blocking was free');
+}
+{
+  // Every character's power has to land a DIFFERENT consequence.
+  const kinds = new Set();
+  for (const id of Object.keys(SHOTS)) {
+    const shot = SHOTS[id];
+    ok(`${id} has an effect`, !!shot.effect && shot.effect.time > 0);
+    kinds.add(shot.effect.kind);
+  }
+  ok('the effects are not all the same', kinds.size >= 3, [...kinds].join(','));
+}
+{
+  // Adam's example: kicking the opponent while powered freezes them.
+  const m = fresh();
+  const a = m.players[0], b = m.players[1];
+  a.shot = SHOTS.strike;                      // root, 0.5s — the "freeze"
+  a.gauge = 1; step(m, [{ power: true }, {}]);
+  m.hitStop = 0;
+  m.ball.x = C.W / 2; m.ball.y = 100;          // ball elsewhere
+  b.x = a.x + C.KICK_REACH;
+  a.kickCd = 0;
+  step(m, [{ kick: false }, {}]);
+  step(m, [{ kick: true }, {}]);
+  const ev = m.events.find((e) => e.type === 'tackle');
+  ok('a powered tackle is flagged as powered', ev && ev.powered === true, JSON.stringify(ev));
+  ok('and freezes the victim', b.rooted > 0, `rooted=${b.rooted.toFixed(2)}`);
+  ok('the victim is marked with the effect', b.effectId === 'strike', String(b.effectId));
+  ok('a powered tackle spends power mode', a.armed === 0);
+}
+
+// --- head bounces, body deadens --------------------------------------------
+{
+  const m = fresh();
+  const p = m.players[0];
+  m.ball.x = p.x; m.ball.y = headY(p) - C.HEAD_R - C.BALL_R + 4; m.ball.vy = 400;
+  step(m, NONE);
+  ok('the head still bounces the ball', m.ball.vy < -100, `vy=${m.ball.vy.toFixed(0)}`);
+}
+{
+  const m = fresh();
+  const p = m.players[0];
+  m.ball.x = p.x + C.BODY_W / 2 + C.BALL_R - 3; m.ball.y = p.y - C.BODY_H / 2;
+  m.ball.vx = -600; m.ball.vy = 0;
+  step(m, NONE);
+  ok('the body deadens the ball', Math.abs(m.ball.vx) < 200, `vx=${m.ball.vx.toFixed(0)} (was -600)`);
+  ok('and it does not fly back', m.ball.vx > -200);
 }
 
 // --- tackling ---------------------------------------------------------------
@@ -472,7 +573,7 @@ const run = (m, ticks, inputs = NONE) => {
   for (const r of ['common', 'rare', 'epic', 'legendary']) {
     for (let n = 1; n <= 45; n++) {
       const s = shotFor(r, n);
-      ok(`every card has a shot (${r}_${n})`, !!s && !!s.kind);
+      ok(`every card has a shot (${r}_${n})`, !!s && !!s.effect && !!s.effect.kind);
       seen.add(s.id);
     }
   }

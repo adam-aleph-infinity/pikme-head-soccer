@@ -264,3 +264,15 @@ body.no-touch .pad { display: none; }
   border: 3px dashed #ffd166; opacity: .85; animation: slowSpin 1.4s linear infinite;
 }
 @keyframes slowSpin { to { transform: rotate(360deg); } }
+
+/* POWER MODE is a timed state, not a one-shot. The bar counts down, the button shows the
+   seconds left, and the head glows in that character's colour. */
+.gauge.powered .fill { background: linear-gradient(90deg, #ff4d4d, #ffb800) !important; }
+.gauge.powered { animation: gaugeFull .35s infinite alternate; }
+.pad .power.live { opacity: 1; pointer-events: auto; background: #b23a12d0; animation: gaugeFull .3s infinite alternate; }
+.head.armed { animation: armedGlow .5s infinite alternate; }
+@keyframes armedGlow {
+  from { box-shadow: 0 0 0 0 transparent; }
+  to   { box-shadow: 0 0 26px 8px var(--glow, #ffb800); }
+}
+.head.hexed { filter: hue-rotate(35deg) contrast(1.15); }

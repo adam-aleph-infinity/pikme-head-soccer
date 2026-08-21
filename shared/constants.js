@@ -66,6 +66,9 @@ export let KICK_LIFT = 620;         // upward component — deliberately > half 
                                       // clean kick LOBS. Flat rockets made every clearance a goal.
 export let LOB_LIFT = 1.62;           // hold JUMP while kicking: more air, less drive
 export let LOB_DRIVE = 0.62;
+// Body contact KILLS the ball's pace (Adam: 'if it dosnt kick, the ball kinda stops and
+// rolles'). The head still bounces — that is the aerial tool — but your torso deadens.
+export let BODY_DEADEN = 0.18;
 export let HEAD_POWER = 1.14;       // head hits multiply the bounce-out speed
 
 // ---- Jump feel -------------------------------------------------------------
@@ -105,9 +108,17 @@ export let GAUGE_FULL = 28;         // s to fill an empty gauge. At 13s each pla
                                       // shots a match and nearly all of them scored — matches ended 10-6.
                                       // ~2-3 per side is what makes arming feel like a moment.
 export const GAUGE_CONCEDE_BONUS = 0.22; // conceding a goal gifts this fraction back
-export let ARMED_TIME = 6;          // s the armed state lasts before it burns out
-export let POWER_SHOT_SPEED = 1500;
-export let POWER_STUN = 1.25;       // s the defender is knocked down for
+// POWER MODE. Pressing POWER with a full gauge buys a few seconds of being dangerous — it
+// fires nothing by itself. While it lasts, KICKING the ball launches a power shot and
+// kicking the OPPONENT lands your signature effect on them. Two buttons, two distinct jobs:
+// kick strikes, power decides what the strike is.
+export let POWER_MODE_TIME = 4.5;
+export let POWER_SHOT_SPEED = 2100;   // much faster than a normal kick — that IS the threat
+export let POWER_SHOT_LIFE = 1.6;     // s before a power ball reverts to an ordinary one
+export let POWER_SHOT_SAG = 0.12;     // a touch of gravity so a high shot still comes down
+export let POWER_BLOCK_REBOUND = 0.42; // pace a blocked shot keeps as it comes back off you
+export let POWER_TACKLE_SCALE = 0.55;  // effect strength when you kick the PLAYER, not the ball
+export let POWER_STUN = 1.25;         // plain knockdown length (non-signature knockdowns)
 export let COUNTER_WINDOW = 130;    // px: kick within this of an incoming power ball to counter
 
 // ---- Anti-stall ------------------------------------------------------------
@@ -131,6 +142,7 @@ export const BALL_SPAWN = { x: W / 2, y: 120 };
 // between restarts. These are `let` so the debug panel can move them mid-match; `import *`
 // gives every module a live binding, so a slider change lands on the very next tick.
 const SETTERS = {
+  BODY_DEADEN: (v) => { BODY_DEADEN = v; },
   LOB_LIFT: (v) => { LOB_LIFT = v; },
   LOB_DRIVE: (v) => { LOB_DRIVE = v; },
   BALL_IDLE_RESET: (v) => { BALL_IDLE_RESET = v; },
@@ -170,7 +182,11 @@ const SETTERS = {
   KICK_LIFT: (v) => { KICK_LIFT = v; },
   HEAD_POWER: (v) => { HEAD_POWER = v; },
   GAUGE_FULL: (v) => { GAUGE_FULL = v; },
-  ARMED_TIME: (v) => { ARMED_TIME = v; },
+  POWER_MODE_TIME: (v) => { POWER_MODE_TIME = v; },
+  POWER_SHOT_LIFE: (v) => { POWER_SHOT_LIFE = v; },
+  POWER_SHOT_SAG: (v) => { POWER_SHOT_SAG = v; },
+  POWER_BLOCK_REBOUND: (v) => { POWER_BLOCK_REBOUND = v; },
+  POWER_TACKLE_SCALE: (v) => { POWER_TACKLE_SCALE = v; },
   POWER_SHOT_SPEED: (v) => { POWER_SHOT_SPEED = v; },
   POWER_STUN: (v) => { POWER_STUN = v; },
   COUNTER_WINDOW: (v) => { COUNTER_WINDOW = v; },
@@ -187,6 +203,7 @@ export function tune(patch) {
 
 export function snapshot() {
   return {
+    BODY_DEADEN,
     LOB_LIFT,
     LOB_DRIVE,
     BALL_IDLE_RESET,
@@ -226,7 +243,11 @@ export function snapshot() {
     KICK_LIFT,
     HEAD_POWER,
     GAUGE_FULL,
-    ARMED_TIME,
+    POWER_MODE_TIME,
+    POWER_SHOT_LIFE,
+    POWER_SHOT_SAG,
+    POWER_BLOCK_REBOUND,
+    POWER_TACKLE_SCALE,
     POWER_SHOT_SPEED,
     POWER_STUN,
     COUNTER_WINDOW,

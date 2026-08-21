@@ -37,7 +37,7 @@ export function createBot(level = 2, rng = Math.random) {
     t: 0, nextThink: 0,
     aim: C.W / 2,          // the x it is currently walking to (re-picked on each think)
     wantJump: false, wantKick: false,
-    counterArmed: false,
+    counterArmed: false, powerPlan: null,
     out: { left: false, right: false, jump: false, kick: false, power: false },
   };
 }
@@ -67,30 +67,47 @@ export function botInput(bot, m, index, dt) {
     return out;
   }
 
-  // ---- counter attempts get their own fast path: the window is ~2 frames wide ----
+  // ---- facing a power shot: counter it, or get in its way --------------------
+  // Power shots fly flat and fast and are BLOCKED by a body in the path, so the right
+  // answer is to step into the line — not to dodge. The old code ran away from them, which
+  // under the new model just gifts a goal.
   if (b.power && b.power.owner !== index) {
     const dist = Math.hypot(b.x - p.x, b.y - headY(p));
     const incoming = (b.x - p.x) * p.side < 0;      // heading at me, not away
-    if (!bot.counterArmed && dist < C.COUNTER_WINDOW * 2.2 && incoming) {
-      bot.counterArmed = bot.rng() < d.counter;
-      bot.counterDecided = true;
+
+    if (bot.powerPlan == null) {
+      // Decide ONCE per shot: counter (hardest), block (default), or fluff it.
+      // A weak bot sometimes just loses its head; everyone else defends, and the best also
+      // tries to time a counter out of the block.
+      const r = bot.rng();
+      bot.powerPlan = r > d.aim ? 'panic' : (bot.rng() < d.counter ? 'counter' : 'block');
     }
-    if (bot.counterArmed && dist < C.COUNTER_WINDOW * 0.82) {
-      out.kick = true;
-      out.left = out.right = out.jump = out.power = false;
+
+    if (bot.powerPlan !== 'panic' && incoming) {
+      // ALWAYS take the blocking line. Countering is layered on top of it, never instead of
+      // it: a bot that stepped out to time a counter and missed had also abandoned the
+      // block, and the strong bot ended up 7 goals WORSE than the weak one for trying.
+      const myGoalX = p.side > 0 ? C.GOAL_W : C.W - C.GOAL_W;
+      const intercept = Math.max(C.GOAL_W + 30, Math.min(C.W - C.GOAL_W - 30, myGoalX + p.side * 70));
+      out.left = p.x > intercept + 10;
+      out.right = p.x < intercept - 10;
+      // A shot above head height can only be met in the air.
+      out.jump = p.onGround && b.y < headY(p) - C.HEAD_R * 0.4;
+      // The counter is a kick timed into the block, not a substitute for it.
+      out.kick = bot.powerPlan === 'counter'
+        ? dist < C.COUNTER_WINDOW * 0.82
+        : dist < C.KICK_REACH;
+      out.power = false;
       return out;
     }
-    // Not countering: get out of the flight path instead of eating a knockdown.
-    if (!bot.counterArmed && dist < 260) {
-      const away = b.y < headY(p) + 20;             // high shot → duck under, low → jump over
-      out.jump = !away;
+    if (bot.powerPlan === 'panic' && dist < 240) {
+      out.jump = bot.rng() < 0.5;
       out.kick = false;
       out.left = p.side > 0; out.right = p.side < 0;
       return out;
     }
   } else {
-    bot.counterArmed = false;
-    bot.counterDecided = false;
+    bot.powerPlan = null;
   }
 
   // Press/hold is decided on its OWN slow clock, not per think. Rolling it inside the

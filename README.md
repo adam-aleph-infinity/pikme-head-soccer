@@ -37,8 +37,24 @@ app and out of it.
 | **keys** | `A`/`D` or `←`/`→` | double-tap a direction | `W` `↑` `Space` | `S` `↓` `K` | `J` `L` `Shift` |
 | **touch** | ◀ ▶ (left thumb) | double-tap | קפיצה | בעיטה | POWER |
 
+**POWER is a mode, not a shot.** With a full gauge, press POWER and you are *powered up*
+for ~4.5s. While it lasts:
+- **kick the ball** → it flies flat and fast at the goal. The defender's answer is to get a
+  body in the way, usually by jumping into it. A block saves the goal but lands the
+  shooter's effect on you.
+- **kick the opponent** → your signature effect instead, at reduced strength.
+
+Every shot flies the *same* way on purpose — if trajectories differed per character,
+"get in the way" would mean something different each time and blocking would be a guess.
+What differs is the consequence: מנגל בוער burns you down, תולעים roots you, סטרייק freezes
+you for half a second, גל אדום launches you, גשם מטבעות leaves you wading.
+
 **Hold jump while kicking to LOB it** — higher, shorter. The counter to a defender parked on
 their line, and the only aiming the game has.
+
+**Your head bounces the ball; your body deadens it.** Barging into the ball kills its pace
+and drops it at your feet — only a kick sends it anywhere, so every meaningful touch is a
+decision. Heading is still the aerial tool.
 
 **Kick the opponent to TACKLE them** — no ball required. Pays you a slice of power gauge and
 leaves them slowed for ~1.7s. There is a 1.1s immunity window afterwards so nobody can be

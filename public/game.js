@@ -363,9 +363,16 @@ function drainEvents() {
     if (e.type === 'goal') banner(e.power ? 'גול פאוור!' : 'גול!', e.player === 0 ? '#4ea0ff' : '#ff5c7a');
     else if (e.type === 'counter') banner('קאונטר!', '#ffffff');
     else if (e.type === 'tackle') {
-      fx.shockwave(e.x, e.y, '#ffd166');
-      if (e.by === (ONLINE ? NET.you : 0)) banner('פגיעה! +כוח', '#ffd166');
+      const col = e.powered ? SHOTS[e.shot].color : '#ffd166';
+      fx.shockwave(e.x, e.y, col);
+      if (e.powered) banner(SHOTS[e.shot].effect.note + '!', col);
+      else if (e.by === (ONLINE ? NET.you : 0)) banner('פגיעה! +כוח', '#ffd166');
     }
+    else if (e.type === 'blocked') {
+      // A block is the defender's big moment — it deserves to read as one.
+      banner('נחסם!', SHOTS[e.shot].color);
+    }
+    else if (e.type === 'armed') banner(SHOTS[e.shot].name, SHOTS[e.shot].color);
     else if (e.type === 'ballReset') banner('כדור חדש', '#8ea0be');
     else if (e.type === 'powershot') banner(SHOTS[e.shot].name, SHOTS[e.shot].color);
     else if (e.type === 'golden') banner('מוות פתאומי', '#ffb800');
@@ -779,6 +786,8 @@ function drawHeads() {
     const tilt = Math.max(-.34, Math.min(.34, p.vx / 1100)) + (p.knocked > 0 ? p.side * 1.2 : 0);
     el.style.transform = `translate(${x - size / 2}px, ${y - size / 2}px) rotate(${tilt}rad)`;
     el.classList.toggle('armed', p.armed > 0);
+    if (p.armed > 0) el.style.setProperty('--glow', p.shot.color);
+    el.classList.toggle('hexed', !!p.effectId);
     el.classList.toggle('knocked', p.knocked > 0 || p.rooted > 0);
     el.classList.toggle('slowed', p.slow > 0 && p.knocked <= 0);
   }
@@ -794,11 +803,23 @@ function syncHud() {
   for (let i = 0; i < 2; i++) {
     const p = M.players[i];
     const gEl = $(`.gauge.g${i}`);
-    gEl.querySelector('.fill').style.width = (p.gauge * 100) + '%';
-    gEl.classList.toggle('full', p.gauge >= 1 || p.armed > 0);
+    const powered = p.armed > 0;
+    // While POWER MODE is live the bar counts DOWN — the gauge stops being "how close am I"
+    // and becomes "how long have I got", which is the only number that matters then.
+    gEl.querySelector('.fill').style.width =
+      (powered ? (p.armed / C.POWER_MODE_TIME) * 100 : p.gauge * 100) + '%';
+    gEl.classList.toggle('full', p.gauge >= 1 && !powered);
+    gEl.classList.toggle('powered', powered);
+    gEl.querySelector('.nm').textContent = powered
+      ? `${p.shot.name} ${p.armed.toFixed(1)}s`
+      : p.shot.name;
   }
   const me = ONLINE ? NET.you : 0;
-  $('#powerBtn').classList.toggle('ready', M.players[me].gauge >= 1 && M.players[me].armed <= 0);
+  const mine = M.players[me];
+  const pb = $('#powerBtn');
+  pb.classList.toggle('ready', mine.gauge >= 1 && mine.armed <= 0);
+  pb.classList.toggle('live', mine.armed > 0);
+  pb.textContent = mine.armed > 0 ? mine.armed.toFixed(1) : 'POWER';
   $('#rtt').textContent = ONLINE ? `${NET.rtt}ms` : '';
 }
 
@@ -813,7 +834,9 @@ const RANGES = {
   BALL_GRAV: [300, 3000], BALL_BOUNCE: [.2, 1], BALL_AIR: [.97, 1], BALL_GROUND_FRICTION: [.9, 1],
   BALL_MAX_SPEED: [500, 2600],
   GOAL_H: [90, 300], GOAL_W: [40, 160], HEAD_R: [24, 80], GROUND_Y: [360, 500],
-  GAUGE_FULL: [3, 60], ARMED_TIME: [1, 15], POWER_SHOT_SPEED: [500, 3000],
+  GAUGE_FULL: [3, 60], POWER_MODE_TIME: [1, 12], POWER_SHOT_SPEED: [800, 3600],
+  POWER_SHOT_LIFE: [.4, 4], POWER_SHOT_SAG: [0, 1], POWER_BLOCK_REBOUND: [0, 1],
+  POWER_TACKLE_SCALE: [0, 1.5], BODY_DEADEN: [0, 1],
   POWER_STUN: [.2, 3], COUNTER_WINDOW: [40, 320], MATCH_DURATION: [15, 180],
   // jump feel
   COYOTE_TIME: [0, .3], JUMP_BUFFER: [0, .3], FALL_MULT: [1, 3],

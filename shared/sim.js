@@ -3,7 +3,7 @@
 // football-mock's shared/sim.js, so wiring this to a server later is a lift-and-shift.
 
 import * as C from './constants.js';
-import { launchPowerShot, stepPowerShot, counterPowerShot, shotFor, statsFor, SHOTS } from './powershots.js';
+import { launchPowerShot, stepPowerShot, counterPowerShot, applyEffect, shotFor, statsFor, SHOTS } from './powershots.js';
 
 // A player's geometry, derived (never stored) so nothing can drift out of sync.
 // `y` is the FEET line; the body box hangs above it and the head sits on the body.
@@ -33,6 +33,7 @@ function makePlayer(index, char) {
     knocked: 0, rooted: 0, shoved: 0,
     coyote: 0, jumpBuf: 0,          // jump forgiveness (see COYOTE_TIME / JUMP_BUFFER)
     slow: 0, tackleImmune: 0,       // set by a tackle; slow scales speed, immune blocks re-tackles
+    effectId: null, effectT: 0,     // which signature effect is on me, and for how long
     prev: {},
     stats_: null,
   };
@@ -64,6 +65,7 @@ function resetPositions(m, towards) {
     p.kickT = 0; p.kickCd = 0; p.dashT = 0; p.dashCd = 0;
     p.knocked = 0; p.rooted = 0; p.shoved = 0;
     p.slow = 0; p.tackleImmune = 0; p.coyote = 0; p.jumpBuf = 0;
+    p.effectId = null; p.effectT = 0;
     p.jumps = C.MAX_JUMPS;
   }
   const b = m.ball;
@@ -139,7 +141,7 @@ function chargeGauge(m, p, dt) {
 function stepPlayer(m, p, input, dt, fx) {
   chargeGauge(m, p, dt);
 
-  if (p.armed > 0) p.armed = Math.max(0, p.armed - dt);
+  if (p.armed > 0) p.armed = Math.max(0, p.armed - dt);   // `armed` IS power mode
   if (p.kickT > 0) p.kickT -= dt;
   if (p.kickCd > 0) p.kickCd -= dt;
   if (p.dashCd > 0) p.dashCd -= dt;
@@ -147,6 +149,7 @@ function stepPlayer(m, p, input, dt, fx) {
   if (p.rooted > 0) p.rooted -= dt;
   if (p.slow > 0) p.slow -= dt;
   if (p.tackleImmune > 0) p.tackleImmune -= dt;
+  if (p.effectT > 0) { p.effectT -= dt; if (p.effectT <= 0) p.effectId = null; }
   if (p.knocked > 0) {
     p.knocked -= dt;
     p.vx *= 0.86;
@@ -218,10 +221,12 @@ function stepPlayer(m, p, input, dt, fx) {
     tryTackle(m, p, fx);
   }
 
-  // ---- arm the power shot ----
+  // ---- POWER MODE ----
+  // Its own button and its own job: it does not touch the ball, it changes what your next
+  // kick means. Kick the ball -> power shot. Kick the opponent -> your signature effect.
   if (canAct && input.power && !prev.power && p.gauge >= 1 && p.armed <= 0) {
     p.gauge = 0;
-    p.armed = C.ARMED_TIME;
+    p.armed = C.POWER_MODE_TIME;
     m.events.push({ type: 'armed', player: p.index, shot: p.shot.id });
   }
 
@@ -403,19 +408,29 @@ function tryTackle(m, p, fx) {
   if (!hitHead && !hitBody) return false;
 
   const dir = Math.sign(foe.x - p.x) || p.facing;
-  foe.slow = C.TACKLE_SLOW_TIME;
-  foe.rooted = Math.max(foe.rooted, C.TACKLE_STUN);
-  foe.tackleImmune = C.TACKLE_IMMUNE;
-  foe.vx = dir * C.TACKLE_PUSH;
-  foe.vy = Math.min(foe.vy, -C.TACKLE_LIFT);
-  foe.onGround = false;
-  foe.dashT = 0;
+  const powered = p.armed > 0;
 
-  p.gauge = Math.min(1, p.gauge + C.TACKLE_GAUGE);
+  if (powered) {
+    // Kicking the OPPONENT while powered spends the mode on them instead of the ball and
+    // lands your character's signature effect — Adam's "freeze them for half a second".
+    applyEffect(p.shot, foe, dir, C.POWER_TACKLE_SCALE);
+    p.armed = 0;
+  } else {
+    foe.slow = C.TACKLE_SLOW_TIME;
+    foe.rooted = Math.max(foe.rooted, C.TACKLE_STUN);
+    foe.vx = dir * C.TACKLE_PUSH;
+    foe.vy = Math.min(foe.vy, -C.TACKLE_LIFT);
+    foe.onGround = false;
+    foe.dashT = 0;
+    p.gauge = Math.min(1, p.gauge + C.TACKLE_GAUGE);
+  }
+  foe.tackleImmune = C.TACKLE_IMMUNE;
+
   p.kickT = 0;                                   // the boot is spent on them, not the ball
-  m.hitStop = Math.max(m.hitStop, C.HIT_STOP_TACKLE);
-  m.events.push({ type: 'tackle', by: p.index, on: foe.index, x: kx, y: ky });
-  fx.hit(kx, ky, '#ffd166', 1.6);
+  m.hitStop = Math.max(m.hitStop, powered ? C.HIT_STOP_POWER : C.HIT_STOP_TACKLE);
+  m.events.push({ type: 'tackle', by: p.index, on: foe.index, x: kx, y: ky,
+                 powered, shot: powered ? p.shot.id : null });
+  fx.hit(kx, ky, powered ? p.shot.color : '#ffd166', powered ? 2.4 : 1.6);
   return true;
 }
 
@@ -459,7 +474,9 @@ function resolveBallPlayers(m, dt, fx) {
     const d = Math.hypot(dx, dy);
     const min = C.HEAD_R + b.r;
     if (d < min && d > 0.0001) {
-      if (firePowerIfArmed(m, p, b, fx)) return;
+      // No firing from the head: the power shot comes off the BOOT only. Firing on any
+      // touch is what made the POWER button feel dead — the shot went off on a stray
+      // header seconds after you pressed it.
       if (b.power && b.power.owner !== p.index) { hitByPowerShot(m, p, b, fx); return; }
       const nx = dx / d, ny = dy / d;
       b.x = p.x + nx * min; b.y = hy + ny * min;
@@ -485,15 +502,19 @@ function resolveBallPlayers(m, dt, fx) {
     const bx = b.x - nearestX, by = b.y - nearestY;
     const bd = Math.hypot(bx, by);
     if (bd < b.r && bd > 0.0001) {
-      if (firePowerIfArmed(m, p, b, fx)) return;
       if (b.power && b.power.owner !== p.index) { hitByPowerShot(m, p, b, fx); return; }
       m.idle = 0;
+      // HEAD BOUNCES, BODY DEADENS (Adam, 2026-08-21). Running into the ball used to
+      // pinball it away, so most touches were accidents rather than decisions. Now your
+      // torso kills it and drops it at your feet, and only a kick sends it anywhere.
       const nx = bx / bd, ny = by / bd;
       b.x = nearestX + nx * b.r; b.y = nearestY + ny * b.r;
       const dot = b.vx * nx + b.vy * ny;
-      if (dot < 0) { b.vx -= 1.55 * dot * nx; b.vy -= 1.55 * dot * ny; }
-      b.vx += p.vx * 0.3;
-      fx.hit(b.x, b.y, '#ffffff', 0.5);
+      if (dot < 0) { b.vx -= dot * nx; b.vy -= dot * ny; }   // cancel, do not reflect
+      b.vx = b.vx * C.BODY_DEADEN + p.vx * 0.22;             // keep a little of your momentum
+      b.vy *= C.BODY_DEADEN;
+      b.spin *= 0.5;
+      fx.hit(b.x, b.y, '#cfd8ea', 0.4);
     }
   }
 }
@@ -509,16 +530,27 @@ function firePowerIfArmed(m, p, b, fx) {
   return true;
 }
 
+// A power shot that reaches a defender is BLOCKED, not a battering ram. It used to punch
+// straight through and knock them down, which made every power shot an automatic goal and
+// left the defender nothing to do. Now getting in the way — usually by jumping into its
+// path — actually saves it. The block still costs you: you eat the shooter's signature
+// effect, so you save the goal and pay for it.
 function hitByPowerShot(m, p, b, fx) {
+  const pw = b.power;
+  const shot = pw.shot;
   m.hitStop = Math.max(m.hitStop, C.HIT_STOP_POWER);
-  p.knocked = C.POWER_STUN;
-  p.vx = b.power.dir * 330;
-  p.vy = -320;
-  p.onGround = false;
-  m.events.push({ type: 'knocked', player: p.index, shot: b.power.id });
-  fx.shockwave(p.x, headY(p), b.power.color);
-  // The shot punches THROUGH the defender — that's what makes it worth arming.
-  b.x = p.x + b.power.dir * (C.HEAD_R + b.r + 4);
+
+  applyEffect(shot, p, pw.dir);
+
+  // The ball comes off the block, back toward the pitch.
+  b.vx = -pw.dir * Math.abs(b.vx) * C.POWER_BLOCK_REBOUND;
+  b.vy = -Math.abs(b.vy) * 0.4 - 180;
+  b.power = null;
+  b.x = p.x - pw.dir * (C.HEAD_R + b.r + 4);
+  m.idle = 0;
+
+  m.events.push({ type: 'blocked', player: p.index, by: pw.owner, shot: shot.id, effect: shot.effect.kind });
+  fx.shockwave(p.x, headY(p), shot.color);
 }
 
 // ---------------------------------------------------------------------------

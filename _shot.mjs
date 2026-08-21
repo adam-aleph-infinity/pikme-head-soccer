@@ -195,10 +195,14 @@ check('a decided match reaches full time', done.over === true && done.phase === 
 check('the winner is announced', done.title === 'ניצחת!', done.title);
 await shot('05-fulltime');
 
-await evalJs('startMatch(); MATCH.score = [0, 0];');
+// Setting 0-0 once was not enough: the bot can score inside the five seconds, and then the
+// match ends decided instead of going to sudden death. Hold the scoreline level until the
+// clock runs out, so the branch under test is the one that actually runs.
+await evalJs('startMatch();');
 let gg = null;
 for (let i = 0; i < 30; i++) {
-  await sleep(600);
+  await evalJs('if (MATCH.phase !== "over") MATCH.score = [0, 0];');
+  await sleep(400);
   gg = await evalJs('({golden: MATCH.golden, phase: MATCH.phase, clockUi: document.getElementById("clock").textContent})');
   if (gg.golden) break;
 }
