@@ -16,6 +16,11 @@ npm start          # PORT=3020 by default (3010-3019 belong to other agents)
 
 Then open the **phone URL** the server prints (the LAN IP), not `localhost`.
 
+> ⚠️ **Restart the server after changing `shared/constants.js`.** Node holds the sim
+> constants in memory from load, while a browser refresh picks up the new file — so an old
+> server process and a fresh client disagree about the pitch, and online play desyncs. It
+> looks like a netcode bug and is not one.
+
 ```bash
 npm test           # sim + bot tests, headless
 node _shot.mjs     # drives the real client in Chrome and screenshots it
