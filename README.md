@@ -198,8 +198,21 @@ to show through. 170 gives ~5 goals and a clear skill gradient.
 That sweep was run at `PACE` 1.0. Re-run at the shipped 0.80 it reads 146 → 3.3 goals and
 170 → 5.1, with the legendary bot at 10:1 over very-easy at **every** mouth height — a
 slower ball gives a defender time to be somewhere, so the goal size stopped being the thing
-holding the gradient up. The shipped 160 was chosen under the old numbers and is worth
-re-arguing now, not assumed.
+holding the gradient up.
+
+**160 still stands, on the other argument.** The mouth had two independent justifications
+and the pace change kills exactly one:
+
+- *the sweep* — 160 was the best skill gradient of the values tried. **Dead.** At 0.80 the
+  sweep no longer discriminates between heights, so it has stopped being a measuring
+  instrument for this question.
+- *the measurement* — 160 is **2.03× the 79px player** (feet to the top of the head:
+  `HEAD_R` 30 + `BODY_H` 27, per `headY`), against 2.02× measured off the real Head Soccer
+  kickoff screenshot. **Alive, and pace-independent** — it is a ratio between two objects on
+  screen, and `PACE` moves no distance in the game, only the clock on it.
+
+So leave 160 alone unless the pace itself moves. If it does, the thing to re-argue is the
+ratio against a fresh reference screenshot, *not* the sweep.
 
 ## Netcode
 

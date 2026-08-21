@@ -19,5 +19,5 @@ for (const h of H) {
   for(let s=0;s<N;s++){ const m=play(3,3,1000+s*13); goals+=m.score[0]+m.score[1]; }
   let hard=0, easy=0, draw=0;
   for(let s=0;s<11;s++){ const m=play(5,0,4000+s*37); if(m.score[0]>m.score[1])hard++; else if(m.score[1]>m.score[0])easy++; else draw++; }
-  console.log(`GOAL_H ${String(h).padStart(3)} (player is ~138 tall) → ${(goals/N).toFixed(1)} goals/match | legendary ${hard} : ${easy} very-easy (${draw} draws)`);
+  console.log(`GOAL_H ${String(h).padStart(3)} (player is 79 tall) → ${(goals/N).toFixed(1)} goals/match | legendary ${hard} : ${easy} very-easy (${draw} draws)`);
 }
