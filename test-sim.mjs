@@ -73,6 +73,39 @@ const run = (m, ticks, inputs = NONE) => {
   ok('a ball above the mouth bounces off the wall', m.ball.vx > 0);
 }
 {
+  // ⚠️ The bug Adam reported: a ball CLIPPING the top of the goal used to score, because
+  // the test was on the ball's centre. Now the whole ball must be under the bar.
+  const barY = C.GROUND_Y - C.GOAL_H;
+  // Driven straight at the goal AT bar height: it must hit the bar, not sail in.
+  const m = fresh();
+  m.ball.x = C.GOAL_W + 90; m.ball.y = barY; m.ball.vx = -700; m.ball.vy = 0;
+  run(m, 25);
+  ok('a shot at crossbar height does NOT score', m.score[1] === 0, `score=${m.score.join('-')}`);
+
+  // …and the same shot a ball-and-a-bit lower goes in, so the bar is not just a wall.
+  const m2 = fresh();
+  m2.ball.x = C.GOAL_W + 90; m2.ball.y = barY + C.BALL_R + C.POST_R + 8; m2.ball.vx = -700; m2.ball.vy = 0;
+  run(m2, 25);
+  ok('a shot just under the bar DOES score', m2.score[1] === 1, `score=${m2.score.join('-')}`);
+}
+{
+  // Half over the line is not a goal either — the whole ball has to cross it.
+  const m = fresh();
+  m.ball.x = C.GOAL_W - 2; m.ball.y = C.GROUND_Y - 60; m.ball.vx = -10; m.ball.vy = 0;
+  step(m, NONE);
+  ok('a ball straddling the goal line does NOT score', m.score[1] === 0, `x=${m.ball.x.toFixed(1)} line=${C.GOAL_W}`);
+}
+{
+  // The crossbar is now a solid bar across the whole net, so nothing drops in through the roof.
+  const barY = C.GROUND_Y - C.GOAL_H;
+  const m = fresh();
+  m.ball.x = C.GOAL_W / 2; m.ball.y = barY - C.BALL_R - C.POST_R - 4; m.ball.vx = 0; m.ball.vy = 700;
+  step(m, NONE);
+  ok('the ball bounces off the crossbar', m.ball.vy < 0, `vy=${m.ball.vy.toFixed(0)}`);
+  run(m, 40);
+  ok('and never falls through the roof of the net', m.score[1] === 0);
+}
+{
   const m = fresh();
   const conceded = m.players[0];
   conceded.gauge = 0;
@@ -145,6 +178,24 @@ const run = (m, ticks, inputs = NONE) => {
   const before = Math.abs(m.ball.vy);
   step(m, NONE);
   ok('a head is springier than a plain bounce', Math.abs(m.ball.vy) > before * C.BALL_BOUNCE);
+}
+
+{
+  // Holding JUMP while kicking lobs it — the only aiming in the game, and the counter to a
+  // defender camped on their line.
+  const flat = fresh(), lob = fresh();
+  for (const m of [flat, lob]) {
+    const p = m.players[0];
+    m.ball.x = p.x + C.KICK_REACH; m.ball.y = p.y - C.BODY_H * 0.45;
+    m.ball.vx = 0; m.ball.vy = 0;
+  }
+  step(flat, [{ kick: true }, {}]);
+  step(lob, [{ kick: true, jump: true }, {}]);
+  ok('a lob goes higher', lob.ball.vy < flat.ball.vy,
+     `lob vy=${lob.ball.vy.toFixed(0)} flat vy=${flat.ball.vy.toFixed(0)}`);
+  ok('a lob goes less far', Math.abs(lob.ball.vx) < Math.abs(flat.ball.vx),
+     `lob vx=${lob.ball.vx.toFixed(0)} flat vx=${flat.ball.vx.toFixed(0)}`);
+  ok('a lob still goes forward', lob.ball.vx > 0);
 }
 
 // --- power shots ------------------------------------------------------------
@@ -231,6 +282,9 @@ const run = (m, ticks, inputs = NONE) => {
   m.ball.x = a.x + C.KICK_REACH; m.ball.y = a.y - C.BODY_H * 0.45; m.ball.vx = 0; m.ball.vy = 0;
   step(m, [{ kick: true }, {}]);
   ok('power ball exists before the counter', !!m.ball.power);
+  // Firing a power shot sets hit-stop, and a frozen step ignores input by design. Clear it
+  // so this test is about the COUNTER and not about the freeze.
+  m.hitStop = 0;
   m.ball.x = b.x - 40; m.ball.y = headY(b);
   step(m, [{}, { kick: true }]);
   ok('countering flips ownership', m.ball.power && m.ball.power.owner === 1, `owner=${m.ball.power?.owner}`);
@@ -245,9 +299,146 @@ const run = (m, ticks, inputs = NONE) => {
   a.gauge = 1; step(m, [{ power: true }, {}]);
   m.ball.x = a.x + C.KICK_REACH; m.ball.y = a.y - C.BODY_H * 0.45;
   step(m, [{ kick: true }, {}]);
+  m.hitStop = 0;
   m.ball.x = C.W / 2; m.ball.y = 200;
   step(m, [{}, { kick: true }]);
   ok('an out-of-range kick does not counter', m.ball.power.owner === 0);
+}
+
+// --- tackling ---------------------------------------------------------------
+{
+  const m = fresh();
+  const a = m.players[0], b = m.players[1];
+  m.ball.x = C.W / 2; m.ball.y = 100;                    // ball nowhere near
+  b.x = a.x + C.KICK_REACH;                              // stand the victim on the boot
+  a.gauge = 0;
+  step(m, [{ kick: true }, {}]);
+  ok('kicking the opponent lands a tackle', m.events.some((e) => e.type === 'tackle'));
+  // Not exactly TACKLE_GAUGE: the ordinary per-tick charge lands in the same step.
+  ok('the tackler gains gauge', a.gauge >= C.TACKLE_GAUGE && a.gauge < C.TACKLE_GAUGE + 0.01,
+     `gauge=${a.gauge.toFixed(4)}`);
+  ok('the victim is slowed', b.slow > 0);
+  ok('the victim is knocked back', Math.abs(b.vx) > 100, `vx=${b.vx.toFixed(0)}`);
+  ok('a tackle grants immunity', b.tackleImmune > 0);
+  ok('a tackle causes hit-stop', m.hitStop > 0);
+}
+{
+  // Stun-locking someone out of the match would be the obvious abuse.
+  const m = fresh();
+  const a = m.players[0], b = m.players[1];
+  m.ball.x = C.W / 2; m.ball.y = 100;
+  b.x = a.x + C.KICK_REACH;
+  step(m, [{ kick: true }, {}]);
+  m.hitStop = 0; a.kickCd = 0; b.x = a.x + C.KICK_REACH; b.vx = 0;
+  m.events.length = 0;
+  step(m, [{ kick: false }, {}]);
+  step(m, [{ kick: true }, {}]);
+  ok('an immune player cannot be re-tackled', !m.events.some((e) => e.type === 'tackle'),
+     `immune=${b.tackleImmune.toFixed(2)}`);
+}
+{
+  const m = fresh();
+  const a = m.players[0], b = m.players[1];
+  m.ball.x = C.W / 2; m.ball.y = 100;
+  b.x = a.x + C.KICK_REACH;
+  step(m, [{ kick: true }, {}]);
+  m.hitStop = 0;
+  const slowRun = fresh();
+  run(slowRun, 40, [{ right: true }, {}]);              // unslowed reference
+  run(m, 40, [{}, { right: true }]);
+  ok('a slowed player really is slower',
+     Math.abs(b.vx) < Math.abs(slowRun.players[0].vx) - 20,
+     `slowed=${Math.abs(b.vx).toFixed(0)} normal=${Math.abs(slowRun.players[0].vx).toFixed(0)}`);
+}
+{
+  const m = fresh();
+  const a = m.players[0], b = m.players[1];
+  b.x = a.x + 400;                                       // far away
+  m.ball.x = C.W / 2; m.ball.y = 100;
+  step(m, [{ kick: true }, {}]);
+  ok('kicking thin air is not a tackle', !m.events.some((e) => e.type === 'tackle'));
+}
+{
+  // The boot is spent on the player, so a tackle must not also blast the ball.
+  const m = fresh();
+  const a = m.players[0], b = m.players[1];
+  b.x = a.x + C.KICK_REACH;
+  m.ball.x = a.x + C.KICK_REACH; m.ball.y = a.y - C.BODY_H * 0.45; m.ball.vx = 0; m.ball.vy = 0;
+  step(m, [{ kick: true }, {}]);
+  ok('a tackle consumes the kick', a.kickT === 0);
+}
+
+// --- jump feel --------------------------------------------------------------
+{
+  // COYOTE: jump still works just after leaving the ground.
+  const m = fresh();
+  const p = m.players[0];
+  p.onGround = false; p.y = C.GROUND_Y - 6; p.vy = 40; p.coyote = C.COYOTE_TIME;
+  step(m, [{ jump: true }, {}]);
+  ok('coyote time still allows a jump', p.vy < 0, `vy=${p.vy.toFixed(0)}`);
+}
+{
+  // …but not forever.
+  const m = fresh();
+  const p = m.players[0];
+  p.onGround = false; p.y = 200; p.vy = 300; p.coyote = 0; p.jumps = 1;
+  step(m, [{ jump: true }, {}]);
+  ok('an expired coyote window does not jump', p.vy > 0, `vy=${p.vy.toFixed(0)}`);
+}
+{
+  // BUFFER: a press just before landing fires on touchdown instead of being eaten.
+  const m = fresh();
+  const p = m.players[0];
+  p.onGround = false; p.y = C.GROUND_Y - 4; p.vy = 300; p.coyote = 0; p.jumps = 0;
+  step(m, [{ jump: true }, {}]);        // pressed mid-air, too late to jump
+  ok('the early press is buffered', p.jumpBuf > 0 || p.vy < 0);
+  step(m, [{ jump: true }, {}]);        // now on the ground
+  ok('a buffered jump fires on landing', p.vy < 0, `vy=${p.vy.toFixed(0)}`);
+}
+{
+  // Falling must be heavier than rising, or the arc reads as floaty. Measure ONE tick of
+  // each — comparing two ticks of rise against one of fall proves nothing.
+  const m = fresh();
+  const p = m.players[0];
+  p.onGround = false; p.y = 200; p.vy = -200;
+  const upBefore = p.vy;
+  step(m, [{ jump: true }, {}]);
+  const dRise = p.vy - upBefore;
+
+  p.vy = 200;
+  const downBefore = p.vy;
+  step(m, [{ jump: true }, {}]);
+  const dFall = p.vy - downBefore;
+
+  ok('gravity is heavier on the way down', dFall > dRise * 1.3,
+     `rise +${dRise.toFixed(1)}/tick vs fall +${dFall.toFixed(1)}/tick`);
+  ok('and by roughly FALL_MULT', Math.abs(dFall / dRise - C.FALL_MULT) < 0.05,
+     `ratio ${(dFall / dRise).toFixed(2)} vs ${C.FALL_MULT}`);
+}
+
+// --- hit-stop ---------------------------------------------------------------
+{
+  const m = fresh();
+  const p = m.players[0];
+  m.ball.x = p.x + C.KICK_REACH; m.ball.y = p.y - C.BODY_H * 0.45; m.ball.vx = 0; m.ball.vy = 0;
+  step(m, [{ kick: true }, {}]);
+  ok('a solid kick causes hit-stop', m.hitStop > 0);
+  const bx = m.ball.x;
+  step(m, [{}, {}]);
+  ok('the world is frozen during hit-stop', Math.abs(m.ball.x - bx) < 0.001);
+  run(m, 12);
+  ok('hit-stop always clears', m.hitStop <= 0);
+}
+{
+  // A press held across the freeze must still register when play resumes, or hit-stop
+  // would eat inputs — the exact thing that makes freeze frames feel broken.
+  const m = fresh();
+  const p = m.players[0];
+  m.hitStop = 0.05;
+  step(m, [{ jump: true }, {}]);
+  ok('input during hit-stop is not consumed', p.vy === 0);
+  run(m, 5, [{ jump: true }, {}]);
+  ok('and fires once the freeze ends', p.vy < 0, `vy=${p.vy.toFixed(0)}`);
 }
 
 // --- gauge & clock ----------------------------------------------------------

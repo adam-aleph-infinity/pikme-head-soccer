@@ -37,6 +37,13 @@ app and out of it.
 | **keys** | `A`/`D` or `←`/`→` | double-tap a direction | `W` `↑` `Space` | `S` `↓` `K` | `J` `L` `Shift` |
 | **touch** | ◀ ▶ (left thumb) | double-tap | קפיצה | בעיטה | POWER |
 
+**Hold jump while kicking to LOB it** — higher, shorter. The counter to a defender parked on
+their line, and the only aiming the game has.
+
+**Kick the opponent to TACKLE them** — no ball required. Pays you a slice of power gauge and
+leaves them slowed for ~1.7s. There is a 1.1s immunity window afterwards so nobody can be
+stun-locked out of a match.
+
 `?pad=1` forces the touch pad on in a desktop browser.
 
 ## What was taken from the real game
@@ -68,6 +75,34 @@ hand-picked cards get a themed one (the grill card throws fire, the tentacle car
 **The heads are DOM, never canvas.** Card art blitted into a canvas renders blank inside
 WKWebView — the trap that cost a day on `football-mock`. Pitch, ball, bodies and FX are
 canvas; the two heads are `<div>`s with a background image.
+
+## Feel
+
+Three things carry the jump, and they are the difference between a jump that feels good and
+one that feels broken: **coyote time** (you can still jump just after leaving the ground),
+**input buffering** (a press just before landing fires on touchdown instead of being eaten),
+and **asymmetric gravity** (falling is `FALL_MULT` heavier than rising — symmetric arcs read
+as floaty).
+
+**Hit-stop** freezes the whole sim for a few frames on a heavy connect, with a couple of
+pixels of screen shake underneath. It costs nothing and is most of what makes a hit land.
+Input held across the freeze is not lost — the sim's edge detection sees it the moment play
+resumes.
+
+## The goal
+
+The whole ball must be **past the line and under the bar** — testing the ball's centre meant
+a shot clipping the top of the goal scored. The crossbar is a real bar across the full depth
+of the net, so nothing drops in through the roof, and nothing may come to REST on it either:
+a ball landing flat on top has no velocity to roll it off and the bar keeps pushing it back
+up. One was found parked at (939, 215) with an entire match hung underneath it.
+
+`BALL_IDLE_RESET` is the backstop for every other way a ball can end up somewhere nobody can
+reach: untouched for 6s, it returns to the centre spot.
+
+Mouth height was swept against bot-vs-bot outcomes rather than guessed. At 146 the game gave
+2.6 goals a match and the legendary bot *lost* to the very-easy one — too few goals for skill
+to show through. 170 gives ~5 goals and a clear skill gradient.
 
 ## Netcode
 

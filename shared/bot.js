@@ -13,19 +13,23 @@ import { headY } from './sim.js';
 // abandons its goal, and a 812px pitch never gives it time to get back. So the weak bots
 // are the ones that chase everything and leave the net open; the legendary bot holds its
 // post and only presses when it is genuinely the nearer player.
-// `aim` is what actually separates the tiers. Defence alone is not skill: when difficulty
-// only moved aggression, the legendary bot held its post beautifully and LOST 6-3 to the
-// reckless one, because a bot that never aims its kicks cannot score. So the ladder is
-// mostly about striking the ball TOWARDS the goal, with discipline as a smaller term.
+// What separates the tiers is REACTION, AIM and COUNTERING — not commitment.
+//
+// This was got wrong twice. First `aggression` rose with difficulty, and the legendary bot
+// lost because both bots ended up mid-pitch every time the ball came back. Then it FELL
+// with difficulty, and the legendary bot lost again because a bot that never presses never
+// scores. Once the goal became genuinely hard to score in (whole ball over the line, solid
+// crossbar), pressure started mattering more than position and the dial inverted a third
+// time. So it is now flat: every tier commits about equally, and the good ones are simply
+// faster, more accurate, and better at reading a power shot.
 export const DIFFICULTIES = [
-  { name: 'קל מאוד',  react: 0.34, error: 78, counter: 0.02, aggression: 0.45, aim: 0.35, powerHold: 2.2 },
-  { name: 'קל',       react: 0.26, error: 58, counter: 0.08, aggression: 0.40, aim: 0.50, powerHold: 1.6 },
-  { name: 'בינוני',   react: 0.19, error: 40, counter: 0.18, aggression: 0.36, aim: 0.62, powerHold: 1.1 },
-  { name: 'קשה',      react: 0.13, error: 26, counter: 0.32, aggression: 0.32, aim: 0.74, powerHold: 0.7 },
-  { name: 'קשה מאוד', react: 0.08, error: 15, counter: 0.48, aggression: 0.28, aim: 0.86, powerHold: 0.4 },
-  { name: 'אגדי',     react: 0.04, error: 7,  counter: 0.66, aggression: 0.24, aim: 0.96, powerHold: 0.2 },
+  { name: 'קל מאוד',  react: 0.34, error: 78, counter: 0.02, aggression: 0.38, aim: 0.35, powerHold: 2.2 },
+  { name: 'קל',       react: 0.26, error: 58, counter: 0.08, aggression: 0.38, aim: 0.50, powerHold: 1.6 },
+  { name: 'בינוני',   react: 0.19, error: 40, counter: 0.18, aggression: 0.38, aim: 0.64, powerHold: 1.1 },
+  { name: 'קשה',      react: 0.13, error: 26, counter: 0.32, aggression: 0.38, aim: 0.78, powerHold: 0.7 },
+  { name: 'קשה מאוד', react: 0.08, error: 15, counter: 0.48, aggression: 0.38, aim: 0.90, powerHold: 0.4 },
+  { name: 'אגדי',     react: 0.04, error: 7,  counter: 0.66, aggression: 0.38, aim: 0.98, powerHold: 0.2 },
 ];
-
 export function createBot(level = 2, rng = Math.random) {
   const d = DIFFICULTIES[Math.max(0, Math.min(DIFFICULTIES.length - 1, level))];
   return {
@@ -141,6 +145,21 @@ export function botInput(bot, m, index, dt) {
     // Recovery dash: too far from home with the ball coming, burn the dash to get back.
     bot.wantDash = incoming && Math.abs(p.x - myGoalX) > 260 && (bot.aim - p.x) * p.side < 0;
 
+    // Tackle when the OPPONENT is in boot range and the ball is not — free gauge, and it
+    // slows them. Skill-scaled: a weak bot rarely spots it, the legendary one always does.
+    const foeNear = Math.abs(foe.x - p.x) < C.KICK_REACH + C.KICK_R * 0.8 &&
+                    Math.abs(foe.y - p.y) < C.BODY_H + C.HEAD_R;
+    // Tackling is an OFF-BALL move. Gating it only on "the ball is not on my boot" made the
+    // legendary bot tackle in contested situations and lose 6-3 to the reckless one: the
+    // gauge is not worth surrendering a 50/50 for. It only pays when the ball is genuinely
+    // someone else's problem and nothing is heading at my goal.
+    // "Opponent on my boot AND ball 200px away AND in their half" almost never co-occurred —
+    // both players chase the same ball, so they are close to each other exactly when the ball
+    // is close too. Measured: 0 tackles a match. The only condition that really matters is
+    // not turning your back on a ball heading for your own goal.
+    const ballFar = Math.abs(b.x - p.x) > 140;
+    bot.wantTackle = foeNear && ballFar && !incoming && foe.tackleImmune <= 0 && bot.rng() < d.aim;
+
     // Jump when the ball is genuinely headable, not just "high".
     const dxb = Math.abs(b.x - p.x);
     const headable = b.y < C.GROUND_Y - C.BODY_H - 20 && b.y > C.CEIL_Y + 40;
@@ -175,13 +194,22 @@ export function botInput(bot, m, index, dt) {
   const kickable = adxb < C.KICK_REACH + C.KICK_R &&
                    b.y > p.y - C.BODY_H - 10 &&
                    dxb * p.side > -20;               // ball is in front of me, goalward
-  out.kick = kickable && p.kickCd <= 0 && bot.rng() < 0.85;
+  // Timing is the skill the ladder was missing. A strong bot swings when the ball is on its
+  // boot; a weak one also swings at nothing, burning KICK_COOLDOWN and arriving late for the
+  // touch that mattered. Without this, every tier kicked identically and only the aim of the
+  // shot differed — not enough to separate them over a 60-second match.
+  const whiff = (1 - d.aim) * 0.06;                   // per-frame chance of a pointless swing
+  const swingAtNothing = !kickable && !bot.wantTackle && bot.rng() < whiff;
+  out.kick = (kickable || bot.wantTackle || swingAtNothing) && p.kickCd <= 0 && bot.rng() < 0.85;
+  if (out.kick && bot.wantTackle) bot.wantTackle = false;
 
   // Facing comes from the movement keys, so "aim" is literally which way I'm holding when
   // the boot connects. A weak bot swings whichever way it happened to be running.
   if (out.kick && bot.dashPulse == null) {
+    // A tackle needs the boot pointed at the OPPONENT; a shot needs it pointed at the goal.
+    const atFoe = Math.abs(foe.x - p.x) < C.KICK_REACH + C.KICK_R && !kickable;
     const aimed = bot.rng() < d.aim;
-    const want = aimed ? p.side : -p.side;
+    const want = atFoe ? (Math.sign(foe.x - p.x) || p.facing) : (aimed ? p.side : -p.side);
     out.left = want < 0; out.right = want > 0;
   }
 

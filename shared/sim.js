@@ -26,11 +26,13 @@ function makePlayer(index, char) {
     vx: 0, vy: 0,
     onGround: true, facing: side,
     jumps: C.MAX_JUMPS,
-    kickT: 0, kickCd: 0,
+    kickT: 0, kickCd: 0, kickLob: false,
     dashT: 0, dashCd: 0, dashDir: 0,
     tapDir: 0, tapT: 0,
     gauge: 0, armed: 0,
     knocked: 0, rooted: 0, shoved: 0,
+    coyote: 0, jumpBuf: 0,          // jump forgiveness (see COYOTE_TIME / JUMP_BUFFER)
+    slow: 0, tackleImmune: 0,       // set by a tackle; slow scales speed, immune blocks re-tackles
     prev: {},
     stats_: null,
   };
@@ -45,6 +47,8 @@ export function createMatch(charA, charB, opts = {}) {
     score: [0, 0],
     golden: false,
     lastScorer: null,
+    hitStop: 0,
+    idle: 0,                 // seconds since a player last touched the ball
     players: [makePlayer(0, charA), makePlayer(1, charB)],
     ball: { x: C.BALL_SPAWN.x, y: C.BALL_SPAWN.y, vx: 0, vy: 0, r: C.BALL_R, spin: 0, power: null },
     events: [],              // drained by the renderer each frame
@@ -53,11 +57,13 @@ export function createMatch(charA, charB, opts = {}) {
 }
 
 function resetPositions(m, towards) {
+  m.idle = 0;
   for (const p of m.players) {
     p.x = C.SPAWN_X[p.index]; p.y = C.GROUND_Y;
     p.vx = 0; p.vy = 0; p.onGround = true; p.facing = p.side;
     p.kickT = 0; p.kickCd = 0; p.dashT = 0; p.dashCd = 0;
     p.knocked = 0; p.rooted = 0; p.shoved = 0;
+    p.slow = 0; p.tackleImmune = 0; p.coyote = 0; p.jumpBuf = 0;
     p.jumps = C.MAX_JUMPS;
   }
   const b = m.ball;
@@ -65,6 +71,7 @@ function resetPositions(m, towards) {
   // Kickoff drifts towards whoever just conceded, so the restart isn't a coin flip.
   b.vx = towards ? towards * 90 : 0;
   b.vy = 0; b.spin = 0; b.power = null;
+  m.idle = 0;
 }
 
 // ---------------------------------------------------------------------------
@@ -73,6 +80,13 @@ export function step(m, inputs, dt = C.TICK, fx = NO_FX) {
   m.t += dt;
 
   if (m.phase === 'over') return m;
+
+  // Hit-stop. A few frozen frames on a heavy connect is most of what makes a hit read as
+  // an impact rather than a teleport. Timers still tick so nothing can wedge here.
+  if (m.hitStop > 0) {
+    m.hitStop -= dt;
+    return m;
+  }
 
   if (m.freeze > 0) {
     m.freeze -= dt;
@@ -99,6 +113,18 @@ export function step(m, inputs, dt = C.TICK, fx = NO_FX) {
   for (let i = 0; i < 2; i++) stepPlayer(m, m.players[i], inputs[i] || {}, dt, fx);
   separatePlayers(m);
   stepBall(m, dt, fx);
+
+  // Backstop for every way a ball can end up somewhere nobody can reach it. Cheap, and it
+  // turns a hung match into a restart nobody even notices.
+  m.idle += dt;
+  if (m.phase === 'play' && m.idle > C.BALL_IDLE_RESET) {
+    const b = m.ball;
+    b.x = C.BALL_SPAWN.x; b.y = C.BALL_SPAWN.y;
+    b.vx = 0; b.vy = 0; b.spin = 0; b.power = null;
+    m.idle = 0;
+    m.events.push({ type: 'ballReset' });
+    fx.shockwave(b.x, b.y, '#ffffff');
+  }
   return m;
 }
 
@@ -119,6 +145,8 @@ function stepPlayer(m, p, input, dt, fx) {
   if (p.dashCd > 0) p.dashCd -= dt;
   if (p.shoved > 0) p.shoved -= dt;
   if (p.rooted > 0) p.rooted -= dt;
+  if (p.slow > 0) p.slow -= dt;
+  if (p.tackleImmune > 0) p.tackleImmune -= dt;
   if (p.knocked > 0) {
     p.knocked -= dt;
     p.vx *= 0.86;
@@ -149,9 +177,9 @@ function stepPlayer(m, p, input, dt, fx) {
 
   if (p.dashT > 0) {
     p.dashT -= dt;
-    p.vx = p.dashDir * C.DASH_V * p.stats.speed;
+    p.vx = p.dashDir * C.DASH_V * p.stats.speed * (p.slow > 0 ? C.TACKLE_SLOW : 1);
   } else {
-    const target = dir * C.PLAYER_SPEED * p.stats.speed;
+    const target = dir * C.PLAYER_SPEED * p.stats.speed * (p.slow > 0 ? C.TACKLE_SLOW : 1);
     const accel = (p.onGround ? C.PLAYER_ACCEL : C.PLAYER_AIR_ACCEL) * dt;
     if (dir !== 0) {
       p.vx += clamp(target - p.vx, -accel, accel);
@@ -161,9 +189,17 @@ function stepPlayer(m, p, input, dt, fx) {
   }
 
   // ---- jump ----
-  if (canAct && input.jump && !prev.jump && p.jumps > 0) {
+  // Two forgiveness windows, because a jump that eats your input feels broken even when
+  // it is technically correct: COYOTE lets you jump just after leaving the ground, BUFFER
+  // lets a press just before landing fire on touchdown.
+  p.coyote = p.onGround ? C.COYOTE_TIME : Math.max(0, p.coyote - dt);
+  p.jumpBuf = (canAct && input.jump && !prev.jump) ? C.JUMP_BUFFER : Math.max(0, p.jumpBuf - dt);
+
+  if (canAct && p.jumpBuf > 0 && (p.onGround || p.coyote > 0) && p.jumps > 0) {
     p.vy = -C.JUMP_V * p.stats.jump;
     p.onGround = false;
+    p.coyote = 0;
+    p.jumpBuf = 0;
     p.jumps--;
     m.events.push({ type: 'jump', player: p.index });
   }
@@ -173,8 +209,13 @@ function stepPlayer(m, p, input, dt, fx) {
   if (canAct && input.kick && !prev.kick && p.kickCd <= 0) {
     p.kickT = C.KICK_TIME;
     p.kickCd = C.KICK_COOLDOWN;
-    m.events.push({ type: 'kick', player: p.index });
+    // Holding JUMP as you kick lobs it: the only aiming this game has, and the answer to a
+    // defender parked on the line. Latched at the swing, not read at contact, so the shot
+    // you committed to is the shot you get.
+    p.kickLob = !!input.jump;
+    m.events.push({ type: 'kick', player: p.index, lob: p.kickLob });
     tryCounter(m, p, fx);
+    tryTackle(m, p, fx);
   }
 
   // ---- arm the power shot ----
@@ -189,7 +230,8 @@ function stepPlayer(m, p, input, dt, fx) {
 }
 
 function integrate(p, dt) {
-  p.vy += C.PLAYER_GRAV * dt;
+  // Falling faster than you rose is what stops a jump reading as floaty.
+  p.vy += C.PLAYER_GRAV * (p.vy > 0 ? C.FALL_MULT : 1) * dt;
   p.x += p.vx * dt;
   p.y += p.vy * dt;
 
@@ -278,9 +320,42 @@ function collideBounds(m, b, fx) {
     if (b.x > C.W - b.r) { b.x = C.W - b.r; b.vx = -Math.abs(b.vx) * 0.2; }
   }
 
-  // crossbars
-  bounceOffPost(b, C.GOAL_W, C.GROUND_Y - C.GOAL_H, fx);
-  bounceOffPost(b, C.W - C.GOAL_W, C.GROUND_Y - C.GOAL_H, fx);
+  // crossbars: a full bar over each net, plus the front post it hangs off
+  const barY = C.GROUND_Y - C.GOAL_H;
+  bounceOffCrossbar(b, 0, C.GOAL_W, barY, fx);
+  bounceOffCrossbar(b, C.W - C.GOAL_W, C.W, barY, fx);
+  bounceOffPost(b, C.GOAL_W, barY, fx);
+  bounceOffPost(b, C.W - C.GOAL_W, barY, fx);
+}
+
+// The crossbar is a horizontal BAR across the goal's whole depth, not the single corner
+// point it used to be. Without it a ball could drop straight through the roof of the net,
+// and "score" meant "the centre got past the line at roughly bar height" — which is what
+// made shots that visibly clipped the top of the goal count.
+function bounceOffCrossbar(b, x0, x1, barY, fx) {
+  const nearestX = clamp(b.x, x0, x1);
+  const dx = b.x - nearestX, dy = b.y - barY;
+  const d = Math.hypot(dx, dy);
+  const min = b.r + C.POST_R;
+  if (d >= min) return;
+  if (d < 0.0001) { b.y = barY - min; b.vy = -Math.abs(b.vy) * 0.7; return; }
+  const nx = dx / d, ny = dy / d;
+  b.x = nearestX + nx * min;
+  b.y = barY + ny * min;
+  const dot = b.vx * nx + b.vy * ny;
+  if (dot < 0) {
+    b.vx = (b.vx - 2 * dot * nx) * 0.72;
+    b.vy = (b.vy - 2 * dot * ny) * 0.72;
+  }
+  // Nothing may come to REST on the bar. A ball that lands flat on top has no horizontal
+  // velocity to roll it off and the bar keeps pushing it back up, so it sits there — which
+  // is exactly what happened at (939, 215) and hung a whole match. Anything slow enough to
+  // settle gets nudged off toward the pitch.
+  if (b.y < barY && Math.hypot(b.vx, b.vy) < 90) {
+    const towardPitch = nearestX < C.W / 2 ? 1 : -1;
+    b.vx += towardPitch * 70;
+  }
+  fx.hit(nearestX, barY, '#ffe08a', 1);
 }
 
 function bounceOffPost(b, px, py, fx) {
@@ -309,6 +384,41 @@ function tryCounter(m, p, fx) {
   fx.shockwave(b.x, b.y, '#ffffff');
 }
 
+// Kicking the OPPONENT instead of the ball. Pays gauge and slows them, so pressing has a
+// point even when the ball is nowhere near — and it gives a losing player a way to build
+// toward a power shot other than waiting out the clock.
+//
+// Resolved on the kick's rising edge, not per-frame, so one press is one tackle.
+function tryTackle(m, p, fx) {
+  const foe = m.players[1 - p.index];
+  if (foe.tackleImmune > 0 || foe.knocked > 0) return false;
+
+  const kx = p.x + p.facing * C.KICK_REACH;
+  const ky = p.y - C.BODY_H * 0.45;
+  // Their whole silhouette counts: head circle or body box.
+  const hitHead = Math.hypot(kx - foe.x, ky - headY(foe)) < C.KICK_R + C.HEAD_R;
+  const nx = clamp(kx, foe.x - C.BODY_W / 2, foe.x + C.BODY_W / 2);
+  const ny = clamp(ky, bodyTop(foe), foe.y);
+  const hitBody = Math.hypot(kx - nx, ky - ny) < C.KICK_R;
+  if (!hitHead && !hitBody) return false;
+
+  const dir = Math.sign(foe.x - p.x) || p.facing;
+  foe.slow = C.TACKLE_SLOW_TIME;
+  foe.rooted = Math.max(foe.rooted, C.TACKLE_STUN);
+  foe.tackleImmune = C.TACKLE_IMMUNE;
+  foe.vx = dir * C.TACKLE_PUSH;
+  foe.vy = Math.min(foe.vy, -C.TACKLE_LIFT);
+  foe.onGround = false;
+  foe.dashT = 0;
+
+  p.gauge = Math.min(1, p.gauge + C.TACKLE_GAUGE);
+  p.kickT = 0;                                   // the boot is spent on them, not the ball
+  m.hitStop = Math.max(m.hitStop, C.HIT_STOP_TACKLE);
+  m.events.push({ type: 'tackle', by: p.index, on: foe.index, x: kx, y: ky });
+  fx.hit(kx, ky, '#ffd166', 1.6);
+  return true;
+}
+
 function resolveBallPlayers(m, dt, fx) {
   const b = m.ball;
   for (const p of m.players) {
@@ -329,10 +439,14 @@ function resolveBallPlayers(m, dt, fx) {
         if (firePowerIfArmed(m, p, b, fx)) return;
         if (!b.power) {
           const mult = p.stats.kick;
-          b.vx = p.facing * C.KICK_POWER * mult + p.vx * 0.4;
-          b.vy = -C.KICK_LIFT * mult + p.vy * 0.3;
+          const drive = p.kickLob ? C.LOB_DRIVE : 1;
+          const lift = p.kickLob ? C.LOB_LIFT : 1;
+          b.vx = p.facing * C.KICK_POWER * mult * drive + p.vx * 0.4;
+          b.vy = -C.KICK_LIFT * mult * lift + p.vy * 0.3;
           b.spin = p.facing * 14;
           p.kickT = 0;
+          m.hitStop = Math.max(m.hitStop, C.HIT_STOP_KICK);
+          m.idle = 0;
           m.events.push({ type: 'strike', player: p.index, x: b.x, y: b.y, power: false });
           fx.hit(b.x, b.y, '#ffffff', 1);
           return;
@@ -357,6 +471,7 @@ function resolveBallPlayers(m, dt, fx) {
       b.vx += p.vx * 0.42;
       b.vy += Math.min(0, p.vy) * 0.5;
       b.spin += p.vx * 0.02;
+      m.idle = 0;
       m.events.push({ type: 'strike', player: p.index, x: b.x, y: b.y, head: true });
       fx.hit(b.x, b.y, '#ffffff', 0.7);
       continue;
@@ -372,6 +487,7 @@ function resolveBallPlayers(m, dt, fx) {
     if (bd < b.r && bd > 0.0001) {
       if (firePowerIfArmed(m, p, b, fx)) return;
       if (b.power && b.power.owner !== p.index) { hitByPowerShot(m, p, b, fx); return; }
+      m.idle = 0;
       const nx = bx / bd, ny = by / bd;
       b.x = nearestX + nx * b.r; b.y = nearestY + ny * b.r;
       const dot = b.vx * nx + b.vy * ny;
@@ -385,13 +501,16 @@ function resolveBallPlayers(m, dt, fx) {
 function firePowerIfArmed(m, p, b, fx) {
   if (p.armed <= 0 || b.power) return false;
   p.armed = 0;
+  m.idle = 0;
   launchPowerShot(b, p, p.shot, p.side);
+  m.hitStop = Math.max(m.hitStop, C.HIT_STOP_POWER);
   m.events.push({ type: 'powershot', player: p.index, shot: p.shot.id });
   fx.shockwave(b.x, b.y, p.shot.color);
   return true;
 }
 
 function hitByPowerShot(m, p, b, fx) {
+  m.hitStop = Math.max(m.hitStop, C.HIT_STOP_POWER);
   p.knocked = C.POWER_STUN;
   p.vx = b.power.dir * 330;
   p.vy = -320;
@@ -407,10 +526,12 @@ function hitByPowerShot(m, p, b, fx) {
 function checkGoal(m, fx) {
   if (m.phase !== 'play') return false;
   const b = m.ball;
-  if (b.y <= C.GROUND_Y - C.GOAL_H) return false;   // above the mouth — not a goal
+  // The WHOLE ball has to be in the net — past the line AND under the bar. Testing the
+  // centre meant a ball sitting half-on-top of the crossbar scored.
+  if (b.y - b.r <= C.GROUND_Y - C.GOAL_H) return false;    // any part still above the bar
   let scorer = null;
-  if (b.x < C.GOAL_W - b.r * 0.2) scorer = 1;       // into the LEFT net → player 1 scores
-  else if (b.x > C.W - C.GOAL_W + b.r * 0.2) scorer = 0;
+  if (b.x + b.r < C.GOAL_W) scorer = 1;                    // fully into the LEFT net
+  else if (b.x - b.r > C.W - C.GOAL_W) scorer = 0;
   if (scorer === null) return false;
 
   m.score[scorer]++;
@@ -447,7 +568,10 @@ const PREV_KEYS = ['left', 'right', 'jump', 'kick', 'power'];
 const P_FIELDS = [
   'x', 'y', 'vx', 'vy', 'onGround', 'facing', 'jumps',
   'kickT', 'kickCd', 'dashT', 'dashCd', 'dashDir', 'tapDir', 'tapT',
-  'gauge', 'armed', 'knocked', 'rooted', 'shoved',
+  'gauge', 'armed', 'knocked', 'rooted', 'shoved', 'kickLob',
+  // Added with the tackle + jump-feel pass. Anything that can change a future step has to
+  // travel, or a reconciling client re-runs the last 30 ticks with the wrong state.
+  'slow', 'tackleImmune', 'coyote', 'jumpBuf',
 ];
 
 export function serialize(m) {
@@ -477,7 +601,7 @@ export function serialize(m) {
 // Restores INTO an existing match built with the same two characters — `char`, `shot`,
 // `side` and `stats` are match-constant and never travel.
 export function restore(m, s) {
-  m.t = s.t; m.clock = s.clock; m.phase = s.phase; m.freeze = s.freeze;
+  m.t = s.t; m.clock = s.clock; m.phase = s.phase; m.freeze = s.freeze; m.hitStop = s.hitStop || 0; m.idle = s.idle || 0;
   m.score[0] = s.score[0]; m.score[1] = s.score[1];
   m.golden = s.golden; m.lastScorer = s.lastScorer;
   for (let i = 0; i < 2; i++) {

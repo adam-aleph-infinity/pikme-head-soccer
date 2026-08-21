@@ -14,8 +14,13 @@ export const CEIL_Y = 30;             // invisible ceiling the ball bounces off
 export const TICK = 1 / 60;           // sim step (fixed)
 
 // ---- Goals -----------------------------------------------------------------
-export let GOAL_W = 74;             // depth of the goal mouth
-export let GOAL_H = 146;            // mouth height. A standing player is ~138 tall, so camping the line
+export let GOAL_W = 84;              // depth of the goal mouth
+export let GOAL_H = 170;             // mouth height, ~1.2x a standing player (138).
+                                      // Swept against bot-vs-bot outcomes: at 146 the game gave
+                                      // 2.6 goals a match and the legendary bot LOST 4-6 to the
+                                      // very-easy one — too few goals for skill to show. At 170 it
+                                      // is 4.7 goals and 9-2. Bigger than that just adds goals
+                                      // without adding skill (230 -> 7.1 goals, 5-3).
                                       // covers most of it but never all of it — you still have to be in position.
 export const POST_R = 5;              // crossbar radius (ball bounces off it)
 
@@ -59,7 +64,41 @@ export let KICK_R = 26;             // kick hitbox radius
 export let KICK_POWER = 640;
 export let KICK_LIFT = 620;         // upward component — deliberately > half of KICK_POWER, so a
                                       // clean kick LOBS. Flat rockets made every clearance a goal.
+export let LOB_LIFT = 1.62;           // hold JUMP while kicking: more air, less drive
+export let LOB_DRIVE = 0.62;
 export let HEAD_POWER = 1.14;       // head hits multiply the bounce-out speed
+
+// ---- Jump feel -------------------------------------------------------------
+// The three things that separate a jump that feels good from one that feels broken.
+// COYOTE: you may still jump for this long after walking off a ledge or being bumped —
+// it forgives the frame you were airborne without meaning to be.
+// BUFFER: a jump pressed this long BEFORE landing still fires on touchdown, so mashing at
+// the ground never eats an input.
+// FALL_MULT: gravity is heavier on the way down than the way up. Symmetric arcs read as
+// floaty; this is the single biggest feel win in a platformer jump.
+export let COYOTE_TIME = 0.10;
+export let JUMP_BUFFER = 0.12;
+export let FALL_MULT = 1.55;
+
+// ---- Tackling --------------------------------------------------------------
+// Kicking the OPPONENT rather than the ball: a real risk/reward move. It pays a slice of
+// power gauge and slows them, so pressing is worth something even when the ball is gone.
+// IMMUNE exists so a faster player cannot simply stand next to a slower one and stun-lock
+// them out of the match.
+export let TACKLE_GAUGE = 0.11;      // gauge gifted to the tackler
+export let TACKLE_SLOW = 0.55;       // victim's speed multiplier while slowed
+export let TACKLE_SLOW_TIME = 1.7;   // s of slow
+export let TACKLE_STUN = 0.22;       // s of "cannot act" — short, it is a nudge not a knockdown
+export let TACKLE_PUSH = 340;        // knockback
+export let TACKLE_LIFT = 200;
+export let TACKLE_IMMUNE = 1.1;      // s before the same player can be tackled again
+
+// ---- Impact ----------------------------------------------------------------
+// Hit-stop: freeze the whole sim for a few frames on a heavy connect. Costs nothing and is
+// most of what makes a hit feel like it has weight.
+export let HIT_STOP_KICK = 0.035;
+export let HIT_STOP_POWER = 0.085;
+export let HIT_STOP_TACKLE = 0.06;
 
 // ---- Power shots -----------------------------------------------------------
 export let GAUGE_FULL = 28;         // s to fill an empty gauge. At 13s each player got ~7 power
@@ -70,6 +109,13 @@ export let ARMED_TIME = 6;          // s the armed state lasts before it burns o
 export let POWER_SHOT_SPEED = 1500;
 export let POWER_STUN = 1.25;       // s the defender is knocked down for
 export let COUNTER_WINDOW = 130;    // px: kick within this of an incoming power ball to counter
+
+// ---- Anti-stall ------------------------------------------------------------
+// A ball nobody has touched for this long is returned to the centre spot. This exists
+// because a ball CAN come to rest somewhere unreachable — it was found sitting on top of
+// the crossbar at (939, 215) with vy -8, where neither player could reach it, and the match
+// ran out its clock into a golden goal that could never be settled.
+export let BALL_IDLE_RESET = 6;
 
 // ---- Match -----------------------------------------------------------------
 export let MATCH_DURATION = 60;     // s — arcade length. Live-tunable from the debug panel.
@@ -85,6 +131,22 @@ export const BALL_SPAWN = { x: W / 2, y: 120 };
 // between restarts. These are `let` so the debug panel can move them mid-match; `import *`
 // gives every module a live binding, so a slider change lands on the very next tick.
 const SETTERS = {
+  LOB_LIFT: (v) => { LOB_LIFT = v; },
+  LOB_DRIVE: (v) => { LOB_DRIVE = v; },
+  BALL_IDLE_RESET: (v) => { BALL_IDLE_RESET = v; },
+  COYOTE_TIME: (v) => { COYOTE_TIME = v; },
+  JUMP_BUFFER: (v) => { JUMP_BUFFER = v; },
+  FALL_MULT: (v) => { FALL_MULT = v; },
+  TACKLE_GAUGE: (v) => { TACKLE_GAUGE = v; },
+  TACKLE_SLOW: (v) => { TACKLE_SLOW = v; },
+  TACKLE_SLOW_TIME: (v) => { TACKLE_SLOW_TIME = v; },
+  TACKLE_STUN: (v) => { TACKLE_STUN = v; },
+  TACKLE_PUSH: (v) => { TACKLE_PUSH = v; },
+  TACKLE_LIFT: (v) => { TACKLE_LIFT = v; },
+  TACKLE_IMMUNE: (v) => { TACKLE_IMMUNE = v; },
+  HIT_STOP_KICK: (v) => { HIT_STOP_KICK = v; },
+  HIT_STOP_POWER: (v) => { HIT_STOP_POWER = v; },
+  HIT_STOP_TACKLE: (v) => { HIT_STOP_TACKLE = v; },
   GROUND_Y: (v) => { GROUND_Y = v; },
   BALL_GRAV: (v) => { BALL_GRAV = v; },
   BALL_AIR: (v) => { BALL_AIR = v; },
@@ -125,6 +187,22 @@ export function tune(patch) {
 
 export function snapshot() {
   return {
+    LOB_LIFT,
+    LOB_DRIVE,
+    BALL_IDLE_RESET,
+    COYOTE_TIME,
+    JUMP_BUFFER,
+    FALL_MULT,
+    TACKLE_GAUGE,
+    TACKLE_SLOW,
+    TACKLE_SLOW_TIME,
+    TACKLE_STUN,
+    TACKLE_PUSH,
+    TACKLE_LIFT,
+    TACKLE_IMMUNE,
+    HIT_STOP_KICK,
+    HIT_STOP_POWER,
+    HIT_STOP_TACKLE,
     GROUND_Y,
     BALL_GRAV,
     BALL_AIR,

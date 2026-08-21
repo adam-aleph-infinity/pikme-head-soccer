@@ -256,3 +256,11 @@ body.no-touch .pad { display: none; }
 .lobby-hint { margin: 0; color: var(--dim); font-size: 13px; min-height: 18px; }
 .play[disabled] { opacity: .4; box-shadow: none; }
 .scoreboard .rtt { font-style: normal; font-size: 10px; color: var(--dim); min-width: 34px; }
+
+/* A slowed head is visibly heavier — the tackle has to be legible from across the pitch. */
+.head.slowed { filter: saturate(.45) brightness(.82); }
+.head.slowed::after {
+  content: ''; position: absolute; inset: -4px; border-radius: 50%;
+  border: 3px dashed #ffd166; opacity: .85; animation: slowSpin 1.4s linear infinite;
+}
+@keyframes slowSpin { to { transform: rotate(360deg); } }

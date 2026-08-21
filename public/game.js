@@ -362,6 +362,11 @@ function drainEvents() {
     if (EVENT_LOG.length > 200) EVENT_LOG.shift();
     if (e.type === 'goal') banner(e.power ? 'גול פאוור!' : 'גול!', e.player === 0 ? '#4ea0ff' : '#ff5c7a');
     else if (e.type === 'counter') banner('קאונטר!', '#ffffff');
+    else if (e.type === 'tackle') {
+      fx.shockwave(e.x, e.y, '#ffd166');
+      if (e.by === (ONLINE ? NET.you : 0)) banner('פגיעה! +כוח', '#ffd166');
+    }
+    else if (e.type === 'ballReset') banner('כדור חדש', '#8ea0be');
     else if (e.type === 'powershot') banner(SHOTS[e.shot].name, SHOTS[e.shot].color);
     else if (e.type === 'golden') banner('מוות פתאומי', '#ffb800');
     else if (e.type === 'fulltime') endMatch();
@@ -433,6 +438,13 @@ addEventListener('orientationchange', () => setTimeout(() => M && resize(), 120)
 function draw() {
   const g = ctx;
   g.clearRect(0, 0, C.W, C.H);
+  // A frozen frame on its own just looks like a dropped frame. A couple of pixels of shake
+  // during hit-stop is what turns it into an impact.
+  const shake = M.hitStop > 0 ? M.hitStop * 60 : 0;
+  if (shake > 0) {
+    g.save();
+    g.translate((Math.random() - .5) * shake, (Math.random() - .5) * shake);
+  }
   drawStadium(g);
   drawGoal(g, true);
   drawGoal(g, false);
@@ -440,6 +452,7 @@ function draw() {
   drawParts(g, false);
   drawBall(g, M.ball);
   drawParts(g, true);
+  if (shake > 0) g.restore();
   drawHeads();
   if (M.freeze > 0 && M.phase !== 'over') drawReady(g);
 }
@@ -510,10 +523,12 @@ function drawStadium(g) {
   // LED hoardings running the touchline
   const ledH = gy - wallBot;
   g.fillStyle = '#0a1224';
-  g.fillRect(0, wallBot, C.W, ledH);
+  g.fillRect(C.GOAL_W, wallBot, C.W - C.GOAL_W * 2, ledH);
   const scroll = (t * 90) % 240;
   g.save();
-  g.beginPath(); g.rect(0, wallBot, C.W, ledH); g.clip();
+  // Only BETWEEN the goals: advertising hoardings run along the touchline, and letting them
+  // cross the goal mouths made the bright band read straight through the nets.
+  g.beginPath(); g.rect(C.GOAL_W, wallBot, C.W - C.GOAL_W * 2, ledH); g.clip();
   for (let x = -240; x < C.W + 240; x += 240) {
     g.fillStyle = '#ffb80022';
     g.fillRect(x + scroll, wallBot + 2, 232, ledH - 4);
@@ -545,28 +560,47 @@ function drawStadium(g) {
 }
 
 function drawGoal(g, left) {
+  // Head Soccer's goals read as a chunky white FRAME with a diamond net behind it, standing
+  // on the ground line — not the thin outline this had. The crossbar is drawn as an actual
+  // bar because it now IS one in the sim: the ball bounces off it.
   const x0 = left ? 0 : C.W - C.GOAL_W;
+  const x1 = x0 + C.GOAL_W;
   const top = C.GROUND_Y - C.GOAL_H;
+  const postX = left ? x1 : x0;               // the front post, facing the pitch
+  const bar = C.POST_R * 2;
+
   g.save();
-  g.fillStyle = '#00000055';
+  // net cavity — opaque, so the stadium behind does not read through the mesh
+  g.fillStyle = '#05080f';
   g.fillRect(x0, top, C.GOAL_W, C.GOAL_H);
-  // net
-  g.strokeStyle = '#ffffff33';
-  g.lineWidth = 1;
+
+  // diamond mesh — clipped to the cavity so it never bleeds onto the pitch
+  g.beginPath(); g.rect(x0, top, C.GOAL_W, C.GOAL_H); g.clip();
+  g.strokeStyle = '#ffffff2e';
+  g.lineWidth = 1.2;
+  const step = 15;
   g.beginPath();
-  for (let x = x0; x <= x0 + C.GOAL_W; x += 11) { g.moveTo(x, top); g.lineTo(x, C.GROUND_Y); }
-  for (let y = top; y <= C.GROUND_Y; y += 11) { g.moveTo(x0, y); g.lineTo(x0 + C.GOAL_W, y); }
+  for (let d = -C.GOAL_H; d < C.GOAL_W + C.GOAL_H; d += step) {
+    g.moveTo(x0 + d, top); g.lineTo(x0 + d + C.GOAL_H, C.GROUND_Y);
+    g.moveTo(x0 + d, top); g.lineTo(x0 + d - C.GOAL_H, C.GROUND_Y);
+  }
   g.stroke();
-  // frame
-  const px = left ? C.GOAL_W : C.W - C.GOAL_W;
-  g.strokeStyle = '#f2f6ff';
-  g.lineWidth = C.POST_R * 2;
-  g.lineCap = 'round';
-  g.beginPath();
-  g.moveTo(px, C.GROUND_Y);
-  g.lineTo(px, top);
-  g.lineTo(left ? 0 : C.W, top);
-  g.stroke();
+  g.restore();
+
+  g.save();
+  // frame: crossbar across the whole roof, then the front post down to the grass
+  g.fillStyle = '#f4f8ff';
+  g.fillRect(x0, top - bar / 2, C.GOAL_W, bar);
+  g.fillRect(postX - bar / 2, top - bar / 2, bar, C.GOAL_H + bar / 2);
+  // a soft shadow under the bar so the frame sits in front of the net
+  g.fillStyle = '#00000038';
+  g.fillRect(x0, top + bar / 2, C.GOAL_W, 4);
+  // rounded cap where bar meets post
+  g.fillStyle = '#ffffff';
+  g.beginPath(); g.arc(postX, top, bar * 0.62, 0, 6.2832); g.fill();
+  // goal line on the grass
+  g.fillStyle = '#ffffff88';
+  g.fillRect(Math.min(postX, x0), C.GROUND_Y - 2, C.GOAL_W, 3);
   g.restore();
 }
 
@@ -746,6 +780,7 @@ function drawHeads() {
     el.style.transform = `translate(${x - size / 2}px, ${y - size / 2}px) rotate(${tilt}rad)`;
     el.classList.toggle('armed', p.armed > 0);
     el.classList.toggle('knocked', p.knocked > 0 || p.rooted > 0);
+    el.classList.toggle('slowed', p.slow > 0 && p.knocked <= 0);
   }
 }
 
@@ -780,6 +815,16 @@ const RANGES = {
   GOAL_H: [90, 300], GOAL_W: [40, 160], HEAD_R: [24, 80], GROUND_Y: [360, 500],
   GAUGE_FULL: [3, 60], ARMED_TIME: [1, 15], POWER_SHOT_SPEED: [500, 3000],
   POWER_STUN: [.2, 3], COUNTER_WINDOW: [40, 320], MATCH_DURATION: [15, 180],
+  // jump feel
+  COYOTE_TIME: [0, .3], JUMP_BUFFER: [0, .3], FALL_MULT: [1, 3],
+  // kick shaping
+  LOB_LIFT: [1, 3], LOB_DRIVE: [.2, 1],
+  // tackling
+  TACKLE_GAUGE: [0, .4], TACKLE_SLOW: [.2, 1], TACKLE_SLOW_TIME: [0, 4],
+  TACKLE_STUN: [0, 1], TACKLE_PUSH: [0, 900], TACKLE_LIFT: [0, 600], TACKLE_IMMUNE: [0, 4],
+  // impact
+  HIT_STOP_KICK: [0, .2], HIT_STOP_POWER: [0, .3], HIT_STOP_TACKLE: [0, .2],
+  BALL_IDLE_RESET: [2, 20],
 };
 const BASE = C.snapshot();
 
