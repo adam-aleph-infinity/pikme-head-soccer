@@ -552,6 +552,12 @@ const cv = $('#cv');
 const ctx = cv.getContext('2d');
 let SC = 1, crowd = [];
 
+// Street Fighter II is PIXEL art, and the cheapest honest way to get there is to render at
+// half resolution and upscale with smoothing off. One texel becomes a fat on-screen pixel,
+// every gradient becomes a hard edge, and canvas text picks up the chunky arcade look for
+// free. Drawing "pixel-style" at full res never convinces — the edges stay clean.
+const PIXEL = 2;
+
 function resize() {
   const vw = innerWidth, vh = innerHeight;
   const ratio = C.W / C.H;
@@ -561,10 +567,10 @@ function resize() {
   stage.style.width = w + 'px';
   stage.style.height = h + 'px';
   SC = w / C.W;
-  const dpr = Math.min(2.5, devicePixelRatio || 1);
-  cv.width = Math.round(w * dpr);
-  cv.height = Math.round(h * dpr);
-  ctx.setTransform(dpr * SC, 0, 0, dpr * SC, 0, 0);   // draw in WORLD units from here on
+  cv.width = Math.ceil(C.W / PIXEL);
+  cv.height = Math.ceil(C.H / PIXEL);
+  ctx.setTransform(1 / PIXEL, 0, 0, 1 / PIXEL, 0, 0);   // draw in WORLD units, land on texels
+  ctx.imageSmoothingEnabled = false;
   if (!crowd.length) {
     for (let i = 0; i < 260; i++) {
       crowd.push({ x: Math.random() * C.W, f: Math.random(), r: 4 + Math.random() * 5,
@@ -597,115 +603,97 @@ function draw() {
   if (M.freeze > 0 && M.phase !== 'over') drawReady(g);
 }
 
+// SF2 stages are warm, saturated and built from hard bands — no gradients anywhere, and a
+// dense pixel crowd behind a railing. The night-blue stadium this replaced was atmospheric
+// but soft, which is the opposite of the look.
 function drawStadium(g) {
   const t = performance.now() / 1000;
   const gy = C.GROUND_Y;
-  // Bands are fractions of the ground line, so dragging GROUND_Y in the tuner doesn't
-  // leave the crowd floating in space.
-  // The hoardings sit behind the players' HEADS with clear grass below, as in the real
-  // game. Running them down to the ground line made the characters look like they were
-  // standing on the advertising boards rather than on the pitch.
-  // Band positions taken off the same reference screenshot as the proportions, as fractions
-  // of screen height: sky 0-25%, stands 25-68%, hoardings 69-78%, grass below. The players
-  // stand IN FRONT of the boards with their heads overlapping them — that stacking is a lot
-  // of why the real game reads as a stadium rather than a diagram.
+  // Bands as fractions of the ground line, measured off a real kickoff screenshot:
+  // sky 0-25%, stands 25-68%, hoardings 69-78%, grass below.
   const standTop = gy * 0.30, standBot = gy * 0.81;
   const ledTop = gy * 0.82, ledBot = gy * 0.93;
 
-  const sky = g.createLinearGradient(0, 0, 0, gy);
-  sky.addColorStop(0, '#070c1c');
-  sky.addColorStop(1, '#12244a');
-  g.fillStyle = sky;
-  g.fillRect(0, 0, C.W, gy);
+  // sky — flat bands, not a gradient
+  const sky = ['#ffd98a', '#ffb85c', '#ff9440'];
+  for (let i = 0; i < sky.length; i++) {
+    g.fillStyle = sky[i];
+    g.fillRect(0, (standTop / sky.length) * i, C.W, standTop / sky.length + 1);
+  }
 
-  // roof trusses + floodlight rigs, sitting on the sky band above the stands
-  g.fillStyle = '#05080f';
-  g.fillRect(0, standTop - 10, C.W, 10);
+  // floodlight rigs on masts
   for (let i = 0; i < 4; i++) {
-    const x = C.W * (0.14 + i * 0.24);
-    g.strokeStyle = '#2a3550';                       // mast, or the rig reads as a floating bar
-    g.lineWidth = 4;
-    g.beginPath(); g.moveTo(x, 0); g.lineTo(x, standTop - 6); g.stroke();
-    g.fillStyle = '#1c2436';
-    g.fillRect(x - 28, standTop - 12, 56, 11);
-    g.fillStyle = '#fff8dc';                          // lamps
-    for (let l = 0; l < 4; l++) g.fillRect(x - 24 + l * 13, standTop - 10, 8, 7);
-    const fl = g.createRadialGradient(x, standTop, 6, x, standTop + gy * 0.75, gy * 0.95);
-    fl.addColorStop(0, '#ffffff2e');
-    fl.addColorStop(1, '#ffffff00');
-    g.fillStyle = fl;
-    g.fillRect(0, 0, C.W, gy);
+    const x = Math.round(C.W * (0.14 + i * 0.24));
+    g.fillStyle = '#4a3a2a';
+    g.fillRect(x - 2, 0, 4, standTop - 6);
+    g.fillStyle = OUTLINE;
+    g.fillRect(x - 26, standTop - 16, 52, 12);
+    g.fillStyle = '#fff6c8';
+    for (let l = 0; l < 4; l++) g.fillRect(x - 22 + l * 12, standTop - 14, 8, 8);
   }
 
-  // stands + crowd
-  g.fillStyle = '#0b1124';
+  // stands: a dark block, a railing, then a dense pixel crowd
+  g.fillStyle = '#6b3f2a';
   g.fillRect(0, standTop, C.W, standBot - standTop);
+  g.fillStyle = '#8a5436';
+  for (let y = standTop; y < standBot; y += 26) g.fillRect(0, y, C.W, 3);
   for (const c of crowd) {
-    const y = standTop + c.f * (standBot - standTop);
-    g.globalAlpha = .5 + .5 * Math.sin(t * 2 + c.ph) * .5;
+    const y = standTop + 6 + c.f * (standBot - standTop - 12);
+    const bob = Math.sin(t * 3 + c.ph) > 0 ? 0 : 2;
+    g.fillStyle = OUTLINE;
+    g.fillRect(Math.round(c.x) - 1, Math.round(y + bob) - 1, 6, 8);
     g.fillStyle = c.c;
-    g.beginPath();
-    g.arc(c.x, y + Math.sin(t * 3 + c.ph) * 2, c.r, 0, 6.2832);
-    g.fill();
+    g.fillRect(Math.round(c.x), Math.round(y + bob) + 2, 4, 4);
+    g.fillStyle = '#f0b48a';
+    g.fillRect(Math.round(c.x), Math.round(y + bob), 4, 3);
   }
-  g.globalAlpha = 1;
+  // railing in front of the crowd
+  g.fillStyle = OUTLINE;
+  g.fillRect(0, standBot - 6, C.W, 6);
+  g.fillStyle = '#c9c9d2';
+  g.fillRect(0, standBot - 5, C.W, 2);
 
-  // stand front / barrier — all the way down to the grass, so the players are silhouetted
-  // against a wall rather than floating over a gap.
-  g.fillStyle = '#070b16';
+  // Perimeter wall from the railing down to the grass. Without it there was an undrawn
+  // strip exactly where the players stand, so they appeared to be floating in a dark gap.
+  g.fillStyle = '#2b1d3f';
   g.fillRect(0, standBot, C.W, gy - standBot);
-  g.strokeStyle = '#ffffff14';
-  g.lineWidth = 2;
-  g.beginPath();
-  g.moveTo(0, standBot + 3); g.lineTo(C.W, standBot + 3);
-  g.stroke();
-  // house wordmark, big and faded, so the empty middle band reads as a stadium wall
-  g.save();
-  g.globalAlpha = .07;
-  g.fillStyle = '#fff';
-  g.textAlign = 'center';
-  g.textBaseline = 'middle';
-  g.font = `900 ${Math.round((gy - standBot) * 0.6)}px -apple-system, Arial`;
-  g.fillText('SALTIZ', C.W / 2, (standBot + gy) / 2);
-  g.restore();
+  g.fillStyle = '#3b2a55';
+  for (let x = 0; x < C.W; x += 34) g.fillRect(x, standBot, 2, gy - standBot);
 
-  // LED hoardings running the touchline
+  // hoardings
   const ledH = ledBot - ledTop;
-  const wallBot = ledTop;
-  g.fillStyle = '#0a1224';
-  g.fillRect(C.GOAL_W, ledTop, C.W - C.GOAL_W * 2, ledH);
-  const scroll = (t * 90) % 240;
+  g.fillStyle = OUTLINE;
+  g.fillRect(C.GOAL_W, ledTop - 2, C.W - C.GOAL_W * 2, ledH + 4);
+  const scroll = Math.round((t * 60) % 240);
   g.save();
-  // Only BETWEEN the goals: advertising hoardings run along the touchline, and letting them
-  // cross the goal mouths made the bright band read straight through the nets.
-  g.beginPath(); g.rect(C.GOAL_W, wallBot, C.W - C.GOAL_W * 2, ledH); g.clip();
+  g.beginPath(); g.rect(C.GOAL_W, ledTop, C.W - C.GOAL_W * 2, ledH); g.clip();
   for (let x = -240; x < C.W + 240; x += 240) {
-    g.fillStyle = '#ffb80022';
-    g.fillRect(x + scroll, wallBot + 2, 232, ledH - 4);
-    g.fillStyle = '#ffb800aa';
-    g.textAlign = 'center';
-    g.textBaseline = 'middle';
-    g.font = `800 ${Math.round(ledH * 0.55)}px -apple-system, Arial`;
-    g.fillText('SALTIZ ראשים', x + scroll + 116, wallBot + ledH / 2);
+    g.fillStyle = '#1b3f8a';
+    g.fillRect(x + scroll, ledTop, 118, ledH);
+    g.fillStyle = '#c81e37';
+    g.fillRect(x + scroll + 120, ledTop, 118, ledH);
+    g.fillStyle = '#ffd23c';
+    g.textAlign = 'center'; g.textBaseline = 'middle';
+    g.font = `900 ${Math.round(ledH * 0.62)}px -apple-system, Arial`;
+    g.fillText('SALTIZ', x + scroll + 59, ledTop + ledH / 2);
+    g.fillText('ראשים', x + scroll + 179, ledTop + ledH / 2);
   }
   g.restore();
 
-  // grass
-  const gr = g.createLinearGradient(0, gy, 0, C.H);
-  gr.addColorStop(0, '#39a352');
-  gr.addColorStop(1, '#15582b');
-  g.fillStyle = gr;
+  // pitch — flat mown stripes, a hard white line, no gradient
+  g.fillStyle = '#2f9e3e';
   g.fillRect(0, gy, C.W, C.H - gy);
-  g.fillStyle = '#ffffff0e';
-  for (let x = 0; x < C.W; x += 96) g.fillRect(x, gy, 48, C.H - gy);
-  g.fillStyle = '#ffffff66';
-  g.fillRect(0, gy - 2, C.W, 3);
+  g.fillStyle = '#3cb84a';
+  for (let x = 0; x < C.W; x += 80) g.fillRect(x, gy, 40, C.H - gy);
+  g.fillStyle = OUTLINE;
+  g.fillRect(0, gy - 3, C.W, 3);
+  g.fillStyle = '#eaffea';
+  g.fillRect(0, gy, C.W, 2);
   g.fillRect(C.W / 2 - 1, gy, 2, C.H - gy);
-  // centre arc, drawn flat because the camera is side-on
-  g.strokeStyle = '#ffffff44';
+  g.strokeStyle = '#eaffeaaa';
   g.lineWidth = 2;
   g.beginPath();
-  g.ellipse(C.W / 2, gy, 74, (C.H - gy) * 0.55, 0, 0, Math.PI);
+  g.ellipse(C.W / 2, gy, 68, (C.H - gy) * 0.5, 0, 0, Math.PI);
   g.stroke();
 }
 
@@ -754,71 +742,69 @@ function drawGoal(g, left) {
   g.restore();
 }
 
+// SF2 palettes: hard 3-tone ramps, no gradients, everything sitting inside a black
+// outline. Player 1 is a blue gi, player 2 a red one, both with the yellow belt.
+const GI = [
+  { base: '#3c6fd6', shade: '#22407f', light: '#6fa0ff', skin: '#f0b48a', skinShade: '#b87d55' },
+  { base: '#d63c3c', shade: '#7f2222', light: '#ff7a6f', skin: '#f0b48a', skinShade: '#b87d55' },
+];
+const OUTLINE = '#0b0710';
+
+// Every sprite piece goes through here: a black keyline first, then the fill inside it.
+// The outline is what makes a blocky shape read as a fighting-game sprite rather than a box.
+function px(g, x, y, w, h, fill) {
+  g.fillStyle = OUTLINE;
+  g.fillRect(Math.round(x) - 1, Math.round(y) - 1, Math.round(w) + 2, Math.round(h) + 2);
+  g.fillStyle = fill;
+  g.fillRect(Math.round(x), Math.round(y), Math.round(w), Math.round(h));
+}
+
 function drawBody(g, p) {
-  const hy = headY(p);
-  const lean = Math.max(-.3, Math.min(.3, p.vx / 900));
+  const pal = GI[p.index];
   const knocked = p.knocked > 0;
-  const col = p.index === 0 ? '#2f6fb8' : '#b8425c';
-  const dark = p.index === 0 ? '#1d4a80' : '#7e2b3e';
+  const bw = C.BODY_W, bh = C.BODY_H;
 
+  // contact shadow
   g.save();
-  g.translate(p.x, p.y);
-  if (knocked) g.rotate(p.side * 1.15);
-  else g.rotate(lean * .5);
-
-  // shadow
-  g.restore();
-  g.save();
-  g.globalAlpha = .3;
+  g.globalAlpha = .35;
   g.fillStyle = '#000';
-  g.beginPath();
-  g.ellipse(p.x, C.GROUND_Y + 3, C.BODY_W * .7, 6, 0, 0, 6.2832);
-  g.fill();
+  g.fillRect(Math.round(p.x - bw * 0.6), C.GROUND_Y, Math.round(bw * 1.2), 3);
   g.restore();
 
   g.save();
-  g.translate(p.x, p.y);
+  g.translate(Math.round(p.x), Math.round(p.y));
   if (knocked) g.rotate(p.side * 1.15);
 
-  // legs — the kick swings the front one
+  // legs. The kick swings the front one out; otherwise they stride with the run.
   const kickP = p.kickT > 0 ? 1 - p.kickT / C.KICK_TIME : 0;
   const swing = p.kickT > 0 ? Math.sin(kickP * Math.PI) : 0;
-  const stride = p.onGround ? Math.sin(performance.now() / 90) * Math.min(1, Math.abs(p.vx) / 260) * 10 : 6;
-  g.strokeStyle = dark;
-  g.lineWidth = 9;
-  g.lineCap = 'round';
-  g.beginPath();
-  g.moveTo(-6, -C.BODY_H * .45); g.lineTo(-6 - stride, 0);
-  g.moveTo(6, -C.BODY_H * .45);
-  g.lineTo(6 + p.facing * swing * C.KICK_REACH * .8, -swing * 22 + (1 - swing) * stride);
-  g.stroke();
+  const stride = p.onGround ? Math.sin(performance.now() / 90) * Math.min(1, Math.abs(p.vx) / 260) * 5 : 3;
+  const legW = Math.max(4, Math.round(bw * 0.26));
+  const legH = Math.round(bh * 0.42);
+  px(g, -bw * 0.32 - stride, -legH, legW, legH, pal.shade);
+  const kickX = p.facing * swing * C.KICK_REACH * 0.7;
+  px(g, bw * 0.06 + kickX + stride, -legH - swing * 8, legW, legH, pal.base);
+  // boots
+  px(g, -bw * 0.36 - stride, -3, legW + 3, 3, '#f2f2f2');
+  px(g, bw * 0.02 + kickX + stride, -3 - swing * 8, legW + 3, 3, '#f2f2f2');
 
-  // torso
-  g.fillStyle = col;
-  roundRect(g, -C.BODY_W / 2, -C.BODY_H, C.BODY_W, C.BODY_H * .78, 9);
-  g.fill();
-  // shirt number band
-  g.fillStyle = '#ffffff26';
-  g.fillRect(-C.BODY_W / 2, -C.BODY_H * .62, C.BODY_W, 7);
+  // torso — gi body, hard shadow down one side, belt across the waist
+  const tH = Math.round(bh * 0.62);
+  px(g, -bw / 2, -bh, bw, tH, pal.base);
+  g.fillStyle = pal.shade;
+  g.fillRect(Math.round(bw / 2 - bw * 0.28), Math.round(-bh), Math.round(bw * 0.28), tH);
+  g.fillStyle = pal.light;
+  g.fillRect(Math.round(-bw / 2), Math.round(-bh), 2, tH);
+  g.fillStyle = '#f5d23c';                                  // belt
+  g.fillRect(Math.round(-bw / 2), Math.round(-bh + tH - 3), bw, 3);
 
-  // arms
-  g.strokeStyle = col;
-  g.lineWidth = 7;
-  g.beginPath();
-  const arm = p.onGround ? 0 : -.9;
-  g.moveTo(-C.BODY_W / 2 + 2, -C.BODY_H * .82);
-  g.lineTo(-C.BODY_W / 2 - 12, -C.BODY_H * .82 + 16 + arm * 22);
-  g.moveTo(C.BODY_W / 2 - 2, -C.BODY_H * .82);
-  g.lineTo(C.BODY_W / 2 + 12, -C.BODY_H * .82 + 16 + arm * 22);
-  g.stroke();
+  // arms: guard up when airborne, one cocked back on a kick
+  const armW = Math.max(3, Math.round(bw * 0.2));
+  const armH = Math.round(bh * 0.34);
+  const guard = p.onGround ? 0 : -armH * 0.7;
+  px(g, -bw / 2 - armW, -bh + 2 + guard, armW, armH, pal.skin);
+  px(g, bw / 2, -bh + 2 + guard - swing * 5, armW, armH, pal.skin);
 
-  // neck into the DOM head
-  g.strokeStyle = dark;
-  g.lineWidth = 10;
-  g.beginPath();
-  g.moveTo(0, -C.BODY_H);
-  g.lineTo(0, hy - p.y + C.HEAD_R * .55);
-  g.stroke();
   g.restore();
 }
 
@@ -907,9 +893,14 @@ function drawReady(g) {
   g.fillRect(0, 0, C.W, C.H);
   g.textAlign = 'center';
   g.textBaseline = 'middle';
-  g.fillStyle = '#fff';
-  g.font = '900 52px -apple-system, Arial';
-  g.fillText(M.freeze > 0.45 ? 'מוכן?' : 'קדימה!', C.W / 2, C.H * 0.32);
+  const txt = M.freeze > 0.45 ? 'מוכן?' : 'קדימה!';
+  g.font = '900 46px -apple-system, Arial';
+  g.lineJoin = 'round';
+  g.lineWidth = 8;
+  g.strokeStyle = OUTLINE;
+  g.strokeText(txt, C.W / 2, C.H * 0.30);
+  g.fillStyle = '#ffd23c';
+  g.fillText(txt, C.W / 2, C.H * 0.30);
 
   // The controls, on the glass, every kickoff. "How do I kick?" should never need a README
   // — and on desktop there is no touch pad to read the answer off.

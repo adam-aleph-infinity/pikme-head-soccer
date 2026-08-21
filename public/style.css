@@ -88,7 +88,12 @@ button { font: inherit; color: inherit; border: 0; background: none; cursor: poi
 /* ─── MATCH ────────────────────────────────────────────────────────────── */
 #match { align-items: center; justify-content: center; background: #05070d; }
 #stage { position: relative; overflow: hidden; background: #0b1526; }
-#cv { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
+#cv {
+  position: absolute; inset: 0; width: 100%; height: 100%; display: block;
+  /* Half-res backing upscaled hard — this is what makes it read as pixel art. */
+  image-rendering: pixelated;
+  image-rendering: crisp-edges;
+}
 
 /* The big head. Sized + moved from JS in stage pixels. */
 .head {
@@ -108,47 +113,69 @@ button { font: inherit; color: inherit; border: 0; background: none; cursor: poi
 @keyframes armed { from { box-shadow: 0 0 0 0 #ffb80000; } to { box-shadow: 0 0 22px 6px #ffb800cc; } }
 .head.knocked { filter: grayscale(.6) brightness(.7); }
 
-/* HUD */
-/* The HUD and the pad are pinned to the PITCH, not to the reading direction: player 0 is
-   drawn on the left of the field, so their score and gauge must sit on the left of the
-   screen. Under the page's dir=rtl they came out mirrored — blue score over the red
-   player — and the D-pad landed under the wrong thumb with the arrows swapped. Hebrew
-   labels inside still shape correctly; only the box order is forced. */
+/* HUD — Street Fighter II. Yellow power bar in a black-bordered frame that drains from the
+   inside out, a name plate beneath it, and TIME as one big number in a box between them.
+   The old dark rounded pills were the most modern-looking thing on screen. */
 .hud {
-  position: absolute; top: 0; inset-inline: 0; padding: 6px 10px;
-  display: flex; align-items: flex-start; gap: 10px; pointer-events: none;
+  position: absolute; top: 0; inset-inline: 0; padding: 6px 8px;
+  display: flex; align-items: flex-start; gap: 8px; pointer-events: none;
   direction: ltr;
 }
 .scoreboard {
-  display: flex; align-items: center; gap: 10px; padding: 4px 14px; border-radius: 12px;
-  background: #0a0f1cd9; border: 1px solid #ffffff1a; font-variant-numeric: tabular-nums;
+  /* Stays a ROW: stacking it put player 0's score above player 1's instead of left of it,
+     and the score has to read in the same direction as the pitch. */
+  display: flex; align-items: center; gap: 9px;
+  padding: 3px 12px 4px;
+  background: #101018; border: 3px solid #000;
+  box-shadow: 0 0 0 2px #d8d8e4, 3px 3px 0 #0009;
+  font-variant-numeric: tabular-nums;
 }
-.scoreboard b { font-size: 24px; font-weight: 800; min-width: 22px; text-align: center; }
-.scoreboard #s0 { color: var(--p0); }
-.scoreboard #s1 { color: var(--p1); }
-.scoreboard i { font-style: normal; font-size: 15px; color: var(--dim); min-width: 30px; text-align: center; }
-.scoreboard i.low { color: #ff5c7a; }
-
+.scoreboard i {
+  font-style: normal; font-size: 26px; font-weight: 900; line-height: 1;
+  color: #ffd23c; -webkit-text-stroke: 1px #000; letter-spacing: 1px;
+}
+.scoreboard i.low { color: #ff4d4d; animation: gaugeFull .4s infinite alternate; }
+.scoreboard b { font-size: 22px; font-weight: 900; line-height: 1; -webkit-text-stroke: 1px #000; min-width: 18px; text-align: center; }
+.scoreboard #s0 { color: #6fa0ff; }
+.scoreboard #s1 { color: #ff7a6f; }
+.scoreboard .rtt { font-style: normal; font-size: 8px; color: #7a7a92; }
 .gauge {
-  flex: 1; max-width: 190px; height: 20px; border-radius: 999px; position: relative;
-  background: #0a0f1cd9; border: 1px solid #ffffff1a; overflow: hidden;
+  flex: 1; max-width: 300px; height: 22px; position: relative;
+  background: #101018;
+  border: 3px solid #000;
+  box-shadow: 0 0 0 2px #d8d8e4, 3px 3px 0 #0009;
+  overflow: hidden;
 }
-.gauge .fill { position: absolute; inset: 0; width: 0; transition: width .08s linear; }
-.gauge.g0 .fill { background: linear-gradient(90deg, #2b6bb5, #4ea0ff); }
-.gauge.g1 .fill { background: linear-gradient(90deg, #b53b57, #ff5c7a); }
+.gauge .fill {
+  position: absolute; inset: 2px; width: 0;
+  transition: width .08s linear;
+  background: linear-gradient(180deg, #fff07a 0 35%, #ffd23c 35% 65%, #e08a00 65% 100%);
+}
+.gauge.g1 .fill { background: linear-gradient(180deg, #ffb0a0 0 35%, #ff5c4c 35% 65%, #a01e10 65% 100%); }
+/* segment ticks, so the bar reads as an arcade meter rather than a progress bar */
+.gauge::after {
+  content: ''; position: absolute; inset: 2px; pointer-events: none;
+  background: repeating-linear-gradient(90deg, #0000 0 12px, #00000055 12px 14px);
+}
 .gauge .nm {
   position: absolute; inset: 0; display: grid; place-items: center;
-  font-size: 11px; font-weight: 800; text-shadow: 0 1px 2px #000;
+  font-size: 11px; font-weight: 900; letter-spacing: .5px;
+  color: #fff; -webkit-text-stroke: 1px #000; text-shadow: 1px 1px 0 #000;
 }
-.gauge.full { animation: gaugeFull .5s infinite alternate; }
-.gauge.full .fill { background: linear-gradient(90deg, #ff9f00, #ffe27a) !important; }
-@keyframes gaugeFull { from { box-shadow: 0 0 0 0 #ffb80000; } to { box-shadow: 0 0 14px 3px #ffb800aa; } }
+.gauge.full { animation: gaugeFull .4s infinite alternate; }
+.gauge.full .fill { background: linear-gradient(180deg, #ffffff 0 35%, #ffd23c 35% 65%, #ff7a00 65% 100%) !important; }
+.gauge.powered .fill { background: linear-gradient(180deg, #fff 0 30%, #ff4d4d 30% 65%, #7a0000 65% 100%) !important; }
+.gauge.powered { animation: gaugeFull .3s infinite alternate; }
+@keyframes gaugeFull { from { box-shadow: 0 0 0 2px #d8d8e4, 3px 3px 0 #0009; } to { box-shadow: 0 0 0 2px #ffd23c, 0 0 14px 3px #ffb80099, 3px 3px 0 #0009; } }
 
 .banner {
-  position: absolute; inset-inline: 0; top: 34%; text-align: center;
-  font-size: clamp(28px, 8vw, 62px); font-weight: 900; letter-spacing: -1px;
+  position: absolute; inset-inline: 0; top: 30%; text-align: center;
+  font-size: clamp(30px, 9vw, 68px); font-weight: 900; letter-spacing: 0;
   pointer-events: none; opacity: 0; transform: scale(.7);
-  text-shadow: 0 4px 0 #0009, 0 0 30px currentColor;
+  /* Arcade lettering: fat black keyline plus a hard drop shadow, no glow. */
+  -webkit-text-stroke: 6px #000;
+  paint-order: stroke fill;
+  text-shadow: 5px 5px 0 #00000088;
 }
 .banner.show { animation: pop 1.1s ease-out; }
 @keyframes pop {
