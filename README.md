@@ -109,17 +109,28 @@ resumes.
 
 Measured off a real Head Soccer gameplay screenshot rather than guessed:
 
+Second pass used a real kickoff screenshot Adam sent, which is a better reference than the
+App Store art — and it moved several numbers again.
+
 | | Head Soccer | here |
 |---|---|---|
-| head : body height | 3.9 : 1 | **4.0 : 1** |
-| goal height : character height | 2.04 : 1 | **1.96 : 1** |
-| goal depth : goal height | 0.28 | **0.29** |
-| ground line | 84% down screen | **86%** |
+| pitch aspect | 1.81 : 1 | **1.81 : 1** |
+| head : body height | 2.9 : 1 | **3.2 : 1** |
+| goal height : character height | 2.02 : 1 | **2.03 : 1** |
+| goal depth : goal height | 0.33 | **0.33** |
+| character height / screen | 14.1% | **14.9%** |
+| goal height / screen | 28.5% | **30.2%** |
+| ground line | 84% down screen | **84%** |
 
-The character is ~80% head with a stubby body — that silhouette *is* the game, and the old
-1.7:1 read as an ordinary chibi. The one deliberate departure: a strict match would put the
-head at 6.7% of pitch width (`HEAD_R` 32); it is held at 40 because the head is a Saltiz
-card face and the hook stops working when you cannot tell who it is.
+The black side bars in that screenshot are the real game letterboxing on a 2.16 phone —
+matching its 1.81 aspect means accepting them here too.
+
+The one deliberate departure: a strict match puts the head at 5.8% of pitch width
+(`HEAD_R` 28); it is held at 30 because the head is a Saltiz card face and the hook stops
+working when you cannot tell who it is.
+
+`GOAL_H` 160 is where the measurement and the sweep agree — 2.03x the player, and the best
+skill gradient of anything tried (legendary bot 10:1 over very-easy).
 
 A consequence worth knowing: at these proportions the torso is a 12px sliver, so
 "head bounces, body deadens" had to become a rule about HEIGHT on the silhouette
@@ -203,7 +214,7 @@ Balance was measured, not guessed. Each of these answers one question:
 | `node _why.mjs 3,3 8` | *where* do the goals come from — power shot, lob, out of position? |
 | `node _wall.mjs static` | can a positioned defender stop shots at all? (physics vs bot) |
 | `node _sweep.mjs` | isolate one bot dial and watch the scoreline move |
-| `node _shot.mjs` | drive one real Chrome client and screenshot it (27 checks) |
+| `node _shot.mjs` | drive one real Chrome client and screenshot it (`?solo=1` freezes the bot) |
 | `node _duo.mjs` | two real Chrome clients playing each other through the real server |
 
 Three real bugs came out of them, all invisible to the unit tests:

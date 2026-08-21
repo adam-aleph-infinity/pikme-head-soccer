@@ -527,7 +527,11 @@ function frame(now) {
       acc += dt;
       let guard = 0;
       while (acc >= C.TICK && guard++ < 8) {
-        const foe = botInput(BOT, M, 1, C.TICK);
+        // ?solo=1 (or window.BOT_OFF) leaves the opponent standing still. It exists for two
+      // reasons: practising a shot without being harassed, and making the screenshot
+      // harness deterministic — every probe there was racing a bot that could score,
+      // freeze the match and reset positions between one await and the next.
+      const foe = window.BOT_OFF ? {} : botInput(BOT, M, 1, C.TICK);
         step(M, [{ ...held }, foe], C.TICK, fx);
         acc -= C.TICK;
         drainEvents();
@@ -601,8 +605,12 @@ function drawStadium(g) {
   // The hoardings sit behind the players' HEADS with clear grass below, as in the real
   // game. Running them down to the ground line made the characters look like they were
   // standing on the advertising boards rather than on the pitch.
-  const standTop = gy * 0.08, standBot = gy * 0.46;
-  const ledTop = gy * 0.63, ledBot = gy * 0.77;
+  // Band positions taken off the same reference screenshot as the proportions, as fractions
+  // of screen height: sky 0-25%, stands 25-68%, hoardings 69-78%, grass below. The players
+  // stand IN FRONT of the boards with their heads overlapping them — that stacking is a lot
+  // of why the real game reads as a stadium rather than a diagram.
+  const standTop = gy * 0.30, standBot = gy * 0.81;
+  const ledTop = gy * 0.82, ledBot = gy * 0.93;
 
   const sky = g.createLinearGradient(0, 0, 0, gy);
   sky.addColorStop(0, '#070c1c');
@@ -610,9 +618,9 @@ function drawStadium(g) {
   g.fillStyle = sky;
   g.fillRect(0, 0, C.W, gy);
 
-  // roof trusses + floodlight rigs
+  // roof trusses + floodlight rigs, sitting on the sky band above the stands
   g.fillStyle = '#05080f';
-  g.fillRect(0, 0, C.W, standTop);
+  g.fillRect(0, standTop - 10, C.W, 10);
   for (let i = 0; i < 4; i++) {
     const x = C.W * (0.14 + i * 0.24);
     g.strokeStyle = '#2a3550';                       // mast, or the rig reads as a floating bar
@@ -1071,6 +1079,7 @@ $('#tunerCopy').onclick = async () => {
   renderSlots();
   renderGrid();
   buildTuner();
+  if (q.has('solo')) window.BOT_OFF = true;
   if (q.has('room')) {
     // A share link is an invite: land straight in the lobby, pre-joined.
     const code = String(q.get('room')).trim().toUpperCase().slice(0, 4);

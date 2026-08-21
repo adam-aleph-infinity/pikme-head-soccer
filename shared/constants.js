@@ -5,17 +5,19 @@
 // Fixed logical pitch. The renderer letterboxes this into whatever the screen is,
 // so physics is resolution-independent and a phone plays the same match as a laptop.
 export const W = 960;
-export const H = 470;                 // 960x470 ~ 2.04:1 — close to a phone in landscape (2.16:1),
+export const H = 530;                 // 960x530 = 1.81:1, measured off a real kickoff screenshot.
+                                      // Was 2.04. The black side bars in that screenshot ARE the game
+                                      // letterboxing on a 2.16 phone — matching it means accepting them.
                                       // so the pitch fills the screen instead of letterboxing, and the
                                       // camera sits tight enough that a head reads as a HEAD.
-export let GROUND_Y = 405;            // top surface of the grass
+export let GROUND_Y = 445;           // 84% down the screen, as measured
 export const CEIL_Y = 30;             // invisible ceiling the ball bounces off
 
 export const TICK = 1 / 60;           // sim step (fixed)
 
 // ---- Goals -----------------------------------------------------------------
-export let GOAL_W = 52;              // depth. Measured ratio depth:height is 0.28; this was 0.49.
-export let GOAL_H = 180;             // 1.96x the 92px player — the real game measures 2.04x. Also swept:
+export let GOAL_W = 53;              // depth:height 0.33, as measured (was 0.29).
+export let GOAL_H = 160;             // 2.02x the 79px player — the measured ratio exactly.
                                       // 160 -> 4.7 goals and 7:4, 180 -> 4.9 and 9:2, 200 -> 8.5 and 8:3.
                                       // 180 is both the closest to the reference AND the best gradient.
                                       // Swept against bot-vs-bot outcomes: at 146 the game gave
@@ -27,7 +29,7 @@ export let GOAL_H = 180;             // 1.96x the 92px player — the real game 
 export const POST_R = 5;              // crossbar radius (ball bounces off it)
 
 // ---- Ball ------------------------------------------------------------------
-export const BALL_R = 13;
+export const BALL_R = 12;
 export let BALL_GRAV = 1180;
 export let BALL_AIR = 0.9955;       // per-tick horizontal air drag
 export let BALL_GROUND_FRICTION = 0.988;
@@ -40,11 +42,15 @@ export const BALL_SPIN_DECAY = 0.985;
 // The single most important ratio in the whole game: PLAYER_SPEED vs how fast a struck
 // ball crosses the pitch. At 3-4x the bot could never recover and matches finished 15-12;
 // keeping the ball to roughly 2x a running player is what makes defending possible at all.
-export let HEAD_R = 40;              // Their head is ~6.7% of pitch width; a strict match would be 32.
+export let HEAD_R = 30;              // head diameter 60 = 6.3% of pitch width; measured 5.8%.
+                                      // Still held slightly over the reference: the head is a Saltiz
+                                      // card face and the hook dies when you cannot tell who it is.
                                       // Held at 40 on purpose: the head is a SALTIZ card face, and the
                                       // whole hook stops working when you cannot tell who it is.
-export const BODY_W = 36;
-export const BODY_H = 20;             // torso+legs. MEASURED off a real Head Soccer gameplay shot:
+export const BODY_W = 32;
+export const BODY_H = 27;             // leaves 19px of visible body under the head -> 3.2:1,
+                                      // against a measured 2.9:1. Character stands 79px = 15% of screen
+                                      // height; the reference is 14.1%.
                                       // their characters are ~80% head, head:body about 3.9:1, and a
                                       // stubby body under a big head IS the silhouette. This was 54,
                                       // which read as an ordinary chibi rather than a head-with-legs.
@@ -145,7 +151,7 @@ export const GOLDEN_GOAL = true;      // draw → sudden death (gauges stop char
 
 // ---- Spawns ----------------------------------------------------------------
 export const SPAWN_X = [250, W - 250];
-export const BALL_SPAWN = { x: W / 2, y: 120 };
+export const BALL_SPAWN = { x: W / 2, y: 140 };
 
 // ---- Live tuning -----------------------------------------------------------
 // The whole point of a feel mock is that the numbers get argued with while playing, not

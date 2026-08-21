@@ -131,7 +131,11 @@ const afterReset = await evalJs(`JSON.parse(localStorage.getItem('hs-binds')).ki
 check('reset restores the default kick key', afterReset === 'ArrowDown', String(afterReset));
 
 // ---- 2. kick off -----------------------------------------------------------
-await evalJs('startMatch()');
+// Freeze the opponent for the rest of this file. Every probe below was racing a live bot
+// that could score, freeze the match and reset both players between one await and the
+// next — which made a different check fail on each run. Bot behaviour has its own coverage
+// in test-bot.mjs and _duo.mjs; what THIS file tests is rendering and input.
+await evalJs('window.BOT_OFF = true; startMatch();');
 await sleep(1600);                       // ride out the kickoff freeze
 await shot('02-kickoff');
 
@@ -226,11 +230,17 @@ await shot('04-powershot');
   await evalJs(`document.getElementById('keysBack').click()`);
   await sleep(200);
   await waitForPlay();
-  await evalJs('EVENTS.length = 0; MATCH.players[0].kickCd = 0;');
-  await key('keyDown', 'KeyG', 71); await sleep(120); await key('keyUp', 'KeyG', 71);
-  await sleep(200);
-  const kicked = await evalJs(`EVENTS.some(e => e.type === 'kick' && e.player === 0)`);
-  check('a rebound key actually kicks', kicked === true, 'G did nothing');
+  // Retry across freezes: a goal can land between the probe and the press, and input during
+  // a kickoff/post-goal freeze is ignored by design. One attempt made this check a coin flip.
+  let kicked = false;
+  for (let attempt = 0; attempt < 6 && !kicked; attempt++) {
+    await waitForPlay();
+    await evalJs('EVENTS.length = 0; MATCH.players[0].kickCd = 0;');
+    await key('keyDown', 'KeyG', 71); await sleep(120); await key('keyUp', 'KeyG', 71);
+    await sleep(180);
+    kicked = await evalJs(`EVENTS.some(e => e.type === 'kick' && e.player === 0)`);
+  }
+  check('a rebound key actually kicks', kicked === true, 'G did nothing in 6 attempts');
 
   // Put the defaults back: the rebind REPLACED ArrowDown, and every later check in this
   // file drives the game with the default keys.
@@ -252,7 +262,11 @@ for (let i = 0; i < 30; i++) {
   if (done.over) break;
 }
 check('a decided match reaches full time', done.over === true && done.phase === 'over', `phase=${done.phase} score=${done.score.join('-')}`);
-check('the winner is announced', done.title === 'ניצחת!', done.title);
+// Don't assume WHO wins: the bot plays on while the clock runs, so a 2-0 head start is not
+// a guaranteed win. Assert the announcement AGREES with the final score instead.
+const expected = done.score[0] > done.score[1] ? 'ניצחת!' : 'הפסדת';
+check('the winner announcement matches the score', done.title === expected,
+      `${done.score.join('-')} → "${done.title}" (expected "${expected}")`);
 await shot('05-fulltime');
 
 // Setting 0-0 once was not enough: the bot can score inside the five seconds, and then the
