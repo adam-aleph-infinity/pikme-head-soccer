@@ -305,6 +305,54 @@ check('and does not collide with either thumb', fit.gapL > 4 && fit.gapR > 4,
   `left gap ${fit.gapL.toFixed(0)}px, right gap ${fit.gapR.toFixed(0)}px`);
 await shot('20-phone');
 
+// ── 7. The album the app injects ─────────────────────────────────────────────
+// Inside the app the player's own cards ARE the roster — window.SALTIZ_CARDS is injected
+// before the page boots. The game ignored it until this was written, which let a player walk
+// in with a legendary they do not own (and, since the hand landed, with its powers).
+await send('Emulation.setDeviceMetricsOverride', { width: 900, height: 620, deviceScaleFactor: 1, mobile: false });
+await send('Page.addScriptToEvaluateOnNewDocument', {
+  source: `window.SALTIZ_CARDS = [{ r: 'rare', n: 7, c: 2, w: 40 }, { r: 'common', n: 12, c: 1, w: 5 }];`,
+});
+// No ?me= here, deliberately: this is the URL the APP loads (name + cache-bust only), so the
+// opening card has to come from the album rather than from a query string.
+await send('Page.navigate', { url: `http://127.0.0.1:${PORT}/?diff=3&solo=1` });
+await sleep(2600);
+const album = await evalJs(`(() => {
+  const tab = [...document.querySelectorAll('#rarityTabs button')].find((b) => b.dataset.r === 'rare');
+  tab.click();
+  const cards = [...document.querySelectorAll('#cardGrid .card')];
+  return {
+    rarity: pick.rarity, me: pick.me,
+    lockedCount: cards.filter((c) => c.classList.contains('locked')).length,
+    total: cards.length,
+    sevenLocked: cards[6].classList.contains('locked'),
+  };
+})()`);
+check('an injected album opens on the best card the player owns',
+  album.me.rarity === 'rare' && album.me.number === 7, JSON.stringify(album.me));
+check('and locks every card outside it',
+  album.lockedCount === album.total - 1 && album.sevenLocked === false,
+  `${album.lockedCount} of ${album.total} locked`);
+// Clicking a locked card must do nothing at all — greying it out is not a guard.
+await evalJs(`document.querySelectorAll('#cardGrid .card')[3].click()`);
+await sleep(120);
+check('and a locked card cannot be picked',
+  (await evalJs('JSON.stringify(pick.me)')) === JSON.stringify({ rarity: 'rare', number: 7 }),
+  await evalJs('JSON.stringify(pick.me)'));
+// The opponent slot is not a claim of ownership, so it stays open.
+await evalJs(`document.getElementById('slotFoe').click()`);
+await sleep(150);
+check('but the opponent slot is still free to choose',
+  (await evalJs(`[...document.querySelectorAll('#cardGrid .card')].every((c) => !c.classList.contains('locked'))`)) === true);
+
+// And the query string cannot walk past the album either — in a WebView that URL is one
+// inspector away, so a picker-only guard is not a guard.
+await send('Page.navigate', { url: `http://127.0.0.1:${PORT}/?me=legendary_1&foe=${FOE}&diff=3&solo=1` });
+await sleep(2500);
+check('?me= cannot hand you a card you do not own',
+  (await evalJs('JSON.stringify(pick.me)')) === JSON.stringify({ rarity: 'rare', number: 7 }),
+  await evalJs('JSON.stringify(pick.me)'));
+
 check('no page exceptions', logs.length === 0, logs.slice(0, 2).join(' | '));
 
 console.log(`\nshots → ${OUT}`);

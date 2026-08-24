@@ -56,13 +56,48 @@ function paintHead(el, r, n, sizePx) {
 // ═══════════════════════════════════════════════════════════════════════════
 // PICK SCREEN
 // ═══════════════════════════════════════════════════════════════════════════
+// THE PLAYER'S ALBUM. The app injects it before the page boots — window.SALTIZ_CARDS, a
+// compact [{ r, n, c, w }] built from their claims — because inside the app the album IS the
+// roster: the cards you own are the heads you may play, and (since the hand landed) the
+// powers you may press. Ignoring it, which this file did until now, let a player walk into
+// the game with a legendary they do not own.
+//
+// Outside the app there is no album, and that must stay a full deck rather than an empty
+// one: the browser is where this game gets argued about, and locking it to nothing owned
+// would make it untestable. So an ABSENT album means everything is available; a PRESENT one
+// means exactly what it says, even if it says very little.
+const OWNED = (() => {
+  const raw = typeof window !== 'undefined' ? window.SALTIZ_CARDS : null;
+  if (!Array.isArray(raw) || !raw.length) return null;              // no album -> no gate
+  const set = new Set();
+  for (const c of raw) {
+    const r = c && (c.r || c.rarity);
+    const n = Number(c && (c.n ?? c.card_number ?? c.number));
+    if (RARITIES.includes(r) && n >= 1 && n <= CARDS_PER_RARITY) set.add(`${r}_${n}`);
+  }
+  return set.size ? set : null;
+})();
+const owns = (r, n) => !OWNED || OWNED.has(`${r}_${n}`);
+// The best card they actually hold, for the opening selection: rarest first, then lowest
+// number, so a player with one legendary opens on it rather than on a common they forgot.
+const bestOwned = () => {
+  if (!OWNED) return null;
+  // RARITIES here is RAREST FIRST — legendary, epic, rare, common. shared/cards.js orders its
+  // own list the other way (common first, because the rarity ladder indexes off it), and
+  // reversing this one to match cost a test: it opened the player on the worst card they own.
+  for (const r of RARITIES) {
+    for (let n = 1; n <= CARDS_PER_RARITY; n++) if (OWNED.has(`${r}_${n}`)) return { rarity: r, number: n };
+  }
+  return null;
+};
+
 const pick = {
   // The app injects these before the page boots, exactly as it does for football.
   name: (typeof window !== 'undefined' && window.SALTIZ_NAME) || new URLSearchParams(location.search).get('name') || 'שחקן',
-  me: { rarity: 'legendary', number: 3 },
+  me: bestOwned() || { rarity: 'legendary', number: 3 },
   foe: { rarity: 'legendary', number: 2 },
   target: 'me',
-  rarity: 'legendary',
+  rarity: (bestOwned() || { rarity: 'legendary' }).rarity,
   level: 3,
 };
 
@@ -77,7 +112,15 @@ function renderGrid() {
     el.innerHTML = `<b>${n}</b>`;
     const chosen = pick[pick.target];
     if (chosen.rarity === pick.rarity && chosen.number === n) el.classList.add('sel');
+    // A card you do not own is shown, not hidden — seeing what the album could hold is half
+    // the reason to go and get it — but it cannot be picked as YOUR head. The opponent slot
+    // is unrestricted: choosing who to play against is not a claim to own them.
+    const mine = pick.target === 'me';
+    const locked = mine && !owns(pick.rarity, n);
+    el.classList.toggle('locked', locked);
+    if (locked) el.title = 'לא באלבום שלך';
     el.onclick = () => {
+      if (locked) return;
       pick[pick.target] = { rarity: pick.rarity, number: n };
       renderGrid();
       renderSlots();
@@ -1943,7 +1986,13 @@ $('#tunerCopy').onclick = async () => {
     const v = q.get(key);
     if (!v) continue;
     const [r, n] = v.split('_');
-    if (RARITIES.includes(r) && +n >= 1 && +n <= CARDS_PER_RARITY) pick[who] = { rarity: r, number: +n };
+    if (!RARITIES.includes(r) || !(+n >= 1 && +n <= CARDS_PER_RARITY)) continue;
+    // The album gates the URL too. Greying a card out in the picker is not a guard if
+    // `?me=legendary_1` walks straight past it — and inside the app this query string is one
+    // WebView inspector away. The opponent stays free: choosing who to play against is not a
+    // claim to own them.
+    if (who === 'me' && !owns(r, +n)) continue;
+    pick[who] = { rarity: r, number: +n };
   }
   // ?pickups=1 brings the old crates back, ?cards=0 takes the hand away — the two power
   // systems, switchable from a URL so the comparison is one link rather than a rebuild.
