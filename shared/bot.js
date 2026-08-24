@@ -118,6 +118,33 @@ export function botInput(bot, m, index, dt) {
   // Power shots fly flat and fast and are BLOCKED by a body in the path, so the right
   // answer is to step into the line — not to dodge. The old code ran away from them, which
   // under the new model just gifts a goal.
+  // THE WIND-UP IS A TELEGRAPH. The opponent charging their power move is half a second of
+  // warning, and the whole point of the move being readable is that a defender can use it.
+  // Get onto the goal line and wait — the jump itself is timed below, once the ball is real.
+  if (foe.charge > 0) {
+    // Two answers, and choosing between them is the skill. If I can REACH them inside the
+    // wind-up, go and hit them: a tackle cancels the whole move and the gauge is already
+    // spent. If I cannot, get on the goal line and wait to jump.
+    const reach = Math.abs(foe.x - p.x);
+    const canGetThere = reach < C.PLAYER_SPEED * foe.charge * 0.9 + C.KICK_REACH;
+    if (canGetThere && bot.rng() < d.aim) {
+      out.left = foe.x < p.x - 6;
+      out.right = foe.x > p.x + 6;
+      out.kick = reach < C.KICK_REACH + C.KICK_R && p.kickCd <= 0;
+      out.jump = false;
+      out.power = false;
+      return out;
+    }
+    const myGoalX = p.side > 0 ? C.GOAL_W : C.W - C.GOAL_W;
+    const post = Math.max(C.GOAL_W + 24, Math.min(C.W - C.GOAL_W - 24, myGoalX + p.side * 60));
+    out.left = p.x > post + 8;
+    out.right = p.x < post - 8;
+    out.jump = false;
+    out.kick = false;
+    out.power = false;
+    return out;
+  }
+
   if (b.power && b.power.owner !== index) {
     const dist = Math.hypot(b.x - p.x, b.y - headY(p));
     const incoming = (b.x - p.x) * p.side < 0;      // heading at me, not away
@@ -138,8 +165,17 @@ export function botInput(bot, m, index, dt) {
       const intercept = Math.max(C.GOAL_W + 30, Math.min(C.W - C.GOAL_W - 30, myGoalX + p.side * 70));
       out.left = p.x > intercept + 10;
       out.right = p.x < intercept - 10;
-      // A shot above head height can only be met in the air.
-      out.jump = p.onGround && b.y < headY(p) - C.HEAD_R * 0.4;
+      // A shot above head height can only be met in the air — but WHEN matters more than
+      // whether. The volley crosses the pitch at three times a normal shot, and a bot that
+      // jumped the moment it saw one had landed again before it arrived: the same mistake a
+      // player makes against the dog. So jump on TIME-TO-ARRIVAL, about a quarter of a
+      // second out, which is roughly the rise to a jump's apex.
+      const eta = Math.abs(b.vx) > 1 ? Math.abs(b.x - p.x) / Math.abs(b.vx) : 9;
+      // A BETTER bot jumps EARLIER, not later: anticipation is the skill, and a late jump
+      // against a ball moving at 2000px/s is a miss. The first version had this backwards and
+      // the strong bot blocked nine to the weak bot's twenty-four.
+      const lead = 0.18 + d.aim * 0.16;
+      out.jump = p.onGround && b.y < headY(p) - C.HEAD_R * 0.4 && eta < lead;
       // The counter is a kick timed into the block, not a substitute for it.
       out.kick = bot.powerPlan === 'counter'
         ? dist < C.COUNTER_WINDOW * 0.82
@@ -257,7 +293,24 @@ export function botInput(bot, m, index, dt) {
     // is close too. Measured: 0 tackles a match. The only condition that really matters is
     // not turning your back on a ball heading for your own goal.
     const ballFar = Math.abs(b.x - p.x) > 140;
-    bot.wantTackle = foeNear && ballFar && !incoming && foe.tackleImmune <= 0 && bot.rng() < d.aim;
+    // Tackling is how the power gauge is earned now — three hits buy a volley — so a bot with
+    // an empty gauge should WANT the hit rather than take it only when it happens to be
+    // convenient. Measured before this line existed: a level-1 bot charged 78 times over
+    // sixteen matches and a level-5 bot six, because the good bot plays positionally and the
+    // flailing one blunders into people. That is the gradient upside down.
+    // `ballFar` used to be part of this, and under the new gauge rule it inverted the whole
+    // ladder: a good bot is nearly always ON the ball, so it never met the condition, never
+    // tackled, and never earned a volley — while a bad bot, who loses the ball constantly,
+    // farmed the gauge by blundering into people. Measured over twenty matches: the level-2
+    // bot charged 101 times to the level-5 bot's 11, and won.
+    //
+    // So with an empty gauge, a hit on the man is worth taking even when the ball is right
+    // there. Going for the man to earn the super IS the game Adam described; the better bot
+    // should understand that first.
+    const needGauge = p.gauge < 1;
+    bot.wantTackle = foeNear && !incoming && foe.tackleImmune <= 0
+                     && (ballFar || needGauge)
+                     && bot.rng() < Math.min(0.95, d.aim * (needGauge ? 1.5 : 1));
 
     // Jump when the ball is genuinely headable, not just "high".
     const dxb = Math.abs(b.x - p.x);
@@ -313,9 +366,12 @@ export function botInput(bot, m, index, dt) {
   }
 
   // ---- power: arm it when the ball is reachable, don't waste it mid-pitch ----
-  const wantPower = p.gauge >= 1 && p.armed <= 0 &&
-                    (adxb < 230 || (b.x - p.x) * p.side > 0) &&
-                    bot.t > d.powerHold;
+  // The power button buys a committed wind-up now, so the bot should press it when the volley
+  // has somewhere to go — not when the ball is at its feet, because the wind-up takes the
+  // ball wherever it is.
+  const wantPower = p.gauge >= 1 && p.charge <= 0 && b.power == null &&
+                    bot.t > d.powerHold &&
+                    (foe.x - p.x) * p.side > -80;      // the goal I am shooting at is ahead
   out.power = wantPower;
 
   playCards(bot, m, p, foe, b, dt, adxb);

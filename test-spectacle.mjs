@@ -12,6 +12,30 @@ import { ACT, isRobot, actKind, activeMeteors, windAccel, packSpectacle, unpackS
   from './shared/spectacle.js';
 
 let pass = 0, fail = 0;
+
+// Fire the power move and let it land. The button buys a committed VOLLEY now — press, wind
+// up for POWER_CHARGE_TIME, and the ball goes — so a test that needs a power BALL has to run
+// the wind-up out rather than arm and kick.
+function firePower(mm, i = 0) {
+  const p = mm.players[i];
+  p.gauge = 1; p.prev = {}; mm.hitStop = 0;
+  const inputs = [{}, {}]; inputs[i] = { power: true };
+  step(mm, inputs);
+  mm.events.length = 0;
+  for (let t = 0; t < Math.round(C.POWER_CHARGE_TIME / C.TICK) + 4 && !mm.ball.power; t++) {
+    mm.hitStop = 0; step(mm, [{}, {}]); mm.events.length = 0;
+  }
+  return mm.ball.power;
+}
+
+// Where a JUMPING defender is when the volley passes. It flies at POWER_CHARGE_HEIGHT, above
+// a standing head — that is the point of the move — so any test about a defender meeting one
+// has to put them up there.
+function inLine(mm, p) {
+  p.y = C.GROUND_Y - (C.POWER_CHARGE_HEIGHT - C.BODY_H - C.HEAD_R + 18);
+  p.vy = 0; p.onGround = false;
+}
+
 const ok = (name, cond, extra = '') => {
   if (cond) { pass++; }
   else { fail++; console.log(`  ✗ ${name}${extra ? '  — ' + extra : ''}`); }
@@ -205,13 +229,7 @@ function forceMeteor(m, x, warn = C.METEOR_WARN) {
   // A power shot is earned — 28 seconds of gauge — and a falling rock does not get to eat it.
   const m = fresh();
   const p = m.players[0];
-  p.gauge = 1;
-  step(m, [{ power: true }, {}]);
-  m.ball.x = p.x + p.facing * C.KICK_REACH;
-  m.ball.y = p.y - C.BODY_H * 0.45;
-  m.ball.vx = 0; m.ball.vy = 0;
-  p.kickCd = 0;
-  step(m, [{ kick: true }, {}]);
+  firePower(m, 0);
   ok('(power shot armed and fired for the next check)', !!m.ball.power);
   const before = { vx: m.ball.vx, vy: m.ball.vy };
   // Firing a power shot triggers hit-stop, which freezes the sim for ~5 ticks. Clear it, or

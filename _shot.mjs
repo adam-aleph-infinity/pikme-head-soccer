@@ -182,12 +182,15 @@ await evalJs('MATCH.players[0].gauge = 1');
 await sleep(120);
 const gaugeUi = await evalJs(`document.querySelector('.gauge.g0').classList.contains('full')`);
 check('a full gauge lights the HUD', gaugeUi === true);
+// POWER is a committed WIND-UP now, not a mode: press it and the player is locked for half a
+// second while the ball is drawn up over their head, then it fires by itself. There is no
+// armed state to check and no kick to follow.
 await hold('KeyJ', 90);
-await sleep(120);
-const armed = await evalJs('MATCH.players[0].armed > 0');
-check('POWER arms the shot', armed === true);
-const armedUi = await evalJs(`document.getElementById('head0').classList.contains('armed')`);
-check('the armed head glows', armedUi === true);
+await sleep(90);
+const winding = await evalJs('JSON.stringify({ charge: MATCH.players[0].charge, ballUp: Math.round(C.GROUND_Y - MATCH.ball.y) })');
+check('POWER starts the wind-up', /"charge":0\.[1-9]/.test(winding) || /"charge":0\.0[1-9]/.test(winding), winding);
+const btnUi = await evalJs(`document.getElementById('powerBtn').classList.contains('live')`);
+check('and the button shows it counting down', btnUi === true);
 
 await waitForPlay();
 // Fire it: put the ball on the boot. The boot is at facing * KICK_REACH, and after the
@@ -202,12 +205,12 @@ await evalJs(`(() => {
   p.kickCd = 0;
   EVENTS.length = 0;
 })()`);
-await hold('ArrowDown', 90);
-await sleep(140);
-// Read the EVENT LOG, not ball.power: a power shot fired near the opponent's goal scores
-// within ~0.2s, and the goal reset wipes ball.power before any poll can see it.
+// No kick: the wind-up fires it. Read the EVENT LOG rather than ball.power — a volley fired
+// near the opponent's goal scores within a fifth of a second, and the goal reset wipes
+// ball.power before any poll can see it.
+await sleep(700);
 const fired = await evalJs(`EVENTS.filter(e => e.type === 'powershot' && e.player === 0).map(e => e.shot)[0] || null`);
-check('the power shot fires', !!fired, String(fired));
+check('the wind-up fires the volley', !!fired, String(fired));
 await sleep(160);
 await shot('04-powershot');
 

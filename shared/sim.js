@@ -41,7 +41,7 @@ function makePlayer(index, char) {
     kickT: 0, kickCd: 0, kickLob: false,
     dashT: 0, dashCd: 0, dashDir: 0,
     tapDir: 0, tapT: 0,
-    gauge: 0, armed: 0,
+    gauge: 0, armed: 0, charge: 0,     // `charge` is the power move's wind-up
     knocked: 0, rooted: 0, shoved: 0,
     coyote: 0, jumpBuf: 0,          // jump forgiveness (see COYOTE_TIME / JUMP_BUFFER)
     slow: 0, tackleImmune: 0,       // set by a tackle; slow scales speed, immune blocks re-tackles
@@ -88,7 +88,7 @@ function resetPositions(m, towards) {
     p.kickT = 0; p.kickCd = 0; p.dashT = 0; p.dashCd = 0;
     p.knocked = 0; p.rooted = 0; p.shoved = 0;
     p.slow = 0; p.tackleImmune = 0; p.coyote = 0; p.jumpBuf = 0;
-    p.effectId = null; p.effectT = 0;
+    p.effectId = null; p.effectT = 0; p.charge = 0;
     p.jumps = C.MAX_JUMPS;
   }
   const b = m.ball;
@@ -150,6 +150,7 @@ export function step(m, inputs, dt = C.TICK, fx = NO_FX) {
   // Spawning and the effect clocks run here for the same reason: the spawn decision reads
   // the positions the telegraph will be drawn against. Collection is the other half and has
   // to wait until after the players have moved — see below.
+  stepCharge(m, fx);                 // the wind-up owns the ball while it runs
   stepCards(m);
   stepSkills(m, fx);
   stepPickups(m, fx);
@@ -180,7 +181,10 @@ function chargeGauge(m, p, dt) {
   // Sudden death freezes the gauges — the wiki's rule, and it stops overtime becoming
   // a power-shot slugfest where positioning stops mattering.
   if (m.golden) return;
-  if (p.gauge < 1) p.gauge = Math.min(1, p.gauge + dt / C.GAUGE_FULL);
+  // The gauge is earned off the OPPONENT now (see TACKLE_GAUGE). GAUGE_PASSIVE is the old
+  // clock, kept as a dial and set to zero: a super move that arrives whether or not you
+  // played is a thing that happens to a match rather than something a player did.
+  if (p.gauge < 1 && C.GAUGE_PASSIVE > 0) p.gauge = Math.min(1, p.gauge + dt * C.GAUGE_PASSIVE);
 }
 
 function stepPlayer(m, p, input, dt, fx) {
@@ -280,10 +284,14 @@ function stepPlayer(m, p, input, dt, fx) {
   // ---- POWER MODE ----
   // Its own button and its own job: it does not touch the ball, it changes what your next
   // kick means. Kick the ball -> power shot. Kick the opponent -> your signature effect.
-  if (canAct && input.power && !prev.power && p.gauge >= 1 && p.armed <= 0) {
+  // THE POWER MOVE. A full gauge buys a WIND-UP, not a mode: half a second in which the ball
+  // is drawn up over this player's head and lights up, and then it goes. Pressing it again
+  // mid-wind-up does nothing — it is a commitment, and that is what makes it readable by the
+  // player who has to jump.
+  if (canAct && input.power && !prev.power && p.gauge >= 1 && p.charge <= 0) {
     p.gauge = 0;
-    p.armed = C.POWER_MODE_TIME;
-    m.events.push({ type: 'armed', player: p.index, shot: p.shot.id });
+    p.charge = C.POWER_CHARGE_TIME;
+    m.events.push({ type: 'charging', player: p.index, shot: p.shot.id });
   }
 
   // ---- THE THREE CARDS ----
@@ -341,6 +349,65 @@ function separatePlayers(m) {
 }
 
 // ---------------------------------------------------------------------------
+// THE WIND-UP. For half a second the ball belongs to the player charging: it is swept up over
+// their head, held there, and lit up (the renderer reads `charge` for the colour). Then it
+// goes, dead flat, at three times a normal power shot and at a height only a jump reaches.
+//
+// The ball is TAKEN wherever it is, deliberately. Requiring you to be standing on it would
+// make the move fail silently half the time — "I pressed power and nothing happened" — and
+// the gauge that buys it already costs three tackles.
+function stepCharge(m, fx) {
+  for (const p of m.players) {
+    if (p.charge <= 0) continue;
+    const b = m.ball;
+
+    // A WIND-UP CAN BE PUNISHED. Half a second rooted in the open is the price of the move,
+    // and reading it should be worth something: a tackle that lands on a charging player
+    // cancels the whole thing, and the gauge is already spent. Without this the volley was
+    // strictly better the more often you could charge, which inverted the skill ladder —
+    // measured over twenty matches, a level-2 bot beat a level-5 bot by charging nine times
+    // as often.
+    if (p.knocked > 0 || p.rooted > 0) {
+      p.charge = 0;
+      m.events.push({ type: 'chargeLost', player: p.index });
+      continue;
+    }
+
+    const wasCharging = p.charge;
+    p.charge = Math.max(0, p.charge - C.TICK);
+
+    const top = C.GROUND_Y - C.POWER_CHARGE_HEIGHT;
+    if (p.charge > 0) {
+      // Swept up over the head at a rate that gets it there before the wind-up ends, so the
+      // shot always leaves from the same place no matter where the ball started.
+      const k = Math.min(1, C.TICK / Math.max(C.TICK, p.charge));
+      b.x += (p.x - b.x) * k;
+      b.y += (top - b.y) * k;
+      b.vx = 0; b.vy = 0; b.spin = 0;
+      b.power = null;
+      // Rooted while winding up: it is a commitment, and a player who can run during it is a
+      // player the defender cannot read.
+      p.vx = 0;
+      continue;
+    }
+
+    // ---- FIRE ----
+    b.x = p.x + p.side * (C.BODY_W * 0.6);
+    b.y = top;
+    launchPowerShot(b, p, p.shot, p.side);
+    // The multiplier lives ON the shot, because the flight re-drives the ball every tick —
+    // setting vx here alone was undone on the very next one.
+    b.power.mult = C.POWER_VOLLEY_SPEED;
+    b.vx = p.side * C.POWER_SHOT_SPEED * (p.shot.speed || 1) * C.POWER_VOLLEY_SPEED;
+    b.vy = 0;
+    m.idle = 0;
+    m.hitStop = Math.max(m.hitStop, C.HIT_STOP_POWER);
+    m.events.push({ type: 'powershot', player: p.index, shot: p.shot.id, volley: true });
+    fx.shockwave(b.x, b.y, p.shot.color);
+    void wasCharging;
+  }
+}
+
 function stepBall(m, dt, fx) {
   const b = m.ball;
 
@@ -788,7 +855,7 @@ const PREV_KEYS = ['left', 'right', 'jump', 'kick', 'power', ...CARD_KEYS];
 const P_FIELDS = [
   'x', 'y', 'vx', 'vy', 'onGround', 'facing', 'jumps',
   'kickT', 'kickCd', 'dashT', 'dashCd', 'dashDir', 'tapDir', 'tapT',
-  'gauge', 'armed', 'knocked', 'rooted', 'shoved', 'kickLob',
+  'gauge', 'armed', 'charge', 'knocked', 'rooted', 'shoved', 'kickLob',
   // Added with the tackle + jump-feel pass. Anything that can change a future step has to
   // travel, or a reconciling client re-runs the last 30 ticks with the wrong state.
   'slow', 'tackleImmune', 'coyote', 'jumpBuf',
@@ -825,6 +892,9 @@ export function serialize(m) {
       pw: m.ball.power ? {
         id: m.ball.power.id, kind: m.ball.power.kind, owner: m.ball.power.owner,
         dir: m.ball.power.dir, t: m.ball.power.t, life: m.ball.power.life, phase: m.ball.power.phase,
+        // The volley multiplier drives the ball every tick, so a client without it watches a
+        // three-speed shot travel at one.
+        mult: m.ball.power.mult,
       } : null,
     },
   };

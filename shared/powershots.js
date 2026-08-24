@@ -93,6 +93,7 @@ export function launchPowerShot(ball, shooter, shot, dirX) {
     dir: dirX,
     t: 0,
     life: C.POWER_SHOT_LIFE,
+    mult: 1,                       // the volley raises this; see stepCharge in sim.js
     color: shot.color,
     glow: shot.glow,
     shot,
@@ -111,9 +112,11 @@ export function stepPowerShot(ball, players, dt, fx) {
   p.t += dt;
   if (p.t >= p.life) { ball.power = null; return false; }
 
-  // Dead flat. It sags a touch so a shot taken from height still ends up somewhere
-  // reachable rather than sailing over the bar forever.
-  ball.vx = p.dir * C.POWER_SHOT_SPEED * (p.shot.speed || 1);
+  // Dead flat, at a speed the flight OWNS — the ball is driven, not thrown, so this is set
+  // every tick rather than decayed. `mult` is how the power VOLLEY goes three times as fast:
+  // without it this line quietly undid the launch on the very next tick, which is exactly
+  // what it did to the first version of that move.
+  ball.vx = p.dir * C.POWER_SHOT_SPEED * (p.shot.speed || 1) * (p.mult || 1);
   ball.vy += C.BALL_GRAV * C.POWER_SHOT_SAG * dt;
   fx.trail(ball.x, ball.y, p.color, 3);
   return true;

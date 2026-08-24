@@ -140,7 +140,10 @@ export let FALL_MULT = 1.55;
 // power gauge and slows them, so pressing is worth something even when the ball is gone.
 // IMMUNE exists so a faster player cannot simply stand next to a slower one and stun-lock
 // them out of the match.
-export let TACKLE_GAUGE = 0.11;      // gauge gifted to the tackler
+// The gauge is now EARNED OFF THE OPPONENT and nothing else: a third of it per tackle, so
+// three hits buy a volley. It used to fill on a clock whether you played or not, which made
+// the super move a thing that happened TO a match rather than something a player did.
+export let TACKLE_GAUGE = 0.34;      // gauge gifted to the tackler
 export let TACKLE_SLOW = 0.55;       // victim's speed multiplier while slowed
 export let TACKLE_SLOW_TIME = 1.7;   // s of slow
 export let TACKLE_STUN = 0.22;       // s of "cannot act" from the FRONT — a nudge, not a knockdown
@@ -162,6 +165,10 @@ export let HIT_STOP_POWER = 0.085;
 export let HIT_STOP_TACKLE = 0.06;
 
 // ---- Power shots -----------------------------------------------------------
+// 0 = no passive fill at all. Kept as a dial rather than deleted, because "how much of the
+// gauge should the clock give you" is exactly the kind of thing worth arguing about with a
+// slider — but it starts at nothing, because the brief is that you earn it by kicking them.
+export let GAUGE_PASSIVE = 0;        // fraction of the gauge per second, 0 = none
 export let GAUGE_FULL = 21;          // Cut with PACE 0.68. The match is still 60 REAL seconds, so a
                                       // slower game does not change how often the gauge fills — but it
                                       // does mean far fewer ball contacts to spend it on, and power
@@ -174,6 +181,22 @@ export const GAUGE_CONCEDE_BONUS = 0.22; // conceding a goal gifts this fraction
 // fires nothing by itself. While it lasts, KICKING the ball launches a power shot and
 // kicking the OPPONENT lands your signature effect on them. Two buttons, two distinct jobs:
 // kick strikes, power decides what the strike is.
+// ── THE POWER MOVE ───────────────────────────────────────────────────────────
+// It used to be a MODE: press power, get 4.5 seconds in which your next kick was a special
+// shot. That made the gauge a thing you spent on an ordinary touch, and it never read as a
+// super move — the shot came off the same boot as everything else.
+//
+// Now it is a COMMITTED VOLLEY. Press power with a full gauge and the player winds up for
+// half a second while the ball is drawn up above their head and lights up; then it fires
+// dead flat at three times a normal power shot, at a height a standing player cannot reach.
+// The only answer is to jump into its line at the right moment.
+export let POWER_CHARGE_TIME = 0.5;   // s of wind-up. Long enough to see and jump for.
+export let POWER_CHARGE_HEIGHT = 122; // px above the ground the ball is held, and flies at.
+                                      // A standing head reaches ~87 and a jump apex ~150, so
+                                      // this is exactly the band a jump owns and standing
+                                      // still does not.
+export let POWER_VOLLEY_SPEED = 3;    // multiples of POWER_SHOT_SPEED. Powered balls are
+                                      // exempt from BALL_MAX_SPEED, so this actually lands.
 export let POWER_MODE_TIME = 4.5;
 export let POWER_SHOT_SPEED = 1000;   // Ball-only slowdown pass. NOTE the reference here had ALREADY
                                       // been cut 2100 -> 1250 by another session before I touched it;
@@ -494,6 +517,10 @@ const SETTERS = {
   HEADER_LIFT: (v) => { HEADER_LIFT = v; },
   GAUGE_FULL: (v) => { GAUGE_FULL = v; },
   POWER_MODE_TIME: (v) => { POWER_MODE_TIME = v; },
+  POWER_CHARGE_TIME: (v) => { POWER_CHARGE_TIME = v; },
+  POWER_CHARGE_HEIGHT: (v) => { POWER_CHARGE_HEIGHT = v; },
+  POWER_VOLLEY_SPEED: (v) => { POWER_VOLLEY_SPEED = v; },
+  GAUGE_PASSIVE: (v) => { GAUGE_PASSIVE = v; },
   POWER_SHOT_LIFE: (v) => { POWER_SHOT_LIFE = v; },
   POWER_SHOT_SAG: (v) => { POWER_SHOT_SAG = v; },
   POWER_BLOCK_REBOUND: (v) => { POWER_BLOCK_REBOUND = v; },

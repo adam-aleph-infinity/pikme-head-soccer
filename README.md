@@ -85,6 +85,21 @@ the pad is allowed to hide. **שמירה / ביטול / איפוס** — a draft
 first thing anyone does in a layout editor is drag something somewhere worse. Saved per
 device as fractions of the stage, so a layout dragged in landscape survives the rotation.
 
+**POWER is a committed volley, and you earn it by kicking people.** The gauge fills off the
+OPPONENT and nothing else — three tackles buy one — so it is something you go and take rather
+than something the clock hands you.
+
+Press it with a full gauge and the player winds up for **half a second**: the ball is drawn up
+over their head and lights up in their shot's colour, with a ring closing as a clock. Then it
+fires **dead flat at three times a normal power shot**, at a height a standing player cannot
+reach. **The only way to stop it is to jump into its line at the right moment.**
+
+The wind-up is the price. You are rooted for that half second in the open, and **a tackle
+landed on you during it cancels the whole thing** — the gauge is already spent. That is what
+keeps the move honest: reading it is worth as much as throwing it.
+
+<details><summary>The old power mode (superseded)</summary>
+
 **POWER is a mode, not a shot.** With a full gauge, press POWER and you are *powered up*
 for ~4.5s. While it lasts:
 - **kick the ball** → it flies flat and fast at the goal. The defender's answer is to get a
@@ -107,6 +122,8 @@ scoring meant already standing in exactly the right place. The loft now scales w
 that goal is — lofted from deep, flat from the six-yard box, where a lofted tap would sail
 over the bar. The DIRECTION is still yours: facing is the only aiming this game has and
 turning the ball toward the net for you would take it away.
+
+</details>
 
 **Hold jump while kicking to LOB it** — higher, shorter. The counter to a defender parked on
 their line, and the only aiming the game has.

@@ -20,6 +20,30 @@ import { createBot, botInput } from './shared/bot.js';
 C.tune({ PICKUPS_ON: 1 });
 
 let pass = 0, fail = 0;
+
+// Fire the power move and let it land. The button buys a committed VOLLEY now — press, wind
+// up for POWER_CHARGE_TIME, and the ball goes — so a test that needs a power BALL has to run
+// the wind-up out rather than arm and kick.
+function firePower(mm, i = 0) {
+  const p = mm.players[i];
+  p.gauge = 1; p.prev = {}; mm.hitStop = 0;
+  const inputs = [{}, {}]; inputs[i] = { power: true };
+  step(mm, inputs);
+  mm.events.length = 0;
+  for (let t = 0; t < Math.round(C.POWER_CHARGE_TIME / C.TICK) + 4 && !mm.ball.power; t++) {
+    mm.hitStop = 0; step(mm, [{}, {}]); mm.events.length = 0;
+  }
+  return mm.ball.power;
+}
+
+// Where a JUMPING defender is when the volley passes. It flies at POWER_CHARGE_HEIGHT, above
+// a standing head — that is the point of the move — so any test about a defender meeting one
+// has to put them up there.
+function inLine(mm, p) {
+  p.y = C.GROUND_Y - (C.POWER_CHARGE_HEIGHT - C.BODY_H - C.HEAD_R + 18);
+  p.vy = 0; p.onGround = false;
+}
+
 const ok = (name, cond, extra = '') => {
   if (cond) { pass++; }
   else { fail++; console.log(`  ✗ ${name}${extra ? '  — ' + extra : ''}`); }
@@ -503,13 +527,8 @@ function askForSpawn(m, ax = 300, bx = 700) {
   const armAndFire = (mm) => {
     const a = mm.players[0], b = mm.players[1];
     a.x = 300; b.x = 640; b.y = C.GROUND_Y; b.onGround = true;
-    a.gauge = 1;
-    step(mm, [{ power: true }, {}]);
-    mm.ball.x = a.x + a.facing * C.KICK_REACH;
-    mm.ball.y = a.y - C.BODY_H * 0.45;
-    mm.ball.vx = 0; mm.ball.vy = 0;
-    a.kickCd = 0;
-    step(mm, [{ kick: true }, {}]);
+    firePower(mm, 0);
+    inLine(mm, b);
     mm.hitStop = 0;
     mm.events.length = 0;
     const seen = [];
@@ -537,20 +556,14 @@ function askForSpawn(m, ax = 300, bx = 700) {
   ok('and the shield is spent — it is one shot, not a wall', !hasShield(shielded, 1));
 }
 {
-  // The other half of the shield's promise: a POWERED BOOT is the same power shot delivered
-  // by hand, so it eats that too.
+  // This used to test the other half of the shield's promise: a POWERED BOOT — kicking the
+  // opponent while power mode was up — landed your signature effect by hand, and the shield
+  // ate that too. Power mode is gone; the button buys a committed volley now, and there is no
+  // powered boot to eat. The shield's remaining job — paying for one blocked shot — is
+  // tested directly above, and that is the whole item.
   const m = fresh();
   collect(m, 1, PU.SHIELD, 500);
-  const a = m.players[0], b = m.players[1];
-  a.x = 500; b.x = 500 + C.KICK_REACH; b.y = C.GROUND_Y;
-  a.gauge = 1; a.facing = 1;
-  step(m, [{ power: true }, {}]);
-  a.kickCd = 0;
-  m.events.length = 0;
-  step(m, [{ kick: true }, {}]);
-  const seen = [...m.events];
-  ok('SHIELD eats a powered tackle too', seen.some((e) => e.type === 'puShieldBreak'));
-  ok('and the mode is still spent', a.armed <= 0, 'or it would be a free re-try');
+  ok('a shield survives until something hits it', hasShield(m, 1));
 }
 
 // ═══ 8. A MAGNET CANNOT SCORE FOR YOU ══════════════════════════════════════
@@ -599,11 +612,7 @@ function askForSpawn(m, ax = 300, bx = 700) {
   const a = m.players[0];
   a.x = 300; a.gauge = 1;
   m.players[1].x = 700; m.players[1].y = C.GROUND_Y - 400;   // out of the shot's path
-  step(m, [{ power: true }, {}]);
-  m.ball.x = a.x + a.facing * C.KICK_REACH;
-  m.ball.y = a.y - C.BODY_H * 0.45;
-  m.ball.vx = 0; m.ball.vy = 0; a.kickCd = 0;
-  step(m, [{ kick: true }, {}]);
+  firePower(m, 0);
   m.hitStop = 0;
   ok('(a power shot is in flight past a magnet)', !!m.ball.power);
   const vy0 = m.ball.vy;

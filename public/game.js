@@ -604,6 +604,8 @@ function drainEvents() {
       // A block is the defender's big moment — it deserves to read as one.
       banner('נחסם!', SHOTS[e.shot].color);
     }
+    else if (e.type === 'charging') { banner(SHOTS[e.shot].name + '!', SHOTS[e.shot].color); flash(SHOTS[e.shot].glow, 0.12); }
+    else if (e.type === 'chargeLost') banner('נקטע!', '#8ea0be');
     else if (e.type === 'armed') banner(SHOTS[e.shot].name, SHOTS[e.shot].color);
     else if (e.type === 'ballReset') banner('כדור חדש', '#8ea0be');
     else if (e.type === 'powershot') { banner(SHOTS[e.shot].name, SHOTS[e.shot].color); flash(SHOTS[e.shot].glow, 0.22); }
@@ -904,6 +906,7 @@ function draw() {
   drawMeteorMarks(g);                // on the grass, under the players
   for (const p of M.players) drawAura(g, p);
   for (const p of M.players) drawBody(g, p);
+  drawCharge(g);                     // the power wind-up, over the ball it is lifting
   drawSkills(g);                     // darts, dogs and goal walls, in front of the bodies
   drawPickup(g);                     // in front of the bodies — it must never be hidden
   drawPuBadges(g);                   // and above the heads, clear of the DOM head layer
@@ -1387,6 +1390,45 @@ function drawPuToken(g, kind, cx, cy, r, alpha = 1) {
 // react to it, so each is one silhouette in one colour: a pink dart at head height, a brown
 // dog on the ground line, a pale barrier across a goal mouth, and a furnace-red ring on the
 // player whose next boot is a super kick.
+// THE WIND-UP. Half a second in which the ball is drawn up over a player's head and lights
+// up, and the whole point is that the OTHER player can read it: the ring tightens, the ball
+// cycles through the shooter's own shot colour, and both of them know exactly when it goes.
+function drawCharge(g) {
+  for (const p of M.players) {
+    if (p.charge <= 0) continue;
+    const t = 1 - p.charge / C.POWER_CHARGE_TIME;          // 0 at the press, 1 at the shot
+    const col = p.shot.color;
+    const cx = p.x, cy = C.GROUND_Y - C.POWER_CHARGE_HEIGHT;
+
+    // A ring on the ground under the charging player: this is where it is coming FROM.
+    g.strokeStyle = col;
+    g.lineWidth = 2 + t * 2;
+    g.globalAlpha = 0.35 + t * 0.5;
+    g.beginPath();
+    g.ellipse(p.x, C.GROUND_Y - 2, 34 - t * 14, 9 - t * 4, 0, 0, Math.PI * 2);
+    g.stroke();
+
+    // The charge ring closing on the ball — the clock a defender reads.
+    g.beginPath();
+    g.arc(cx, cy, 34 - t * 18, -Math.PI / 2, -Math.PI / 2 + t * Math.PI * 2);
+    g.stroke();
+    g.globalAlpha = 1;
+
+    // …and the ball itself, cycling hot. Drawn OVER the ball the renderer already drew, so
+    // the colour reads as the ball charging rather than as a second object.
+    const pulse = 0.55 + 0.45 * Math.sin(performance.now() / 40);
+    g.globalAlpha = 0.35 + 0.65 * t * pulse;
+    R2(g, M.ball.x - C.BALL_R, M.ball.y - C.BALL_R, C.BALL_R * 2, C.BALL_R * 2, col);
+    g.globalAlpha = 1;
+    // A few sparks pulled toward it, so the half second reads as gathering rather than waiting.
+    for (let i = 0; i < 3; i++) {
+      const a = (performance.now() / 200 + i * 2.1) % (Math.PI * 2);
+      const r = 46 * (1 - t) + 10;
+      R2(g, cx + Math.cos(a) * r - 2, cy + Math.sin(a) * r * 0.6 - 2, 4, 4, col);
+    }
+  }
+}
+
 function drawSkills(g) {
   // GOAL WALLS — a lattice across the mouth of a goal that is briefly shut.
   for (let i = 0; i < 2; i++) {
@@ -2025,9 +2067,11 @@ function syncHud() {
   const mine = M.players[me];
   updateHand(me);
   const pb = $('#powerBtn');
-  pb.classList.toggle('ready', mine.gauge >= 1 && mine.armed <= 0);
-  pb.classList.toggle('live', mine.armed > 0);
-  pb.textContent = mine.armed > 0 ? mine.armed.toFixed(1) : 'POWER';
+  // The button follows the move it now buys: lit when a full gauge means you can commit,
+  // and counting the wind-up down while you are committed to it.
+  pb.classList.toggle('ready', mine.gauge >= 1 && mine.charge <= 0);
+  pb.classList.toggle('live', mine.charge > 0);
+  pb.textContent = mine.charge > 0 ? mine.charge.toFixed(1) : 'POWER';
   $('#rtt').textContent = ONLINE ? `${NET.rtt}ms` : '';
 }
 

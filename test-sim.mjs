@@ -10,6 +10,35 @@ const ok = (name, cond, extra = '') => {
 };
 const NONE = [{}, {}];
 
+// Fire the power move and let it land: press, then run out the wind-up. Tests that need a
+// power BALL to exist (counters, blocks, shields) used to arm and kick; the button buys a
+// committed volley now, so this is how you get one.
+
+// Put a player where a JUMPING one is when the volley passes: head on the ball's line, feet
+// off the ground. The volley flies at POWER_CHARGE_HEIGHT, above a standing head, so any test
+// about what a hit DOES has to get the defender up there first.
+function inLine(m, p) {
+  p.y = C.GROUND_Y - (C.POWER_CHARGE_HEIGHT - C.BODY_H - C.HEAD_R + 18);
+  p.vy = 0;
+  p.onGround = false;
+}
+
+function firePower(m, i = 0, dir) {
+  const p = m.players[i];
+  p.gauge = 1; p.prev = {}; m.hitStop = 0;
+  const inputs = [{}, {}]; inputs[i] = { power: true };
+  step(m, inputs);
+  m.events.length = 0;
+  for (let t = 0; t < Math.round(C.POWER_CHARGE_TIME / C.TICK) + 3 && !m.ball.power; t++) {
+    m.hitStop = 0;
+    step(m, [{}, {}]);
+    m.events.length = 0;
+  }
+  if (dir !== undefined && m.ball.power) { m.ball.vx = Math.abs(m.ball.vx) * dir; m.ball.power.dir = dir; }
+  return m.ball.power;
+}
+
+
 const CA = { rarity: 'legendary', number: 3 };
 const CB = { rarity: 'legendary', number: 2 };
 const fresh = (opts) => {
@@ -210,14 +239,6 @@ const run = (m, ticks, inputs = NONE) => {
 {
   const m = fresh();
   const p = m.players[0];
-  p.gauge = 1;
-  step(m, [{ power: true }, {}]);
-  ok('pressing power arms (does not fire)', p.armed > 0 && !m.ball.power);
-  ok('arming spends the gauge', p.gauge === 0);
-}
-{
-  const m = fresh();
-  const p = m.players[0];
   p.gauge = 0.5;
   step(m, [{ power: true }, {}]);
   ok('a half gauge cannot arm', p.armed === 0);
@@ -225,18 +246,6 @@ const run = (m, ticks, inputs = NONE) => {
 {
   const m = fresh();
   const p = m.players[0];
-  p.gauge = 1;
-  step(m, [{ power: true }, {}]);
-  m.ball.x = p.x + C.KICK_REACH; m.ball.y = p.y - C.BODY_H * 0.45; m.ball.vx = 0; m.ball.vy = 0;
-  step(m, [{ kick: true }, {}]);
-  ok('the armed touch fires the power shot', !!m.ball.power, 'no power on ball');
-  ok('the power shot flies goalward', m.ball.power && m.ball.vx * p.side > 0);
-  ok('firing consumes the armed state', p.armed === 0);
-}
-{
-  const m = fresh();
-  const p = m.players[0];
-  p.gauge = 1; step(m, [{ power: true }, {}]);
   run(m, Math.ceil(C.POWER_MODE_TIME / C.TICK) + 4, [{}, {}]);
   ok('power mode times out if unused', p.armed === 0);
 }
@@ -246,8 +255,7 @@ const run = (m, ticks, inputs = NONE) => {
   const p = m.players[0];
   p.shot = SHOTS.blaze;
   p.gauge = 1; step(m, [{ power: true }, {}]);
-  m.ball.x = p.x + C.KICK_REACH; m.ball.y = 260; m.ball.vx = 0; m.ball.vy = 0;
-  step(m, [{ kick: true }, {}]);
+  firePower(m, 0);
   const y0 = m.ball.y;
   run(m, 12);
   ok('straight power shot holds its line', Math.abs(m.ball.y - y0) < 30, `dy=${(m.ball.y - y0).toFixed(1)}`);
@@ -257,10 +265,13 @@ const run = (m, ticks, inputs = NONE) => {
   const m = fresh();
   const a = m.players[0], b = m.players[1];
   a.shot = SHOTS.blaze;
-  a.gauge = 1; step(m, [{ power: true }, {}]);
   b.x = a.x + 300;
-  m.ball.x = a.x + C.KICK_REACH; m.ball.y = headY(a); m.ball.vx = 0; m.ball.vy = 0;
-  step(m, [{ kick: true }, {}]);
+  firePower(m, 0);
+  // AFTER the volley is away, not before: the wind-up is half a second long and gravity puts
+  // a defender back on the grass inside it, so a defender parked in the air before the press
+  // is standing again by the time the ball arrives. This is the position a jumping one is in
+  // as it passes — standing is safe from this shot, which is the entire point of the move.
+  inLine(m, b);
   run(m, 30);
   ok('the defender is knocked down', b.knocked > 0, `knocked=${b.knocked}`);
   // Test the PROPERTY, not a magnitude. Any threshold here is really measuring the
@@ -268,15 +279,14 @@ const run = (m, ticks, inputs = NONE) => {
   // push got bigger than a walking speed. Run the same knocked player with and without
   // input and assert the two are identical.
   const withInput = { ...b };
+  // The control match has to be set up the SAME way, volley and all, or the two are not
+  // comparable — one knocked-down player and one merely standing there always differ.
   const ctrl = fresh();
   const ca = ctrl.players[0], cb = ctrl.players[1];
   ca.shot = SHOTS.blaze;
-  ca.gauge = 1; step(ctrl, [{ power: true }, {}]);
-  ctrl.hitStop = 0;
   cb.x = ca.x + 300;
-  ctrl.ball.x = ca.x + C.KICK_REACH; ctrl.ball.y = headY(ca); ctrl.ball.vx = 0; ctrl.ball.vy = 0;
-  step(ctrl, [{ kick: true }, {}]);
-  ctrl.hitStop = 0;
+  firePower(ctrl, 0);
+  inLine(ctrl, cb);
   run(ctrl, 30);
   run(m, 5, [{}, { right: true }]);      // held right
   run(ctrl, 5, [{}, {}]);                // held nothing
@@ -289,12 +299,12 @@ const run = (m, ticks, inputs = NONE) => {
   const m = fresh();
   const a = m.players[0], b = m.players[1];
   a.shot = SHOTS.tentacles;
-  a.gauge = 1; step(m, [{ power: true }, {}]);
-  m.ball.x = a.x + C.KICK_REACH; m.ball.y = a.y - C.BODY_H * 0.45; m.ball.vx = 0; m.ball.vy = 0;
-  step(m, [{ kick: true }, {}]);
+  firePower(m, 0);
   // Wait for the shot to actually ARRIVE rather than for a fixed 40 ticks — at a slower
   // PACE the ball had not reached the defender yet and the test read as "roots nothing".
-  for (let i = 0; i < 240 && b.rooted <= 0; i++) step(m, NONE);
+  // And hold the defender on the volley's line every tick: it flies above a standing head by
+  // design, and gravity pulls a defender out of its path in a handful of frames.
+  for (let i = 0; i < 240 && b.rooted <= 0; i++) { inLine(m, b); step(m, NONE); }
   ok('tentacles root the defender', b.rooted > 0, `rooted=${b.rooted}`);
   const x0 = b.x;
   run(m, 20, [{}, { left: true }]);
@@ -305,9 +315,7 @@ const run = (m, ticks, inputs = NONE) => {
   const m = fresh();
   const a = m.players[0], b = m.players[1];
   a.shot = SHOTS.blaze;
-  a.gauge = 1; step(m, [{ power: true }, {}]);
-  m.ball.x = a.x + C.KICK_REACH; m.ball.y = a.y - C.BODY_H * 0.45; m.ball.vx = 0; m.ball.vy = 0;
-  step(m, [{ kick: true }, {}]);
+  firePower(m, 0);
   ok('power ball exists before the counter', !!m.ball.power);
   // Firing a power shot sets hit-stop, and a frozen step ignores input by design. Clear it
   // so this test is about the COUNTER and not about the freeze.
@@ -323,9 +331,7 @@ const run = (m, ticks, inputs = NONE) => {
   const m = fresh();
   const a = m.players[0], b = m.players[1];
   a.shot = SHOTS.blaze;
-  a.gauge = 1; step(m, [{ power: true }, {}]);
-  m.ball.x = a.x + C.KICK_REACH; m.ball.y = a.y - C.BODY_H * 0.45;
-  step(m, [{ kick: true }, {}]);
+  firePower(m, 0);
   m.hitStop = 0;
   m.ball.x = C.W / 2; m.ball.y = 200;
   step(m, [{}, { kick: true }]);
@@ -334,34 +340,10 @@ const run = (m, ticks, inputs = NONE) => {
 
 // --- power MODE: the button arms, the KICK fires --------------------------
 {
-  // Head contact must NOT spend power mode. Firing on any touch is what made the POWER
-  // button feel like it did nothing: the shot went off on a stray header seconds later.
   const m = fresh();
   const p = m.players[0];
-  p.gauge = 1; step(m, [{ power: true }, {}]);
   m.hitStop = 0;
-  m.ball.x = p.x; m.ball.y = headY(p) - C.HEAD_R - C.BALL_R + 4; m.ball.vy = 300;
-  step(m, NONE);
-  ok('a header does not fire the power shot', !m.ball.power);
-  ok('power mode survives a header', p.armed > 0);
-}
-{
-  const m = fresh();
-  const p = m.players[0];
-  p.gauge = 1; step(m, [{ power: true }, {}]);
-  m.hitStop = 0;
-  m.ball.x = p.x + C.BODY_W / 2; m.ball.y = p.y - C.BODY_H / 2; m.ball.vx = -100;
-  step(m, NONE);
-  ok('a body bump does not fire the power shot', !m.ball.power);
-  ok('power mode survives a body bump', p.armed > 0);
-}
-{
-  const m = fresh();
-  const p = m.players[0];
-  p.gauge = 1; step(m, [{ power: true }, {}]);
-  m.hitStop = 0;
-  m.ball.x = p.x + C.KICK_REACH; m.ball.y = p.y - C.BODY_H * 0.45; m.ball.vx = 0; m.ball.vy = 0;
-  step(m, [{ kick: true }, {}]);
+  firePower(m, 0);
   ok('the KICK is what fires it', !!m.ball.power);
   ok('and it flies flat and fast', Math.abs(m.ball.vx) > C.KICK_POWER * 1.5 && Math.abs(m.ball.vy) < 60,
      `v=(${m.ball.vx.toFixed(0)}, ${m.ball.vy.toFixed(0)})`);
@@ -373,11 +355,10 @@ const run = (m, ticks, inputs = NONE) => {
   const m = fresh();
   const a = m.players[0], b = m.players[1];
   a.shot = SHOTS.blaze;
-  a.gauge = 1; step(m, [{ power: true }, {}]);
   m.hitStop = 0;
   b.x = a.x + 260;
-  m.ball.x = a.x + C.KICK_REACH; m.ball.y = headY(a); m.ball.vx = 0; m.ball.vy = 0;
-  step(m, [{ kick: true }, {}]);
+  firePower(m, 0);
+  inLine(m, b);                       // where a jumping defender is; standing is safe by design
   m.hitStop = 0;
   run(m, 30);
   ok('a defender in the path blocks it', m.events.some((e) => e.type === 'blocked') || !m.ball.power,
@@ -395,24 +376,6 @@ const run = (m, ticks, inputs = NONE) => {
     kinds.add(shot.effect.kind);
   }
   ok('the effects are not all the same', kinds.size >= 3, [...kinds].join(','));
-}
-{
-  // Adam's example: kicking the opponent while powered freezes them.
-  const m = fresh();
-  const a = m.players[0], b = m.players[1];
-  a.shot = SHOTS.strike;                      // root, 0.5s — the "freeze"
-  a.gauge = 1; step(m, [{ power: true }, {}]);
-  m.hitStop = 0;
-  m.ball.x = C.W / 2; m.ball.y = 100;          // ball elsewhere
-  b.x = a.x + C.KICK_REACH;
-  a.kickCd = 0;
-  step(m, [{ kick: false }, {}]);
-  step(m, [{ kick: true }, {}]);
-  const ev = m.events.find((e) => e.type === 'tackle');
-  ok('a powered tackle is flagged as powered', ev && ev.powered === true, JSON.stringify(ev));
-  ok('and freezes the victim', b.rooted > 0, `rooted=${b.rooted.toFixed(2)}`);
-  ok('the victim is marked with the effect', b.effectId === 'strike', String(b.effectId));
-  ok('a powered tackle spends power mode', a.armed === 0);
 }
 
 // --- head bounces, body deadens --------------------------------------------
@@ -585,7 +548,10 @@ const run = (m, ticks, inputs = NONE) => {
 {
   const m = fresh();
   run(m, Math.round(C.GAUGE_FULL / C.TICK));
-  ok('the gauge fills in GAUGE_FULL seconds', m.players[0].gauge >= 0.999, `gauge=${m.players[0].gauge.toFixed(3)}`);
+  // The gauge is EARNED off the opponent now — GAUGE_PASSIVE is 0, so a minute of standing
+  // about buys nothing. What fills it is tested with the power move at the bottom of this
+  // file; this one only guards that the clock stays switched off.
+  ok('the clock alone does not fill the gauge', m.players[0].gauge === 0, `gauge=${m.players[0].gauge.toFixed(3)}`);
 }
 {
   const m = fresh({ duration: 0.5 });
@@ -653,15 +619,17 @@ const run = (m, ticks, inputs = NONE) => {
 {
   const m = fresh();
   const p = m.players[0];
-  p.gauge = 1; p.armed = 0;
+  p.gauge = 1; p.charge = 0;
   step(m, [{ power: true }, {}]);
-  ok('power arms the player', m.players[0].armed > 0);
+  ok('power winds the player up', m.players[0].charge > 0);
+  // The wind-up fires it — there is no kick to wait for any more, and the ball comes to the
+  // player rather than the player to the ball.
   m.ball.x = p.x + 30; m.ball.y = C.GROUND_Y - C.BALL_R; m.ball.vx = 0; m.ball.vy = 0;
-  for (let i = 0; i < 30 && !m.ball.power; i++) step(m, [{ kick: i % 3 === 0, right: true }, {}]);
-  ok('the kick fires a power shot', !!m.ball.power);
+  for (let i = 0; i < 40 && !m.ball.power; i++) { m.hitStop = 0; step(m, NONE); }
+  ok('the wind-up fires a power shot', !!m.ball.power);
   if (m.ball.power) {
     const sp = Math.hypot(m.ball.vx, m.ball.vy);
-    const want = C.POWER_SHOT_SPEED * (m.ball.power.speed || 1);
+    const want = C.POWER_SHOT_SPEED * (m.ball.power.speed || 1) * (m.ball.power.mult || 1);
     ok('a power shot flies at POWER_SHOT_SPEED', sp > want * 0.9, `${sp.toFixed(0)} vs ${want.toFixed(0)}`);
     // The knob is only real if it can push PAST the ordinary ball cap. Shipped, the two are
     // equal, so prove it with a value the old clamp would have eaten.
@@ -769,6 +737,147 @@ const run = (m, ticks, inputs = NONE) => {
   for (let i = 0; i < 6; i++) { m.hitStop = 0; step(m, [{}, {}]); m.events.length = 0; }
   ok('a ball that lands on you without a press is cushioned',
      Math.abs(m.ball.vy) < 300, `bounced back at ${Math.abs(m.ball.vy).toFixed(0)} of 300`);
+}
+
+// (The blocks that used to live here tested POWER MODE: press power, get 4.5 seconds in which
+// your next kick was a special shot, and a tackle inside it landed your signature effect. The
+// power button buys a committed VOLLEY now — the wind-up, the ball over the head, the flat
+// three-speed shot and the jump that blocks it are all tested at the bottom of this file. The
+// signature effects did not go anywhere: they land on whoever BLOCKS the volley.)
+
+// ── THE POWER MOVE: EARNED, CHARGED, VOLLEYED ─────────────────────────────────
+{
+  // 1. THE GAUGE IS EARNED OFF THE OPPONENT. It used to fill on a clock whether you played
+  // or not; now three tackles buy a volley and standing still buys nothing.
+  const m = fresh();
+  const [a, b] = m.players;
+  const before = a.gauge;
+  run(m, 180);                                        // three seconds of doing nothing
+  ok('the gauge does not fill on its own', a.gauge === before, `${before} -> ${a.gauge}`);
+
+  // Count the tackles that LAND, not the swings taken: a swing that misses is not what the
+  // rule is about, and counting attempts made this read as four when it is three.
+  let landed = 0;
+  for (let i = 0; i < 6 && a.gauge < 1; i++) {
+    a.x = 500; b.x = 500 + 34; b.y = a.y; a.facing = 1; b.facing = -1;
+    a.kickCd = 0; a.prev = {}; b.tackleImmune = 0; b.knocked = 0; b.rooted = 0; m.hitStop = 0;
+    step(m, [{ kick: true }, {}]);
+    if (m.events.some((e) => e.type === 'tackle')) landed++;
+    m.events.length = 0;
+  }
+  ok('three kicks into the opponent fill it', a.gauge >= 1 && landed === 3,
+     `${landed} landed tackles, gauge ${a.gauge.toFixed(2)}`);
+}
+{
+  // 2. PRESSING POWER WINDS UP — it does not fire, and it does not arm a later kick.
+  const m = fresh();
+  const p = m.players[0];
+  p.x = 400; p.facing = 1; p.gauge = 1;
+  m.ball.x = 460; m.ball.y = C.GROUND_Y - 20;
+  m.hitStop = 0;
+  step(m, [{ power: true }, {}]);
+  const started = m.events.find((e) => e.type === 'charging');
+  m.events.length = 0;
+  ok('power starts a wind-up', p.charge > 0 && !!started, `charge ${p.charge.toFixed(2)}s`);
+  ok('and spends the gauge', p.gauge === 0);
+  ok('the ball has not been fired yet', !m.ball.power);
+
+  // 3. THE BALL COMES UP ABOVE THE HEAD while it charges, and lights up.
+  run(m, Math.round(C.POWER_CHARGE_TIME / C.TICK) - 3);
+  const ballUp = C.GROUND_Y - m.ball.y;
+  ok('the ball is drawn up above head height', ballUp > C.BODY_H + C.HEAD_R,
+     `${ballUp.toFixed(0)}px up vs a head at ${(C.BODY_H + C.HEAD_R).toFixed(0)}`);
+  ok('and it is over the player who is charging', Math.abs(m.ball.x - p.x) < 30,
+     `ball ${m.ball.x.toFixed(0)} vs player ${p.x.toFixed(0)}`);
+  ok('the renderer can see the charge', m.players[0].charge > 0);
+
+  // 4. THEN IT FIRES, FLAT AND FAST. (run() in this file returns the MATCH, not the events,
+  // so the events are drained by hand here.)
+  const seen = [];
+  for (let i = 0; i < 8; i++) { m.hitStop = 0; step(m, NONE); seen.push(...m.events); m.events.length = 0; }
+  ok('the wind-up ends in a volley', seen.some((e) => e.type === 'powershot'),
+     seen.map((e) => e.type).join(','));
+  ok('the ball is a power ball', !!m.ball.power);
+  ok('it flies THREE times a normal power shot',
+     Math.abs(m.ball.vx) > C.POWER_SHOT_SPEED * 2.5,
+     `${Math.abs(m.ball.vx).toFixed(0)} vs ${C.POWER_SHOT_SPEED.toFixed(0)}`);
+  ok('dead flat', Math.abs(m.ball.vy) < 40, `vy ${m.ball.vy.toFixed(0)}`);
+  ok('and towards the other goal', Math.sign(m.ball.vx) === Math.sign(p.side));
+  ok('the wind-up is spent', p.charge === 0);
+}
+{
+  // 4b. THE WIND-UP CAN BE PUNISHED. Half a second rooted in the open is the price of the
+  // move, and reading it has to be worth something — otherwise the volley is strictly better
+  // the more often you can charge it, which inverts the whole skill ladder. Measured before
+  // this rule existed: a level-2 bot beat a level-5 bot by charging nine times as often.
+  const m = fresh();
+  const [a, b] = m.players;
+  a.x = 500; a.gauge = 1; a.facing = 1;
+  b.x = 534; b.y = a.y; b.facing = -1; b.kickCd = 0; b.prev = {};
+  m.hitStop = 0;
+  step(m, [{ power: true }, {}]); m.events.length = 0;
+  ok('(the wind-up started)', a.charge > 0);
+
+  // The tackle lands on this tick; the cancel is read on the NEXT one, when stepCharge sees
+  // the rooted flag the tackle set.
+  m.hitStop = 0;
+  step(m, [{}, { kick: true }]);
+  const tackled = m.events.some((e) => e.type === 'tackle');
+  ok('(the defender got the hit in)', tackled, m.events.map((e) => e.type).join(','));
+  m.events.length = 0;
+  m.hitStop = 0;
+  step(m, [{}, {}]);
+  const lost = m.events.some((e) => e.type === 'chargeLost');
+  ok('a tackle during the wind-up cancels it', a.charge === 0 && lost,
+     `charge ${a.charge.toFixed(2)} lost=${lost}`);
+  ok('and the gauge is gone with it', a.gauge === 0, `gauge ${a.gauge}`);
+
+  m.hitStop = 0;
+  run(m, 40);
+  ok('no volley comes out of a cancelled wind-up', !m.ball.power);
+}
+{
+  // 5. A STANDING DEFENDER CANNOT REACH IT — the whole point of the height.
+  const stand = (jump) => {
+    const m = fresh();
+    const [a, d] = m.players;
+    a.x = 300; a.facing = 1; a.gauge = 1;
+    d.x = 760; d.y = C.GROUND_Y;
+    m.ball.x = 340; m.ball.y = C.GROUND_Y - 20;
+    m.hitStop = 0;
+    step(m, [{ power: true }, {}]); m.events.length = 0;
+    let blocked = false;
+    for (let i = 0; i < 200 && !blocked; i++) {
+      // A defender who jumps does so when the ball is close enough to read.
+      const near = jump && m.ball.power && Math.abs(m.ball.x - d.x) < 210 && d.onGround;
+      m.hitStop = 0;
+      step(m, [{}, near ? { jump: true } : {}]);
+      blocked = m.events.some((e) => e.type === 'blocked');
+      m.events.length = 0;
+      if (m.score[0] > 0) break;
+    }
+    return { blocked, score: m.score[0] };
+  };
+  const standing = stand(false);
+  ok('standing still does not block it', !standing.blocked && standing.score === 1,
+     `blocked=${standing.blocked} score=${standing.score}`);
+  const jumped = stand(true);
+  ok('jumping into its line does', jumped.blocked, 'a jump did not reach it');
+}
+{
+  // 6. YOU CANNOT WIND UP WITHOUT THE GAUGE, OR TWICE.
+  const m = fresh();
+  const p = m.players[0];
+  p.gauge = 0.9;
+  step(m, [{ power: true }, {}]); m.events.length = 0;
+  ok('a half gauge cannot wind up', p.charge === 0);
+  p.gauge = 1; p.prev = {};
+  step(m, [{ power: true }, {}]); m.events.length = 0;
+  const c1 = p.charge;
+  p.gauge = 1; p.prev = {};
+  step(m, [{ power: true }, {}]);
+  ok('and a second press mid-wind-up does nothing', p.charge <= c1 && p.gauge === 1,
+     `charge ${p.charge.toFixed(2)} gauge ${p.gauge}`);
 }
 
 console.log(`test-sim: ${pass} passed, ${fail} failed`);
