@@ -117,6 +117,13 @@ check('three cards are on screen without ?pad=1',
 check('and so are the walk and act buttons',
   (await evalJs(`[...document.querySelectorAll('.pad .btn')].filter(b=>b.getBoundingClientRect().width>0).length`)) === 8);
 
+// What the card DOES, on the card. Three faces and three colours say the cards differ; they
+// do not say which one lets you jump twice.
+const tips = await evalJs(`[...document.querySelectorAll('#cardRow .card .card-tip')].map((e) => e.textContent)`);
+check('each card says what it does', tips.length === 3 && tips.every((t) => t && t.length > 2),
+  JSON.stringify(tips));
+check('and the three say different things', new Set(tips).size === 3, JSON.stringify(tips));
+
 check('every card painted its face',
   cards.every((c) => /url\(/.test(c.art)), cards.map((c) => c.art.slice(0, 40)).join(' | '));
 check('the faces are three DIFFERENT cards',

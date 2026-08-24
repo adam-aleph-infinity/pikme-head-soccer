@@ -85,6 +85,21 @@ export const PU_LABEL = {
   7: 'חץ מכווץ', 8: 'חומת שער', 9: 'בעיטת על', 10: 'כלב!',
 };
 
+// What it DOES, in the two or three words that fit across the bottom of a card. The name
+// alone is a label; this is the part a player needs once and then never again.
+export const PU_TIP = {
+  1: 'ראש גדול',
+  2: 'מושך כדור',
+  3: 'ממלא כוח',
+  4: 'חוסם מכה',
+  5: 'קפיצה כפולה',
+  6: 'מקפיא יריב',
+  7: 'מכווץ יריב',
+  8: 'סוגר שער',
+  9: 'בעיטה ענקית',
+  10: 'כלב תוקף',
+};
+
 // Four of the six leave a timer on a player. CHARGE is instant (it just fills the gauge)
 // and ICE writes into the player's existing `slow`, which already travels in the snapshot —
 // so neither of them costs a byte on the wire.

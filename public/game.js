@@ -6,7 +6,7 @@ import { createMatch, step, headY, headR, NO_FX } from '../shared/sim.js';
 import { createBot, botInput, DIFFICULTIES } from '../shared/bot.js';
 import { shotFor, SHOTS } from '../shared/powershots.js';
 import { activeMeteors, isRobot, robotCharging, actKind, ACT } from '../shared/spectacle.js';
-import { activePickup, puBadges, PU, PU_NAME, PU_COLOR, PU_LABEL, PU_KINDS } from '../shared/powerups.js';
+import { activePickup, puBadges, PU, PU_NAME, PU_COLOR, PU_LABEL, PU_TIP, PU_KINDS } from '../shared/powerups.js';
 import { cardAt, cardKind, cardFill, cardReady, cardCd, liveKind, cardCooldown,
          CARD_SLOTS } from '../shared/cards.js';
 import { activeDart, activeDog, goalWallT, hasSuperKick } from '../shared/skills.js';
@@ -1977,6 +1977,7 @@ function paintHand() {
     const kind = cardKind(M, me, s);
     btn.style.setProperty('--pc', PU_COLOR[kind]);
     btn.title = `${PU_LABEL[kind]} · ${HEB_RARITY[c.rarity]} ${c.number}`;
+    btn.querySelector('.card-tip').textContent = PU_TIP[kind] || PU_LABEL[kind];
     // Sized off the button's own box so the face fills the card at any edited size.
     const px = Math.max(28, Math.round(btn.getBoundingClientRect().width || 62));
     paintHead(btn.querySelector('.card-art'), c.rarity, c.number, px);

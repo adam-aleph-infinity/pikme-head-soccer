@@ -63,6 +63,34 @@ const shape = await ev(`(() => {
   return { top: box('.pick-top'), bar: box('.pick-bar'), grid: box('#cardGrid'), vh: innerHeight };
 })()`);
 ok('the header is one row, not three', shape.top.h <= 90, `${shape.top.h}px tall`);
+
+// THE SAFE ZONE. A landscape phone puts the notch on one SIDE and the home indicator along
+// the bottom; this screen only ever padded the top, so on a real handset the rarity tabs and
+// the play button sat underneath both. A headless browser reports no insets at all, so the
+// page carries a debug class that forces some — otherwise this is untestable anywhere except
+// on Adam's phone.
+const safe = await ev(`(() => {
+  document.body.classList.add('safedemo');
+  const L = 44, R = 44, B = 21;
+  const all = [...document.querySelectorAll('#pick .slot, .rarity-tabs button, .modes button, #playBtn, .netdot')]
+    .filter((e) => e.getBoundingClientRect().width > 0);
+  const out = all.filter((e) => {
+    const r = e.getBoundingClientRect();
+    return r.left < L - 1 || r.right > innerWidth - R + 1 || r.bottom > innerHeight - B + 1;
+  });
+  const why = out.map((e) => {
+    const r = e.getBoundingClientRect();
+    return (e.className || e.id) + '[' + Math.round(r.left) + '..' + Math.round(r.right) + ',b' + Math.round(r.bottom) + ']';
+  });
+  const bar = document.querySelector('.pick-bar').getBoundingClientRect();
+  document.body.classList.remove('safedemo');
+  return { checked: all.length, outside: out.length, why: why.join(' '),
+           bar: [Math.round(bar.left), Math.round(bar.right)], vw: innerWidth };
+})()`);
+ok('every control clears the notch and the home indicator', safe.outside === 0,
+   `${safe.outside} of ${safe.checked} outside: ${safe.why}`);
+ok('while the bar itself still reaches the screen edge',
+   safe.bar[0] <= 1 && safe.bar[1] >= safe.vw - 1, `bar spans ${safe.bar.join('..')} of ${safe.vw}`);
 ok('the control row is a thumb tall', shape.bar.h <= 56, `${shape.bar.h}px tall`);
 ok('and the album gets most of the screen', shape.grid.h > shape.top.h + shape.bar.h,
    `album ${shape.grid.h}px vs chrome ${shape.top.h + shape.bar.h}px`);

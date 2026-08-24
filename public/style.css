@@ -5,6 +5,18 @@
   --sa-l: env(safe-area-inset-left, 0px);
   --sa-r: env(safe-area-inset-right, 0px);
   --sa-b: env(safe-area-inset-bottom, 0px);
+  --sa-t: env(safe-area-inset-top, 0px);
+  /* The safe zone, as the four paddings every screen should use. A landscape phone puts the
+     NOTCH on the left or the right (up to 47px) and the home indicator along the bottom, and
+     the pick screen only ever padded the top — so on a real iPhone the rarity tabs and the
+     play button sat under both.
+     Kept as variables rather than inlined env() so a headless browser, which reports no
+     insets at all, can still be given some: body.safedemo below is what the harness uses to
+     prove this works on a machine that has no notch. */
+  --safe-l: max(10px, var(--sa-l));
+  --safe-r: max(10px, var(--sa-r));
+  --safe-b: max(6px, var(--sa-b));
+  --safe-t: var(--sa-t);
   --bg: #090c14;
   --panel: #131a29;
   --line: #24314a;
@@ -31,7 +43,12 @@ html, body {
 button { font: inherit; color: inherit; border: 0; background: none; cursor: pointer; }
 
 /* ─── PICK ─────────────────────────────────────────────────────────────── */
-#pick { padding: env(safe-area-inset-top) 12px 12px; gap: 10px; overflow: hidden; }
+#pick { padding: var(--safe-t) var(--safe-r) var(--safe-b) var(--safe-l); gap: 10px; overflow: hidden; }
+/* A notch-less machine has no insets to test against, so the harness forces some. It has to
+   override the RESOLVED values, not the env() inputs: --safe-* are computed once on :root
+   with max(), and that computed length is what inherits — redefining --sa-l further down the
+   tree does not re-run the max() above it. */
+body.safedemo { --safe-l: 44px; --safe-r: 44px; --safe-b: 21px; --safe-t: 12px; }
 .pick-head { text-align: center; padding-top: 10px; }
 .pick-head h1 { margin: 0; font-size: 30px; letter-spacing: -.5px; font-weight: 800; }
 .pick-head h1 span { color: var(--hot); }
@@ -79,7 +96,7 @@ button { font: inherit; color: inherit; border: 0; background: none; cursor: poi
   padding: 1px 5px; border-radius: 5px; background: #000a; font-weight: 700;
 }
 
-.pick-foot { display: flex; align-items: center; gap: 12px; padding-bottom: env(safe-area-inset-bottom); }
+.pick-foot { display: flex; align-items: center; gap: 12px; padding-bottom: var(--safe-b); }
 .diff { flex: 1; display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--dim); }
 .diff input { flex: 1; accent-color: var(--hot); }
 .diff b { color: var(--ink); min-width: 62px; text-align: center; }
@@ -236,7 +253,7 @@ body[data-mode="duo"] #slotFoe { opacity: .45; pointer-events: none; }
      which works right up until the album is 45 cards deep and the grid is two rows tall. So
      the page scrolls and the grid grows to its natural height — you flick to see more cards
      instead of scrubbing a 2-row window — while the part you press stays pinned. */
-  #pick { gap: 6px; padding: env(safe-area-inset-top) 10px 6px; overflow-y: auto; overflow-x: hidden; }
+  #pick { gap: 6px; padding: var(--safe-t) var(--safe-r) 0 var(--safe-l); overflow-y: auto; overflow-x: hidden; }
   #pick .grid { flex: none; overflow: visible; min-height: 0; }
   /* ONE header row, not three stacked. Title, the two cards and the rarity tabs used to eat
      135px of a 390px screen — a third of the phone before a single album card. Side by side
@@ -254,8 +271,11 @@ body[data-mode="duo"] #slotFoe { opacity: .45; pointer-events: none; }
   #pick .pick-bar {
     position: sticky; bottom: 0; z-index: 3; flex: none;
     display: flex; align-items: center; gap: 8px;
-    background: #070a12; margin-inline: -10px;
-    padding: 5px 10px max(5px, env(safe-area-inset-bottom));
+    /* The BAR bleeds to the screen edge — a strip that stops short of a notch looks broken —
+       but its buttons stay inside the safe zone. */
+    background: #070a12;
+    margin-inline: calc(var(--safe-l) * -1) calc(var(--safe-r) * -1);
+    padding: 5px var(--safe-r) var(--safe-b) var(--safe-l);
     box-shadow: 0 -10px 14px #070a12;      /* the album fades out under it instead of peeking */
   }
   #pick .modes { flex: 0 0 auto; width: auto; max-width: none; margin: 0; padding: 0; gap: 6px; }
@@ -404,6 +424,17 @@ body.no-touch .pad .btn { cursor: pointer; }
   box-shadow: inset 0 0 0 max(2px, calc(var(--u) * var(--s) * 0.045)) var(--pc, #ffffff26);
   border-radius: inherit; opacity: .9;
 }
+/* WHAT THE CARD DOES, on the card. Three faces and three colours tell you the cards are
+   different; they do not tell you that the orange one is the one that lets you jump twice.
+   A strip across the bottom of the art says it in two or three words — small, but a player
+   only has to read it once per card. */
+.pad .card .card-tip {
+  position: absolute; inset-inline: 0; bottom: 0; padding: 1px 2px;
+  background: #050810d8; color: #eef3ff; text-decoration: none;
+  font-size: calc(var(--u) * var(--s) * 0.15); line-height: 1.15; font-weight: 700;
+  text-align: center; white-space: nowrap; overflow: hidden; text-overflow: clip;
+  border-top: 1px solid var(--pc, #ffffff33);
+}
 .pad .card .card-key {
   position: absolute; right: 4px; bottom: 2px; font-size: calc(var(--u) * var(--s) * 0.2);
   color: #ffffffc2; text-shadow: 0 1px 2px #000; font-weight: 800; pointer-events: none;
@@ -507,7 +538,7 @@ body.editing .pad .btn .grip {
 }
 .ghost:active { transform: translateY(1px); }
 .netdot {
-  position: absolute; top: calc(env(safe-area-inset-top) + 8px); inset-inline-end: 12px;
+  position: absolute; top: calc(var(--safe-t) + 8px); inset-inline-end: var(--safe-r);
   width: 9px; height: 9px; border-radius: 50%; background: #56607a;
 }
 .netdot.on { background: #46d17f; box-shadow: 0 0 8px #46d17f; }
@@ -515,7 +546,7 @@ body.editing .pad .btn .grip {
 
 #lobby { align-items: center; justify-content: center; gap: 14px; padding: 20px; text-align: center; }
 #lobby h2 { margin: 0; font-size: 26px; font-weight: 800; }
-.lobby-back { position: absolute; top: calc(env(safe-area-inset-top) + 12px); inset-inline-start: 14px; color: var(--dim); }
+.lobby-back { position: absolute; top: calc(var(--safe-t) + 12px); inset-inline-start: calc(var(--safe-l) + 4px); color: var(--dim); }
 .code-box, .join-box {
   display: flex; align-items: center; gap: 10px; padding: 12px 16px;
   background: var(--panel); border: 1px solid var(--line); border-radius: 14px;

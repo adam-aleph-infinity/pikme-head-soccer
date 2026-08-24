@@ -257,6 +257,15 @@ function stepPlayer(m, p, input, dt, fx) {
 
   // ---- kick ----
   if (canAct && input.kick && !prev.kick && p.kickCd <= 0) {
+    // THE HEADER, first. The boot's hitbox is at hip height, so a ball at head height used to
+    // mean pressing kick and watching the leg swing under it. Now the same button heads it:
+    // less power than a boot, more loft, and the only way to hit a ball your foot cannot
+    // reach. Checked before the swing so a header never also starts one.
+    if (tryHeader(m, p, fx)) {
+      p.kickCd = C.KICK_COOLDOWN;
+      p.prev = { ...input };
+      return;
+    }
     p.kickT = C.KICK_TIME;
     p.kickCd = C.KICK_COOLDOWN;
     // Holding JUMP as you kick lobs it: the only aiming this game has, and the answer to a
@@ -466,6 +475,31 @@ function tryCounter(m, p, fx) {
 // toward a power shot other than waiting out the clock.
 //
 // Resolved on the kick's rising edge, not per-frame, so one press is one tackle.
+// A deliberate header: the ball is at your head and you pressed kick. Distinct from the
+// PASSIVE head touch in stepBall, which cushions — see HEAD_POWER. This one is a shot.
+function tryHeader(m, p, fx) {
+  const b = m.ball;
+  if (b.power) return false;                       // a live power shot is not headable
+  // ARMED means the next contact is the power shot, and this game has always fired that off
+  // the BOOT only (see the note in stepBall). A header that swallowed the press would eat the
+  // shot you spent a full gauge on.
+  if (p.armed > 0) return false;
+  const hy = headY(p);
+  const d = Math.hypot(b.x - p.x, b.y - hy);
+  if (d > headR(m, p) + b.r + C.HEADER_R) return false;
+
+  const mult = p.stats.kick * spKick(m, p.index);
+  const dir = p.facing;
+  b.vx = dir * C.KICK_POWER * C.HEADER_POWER * mult + p.vx * 0.3;
+  b.vy = -C.KICK_LIFT * C.HEADER_LIFT * mult + p.vy * 0.3;
+  b.spin = dir * 10;
+  m.idle = 0;
+  m.hitStop = Math.max(m.hitStop, C.HIT_STOP_KICK);
+  m.events.push({ type: 'strike', player: p.index, x: b.x, y: b.y, power: false, head: true, aimed: true });
+  fx.hit(b.x, b.y, '#ffffff', 1);
+  return true;
+}
+
 function tryTackle(m, p, fx) {
   const foe = m.players[1 - p.index];
   if (foe.tackleImmune > 0 || foe.knocked > 0) return false;
@@ -554,8 +588,20 @@ function resolveBallPlayers(m, dt, fx) {
           const mult = p.stats.kick * spKick(m, p.index);
           const drive = p.kickLob ? C.LOB_DRIVE : 1;
           const lift = p.kickLob ? C.LOB_LIFT : 1;
+          // THE BOW. A kick used to fly dead flat along your facing, so scoring meant already
+          // standing in exactly the right place. It now arcs toward the FAR goal, and by how
+          // far away that goal is: from deep it is lofted, from the six-yard box it stays
+          // low, because a lofted tap from close in sails over the bar. Aiming the LOFT and
+          // not the direction is deliberate — turning the ball toward the goal for you would
+          // take the aiming out of the player's hands, and facing is the aiming this game has.
+          const goalX = p.side > 0 ? C.W : 0;
+          const range = Math.abs(goalX - b.x);
+          const towardsGoal = (goalX - b.x) * p.facing > 0;
+          const bow = towardsGoal
+            ? Math.max(0, Math.min(1, (range - C.KICK_BOW_MIN) / (C.W - C.KICK_BOW_MIN))) * C.KICK_AIM
+            : 0;
           b.vx = p.facing * C.KICK_POWER * mult * drive + p.vx * 0.4;
-          b.vy = -C.KICK_LIFT * mult * lift + p.vy * 0.3;
+          b.vy = -C.KICK_LIFT * mult * lift * (1 + C.KICK_BOW * bow) + p.vy * 0.3;
           b.spin = p.facing * 14;
           p.kickT = 0;
           m.hitStop = Math.max(m.hitStop, C.HIT_STOP_KICK);

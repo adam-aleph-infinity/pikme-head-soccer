@@ -82,6 +82,17 @@ Every shot flies the *same* way on purpose — if trajectories differed per char
 What differs is the consequence: מנגל בוער burns you down, תולעים roots you, סטרייק freezes
 you for half a second, גל אדום launches you, גשם מטבעות leaves you wading.
 
+**Press kick with the ball at your head and you HEAD it** — less power than a boot, more
+loft, and the only way to hit a ball your foot cannot reach. A head you did NOT press with
+cushions the ball instead: heading used to beat playing, so a passive head touch is now a
+control surface and the boot is the only thing that hits it hard.
+
+**The boot bows toward the far goal.** A kick used to fly dead flat along your facing, so
+scoring meant already standing in exactly the right place. The loft now scales with how far
+that goal is — lofted from deep, flat from the six-yard box, where a lofted tap would sail
+over the bar. The DIRECTION is still yours: facing is the only aiming this game has and
+turning the ball toward the net for you would take it away.
+
 **Hold jump while kicking to LOB it** — higher, shorter. The counter to a defender parked on
 their line, and the only aiming the game has.
 

@@ -179,7 +179,13 @@ const run = (m, ticks, inputs = NONE) => {
   m.ball.vy = 300;
   const before = Math.abs(m.ball.vy);
   step(m, NONE);
-  ok('a head is springier than a plain bounce', Math.abs(m.ball.vy) > before * C.BALL_BOUNCE);
+  // This used to assert the head was SPRINGIER than the ground. It is now deliberately the
+  // opposite: at HEAD_POWER 0.52 a head is a control surface — it cushions and redirects —
+  // and the boot (or a deliberate header on the kick button) is the only thing that hits the
+  // ball hard. Heading used to beat playing, which is why the number came down twice.
+  ok('a head CUSHIONS the ball rather than launching it',
+     Math.abs(m.ball.vy) < before * C.BALL_BOUNCE,
+     `${Math.abs(m.ball.vy).toFixed(0)} back off a ${before.toFixed(0)} drop, vs ${(before * C.BALL_BOUNCE).toFixed(0)} off the ground`);
 }
 
 {
@@ -707,6 +713,62 @@ const run = (m, ticks, inputs = NONE) => {
      `${front.vx.toFixed(0)} front vs ${back.vx.toFixed(0)} behind`);
   ok('the event says which it was', back.behind === true && front.behind === false,
      `front=${front.behind} back=${back.behind}`);
+}
+
+// ── THE BOOT IS AIMED, AND THE HEAD IS A TOOL ─────────────────────────────────
+{
+  // A kick from deep used to fly dead flat along your facing, so the only way to score was to
+  // already be standing in the right place. It now bows toward the far goal.
+  const kickFrom = (x) => {
+    const m = fresh();
+    const p = m.players[0];
+    p.x = x; p.facing = 1; p.kickCd = 0; p.prev = {};
+    m.players[1].x = C.W - 60;                       // out of the way
+    m.ball.x = p.x + C.KICK_REACH; m.ball.y = p.y - C.BODY_H * 0.45;
+    m.ball.vx = 0; m.ball.vy = 0;
+    for (let i = 0; i < 2; i++) { m.hitStop = 0; step(m, [{ kick: true }, {}]); m.events.length = 0; }
+    return { vx: m.ball.vx, vy: m.ball.vy };
+  };
+  const far = kickFrom(120);                          // a long way from the far goal
+  const near = kickFrom(C.W - 260);                   // right on top of it
+
+  ok('a kick from deep is lofted toward the goal', far.vy < 0 && Math.abs(far.vy) > C.KICK_LIFT,
+     `vy ${far.vy.toFixed(0)} vs a flat ${(-C.KICK_LIFT).toFixed(0)}`);
+  ok('and it still goes forward', far.vx > 0, `vx ${far.vx.toFixed(0)}`);
+  // From close in, lofting it would put the ball over the bar — so it does not.
+  ok('a kick from close in stays low', Math.abs(near.vy) <= Math.abs(far.vy),
+     `near ${near.vy.toFixed(0)} vs far ${far.vy.toFixed(0)}`);
+}
+{
+  // THE HEADER. Pressing kick with the ball at head height is the aerial tool — before this
+  // the boot simply missed, because the hitbox is at hip height and the ball was not.
+  const m = fresh();
+  const p = m.players[0];
+  p.x = 500; p.facing = 1; p.kickCd = 0; p.prev = {};
+  m.players[1].x = 900;
+  m.ball.x = p.x + 10; m.ball.y = headY(p) - 4;      // on the forehead, not on the boot
+  m.ball.vx = 0; m.ball.vy = 0;
+  m.hitStop = 0;
+  const seen = [];
+  for (let i = 0; i < 3; i++) { m.hitStop = 0; step(m, [{ kick: true }, {}]); seen.push(...m.events); m.events.length = 0; }
+  const hdr = seen.find((e) => e.type === 'strike' && e.head);
+  ok('kick with the ball at your head is a HEADER', !!hdr, seen.map((e) => e.type).join(','));
+  ok('and it sends the ball up and forward', m.ball.vy < 0 && m.ball.vx > 0,
+     `vx ${m.ball.vx.toFixed(0)} vy ${m.ball.vy.toFixed(0)}`);
+  ok('with more loft than a boot', Math.abs(m.ball.vy) > C.KICK_LIFT,
+     `${Math.abs(m.ball.vy).toFixed(0)} vs ${C.KICK_LIFT.toFixed(0)}`);
+}
+{
+  // A passive head touch is NOT a header: it cushions. That is the whole point of dropping
+  // HEAD_POWER, and it must not be undone by the new button.
+  const m = fresh();
+  const p = m.players[0];
+  p.x = 500; m.players[1].x = 900;
+  m.ball.x = p.x; m.ball.y = headY(p) - C.HEAD_R - C.BALL_R + 2;
+  m.ball.vx = 0; m.ball.vy = 300;                    // dropping onto the head
+  for (let i = 0; i < 6; i++) { m.hitStop = 0; step(m, [{}, {}]); m.events.length = 0; }
+  ok('a ball that lands on you without a press is cushioned',
+     Math.abs(m.ball.vy) < 300, `bounced back at ${Math.abs(m.ball.vy).toFixed(0)} of 300`);
 }
 
 console.log(`test-sim: ${pass} passed, ${fail} failed`);

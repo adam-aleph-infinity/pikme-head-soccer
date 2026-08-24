@@ -96,11 +96,32 @@ export let BODY_DEADEN = 0.18;
 // Where the header ends and the chest begins, as the vertical component of the contact
 // normal. 0.35 puts the split a bit below the head's equator.
 export let DEADEN_ZONE = 0.35;
-export let HEAD_POWER = 0.80;       // head hits multiply the bounce-out speed. Was 1.14: a head
+// ── THE BOOT, AIMED ──────────────────────────────────────────────────────────
+// A kick used to fire dead flat along the way you were facing, which meant the only way to
+// put the ball in the net was to be standing in exactly the right place. Now it BOWS toward
+// the far goal: the horizontal keeps the facing, and the loft is chosen so the arc comes
+// down around the goal mouth rather than flying over it.
+export let KICK_AIM = 0.55;          // 0 = dead flat as before, 1 = fully aimed at the goal
+export let KICK_BOW = 1.35;          // how much extra loft the aimed kick gets
+export let KICK_BOW_MIN = 260;       // px — below this range to the goal, do not loft at all,
+                                     // or a tap from the six-yard box sails over the bar
+
+// ── THE HEADER ───────────────────────────────────────────────────────────────
+// Pressing kick with the ball at head height is now a HEADER rather than a boot that misses.
+// It is the aerial tool: less power than a kick, more loft, and it is the only way to hit a
+// ball you cannot reach with your foot.
+export let HEADER_POWER = 0.72;      // of a kick, horizontally
+export let HEADER_LIFT = 1.35;       // and more of the lift
+export let HEADER_R = 16;            // px of slack around the head circle that still counts
+
+export let HEAD_POWER = 0.52;       // head hits multiply the bounce-out speed. Was 1.14: a head
                                      // was springier than a boot, so the ball pinged off a jump
                                      // harder than off a kick and heading beat playing. At 0.80
                                      // a header is a touch — it redirects, the boot is what
-                                     // sends it.
+                                     // sends it. Then 0.80 was still too lively, so 0.52:
+                                     // a head is now a CONTROL surface — it cushions and
+                                     // redirects — and the boot is the only thing on the
+                                     // pitch that hits the ball hard.
 
 // ---- Jump feel -------------------------------------------------------------
 // The three things that separate a jump that feels good from one that feels broken.
@@ -460,6 +481,10 @@ const SETTERS = {
   KICK_POWER: (v) => { KICK_POWER = v; },
   KICK_LIFT: (v) => { KICK_LIFT = v; },
   HEAD_POWER: (v) => { HEAD_POWER = v; },
+  KICK_AIM: (v) => { KICK_AIM = v; },
+  KICK_BOW: (v) => { KICK_BOW = v; },
+  HEADER_POWER: (v) => { HEADER_POWER = v; },
+  HEADER_LIFT: (v) => { HEADER_LIFT = v; },
   GAUGE_FULL: (v) => { GAUGE_FULL = v; },
   POWER_MODE_TIME: (v) => { POWER_MODE_TIME = v; },
   POWER_SHOT_LIFE: (v) => { POWER_SHOT_LIFE = v; },
