@@ -57,11 +57,12 @@ app and out of it.
 
 | | walk | dash | jump | kick | power | cards |
 |---|---|---|---|---|---|---|
-| **keys** | `A`/`D` or `←`/`→` | double-tap a direction | `W` `↑` `Space` | `S` `↓` `K` | `J` `L` `Shift` | `1` `2` `3` (or `Z` `X` `C`) |
 | **touch** | ◀ ▶ (left thumb) | double-tap | קפיצה | בעיטה | POWER | the three cards |
 
 **The buttons are on screen on every device**, mouse or thumb — they hold your hand of
-cards, and an ability you cannot see is an ability nobody presses.
+cards, and an ability you cannot see is an ability nobody presses. Keys still work on a
+desktop, but there is no rebinding screen: this game is played in the app, on a phone, and a
+keyboard-remapping page in a phone game's menu is a setting for someone else's device.
 
 **⚙ → 🎛️ עריכת בקרות** opens the layout editor, the same shape as football's: drag any
 button to move it, pull its corner to resize it, and a **שקיפות** slider for how much pitch

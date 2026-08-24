@@ -34,9 +34,26 @@ const fits = await ev(`(() => {
            modesBottom: Math.round(modes.bottom), vh: innerHeight,
            scroll: document.getElementById('pick').scrollHeight > innerHeight + 1 };
 })()`);
-ok('the whole pick screen fits the phone',
-   fits.footBottom <= fits.vh && fits.modesBottom <= fits.vh && !fits.scroll, JSON.stringify(fits));
-ok('and the card grid still has room to be a grid', fits.grid >= 80, `${fits.grid}px tall`);
+ok('the buttons you press are pinned inside the frame',
+   fits.footBottom <= fits.vh + 1 && fits.modesBottom <= fits.vh + 1, JSON.stringify(fits));
+
+// The album scrolls rather than being squeezed into a two-row window: the whole rarity is
+// reachable by flicking, and «שחק» stays put while you do it.
+const scrollable = await ev(`(() => {
+  const pick = document.getElementById('pick');
+  const before = document.querySelector('.pick-foot').getBoundingClientRect().top;
+  const rows = document.querySelectorAll('#cardGrid .card').length;
+  pick.scrollTop = 9999;
+  const moved = pick.scrollTop;
+  const after = document.querySelector('.pick-foot').getBoundingClientRect().top;
+  const lastCard = document.querySelectorAll('#cardGrid .card')[rows - 1].getBoundingClientRect();
+  pick.scrollTop = 0;
+  return { canScroll: moved > 0, cards: rows, footMoved: Math.round(Math.abs(after - before)),
+           lastVisible: lastCard.bottom <= innerHeight + 2 && lastCard.top >= -2 };
+})()`);
+ok('the album scrolls to show more', scrollable.canScroll && scrollable.cards === 45, JSON.stringify(scrollable));
+ok('and the last card is reachable', scrollable.lastVisible, JSON.stringify(scrollable));
+ok('while the play controls stay pinned', scrollable.footMoved <= 2, `moved ${scrollable.footMoved}px`);
 
 ok('the pick screen offers two modes',
    (await ev(`[...document.querySelectorAll('#modes button')].map(b=>b.dataset.mode).join(',')`)) === 'bot,duo');

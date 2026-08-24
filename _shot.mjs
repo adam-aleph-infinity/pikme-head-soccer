@@ -99,38 +99,9 @@ const artOk = await evalJs(`new Promise((res) => {
 })`);
 check('card art loads over the network', artOk === '400x545', String(artOk));
 
-// ---- 1b. keyboard settings -------------------------------------------------
-await evalJs(`document.getElementById('keysBtn').click()`);
-await sleep(300);
-const keysUi = await evalJs(`(() => {
-  const caps = [...document.querySelectorAll('#keysGrid .keycap')];
-  const acts = [...document.querySelectorAll('#keysGrid .act')].map(e => e.textContent);
-  return { caps: caps.length, acts, labels: caps.map(c => c.textContent) };
-})()`);
-// Eight actions now, not five: the three cards are bound keys like any other, and a card
-// you cannot rebind is a card a left-handed player cannot reach.
-check('the keys screen lists every action', keysUi.acts.length === 8, keysUi.acts.join(','));
-check('each action has two slots', keysUi.caps === 16, `${keysUi.caps} caps`);
-check('kick is bound and readable', keysUi.labels.includes('↓') && keysUi.labels.includes('S'),
-      keysUi.labels.join(' '));
-
-// Rebind KICK's first slot to G and prove the GAME follows, not just the label.
-await evalJs(`document.querySelectorAll('#keysGrid .keycap')[6].click()`);   // kick, slot 0
-await sleep(150);
-await key('keyDown', 'KeyG', 71); await key('keyUp', 'KeyG', 71);
-await sleep(250);
-const rebound = await evalJs(`(() => {
-  const binds = JSON.parse(localStorage.getItem('hs-binds'));
-  return { kick: binds.kick, label: document.querySelectorAll('#keysGrid .keycap')[6].textContent };
-})()`);
-check('rebinding updates the binding', rebound.kick?.[0] === 'KeyG', JSON.stringify(rebound.kick));
-check('and the cap shows the new key', rebound.label === 'G', rebound.label);
-check('the binding is persisted', !!rebound.kick, 'nothing in localStorage');
-
-await evalJs(`document.getElementById('keysReset').click(); document.getElementById('keysBack').click();`);
-await sleep(200);
-const afterReset = await evalJs(`JSON.parse(localStorage.getItem('hs-binds')).kick[0]`);
-check('reset restores the default kick key', afterReset === 'ArrowDown', String(afterReset));
+// The keyboard REBINDING SCREEN is gone — it was a desktop feature sitting in the menu of a
+// phone game. The keys themselves still work, and section 4 below proves that by pressing
+// them; there is simply no UI left to test.
 
 // ---- 2. kick off -----------------------------------------------------------
 // Freeze the opponent for the rest of this file. Every probe below was racing a live bot
@@ -229,39 +200,8 @@ check('the power shot fires', !!fired, String(fired));
 await sleep(160);
 await shot('04-powershot');
 
-// ---- 4b. a rebound key really drives the game ------------------------------
-{
-  await waitForPlay();
-  // Rebind through the UI exactly as a player would. Writing localStorage directly proved
-  // nothing: the live keymap is built in memory at load, so a stored binding the running
-  // game has not read is not a binding at all.
-  await evalJs(`document.getElementById('keysInGame').click()`);
-  await sleep(200);
-  await evalJs(`document.querySelectorAll('#keysGrid .keycap')[6].click()`);   // kick, slot 0
-  await sleep(150);
-  await key('keyDown', 'KeyG', 71); await key('keyUp', 'KeyG', 71);
-  await sleep(250);
-  await evalJs(`document.getElementById('keysBack').click()`);
-  await sleep(200);
-  await waitForPlay();
-  // Retry across freezes: a goal can land between the probe and the press, and input during
-  // a kickoff/post-goal freeze is ignored by design. One attempt made this check a coin flip.
-  let kicked = false;
-  for (let attempt = 0; attempt < 6 && !kicked; attempt++) {
-    await waitForPlay();
-    await evalJs('EVENTS.length = 0; MATCH.players[0].kickCd = 0;');
-    await key('keyDown', 'KeyG', 71); await sleep(120); await key('keyUp', 'KeyG', 71);
-    await sleep(180);
-    kicked = await evalJs(`EVENTS.some(e => e.type === 'kick' && e.player === 0)`);
-  }
-  check('a rebound key actually kicks', kicked === true, 'G did nothing in 6 attempts');
-
-  // Put the defaults back: the rebind REPLACED ArrowDown, and every later check in this
-  // file drives the game with the default keys.
-  await evalJs(`document.getElementById('keysInGame').click(); document.getElementById('keysReset').click(); document.getElementById('keysBack').click();`);
-  await sleep(200);
-  await evalJs(`localStorage.removeItem('hs-binds')`);
-}
+// (4b was "a rebound key really drives the game" — it drove the rebinding screen, which no
+// longer exists. The DEFAULT keys are exercised throughout section 4.)
 
 // ---- 5. a whole match, fast-forwarded -------------------------------------
 // A level scoreline is NOT full time — it is sudden death. Both endings get checked,

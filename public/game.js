@@ -188,9 +188,14 @@ $('#playBtn').onclick = () => startMatch();
 const held = { left: false, right: false, jump: false, kick: false, power: false,
                card1: false, card2: false, card3: false };
 
-// Bindings are DATA, not a frozen map, because nobody could find out how to kick. Two slots
-// per action so the arrow cluster and the letter cluster can both live, and the whole thing
-// is rebindable from the ⌨ screen and persisted.
+// Bindings are DATA, not a frozen map. Two slots per action so the arrow cluster and the
+// letter cluster can both live.
+//
+// The rebinding SCREEN is gone: this game is played in the app, on a phone, with the buttons
+// on the glass — a keyboard-remapping page was a desktop feature sitting in a phone game's
+// menu. The keys themselves still work (a desktop browser is where this thing gets argued
+// about, and every harness drives it with real keypresses), and any layout a player saved
+// while that screen existed is still honoured on load.
 const ACTIONS = [
   { id: 'left', label: 'שמאלה' },
   { id: 'right', label: 'ימינה' },
@@ -227,7 +232,6 @@ function loadBinds() {
   } catch { return structuredClone(DEFAULT_BINDS); }
 }
 let BINDS = loadBinds();
-const saveBinds = () => { try { localStorage.setItem(BIND_STORE, JSON.stringify(BINDS)); } catch {} };
 
 // code -> action, rebuilt whenever the bindings change. One lookup per keystroke.
 let KEYMAP = {};
@@ -253,10 +257,8 @@ const keyLabel = (code) => {
 
 // RTL note: the pitch is NOT mirrored, so ← always means screen-left. The player always
 // defends the LEFT goal, which keeps the arrow keys honest in both directions.
-let listening = null;            // {action, slot} while capturing a rebind
 
 addEventListener('keydown', (e) => {
-  if (listening) { captureBind(e); return; }
   const k = KEYMAP[e.code];
   if (!k) return;
   held[k] = true;
@@ -327,83 +329,6 @@ $('#editDone').onclick = () => setEditing(false, 'save');
 $('#editCancel').onclick = () => setEditing(false, 'cancel');
 $('#editReset').onclick = () => { EDITOR.reset(); $('#editOpacity').value = String(EDITOR.opacity); if (M) paintHand(); };
 $('#editOpacity').oninput = (e) => EDITOR.setOpacity(+e.target.value);
-
-// ═══════════════════════════════════════════════════════════════════════════
-// KEYS — view and rebind
-// ═══════════════════════════════════════════════════════════════════════════
-function renderKeys() {
-  const grid = $('#keysGrid');
-  grid.innerHTML = '';
-  for (const a of ACTIONS) {
-    const label = document.createElement('div');
-    label.className = 'act';
-    label.textContent = a.label;
-    grid.appendChild(label);
-    for (let slot = 0; slot < 2; slot++) {
-      const code = BINDS[a.id][slot];
-      const cap = document.createElement('button');
-      cap.className = 'keycap' + (code ? '' : ' empty');
-      cap.textContent = keyLabel(code);
-      cap.onclick = () => startListening(a.id, slot, cap);
-      grid.appendChild(cap);
-    }
-  }
-}
-
-function startListening(action, slot, cap) {
-  document.querySelectorAll('.keycap.listening').forEach((el) => el.classList.remove('listening'));
-  listening = { action, slot };
-  cap.classList.add('listening');
-  cap.textContent = '…';
-  $('#keysHint').textContent = 'לחץ על מקש · Esc לביטול';
-  $('#keysHint').classList.add('arming');
-}
-
-function captureBind(e) {
-  e.preventDefault();
-  const { action, slot } = listening;
-  listening = null;
-  $('#keysHint').classList.remove('arming');
-
-  if (e.code === 'Escape') {
-    $('#keysHint').textContent = 'בוטל';
-  } else {
-    // A key may only drive one action, or holding it would fire two things at once.
-    for (const a of ACTIONS) {
-      BINDS[a.id] = BINDS[a.id].map((c) => (c === e.code ? null : c));
-    }
-    BINDS[action][slot] = e.code;
-    saveBinds();
-    rebuildKeymap();
-    $('#keysHint').textContent = `${keyLabel(e.code)} הוגדר`;
-  }
-  renderKeys();
-  setTimeout(() => { $('#keysHint').textContent = 'לחץ על משבצת ואז על המקש הרצוי'; }, 1600);
-}
-
-// Remember where we came from: the keys screen is reachable from the picker AND from
-// inside a match, and returning to the wrong one drops a dead 'pick' screen over a live game.
-let keysReturn = '#pick';
-function openKeys(from) {
-  keysReturn = from;
-  renderKeys();
-  $(from).classList.add('hidden');
-  $('#keys').classList.remove('hidden');
-}
-function closeKeys() {
-  listening = null;
-  $('#keys').classList.add('hidden');
-  $(keysReturn).classList.remove('hidden');
-  if (keysReturn === '#match' && M) resize();
-}
-$('#keysBtn').onclick = () => openKeys('#pick');
-$('#keysInGame').onclick = () => openKeys('#match');
-$('#keysBack').onclick = closeKeys;
-$('#keysReset').onclick = () => {
-  BINDS = structuredClone(DEFAULT_BINDS);
-  saveBinds(); rebuildKeymap(); renderKeys();
-  $('#keysHint').textContent = 'אופס לברירת מחדל';
-};
 
 // ═══════════════════════════════════════════════════════════════════════════
 // FX — particles the sim asks for, drawn by the renderer

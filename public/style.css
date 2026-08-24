@@ -232,24 +232,38 @@ body[data-mode="duo"] #slotFoe { opacity: .45; pointer-events: none; }
    fell off the bottom edge. Everything below compacts the CHROME so the grid — the part you
    are actually here to use — keeps real estate. Nothing is hidden that you need. */
 @media (max-height: 520px) {
-  #pick { gap: 6px; padding: env(safe-area-inset-top) 10px 6px; }
+  /* SCROLL, don't squeeze. The first pass shrank the chrome to make everything fit at once,
+     which works right up until the album is 45 cards deep and the grid is two rows tall. So
+     the page scrolls and the grid grows to its natural height — you flick to see more cards
+     instead of scrubbing a 2-row window — while the part you press stays pinned. */
+  #pick { gap: 6px; padding: env(safe-area-inset-top) 10px 6px; overflow-y: auto; overflow-x: hidden; }
+  #pick .grid { flex: none; overflow: visible; min-height: 0; }
+  /* Pinned so «שחק» is always one thumb away no matter how far you have scrolled. */
+  #pick .modes, #pick .pick-foot {
+    position: sticky; z-index: 3; background: #070a12ee;
+    backdrop-filter: blur(6px); margin-inline: -10px; padding-inline: 10px;
+  }
+  /* Full width, or the album scrolls past either side of the sticky bar and the two modes
+     look like they are floating on top of a moving grid. */
+  #pick .modes { bottom: 44px; padding-top: 4px; width: auto; max-width: none; }
+  #pick .pick-foot { bottom: 0; padding-bottom: max(4px, env(safe-area-inset-bottom)); padding-top: 4px; }
   .pick-head { padding-top: 2px; }
-  .pick-head h1 { font-size: 20px; }
+  .pick-head h1 { font-size: 17px; }
   .pick-head .sub { display: none; }        /* the two slots below say the same thing */
-  .slot { width: 84px; padding: 5px; border-radius: 12px; }
-  .slot-art { width: 46px; height: 46px; border-width: 2px; }
+  .slot { width: 72px; padding: 4px; border-radius: 10px; }
+  .slot-art { width: 38px; height: 38px; border-width: 2px; }
   .slot-cap { font-size: 10px; }
   .slot-shot { font-size: 10px; min-height: 12px; }
   .slots { gap: 10px; }
-  .rarity-tabs button { padding: 4px 12px; font-size: 12px; }
-  .grid { min-height: 82px; gap: 6px; grid-template-columns: repeat(auto-fill, minmax(62px, 1fr)); }
+  .rarity-tabs button { padding: 3px 10px; font-size: 11px; }
+  .grid { gap: 5px; grid-template-columns: repeat(auto-fill, minmax(52px, 1fr)); }
   .modes { margin: 4px auto 0; }
   .modes button { padding: 6px 8px; }
-  .modes button b { font-size: 13px; }
+  .modes button b { font-size: 12px; }
   .modes button span { display: none; }     /* the icon and the label carry it */
   .online-row { gap: 6px; }
   .ghost { padding: 6px 12px; font-size: 12px; }
-  .play { padding: 9px 22px; font-size: 15px; box-shadow: 0 3px 0 #a86800, 0 6px 12px #0009; }
+  .play { padding: 7px 18px; font-size: 14px; box-shadow: 0 3px 0 #a86800, 0 6px 12px #0009; }
   .pick-foot { gap: 8px; }
 }
 
@@ -427,7 +441,10 @@ body.editing .pad .btn .grip {
   background: var(--panel); border: 1px solid var(--line); color: var(--ink);
 }
 .ghost:active { transform: translateY(1px); }
-.netdot { width: 9px; height: 9px; border-radius: 50%; background: #56607a; }
+.netdot {
+  position: absolute; top: calc(env(safe-area-inset-top) + 8px); inset-inline-end: 12px;
+  width: 9px; height: 9px; border-radius: 50%; background: #56607a;
+}
 .netdot.on { background: #46d17f; box-shadow: 0 0 8px #46d17f; }
 .netdot.busy { background: var(--hot); }
 
@@ -483,29 +500,9 @@ body.editing .pad .btn .grip {
 .head.hexed { filter: hue-rotate(35deg) contrast(1.15); }
 
 /* ─── KEYS ─────────────────────────────────────────────────────────────── */
-#keys { align-items: center; justify-content: center; gap: 14px; padding: 20px; text-align: center; }
-#keys h2 { margin: 0; font-size: 26px; font-weight: 800; }
-.keys-hint { margin: 0; color: var(--dim); font-size: 13px; min-height: 18px; }
-.keys-hint.arming { color: var(--hot); font-weight: 700; }
-.keys-grid { display: grid; grid-template-columns: auto auto auto; gap: 8px 12px; align-items: center; }
-.keys-grid .act { font-size: 14px; font-weight: 700; text-align: start; }
-.keycap {
-  min-width: 62px; padding: 8px 12px; border-radius: 9px;
-  background: #0b1020; border: 1px solid var(--line); color: var(--ink);
-  font: 700 14px/1 ui-monospace, Menlo, monospace;
-}
-.keycap:active { transform: translateY(1px); }
-.keycap.listening { border-color: var(--hot); color: var(--hot); animation: gaugeFull .5s infinite alternate; }
-.keycap.empty { color: #4a5771; }
-.keys-extra { display: flex; gap: 18px; color: var(--dim); font-size: 12px; }
-.keys-extra b { color: var(--ink); }
 
 /* The keys screen has to be reachable MID-MATCH — "how do I kick?" is a question you ask
    while playing, not before. */
-.keysInGame {
-  position: absolute; top: 44px; right: 48px; width: 34px; height: 34px; border-radius: 10px;
-  background: #0a0f1cbb; border: 1px solid #ffffff1f; font-size: 15px;
-}
 
 .sndBtn {
   position: absolute; top: 44px; right: 90px; width: 34px; height: 34px; border-radius: 10px;
