@@ -128,6 +128,13 @@ turning the ball toward the net for you would take it away.
 **Hold jump while kicking to LOB it** — higher, shorter. The counter to a defender parked on
 their line, and the only aiming the game has.
 
+**Your head deadens the ball too — just less than your body does.** A head keeps 0.34 of the
+pace where the chest keeps 0.18, so heading is the livelier touch of the two and neither is a
+trampoline. Hitting the ball HARD is always a deliberate act now: the boot, or the kick button
+pressed at head height.
+
+<details><summary>What it used to say</summary>
+
 **Your head bounces the ball; your body deadens it.** Barging into the ball kills its pace
 and drops it at your feet — only a kick sends it anywhere, so every meaningful touch is a
 decision. Heading is still the aerial tool.
@@ -174,6 +181,8 @@ hand that recharges slowly.
 
 Crates on the pitch (the older power-up system) are off by default — `?pickups=1` brings
 them back to compare. `?cards=0` turns the hand off.
+
+</details>
 
 **Kick the opponent to TACKLE them** — no ball required. Pays you a slice of power gauge and
 leaves them slowed for ~1.7s. There is a 1.1s immunity window afterwards so nobody can be

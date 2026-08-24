@@ -560,6 +560,11 @@ function tryHeader(m, p, fx) {
   b.vx = dir * C.KICK_POWER * C.HEADER_POWER * mult + p.vx * 0.3;
   b.vy = -C.KICK_LIFT * C.HEADER_LIFT * mult + p.vy * 0.3;
   b.spin = dir * 10;
+  // Push the ball clear of the head, the way a block does. Without this the ball is still
+  // inside the head circle on the same tick, the PASSIVE head branch in stepBall runs, and it
+  // deadens the header it was supposed to be — measured as a 188px/s "shot" instead of 570.
+  b.x = p.x + dir * (headR(m, p) + b.r + 2);
+  b.y = hy - (headR(m, p) + b.r) * 0.35;
   m.idle = 0;
   m.hitStop = Math.max(m.hitStop, C.HIT_STOP_KICK);
   m.events.push({ type: 'strike', player: p.index, x: b.x, y: b.y, power: false, head: true, aimed: true });
@@ -712,14 +717,21 @@ function resolveBallPlayers(m, dt, fx) {
         continue;
       }
 
+      // A HEAD DEADENS, like the chest, only livelier. It used to REFLECT — (1 + HEAD_POWER)
+      // times the approach speed, back out — which made a head the hardest surface on the
+      // pitch and heading beat playing. Dropping HEAD_POWER twice (1.14 -> 0.80 -> 0.52) made
+      // it a weaker trampoline, not a different thing; this makes it a different thing.
+      //
+      // Same two lines the body uses: cancel the approach, keep a fraction of the pace. The
+      // fraction is HEAD_DEADEN (0.34) against the body's 0.18 — about twice as lively, and
+      // still dead. Hitting the ball hard is now always a deliberate act: the boot, or the
+      // kick button pressed at head height (tryHeader).
       const rel = (b.vx - p.vx) * nx + (b.vy - p.vy) * ny;
-      if (rel < 0) {
-        b.vx -= (1 + C.HEAD_POWER) * rel * nx;
-        b.vy -= (1 + C.HEAD_POWER) * rel * ny;
-      }
-      b.vx += p.vx * 0.42;
-      b.vy += Math.min(0, p.vy) * 0.5;
-      b.spin += p.vx * 0.02;
+      if (rel < 0) { b.vx -= rel * nx; b.vy -= rel * ny; }     // cancel, do not reflect
+      b.vx = b.vx * C.HEAD_DEADEN + p.vx * 0.30;
+      b.vy *= C.HEAD_DEADEN;
+      b.vy += Math.min(0, p.vy) * 0.35;                        // a jump still lifts it a little
+      b.spin *= 0.6;
       m.idle = 0;
       m.events.push({ type: 'strike', player: p.index, x: b.x, y: b.y, head: true });
       fx.hit(b.x, b.y, '#ffffff', 0.7);
@@ -864,6 +876,11 @@ const P_FIELDS = [
 export function serialize(m) {
   return {
     t: m.t, clock: m.clock, phase: m.phase, freeze: m.freeze,
+    // hitStop and idle are READ by restore() and were never written here — a latent desync
+    // that only showed up once the head and the header started producing more hit-stops. A
+    // client restored mid-hit-stop skipped the freeze the server was still in and ran two
+    // ticks ahead of it: the clocks came apart by exactly 2/60s, then everything else did.
+    hitStop: m.hitStop, idle: m.idle,
     score: [m.score[0], m.score[1]], golden: m.golden, lastScorer: m.lastScorer,
     // Players travel POSITIONALLY, in P_FIELDS order. Field names were 60% of the whole
     // snapshot — an array halves it at no cost in precision, and P_FIELDS is the schema.

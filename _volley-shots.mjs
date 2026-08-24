@@ -20,7 +20,7 @@ const ev=async x=>(await send('Runtime.evaluate',{expression:x,returnByValue:tru
 const ok=(n,c,e='')=>console.log(`  ${c?'✓':'✗'} ${n}${e?'  — '+e:''}`);
 await send('Page.enable');await send('Runtime.enable');await send('Network.enable');await send('Network.setCacheDisabled',{cacheDisabled:true});
 await send('Emulation.setDeviceMetricsOverride',{width:900,height:620,deviceScaleFactor:1,mobile:false});
-await send('Page.navigate',{url:'http://127.0.0.1:3020/?me=legendary_3&foe=legendary_2&diff=3&solo=1&play=1&stage=neon'});
+await send('Page.navigate',{url:(process.env.BASE||'http://127.0.0.1:3020')+'/?me=legendary_3&foe=legendary_2&diff=3&solo=1&play=1&stage=neon'});
 await sleep(2800);
 await ev(`window.__px = (wx, wy, ww, wh) => { const c=document.getElementById('cv'); const P=2;
   const d=c.getContext('2d').getImageData(Math.round(wx/P),Math.round(wy/P),Math.max(1,Math.round(ww/P)),Math.max(1,Math.round(wh/P))).data;

@@ -380,6 +380,11 @@ body[data-mode="duo"] #slotFoe { opacity: .45; pointer-events: none; }
   font-size: clamp(11px, calc(var(--u) * var(--s) * 0.24), 24px);
   font-weight: 800; backdrop-filter: blur(3px);
   touch-action: none; user-select: none; -webkit-user-select: none;
+  /* The MAGNIFIER. iOS reads a long press on a ◀ glyph as "select this text" and pops its
+     loupe over the controls; touch-action does not stop that, this does. The tap highlight
+     goes too — a grey flash on every press reads as lag. */
+  -webkit-touch-callout: none;
+  -webkit-tap-highlight-color: transparent;
 }
 .pad .btn:active, .pad .btn.on { background: #3a4d78d0; opacity: 1; }
 .pad .btn:active, .pad .btn.on { transform: var(--xf, none) scale(.94); }

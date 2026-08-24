@@ -199,7 +199,11 @@ const run = (m, ticks, inputs = NONE) => {
   m.ball.x = p.x; m.ball.y = headY(p) - C.HEAD_R - C.BALL_R + 4;
   m.ball.vx = 0; m.ball.vy = 300;
   step(m, NONE);
-  ok('head bounces the ball back up', m.ball.vy < 0, `vy=${m.ball.vy.toFixed(0)}`);
+  // A head DEADENS now (HEAD_DEADEN), like the chest but livelier — it does not bounce the
+  // ball away. Hitting it hard is a deliberate act: the boot, or the kick button at head
+  // height. This used to assert `vy < 0`.
+  ok('a head kills the ball rather than bouncing it', Math.abs(m.ball.vy) < 120,
+     `vy=${m.ball.vy.toFixed(0)} off a drop`);
 }
 {
   const m = fresh();
@@ -378,13 +382,23 @@ const run = (m, ticks, inputs = NONE) => {
   ok('the effects are not all the same', kinds.size >= 3, [...kinds].join(','));
 }
 
-// --- head bounces, body deadens --------------------------------------------
+// --- the head deadens too, just less -----------------------------------------
 {
-  const m = fresh();
-  const p = m.players[0];
-  m.ball.x = p.x; m.ball.y = headY(p) - C.HEAD_R - C.BALL_R + 4; m.ball.vy = 400;
-  step(m, NONE);
-  ok('the head still bounces the ball', m.ball.vy < -100, `vy=${m.ball.vy.toFixed(0)}`);
+  // Both surfaces kill the ball now; the head keeps twice as much of it as the chest. This
+  // block used to assert the head BOUNCED (vy < -100) — that was the trampoline Adam asked
+  // twice to remove, and the second ask was to make it a body part rather than a softer
+  // trampoline.
+  const drop = (yOffset) => {
+    const m = fresh();
+    const p = m.players[0];
+    m.ball.x = p.x; m.ball.y = headY(p) + yOffset; m.ball.vy = 400;
+    step(m, NONE);
+    return Math.abs(m.ball.vy);
+  };
+  const head = drop(-C.HEAD_R - C.BALL_R + 4);
+  ok('a head takes the pace off the ball', head < 400 * 0.6, `${head.toFixed(0)} of 400`);
+  ok('and it is livelier than the chest', C.HEAD_DEADEN > C.BODY_DEADEN,
+     `head ${C.HEAD_DEADEN} vs body ${C.BODY_DEADEN}`);
 }
 {
   // Low contact — chest height and below — kills it. At Head Soccer proportions the torso
@@ -400,12 +414,15 @@ const run = (m, ticks, inputs = NONE) => {
   ok('and it does not fly back', m.ball.vx > -200);
 }
 {
-  // …but the top of the head still bounces, or heading stops being a tool.
+  // The crown used to bounce so that heading was a tool. Heading is still a tool — it is just
+  // the BUTTON now (tryHeader), not a surface. What the crown does passively is take a ball
+  // out of the air and drop it, and that is what this asserts.
   const m = fresh();
   const p = m.players[0];
   m.ball.x = p.x; m.ball.y = headY(p) - C.HEAD_R - C.BALL_R + 3; m.ball.vy = 400;
   step(m, NONE);
-  ok('the crown of the head still bounces', m.ball.vy < -100, `vy=${m.ball.vy.toFixed(0)}`);
+  ok('the crown takes a falling ball out of the air', Math.abs(m.ball.vy) < 200,
+     `vy=${m.ball.vy.toFixed(0)} from a 400 drop`);
 }
 
 // --- tackling ---------------------------------------------------------------

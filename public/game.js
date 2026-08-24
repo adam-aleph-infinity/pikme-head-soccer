@@ -284,20 +284,60 @@ const stageBox = () => {
 };
 let EDITOR = null;
 
+// THE CONTROLS, AS A GAMEPAD RATHER THAN AS WEB BUTTONS.
+//
+// Two complaints, one cause. The buttons "sometimes get stuck" and "sometimes open a
+// magnifier", and both come from treating a thumb like a mouse:
+//
+//   • RELEASING ON pointerleave. A thumb does not hold still — it rolls and drifts a few
+//     pixels while you hold a direction — and the moment it crossed the edge of the button
+//     the key was released while the finger was still down. That reads as "unresponsive" and,
+//     if the finger then came back without a new pointerdown, as "stuck". A real d-pad keeps
+//     the input until you LIFT. So the pointer is captured on down and only released on up or
+//     cancel, and pointerleave is gone.
+//   • THE MAGNIFIER is iOS deciding that a long press on a ◀ glyph means "select this text".
+//     touch-action alone does not stop it; -webkit-touch-callout and a killed contextmenu do.
+//
+// Also tracked PER POINTER ID, so a second thumb landing on jump cannot release the direction
+// the first one is holding, and a pointer lost to the OS (a notification, a call) releases
+// exactly its own key.
+const heldBy = new Map();                       // pointerId -> input key
+
+function releasePointer(id) {
+  const k = heldBy.get(id);
+  if (k === undefined) return;
+  heldBy.delete(id);
+  held[k] = false;
+  for (const b of document.querySelectorAll(`.pad .btn[data-k="${k}"]`)) b.classList.remove('on');
+}
+
 for (const btn of document.querySelectorAll('.pad .btn')) {
   const k = btn.dataset.k;
-  // While the layout is being edited a press MOVES the button instead of firing it. Guarded
-  // here as well as by the editor's capture-phase handler, because a pointerup that lands
-  // after edit mode closes would otherwise leave the key stuck down.
-  const set = (v) => (ev) => {
+  btn.addEventListener('pointerdown', (ev) => {
+    // While the layout is being edited a press MOVES the button instead of firing it.
     if (EDITOR && EDITOR.editing) return;
-    ev.preventDefault(); held[k] = v; btn.classList.toggle('on', v);
-  };
-  btn.addEventListener('pointerdown', set(true));
-  btn.addEventListener('pointerup', set(false));
-  btn.addEventListener('pointercancel', set(false));
-  btn.addEventListener('pointerleave', set(false));
+    ev.preventDefault();
+    heldBy.set(ev.pointerId, k);
+    held[k] = true;
+    btn.classList.add('on');
+    // Capture: every later event for this finger comes here even if it slides off the button,
+    // which is the whole fix for the drift.
+    try { btn.setPointerCapture(ev.pointerId); } catch { /* older engines: harmless */ }
+  });
+  const up = (ev) => { ev.preventDefault(); releasePointer(ev.pointerId); };
+  btn.addEventListener('pointerup', up);
+  btn.addEventListener('pointercancel', up);
+  // The capture can be taken away (a system gesture, a rotation). Treat it as a lift rather
+  // than leaving the key down forever.
+  btn.addEventListener('lostpointercapture', (ev) => releasePointer(ev.pointerId));
+  btn.addEventListener('contextmenu', (ev) => ev.preventDefault());
 }
+// Anything that takes the page away — a notification, the app backgrounding, a phone call —
+// lifts every finger. Without this the last direction you were holding stays held.
+addEventListener('blur', () => { for (const id of [...heldBy.keys()]) releasePointer(id); });
+document.addEventListener('visibilitychange', () => {
+  if (document.hidden) for (const id of [...heldBy.keys()]) releasePointer(id);
+});
 // The pad is on every device now, thumb or mouse — it holds the three cards, and an ability
 // you cannot see is an ability nobody presses. `no-touch` survives as a flag for the few
 // places that still want to know (cursor, the key caps printed on the cards); `?pad=1` is

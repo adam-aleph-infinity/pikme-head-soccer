@@ -93,6 +93,11 @@ export let LOB_DRIVE = 0.62;
 // Body contact KILLS the ball's pace (Adam: 'if it dosnt kick, the ball kinda stops and
 // rolles'). The head still bounces — that is the aerial tool — but your torso deadens.
 export let BODY_DEADEN = 0.18;
+// A HEAD is a body part, not a trampoline. It now deadens the ball the same way the chest
+// does — cancel the approach, keep a fraction of the pace — just a little more of it, so a
+// header is still the livelier touch of the two without being a bounce. Anything that hits
+// the ball HARD is now a deliberate act: the boot, or the kick button pressed at head height.
+export let HEAD_DEADEN = 0.34;       // vs the body's 0.18. About twice as lively, still dead.
 // Where the header ends and the chest begins, as the vertical component of the contact
 // normal. 0.35 puts the split a bit below the head's equator.
 export let DEADEN_ZONE = 0.35;
@@ -471,6 +476,7 @@ export function setPace(k) {
 const SETTERS = {
   DEADEN_ZONE: (v) => { DEADEN_ZONE = v; },
   BODY_DEADEN: (v) => { BODY_DEADEN = v; },
+  HEAD_DEADEN: (v) => { HEAD_DEADEN = v; },
   LOB_LIFT: (v) => { LOB_LIFT = v; },
   LOB_DRIVE: (v) => { LOB_DRIVE = v; },
   BALL_IDLE_RESET: (v) => { BALL_IDLE_RESET = v; },
