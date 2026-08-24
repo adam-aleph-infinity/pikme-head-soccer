@@ -44,6 +44,7 @@ export function createBot(level = 2, rng = Math.random) {
     dodge: null,           // null = not dodging this rock; a number = ticking down to the step
     puGo: false,           // am I currently running at the crate?
     puFor: null, puWant: false,   // the crate I have already made my mind up about
+    holdJump: 0,           // frames of jump still held — jump height is variable here
     cardWait: 0,           // s until it will consider its hand again — the reaction dial, again
     out: { left: false, right: false, jump: false, kick: false, power: false,
            card1: false, card2: false, card3: false },
@@ -175,7 +176,12 @@ export function botInput(bot, m, index, dt) {
       // against a ball moving at 2000px/s is a miss. The first version had this backwards and
       // the strong bot blocked nine to the weak bot's twenty-four.
       const lead = 0.18 + d.aim * 0.16;
-      out.jump = p.onGround && b.y < headY(p) - C.HEAD_R * 0.4 && eta < lead;
+      // HOLD the jump, do not tap it. Jump height is variable here — a tap tops out at 146px
+      // and a held jump reaches 239 — and the volley flies at 0.9 of the goal, so a tapping
+      // bot cannot reach it at all. Measured: one block across sixteen matches before this.
+      if (p.onGround && b.y < headY(p) - C.HEAD_R * 0.4 && eta < lead) bot.holdJump = 14;
+      out.jump = bot.holdJump > 0;
+      if (bot.holdJump > 0) bot.holdJump--;
       // The counter is a kick timed into the block, not a substitute for it.
       out.kick = bot.powerPlan === 'counter'
         ? dist < C.COUNTER_WINDOW * 0.82

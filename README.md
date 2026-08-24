@@ -92,9 +92,10 @@ than something the clock hands you.
 Press it with a full gauge and the game **focuses on the striker for a second and a half** —
 the pitch dims to two pools of light, one on them and one on the ball as it is drawn up and
 lights up in their shot's colour, with a ring closing as a clock. Then it fires **dead flat at
-three times a normal power shot**, always from **0.9 of the goal height**, so a defender learns
-one height to jump for. **The only way to stop it is to jump into its line, early** — the head
-has to already be up there when the ball arrives.
+three times a normal power shot**, always from **0.9 of the goal height** (capped at what a
+jump can actually reach), so a defender learns one height to jump for. **The only way to stop it is to jump into its line, early — and to HOLD the jump**: jump
+height is variable here, a tap tops out at 146px and a held jump reaches 239, and the shot
+flies above the tap.
 
 The wind-up is the price. You are rooted for that half second in the open, and **a tackle
 landed on you during it cancels the whole thing** — the gauge is already spent. That is what

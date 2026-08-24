@@ -22,7 +22,9 @@ export const TICK = 1 / 60;           // sim step (fixed)
 
 // ---- Goals -----------------------------------------------------------------
 export let GOAL_W = 53;              // depth:height 0.33, as measured (was 0.29).
-export let GOAL_H = 160;             // 2.02x the 79px player — the measured ratio exactly.
+export let GOAL_H = 192;             // +20% on request (was 160). The volley's launch height
+                                    // rides this (0.9 of it), so a taller goal also raises the
+                                    // line a defender has to jump to — one number, both.             // 2.02x the 79px player — the measured ratio exactly.
                                       // 160 -> 4.7 goals and 7:4, 180 -> 4.9 and 9:2, 200 -> 8.5 and 8:3.
                                       // 180 is both the closest to the reference AND the best gradient.
                                       // Swept against bot-vs-bot outcomes: at 146 the game gave
@@ -80,7 +82,12 @@ export let KICK_TIME = 0.13;        // s the leg stays out. Shorter is SNAPPIER:
 // Was 0.26. A quarter of a second between kicks is a quarter of a second of a dead button,
 // and in a game this fast that reads as the kick not registering rather than as a cooldown.
 export const KICK_COOLDOWN = 0.14;
-export let KICK_REACH = 48;          // from body centre. Scaled with the smaller body (was 62/48 wide).
+// From body centre. The drawn boot is three times longer than it was on request, and the
+// reach follows it: a foot that looks like it can touch the ball and cannot is the reason the
+// kick "did not kick so good". FOOT_LEN is the drawn length; the two are kept in step by
+// deriving the reach from it.
+export let FOOT_LEN = 3;             // multiples of the original 3px boot plate
+export let KICK_REACH = 62;
 export let KICK_R = 22;              // kick hitbox radius
 export let KICK_POWER = 520;         // Ball-only slowdown (Adam, 2026-08-21: "make ball slower").
                                       // 640 put a kicked ball at 1.49x the player, crossing the pitch
@@ -205,8 +212,20 @@ export let POWER_CHARGE_TIME = 1.5;   // s of wind-up. A second and a half is a 
 // height to jump for instead of guessing per shot. Derived from GOAL_H rather than typed, or
 // the two drift apart the first time the goal is retuned.
 export let POWER_CHARGE_GOAL_FRAC = 0.9;
-// The height itself, as a function so it follows GOAL_H live (the tuner moves both).
-export const powerHeight = () => GOAL_H * POWER_CHARGE_GOAL_FRAC;
+
+// How high the top of a jumping head gets. Ballistic, so it is invariant under the PACE dial
+// (velocity x k, gravity x k^2 — the apex is the same), which is why it can be derived rather
+// than measured per tuning.
+export const headReach = () => (JUMP_V * JUMP_V) / (2 * PLAYER_GRAV) + BODY_H + HEAD_R * 2 - 8;
+
+// THE VOLLEY'S LINE. 0.9 of the goal, as asked — but never higher than a jump can meet.
+//
+// Those two requirements collided the moment the goal went up 20%: 0.9 of a 192px goal is
+// 173px and the top of a jumping head reaches 146px, so the shot became unblockable and the
+// rule it was built around ("the only way to stop it is to jump at the right time") stopped
+// being true. The clamp keeps the intent when the arithmetic cannot: high enough that standing
+// there is useless, low enough that a jump is not.
+export const powerHeight = () => Math.min(GOAL_H * POWER_CHARGE_GOAL_FRAC, headReach() - 14);
 export let POWER_VOLLEY_SPEED = 3;    // multiples of POWER_SHOT_SPEED. Powered balls are
                                       // exempt from BALL_MAX_SPEED, so this actually lands.
 export let POWER_MODE_TIME = 4.5;
@@ -520,6 +539,7 @@ const SETTERS = {
   DASH_TIME: (v) => { DASH_TIME = v; },
   KICK_TIME: (v) => { KICK_TIME = v; },
   KICK_REACH: (v) => { KICK_REACH = v; },
+  FOOT_LEN: (v) => { FOOT_LEN = v; },
   KICK_R: (v) => { KICK_R = v; },
   KICK_POWER: (v) => { KICK_POWER = v; },
   KICK_LIFT: (v) => { KICK_LIFT = v; },

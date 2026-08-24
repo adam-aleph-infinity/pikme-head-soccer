@@ -1756,8 +1756,10 @@ function drawRobotBody(g, p) {
   px(g, -bw * 0.34 - stride, -legH * 0.45, legW, 3, glow);
   px(g, bw * 0.04 + kickX + stride, -legH - swing * 8, legW, legH, steel);
   px(g, bw * 0.04 + kickX + stride, -legH * 0.45 - swing * 8, legW, 3, glow);
-  px(g, -bw * 0.40 - stride, -3, legW + 5, 3, lite);
-  px(g, bw * 0.00 + kickX + stride, -3 - swing * 8, legW + 5, 3, lite);
+  const footL = Math.round((legW + 5) * C.FOOT_LEN);
+  const footX = (base) => (p.facing > 0 ? base : base - footL + legW + 5);
+  px(g, footX(-bw * 0.40 - stride), -3, footL, 4, lite);
+  px(g, footX(bw * 0.00 + kickX + stride), -4 - swing * 8, footL, 4, lite);
 
   // chassis: square pauldrons over a plated torso
   const tH = Math.round(bh * 0.66);
@@ -1836,9 +1838,16 @@ function drawBody(g, p) {
   px(g, -bw * 0.32 - stride, -legH, legW, legH, pal.shade);
   const kickX = p.facing * swing * C.KICK_REACH * 0.7;
   px(g, bw * 0.06 + kickX + stride, -legH - swing * 8, legW, legH, pal.base);
-  // boots
-  px(g, -bw * 0.36 - stride, -3, legW + 3, 3, '#f2f2f2');
-  px(g, bw * 0.02 + kickX + stride, -3 - swing * 8, legW + 3, 3, '#f2f2f2');
+  // BOOTS, three times longer than they were, and pointing the way the player faces — the
+  // reach is derived from this (KICK_REACH), so the thing you can see is the thing that can
+  // touch the ball.
+  const bootL = Math.round((legW + 3) * C.FOOT_LEN);
+  const bootX = (base) => (p.facing > 0 ? base : base - bootL + legW + 3);
+  px(g, bootX(-bw * 0.36 - stride), -3, bootL, 4, '#f2f2f2');
+  px(g, bootX(bw * 0.02 + kickX + stride), -4 - swing * 8, bootL, 4, '#f2f2f2');
+  // a dark sole, so a long boot still reads as a boot rather than as a plank
+  px(g, bootX(-bw * 0.36 - stride), -1, bootL, 2, '#7a7a86');
+  px(g, bootX(bw * 0.02 + kickX + stride), -2 - swing * 8, bootL, 2, '#7a7a86');
 
   // torso — gi body, hard shadow down one side, belt across the waist
   const tH = Math.round(bh * 0.62);

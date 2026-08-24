@@ -242,7 +242,9 @@ const every = (fn) => {
 
   // Now a tackle: stand them on top of each other and swing.
   const [me, foe] = m.players;
-  me.x = 600; foe.x = 600 + 20; foe.y = me.y;
+  // Stand them where the BOOT reaches, derived rather than typed: KICK_REACH grew with the
+  // drawn foot and a hardcoded 20px gap silently stopped being a tackle.
+  me.x = 600; foe.x = 600 + C.KICK_REACH; foe.y = me.y;
   me.kickCd = 0; me.prev = {}; m.hitStop = 0;
   const beforeHit = spent();
   const seen = [];

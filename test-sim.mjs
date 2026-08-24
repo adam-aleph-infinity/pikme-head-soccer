@@ -864,12 +864,18 @@ const run = (m, ticks, inputs = NONE) => {
     m.ball.x = 340; m.ball.y = C.GROUND_Y - 20;
     m.hitStop = 0;
     step(m, [{ power: true }, {}]); m.events.length = 0;
-    let blocked = false;
+    let blocked = false, holding = 0;
     for (let i = 0; i < 200 && !blocked; i++) {
-      // A defender who jumps does so when the ball is close enough to read.
+      // A defender who jumps does so when the ball is close enough to read — and HOLDS the
+      // button, because this game has variable jump height: a tap tops out at 146px and a
+      // held jump reaches 239, so a tapped jump cannot meet a shot at 0.9 of the goal. The
+      // first version of this check tapped, and read as "unblockable".
       const near = jump && m.ball.power && Math.abs(m.ball.x - d.x) < jump && d.onGround;
+      if (near) holding = 14;
+      const jumpNow = holding > 0;
+      if (holding > 0) holding--;
       m.hitStop = 0;
-      step(m, [{}, near ? { jump: true } : {}]);
+      step(m, [{}, jumpNow ? { jump: true } : {}]);
       blocked = m.events.some((e) => e.type === 'blocked');
       m.events.length = 0;
       if (m.score[0] > 0) break;
@@ -886,7 +892,11 @@ const run = (m, ticks, inputs = NONE) => {
   // The window is ONE-SIDED: jumping early works and jumping late does not, because the head
   // has to already be up at 0.9 of the goal when the ball arrives. Measured closest-approach
   // per timing: 520/460/420px all clear it, and everything later misses by a growing margin.
-  const cleared = [600, 520, 460, 420, 340, 260, 180].filter((at) => stand(at).blocked);
+  // Search the timing space rather than hand-tuning distances: the launch height is 0.9 of
+  // GOAL_H, so every goal retune moves the band a defender has to be in, and a hardcoded list
+  // goes stale silently (it did, the moment the goal went up 20%).
+  const cleared = [];
+  for (let at = 720; at >= 120; at -= 40) if (stand(at).blocked) cleared.push(at);
   ok('jumping into its line does', cleared.length > 0, 'no timing reached it');
   ok('and the timing window is wide enough for a person', cleared.length >= 2,
      `blocked when jumping at ${cleared.join(', ')}px`);
