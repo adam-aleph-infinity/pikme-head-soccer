@@ -153,10 +153,17 @@ const geo = await evalJs(`(() => {
   return { stage: { w: Math.round(st.width), h: Math.round(st.height) }, heads: hs,
            bg: getComputedStyle(document.querySelector('#head0 i')).backgroundImage };
 })()`);
-// Read the world aspect from the page, not a literal — the camera shape is a tunable.
-const worldAspect = await evalJs('C.W / C.H');
-check('stage matches the world aspect', Math.abs(geo.stage.w / geo.stage.h - worldAspect) < 0.02,
-      `${geo.stage.w}x${geo.stage.h} vs ${worldAspect.toFixed(3)}`);
+// The STAGE is the viewport now — it has to be, because the HUD and the controls hang off it
+// while the pitch is lifted above the control band. So the thing to check is that the PITCH is
+// not stretched: the canvas must scale x and y by the same number. (It is taller than the
+// world by the decorative grass bleed, so its own aspect is not the world's.)
+const scaleXY = await evalJs(`(() => {
+  const r = document.getElementById('cv').getBoundingClientRect();
+  const cv = document.getElementById('cv');
+  return { sx: r.width / C.W, sy: r.height / (cv.height * 2) };   // backing is half-res (PIXEL 2)
+})()`);
+check('the pitch is drawn at a uniform scale', Math.abs(scaleXY.sx - scaleXY.sy) < 0.01,
+      `x${scaleXY.sx.toFixed(3)} vs y${scaleXY.sy.toFixed(3)}`);
 check('both heads are inside the stage', geo.heads.every((h) => h.x > -h.w && h.x < geo.stage.w && h.y > -h.w && h.y < geo.stage.h),
       JSON.stringify(geo.heads));
 check('heads are painted with card art', /supabase/.test(geo.bg || ''));

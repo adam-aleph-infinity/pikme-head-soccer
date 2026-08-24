@@ -26,6 +26,18 @@ npm test           # sim + bot tests, headless
 node _shot.mjs     # drives the real client in Chrome and screenshots it
 ```
 
+## The pitch sits above your thumbs
+
+The controls used to sit ON the pitch — players stood inside the buttons. The ground line is
+now placed at the top of the band the controls occupy, so the whole playable half of the world
+is clear of them. It costs width: on a 390px-tall phone the pitch renders at about 83% of the
+screen with bars at the sides, and those bars are painted to match the pitch at that height —
+sky above the ground line, grass below. A bar at the edge costs you nothing; a thumb over the
+six-yard box costs you the goal.
+
+Grass is drawn 170px past the bottom of the world (`BLEED`) purely so the strip behind the
+buttons is green rather than a hole. Nothing down there is simulated or reachable.
+
 ## Two ways to play
 
 The pick screen asks which, rather than leaving it implicit: **🤖 נגד המחשב** (difficulty slider

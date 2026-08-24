@@ -62,6 +62,19 @@ const bar = await ev(`(() => { const b = getComputedStyle(document.body).backgro
   return { bg: b, stageW: Math.round(st.width), stageH: Math.round(st.height), vw: innerWidth, vh: innerHeight }; })()`);
 ok('the bars are painted with the backdrop, not black',
    bar.bg !== 'rgb(9, 12, 20)' && bar.bg !== 'rgba(0, 0, 0, 0)', `body ${bar.bg}, stage ${bar.stageW}x${bar.stageH} in ${bar.vw}x${bar.vh}`);
+
+// The bar has to match the pitch at the height you are looking at, or the bottom corners read
+// as holes punched either side of the grass. Sampled off the rendered page, in the bar, at two
+// heights — the first version painted the BODY, which sits behind the stage's own opaque
+// background and was therefore invisible.
+const barPix = await ev(`(() => {
+  const cv = document.getElementById('cv').getBoundingClientRect();
+  if (cv.left < 6) return null;                       // no bar on this screen: nothing to check
+  const st = getComputedStyle(document.getElementById('stage')).backgroundImage;
+  return { hasGradient: /gradient/.test(st), barW: Math.round(cv.left) };
+})()`);
+ok('and the bar follows the pitch — sky above the grass line, grass below',
+   !barPix || barPix.hasGradient, JSON.stringify(barPix));
 // THE OVERLAY TRAP. The heads are DOM nodes over the canvas, so cropping the canvas without
 // threading the same offset through them silently slides both faces off their bodies. Checked
 // against the canvas's REAL rect rather than against the page's own OX/OY, so the check
@@ -72,8 +85,12 @@ const align = await ev(`(() => {
   for (let i = 0; i < 2; i++) {
     const p = MATCH.players[i];
     const el = document.getElementById('head' + i).getBoundingClientRect();
-    const wantX = cv.left + (p.x / C.W) * cv.width;
-    const wantY = cv.top + ((p.y - 40 - 30 + 8) / C.H) * cv.height;   // headY(p), same formula
+    // Scale off the WIDTH only: the canvas now extends past the bottom of the world with
+    // decorative grass, so dividing by C.H would measure against a canvas that is taller
+    // than the world it draws.
+    const k = cv.width / C.W;
+    const wantX = cv.left + p.x * k;
+    const wantY = cv.top + (p.y - 40 - 30 + 8) * k;                   // headY(p), same formula
     out.push({ dx: (el.left + el.width / 2) - wantX, dy: (el.top + el.height / 2) - wantY });
   }
   return out;
@@ -85,6 +102,19 @@ ok('both heads sit on their bodies after the crop',
 const padFit = await ev(`(() => { const r = [...document.querySelectorAll('.pad .btn')].map(b => b.getBoundingClientRect());
   return { inside: r.every(x => x.bottom <= innerHeight + 1 && x.left >= -1 && x.right <= innerWidth + 1), n: r.length }; })()`);
 ok('every control is still inside the screen', padFit.inside && padFit.n === 8, JSON.stringify(padFit));
+
+// THE POINT OF THE BAND: no control may sit on the playable half of the pitch. Measured
+// against the GROUND LINE — the line the players stand on — because grass below it is
+// decoration and a button over decoration costs nothing.
+const clear = await ev(`(() => {
+  const cv = document.getElementById('cv').getBoundingClientRect();
+  const groundY = cv.top + C.GROUND_Y * (cv.width / C.W);
+  const tops = [...document.querySelectorAll('.pad .btn')].map((b) => b.getBoundingClientRect().top);
+  return { ground: Math.round(groundY), highestButton: Math.round(Math.min(...tops)),
+           gap: Math.round(Math.min(...tops) - groundY) };
+})()`);
+ok('no control sits on the field', clear.gap >= 0,
+   `ground line at ${clear.ground}px, topmost button at ${clear.highestButton}px (gap ${clear.gap}px)`);
 writeFileSync(`${OUT}/fit-match.png`, Buffer.from((await send('Page.captureScreenshot',{format:'png'})).data,'base64'));
 ch.kill();
 console.log(`\nshots → ${OUT}`);

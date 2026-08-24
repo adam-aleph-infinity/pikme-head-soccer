@@ -751,36 +751,49 @@ const PIXEL = 2;
 // the colour of the sky (see paintLetterbox) rather than black.
 const MAX_CROP_PX = 34;               // world units, against a measured ball ceiling of 42
 
+// Decorative grass drawn BELOW the world, never simulated and never reachable. It exists so
+// that lifting the pitch above the controls does not leave a void under it: the pitch ends
+// where the sim says it ends, and the green simply keeps going behind the buttons.
+const BLEED = 170;
+
 function resize() {
   const vw = innerWidth, vh = innerHeight;
   const ratio = C.W / C.H;
 
-  // Scale up until either the width is full or the crop reaches its ceiling, whichever comes
-  // first. The excess hangs off the TOP only — the ground, the players' feet and the pad all
-  // live at the bottom and none of them may be cut.
-  const scale = Math.min(vw / C.W, vh / (C.H - MAX_CROP_PX));
-  const w = C.W * scale, h = C.H * scale;
+  // THE CONTROL BAND. The buttons used to sit ON the pitch — players stood in them, and the
+  // bottom of the play area was under a thumb. So the ground line is now placed at the TOP of
+  // the band the controls occupy, and the playable half of the world is entirely above them.
+  //
+  // It costs width: clearing a 90px band on a 390px-tall phone means the pitch renders at
+  // about 83% of the screen instead of 100%, with sky-coloured bars at the sides. That is the
+  // trade, and it is the right way round — a bar at the edge costs you nothing, a thumb over
+  // the six-yard box costs you the goal.
+  const band = padUnit(vw, vh) * 1.17 + safeInset('b');     // button + its edge margin
+  const scale = Math.min(vw / C.W, (vh - band) / (C.GROUND_Y - MAX_CROP_PX));
+  const w = C.W * scale, h = (C.H + BLEED) * scale;
 
-  // The stage is the whole viewport whenever the canvas overflows it, so the HUD and the pad
-  // — which are positioned against the stage — stay where a thumb expects them instead of
-  // riding up with the canvas.
+  // The stage is the whole viewport, so the HUD and the pad — which are positioned against
+  // the stage — stay where a thumb expects them instead of riding with the canvas.
   const stage = $('#stage');
-  const sw = Math.min(vw, Math.max(w, vw)), sh = h > vh ? vh : h;
+  const sw = vw, sh = vh;
   stage.style.width = sw + 'px';
   stage.style.height = sh + 'px';
   SC = w / C.W;
   OX = (sw - w) / 2;
-  OY = sh - h;                       // bottom-anchored: 0 when contained, negative when cover
+  // Anchored by the GROUND LINE rather than by either edge: everything else follows from
+  // where the players' feet have to be.
+  OY = (vh - band) - C.GROUND_Y * scale;
   cv.style.left = OX + 'px';
   cv.style.top = OY + 'px';
   cv.style.width = w + 'px';
   cv.style.height = h + 'px';
   sizePad(sw, sh, vw, vh);
+  applyBars();                       // the gradient's cut is the ground line, which just moved
   // Saved offsets are fractions of the stage, so they have to be re-multiplied whenever the
   // stage changes — rotation, a resized window, the keyboard opening on a phone.
   applyLayout($('#pad'), { w: sw, h: sh });
   cv.width = Math.ceil(C.W / PIXEL);
-  cv.height = Math.ceil(C.H / PIXEL);
+  cv.height = Math.ceil((C.H + BLEED) / PIXEL);
   ctx.setTransform(1 / PIXEL, 0, 0, 1 / PIXEL, 0, 0);   // draw in WORLD units, land on texels
   ctx.imageSmoothingEnabled = false;
   if (!crowd.length) {
@@ -801,9 +814,15 @@ const safeInset = (side) => {
   const n = parseFloat(v);
   return Number.isFinite(n) ? n : 0;
 };
+// The thumb unit, on its own, because resize() has to know how tall the control band is
+// BEFORE it can decide where the pitch ends. A thumb is a thumb on every device, so it is a
+// fraction of the play area rather than a fixed pixel size (46..96 keeps it inside the 44pt
+// touch minimum without covering the goal).
+const padUnit = (w, h) => Math.max(46, Math.min(96, Math.min(h * 0.20, w * 0.115)));
+
 function sizePad(w, h, vw, vh) {
   if (!padEl) return;
-  const u = Math.max(46, Math.min(96, Math.min(h * 0.20, w * 0.115)));
+  const u = padUnit(w, h);
   // The stage is centred, so the letterbox bar already eats this much of the inset.
   const barX = (vw - w) / 2, barY = (vh - h) / 2;
   const px = (n) => Math.max(0, Math.round(n)) + 'px';
@@ -876,19 +895,37 @@ addEventListener('orientationchange', () => setTimeout(() => M && resize(), 120)
 // backdrop behind them. Sampled from the canvas rather than read off the stage definition,
 // because the four art directions each paint their own sky and a hardcoded colour would be
 // wrong for three of them. One sample per stage, not per frame.
-let barStage = null;
+let barStage = null, barSky = null;
 function paintLetterbox() {
-  if (!STAGE || STAGE.id === barStage) return;
-  try {
-    const d = ctx.getImageData(2, 2, 1, 1).data;
-    document.body.style.background = `rgb(${d[0]}, ${d[1]}, ${d[2]})`;
-    barStage = STAGE.id;
-  } catch { /* a tainted canvas would throw; the default background is fine */ }
+  if (!STAGE) return;
+  if (STAGE.id !== barStage) {
+    try {
+      const d = ctx.getImageData(2, 2, 1, 1).data;
+      barSky = `rgb(${d[0]}, ${d[1]}, ${d[2]})`;
+      barStage = STAGE.id;
+    } catch { return; }        // a tainted canvas would throw; the default background is fine
+  }
+  applyBars();
+}
+
+// The bars are painted on the STAGE, not the body: the stage covers the viewport and carries
+// its own opaque colour, so a colour on the body sits behind it and is never seen — which is
+// exactly the bug that made the first version look like it had done nothing.
+//
+// And they are a two-stop gradient rather than one flat colour, cut at the ground line: sky
+// beside the sky, grass beside the grass. A single colour makes the bottom corners read as
+// holes punched either side of the pitch.
+function applyBars() {
+  if (!barSky || !STAGE) return;
+  const ground = Math.max(0, Math.round(OY + C.GROUND_Y * SC));
+  const grass = STAGE.grass ? STAGE.grass[0] : barSky;
+  $('#stage').style.background =
+    `linear-gradient(to bottom, ${barSky} 0 ${ground}px, ${grass} ${ground}px 100%)`;
 }
 
 function draw() {
   const g = ctx;
-  g.clearRect(0, 0, C.W, C.H);
+  g.clearRect(0, 0, C.W, C.H + BLEED);
   // A frozen frame on its own just looks like a dropped frame. A couple of pixels of shake
   // during hit-stop is what turns it into an impact.
   const shake = M.hitStop > 0 ? M.hitStop * 60 : 0;
@@ -978,12 +1015,14 @@ function drawStadium(g) {
   }
   g.restore();
 
-  // pitch — flat mown stripes in the stage's own greens
-  R2(g, 0, gy, C.W, C.H - gy, STAGE.grass[0]);
-  for (let x = 0; x < C.W; x += 80) R2(g, x, gy, 40, C.H - gy, STAGE.grass[1]);
+  // pitch — flat mown stripes in the stage's own greens, drawn past the bottom of the world
+  // into the BLEED so the strip behind the controls is grass rather than a hole.
+  const grassH = C.H + BLEED - gy;
+  R2(g, 0, gy, C.W, grassH, STAGE.grass[0]);
+  for (let x = 0; x < C.W; x += 80) R2(g, x, gy, 40, grassH, STAGE.grass[1]);
   R2(g, 0, gy - 3, C.W, 3, OUTLINE);
   R2(g, 0, gy, C.W, 2, '#eaffea');
-  R2(g, C.W / 2 - 1, gy, 2, C.H - gy, '#eaffea');
+  R2(g, C.W / 2 - 1, gy, 2, grassH, '#eaffea');
   g.strokeStyle = '#eaffeaaa';
   g.lineWidth = 2;
   g.beginPath();
