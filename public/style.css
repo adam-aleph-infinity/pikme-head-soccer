@@ -225,6 +225,34 @@ body[data-mode="duo"] .diff, body[data-mode="duo"] #playBtn { display: none; }
 /* In 1v1 the opponent brings their own card, so choosing one for them is meaningless. */
 body[data-mode="duo"] #slotFoe { opacity: .45; pointer-events: none; }
 
+/* ── A LANDSCAPE PHONE IS 390px TALL ─────────────────────────────────────────
+   The pick screen was authored for a browser window and it does not fit one: header, two
+   card slots, four rarity tabs, the grid, the two modes and the footer add up to more than
+   the height of an iPhone on its side, so the grid collapsed to a sliver and the play button
+   fell off the bottom edge. Everything below compacts the CHROME so the grid — the part you
+   are actually here to use — keeps real estate. Nothing is hidden that you need. */
+@media (max-height: 520px) {
+  #pick { gap: 6px; padding: env(safe-area-inset-top) 10px 6px; }
+  .pick-head { padding-top: 2px; }
+  .pick-head h1 { font-size: 20px; }
+  .pick-head .sub { display: none; }        /* the two slots below say the same thing */
+  .slot { width: 84px; padding: 5px; border-radius: 12px; }
+  .slot-art { width: 46px; height: 46px; border-width: 2px; }
+  .slot-cap { font-size: 10px; }
+  .slot-shot { font-size: 10px; min-height: 12px; }
+  .slots { gap: 10px; }
+  .rarity-tabs button { padding: 4px 12px; font-size: 12px; }
+  .grid { min-height: 82px; gap: 6px; grid-template-columns: repeat(auto-fill, minmax(62px, 1fr)); }
+  .modes { margin: 4px auto 0; }
+  .modes button { padding: 6px 8px; }
+  .modes button b { font-size: 13px; }
+  .modes button span { display: none; }     /* the icon and the label carry it */
+  .online-row { gap: 6px; }
+  .ghost { padding: 6px 12px; font-size: 12px; }
+  .play { padding: 9px 22px; font-size: 15px; box-shadow: 0 3px 0 #a86800, 0 6px 12px #0009; }
+  .pick-foot { gap: 8px; }
+}
+
 .pad {
   position: absolute; inset: 0; pointer-events: none; direction: ltr;
   --u: 62px;

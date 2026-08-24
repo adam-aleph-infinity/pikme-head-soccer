@@ -25,6 +25,19 @@ await send('Page.enable'); await send('Runtime.enable'); await send('Network.ena
 await send('Emulation.setDeviceMetricsOverride',{width:844,height:390,deviceScaleFactor:2,mobile:true});
 await send('Page.navigate',{url:`${BASE}/?diff=3&solo=1`});
 await sleep(2600);
+// The pick screen has to FIT a landscape phone before anything else on it matters: at 390px
+// tall the grid had collapsed to a sliver and the play button was below the fold.
+const fits = await ev(`(() => {
+  const q = (sel) => document.querySelector(sel).getBoundingClientRect();
+  const grid = q('#cardGrid'), foot = q('.pick-foot'), modes = q('#modes');
+  return { grid: Math.round(grid.height), footBottom: Math.round(foot.bottom),
+           modesBottom: Math.round(modes.bottom), vh: innerHeight,
+           scroll: document.getElementById('pick').scrollHeight > innerHeight + 1 };
+})()`);
+ok('the whole pick screen fits the phone',
+   fits.footBottom <= fits.vh && fits.modesBottom <= fits.vh && !fits.scroll, JSON.stringify(fits));
+ok('and the card grid still has room to be a grid', fits.grid >= 80, `${fits.grid}px tall`);
+
 ok('the pick screen offers two modes',
    (await ev(`[...document.querySelectorAll('#modes button')].map(b=>b.dataset.mode).join(',')`)) === 'bot,duo');
 ok('bot mode shows difficulty and hides the link buttons',
