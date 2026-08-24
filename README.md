@@ -38,6 +38,21 @@ six-yard box costs you the goal.
 Grass is drawn 170px past the bottom of the world (`BLEED`) purely so the strip behind the
 buttons is green rather than a hole. Nothing down there is simulated or reachable.
 
+## The faces
+
+Every head — the two on the pitch, the three cards under it, the slots on the pick screen — is
+the card art as a background, scaled so the face fills a circle. The offsets come from
+`public/data/head-anchors.json`, which was measured **automatically**, and one card in five was
+measured wrong: twenty ask for a window that runs off the edge of the card (a browser obliges,
+and shows blank space beside the face), and thirty-seven claim a head more than half the card
+wide — one of them wider than the card itself.
+
+`public/head-crop.js` is the repair and the single copy of the maths: it clamps the window onto
+the card and caps the head size, so a bad anchor can make a face slightly off-centre but can
+never show something that is not card. `node test-heads.mjs` runs it over all 180 and prints
+the list of anchors it had to fix — that list is the to-do for measuring them properly.
+`node _face-shots.mjs` photographs any card before and after.
+
 ## Two ways to play
 
 The pick screen asks which, rather than leaving it implicit: **🤖 נגד המחשב** (difficulty slider

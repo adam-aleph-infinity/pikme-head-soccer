@@ -124,6 +124,20 @@ check('each card says what it does', tips.length === 3 && tips.every((t) => t &&
   JSON.stringify(tips));
 check('and the three say different things', new Set(tips).size === 3, JSON.stringify(tips));
 
+// The crop must show CARD, not the empty space past its edge: twenty anchors ask for a
+// window that does not fit, and an unclamped crop slides the face off centre. Measured off
+// the live element rather than off the maths — the background-position and size are what a
+// phone actually renders.
+const crops = await evalJs(`[...document.querySelectorAll('#cardRow .card .card-art')].map((e) => {
+  const cs = getComputedStyle(e);
+  const [w, h] = cs.backgroundSize.split(' ').map(parseFloat);
+  const [x, y] = cs.backgroundPosition.split(' ').map(parseFloat);
+  const box = e.getBoundingClientRect();
+  return { onCard: x <= 0.5 && y <= 0.5 && x + w >= box.width - 0.5 && y + h >= box.height - 0.5,
+           w: Math.round(w), h: Math.round(h), x: Math.round(x), y: Math.round(y) };
+})`);
+check('every card crop stays inside the card', crops.every((c) => c.onCard), JSON.stringify(crops));
+
 check('every card painted its face',
   cards.every((c) => /url\(/.test(c.art)), cards.map((c) => c.art.slice(0, 40)).join(' | '));
 check('the faces are three DIFFERENT cards',

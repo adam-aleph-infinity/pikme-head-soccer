@@ -11,6 +11,7 @@ import { cardAt, cardKind, cardFill, cardReady, cardCd, liveKind, cardCooldown,
          CARD_SLOTS } from '../shared/cards.js';
 import { activeDart, activeDog, goalWallT, hasSuperKick } from '../shared/skills.js';
 import { createEditor, applyLayout, applyOpacity, loadOpacity } from './padlayout.js';
+import { headCrop } from './head-crop.js';
 import { createNet } from './net.js';
 import { playEvent, SFX, setAudioEnabled, audioEnabled } from './audio.js';
 import { STAGES, randomStage, stageById } from './stages.js';
@@ -45,13 +46,15 @@ const anchorFor = (r, n) => ANCHORS.heads[`${r}_${n}`] || DEFAULT_ANCHOR;
 // baked into head-anchors.json. Painted as a CSS background on a DOM node, never blitted
 // into the canvas: canvas-drawn card art comes back blank inside WKWebView.
 function paintHead(el, r, n, sizePx) {
-  const a = anchorFor(r, n);
-  const { cardW, cardH } = ANCHORS;
-  const rendered = sizePx / a.d;                       // card width at this zoom
+  // The maths lives in head-crop.js so test-heads.mjs can run it over all 180 anchors. It
+  // CLAMPS the window to the card, which the old inline version did not: twenty of the
+  // anchors were measured asking for a window bigger than the card or too near an edge, and
+  // an unclamped crop shows the card's edge and blank space beyond it — which is why some
+  // faces sat off centre on a phone.
+  const c = headCrop(anchorFor(r, n), ANCHORS.cardW, ANCHORS.cardH, sizePx);
   el.style.backgroundImage = `url("${cardUrl(r, n)}")`;
-  el.style.backgroundSize = `${rendered}px ${rendered * (cardH / cardW)}px`;
-  el.style.backgroundPosition =
-    `${sizePx / 2 - a.cx * rendered}px ${sizePx / 2 - a.cy * rendered * (cardH / cardW)}px`;
+  el.style.backgroundSize = `${c.width}px ${c.height}px`;
+  el.style.backgroundPosition = `${c.x}px ${c.y}px`;
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -2160,6 +2163,9 @@ $('#tunerCopy').onclick = async () => {
 Object.assign(window, { C, startMatch, pick, SHOTS, ACT, activeMeteors, isRobot,
                         PU, PU_NAME, PU_COLOR, PU_LABEL, PU_KINDS, activePickup, puBadges,
                         paintHand, paintHead, cardAt, cardKind });
+// The measured head anchors, for the crop tools — see head-crop.js and test-heads.mjs.
+Object.defineProperty(window, '__ANCHORS', { get: () => ANCHORS });
+Object.assign(window, { headCrop });
 Object.defineProperty(window, 'MATCH', { get: () => M });
 Object.defineProperty(window, 'HELD', { get: () => held });
 Object.defineProperty(window, 'EVENTS', { get: () => EVENT_LOG });
