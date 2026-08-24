@@ -676,5 +676,38 @@ const run = (m, ticks, inputs = NONE) => {
   }
 }
 
+// ── A TACKLE FROM BEHIND ──────────────────────────────────────────────────────
+// Same button, two outcomes, decided by where you are standing: a hit to the front SHOVES
+// them, a hit to the back FREEZES them. Kicking someone in the back is the one hit they had
+// no chance to read, so it is the one that stops them dead — and it deliberately shoves them
+// less, or a freeze would also slide them out of the fight.
+{
+  const hit = (fromBehind) => {
+    const m = fresh();
+    const [a, b] = m.players;
+    a.x = 500; b.x = 500 + 34; b.y = a.y;
+    a.facing = 1;
+    // The victim's own facing is what makes it a back: away from the tackler = they never saw
+    // it, whichever side of the pitch they happen to be on.
+    b.facing = fromBehind ? 1 : -1;
+    a.kickCd = 0; a.prev = {}; m.hitStop = 0;
+    step(m, [{ kick: true }, {}]);
+    const ev = m.events.find((e) => e.type === 'tackle');
+    return { rooted: b.rooted, vx: Math.abs(b.vx), behind: ev && ev.behind };
+  };
+  const front = hit(false), back = hit(true);
+  // Against the LIVE constant, not the authored one: TACKLE_PUSH rides the PACE dial, so a
+  // literal here would fail every time someone slowed the game down.
+  ok('a tackle from the front is a shove',
+     front.vx > C.TACKLE_PUSH * 0.9 && front.rooted <= C.TACKLE_STUN + 1e-6,
+     `push ${front.vx.toFixed(0)} of ${C.TACKLE_PUSH.toFixed(0)}, freeze ${front.rooted.toFixed(2)}s`);
+  ok('a tackle from behind is a freeze', back.rooted > front.rooted * 2,
+     `${front.rooted.toFixed(2)}s front vs ${back.rooted.toFixed(2)}s behind`);
+  ok('and it shoves them less, not more', back.vx < front.vx,
+     `${front.vx.toFixed(0)} front vs ${back.vx.toFixed(0)} behind`);
+  ok('the event says which it was', back.behind === true && front.behind === false,
+     `front=${front.behind} back=${back.behind}`);
+}
+
 console.log(`test-sim: ${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);

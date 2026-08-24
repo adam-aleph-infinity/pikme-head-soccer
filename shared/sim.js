@@ -8,6 +8,8 @@ import { createSpectacle, stepSpectacle, packSpectacle, unpackSpectacle,
          spSpeed, spKick, spJump, ballGrav, playerGrav, windAccel } from './spectacle.js';
 import { createCards, stepCards, useCard, chargeCards, packCards, unpackCards,
          CARD_KEYS, CARD_SLOTS } from './cards.js';
+import { createSkills, stepSkills, wipeSkills, wallUp, spendSuperKick, headScale,
+         packSkills, unpackSkills } from './skills.js';
 import { createPickups, stepPickups, collectPickups, wipePickups, applyMagnet, spendShield,
          packPickups, unpackPickups, puHeadScale, puJump, puMaxJumps } from './powerups.js';
 
@@ -18,7 +20,7 @@ export const bodyTop = (p) => p.y - C.BODY_H;
 // The head's RADIUS is not constant any more: the big-head pickup grows it. It grows around
 // the existing centre — headY above is deliberately untouched — so a player who collects one
 // gets bigger without moving. Everything that collides with a head goes through this.
-export const headR = (m, p) => C.HEAD_R * puHeadScale(m, p.index);
+export const headR = (m, p) => C.HEAD_R * puHeadScale(m, p.index) * headScale(m, p.index);
 
 const clamp = (v, lo, hi) => (v < lo ? lo : v > hi ? hi : v);
 
@@ -70,6 +72,9 @@ export function createMatch(charA, charB, opts = {}) {
     // The hand of three. Dealt from the two cards, so it never travels; only the six
     // cooldown clocks inside it do.
     cards: createCards(charA, charB),
+    // Darts, dogs, goal walls, armed super kicks — everything the four special powers put on
+    // the pitch. Every field of it travels in serialize() too.
+    sk: createSkills(),
     events: [],              // drained by the renderer each frame
   };
   return m;
@@ -100,6 +105,7 @@ function resetPositions(m, towards) {
   // from two players who are no longer there, and every live effect belongs to the passage
   // of play that just ended — so a goal wipes the pitch AND every running power-up.
   wipePickups(m, 'goal');
+  wipeSkills(m);
 }
 
 // ---------------------------------------------------------------------------
@@ -145,6 +151,7 @@ export function step(m, inputs, dt = C.TICK, fx = NO_FX) {
   // the positions the telegraph will be drawn against. Collection is the other half and has
   // to wait until after the players have moved — see below.
   stepCards(m);
+  stepSkills(m, fx);
   stepPickups(m, fx);
 
   for (let i = 0; i < 2; i++) stepPlayer(m, m.players[i], inputs[i] || {}, dt, fx);
@@ -486,10 +493,16 @@ function tryTackle(m, p, fx) {
     if (!spendShield(m, foe.index)) applyEffect(p.shot, foe, dir, C.POWER_TACKLE_SCALE);
     p.armed = 0;
   } else {
+    // FRONT or BACK, and it is the same button either way — which one you get is decided by
+    // where you are standing when you swing. A hit to the chest shoves them off the ball; a
+    // hit to the back, the one thing they could not read, stops them dead instead. The freeze
+    // deliberately comes with LESS shove: a stun that also slides you across the pitch is
+    // just a knockback with extra steps.
+    const behind = foe.facing === dir;
     foe.slow = C.TACKLE_SLOW_TIME;
-    foe.rooted = Math.max(foe.rooted, C.TACKLE_STUN);
-    foe.vx = dir * C.TACKLE_PUSH;
-    foe.vy = Math.min(foe.vy, -C.TACKLE_LIFT);
+    foe.rooted = Math.max(foe.rooted, behind ? C.TACKLE_STUN_BACK : C.TACKLE_STUN);
+    foe.vx = dir * C.TACKLE_PUSH * (behind ? C.TACKLE_PUSH_BACK : 1);
+    foe.vy = Math.min(foe.vy, -C.TACKLE_LIFT * (behind ? C.TACKLE_PUSH_BACK : 1));
     foe.onGround = false;
     foe.dashT = 0;
     p.gauge = Math.min(1, p.gauge + C.TACKLE_GAUGE);
@@ -504,7 +517,8 @@ function tryTackle(m, p, fx) {
   p.kickT = 0;                                   // the boot is spent on them, not the ball
   m.hitStop = Math.max(m.hitStop, powered ? C.HIT_STOP_POWER : C.HIT_STOP_TACKLE);
   m.events.push({ type: 'tackle', by: p.index, on: foe.index, x: kx, y: ky,
-                 powered, shot: powered ? p.shot.id : null });
+                 powered, behind: !powered && foe.facing === dir,
+                 shot: powered ? p.shot.id : null });
   fx.hit(kx, ky, powered ? p.shot.color : '#ffd166', powered ? 2.4 : 1.6);
   return true;
 }
@@ -528,6 +542,15 @@ function resolveBallPlayers(m, dt, fx) {
       if (Math.hypot(b.x - kx, b.y - ky) < C.KICK_R + b.r) {
         if (firePowerIfArmed(m, p, b, fx)) return;
         if (!b.power) {
+          // An armed SUPER KICK spends itself here, on the ordinary boot: the ball goes twice
+          // as far and anyone standing near it goes with it. Same contact, bigger consequence.
+          if (spendSuperKick(m, p.index, b, p.facing)) {
+            p.kickT = 0;
+            m.idle = 0;
+            m.events.push({ type: 'strike', player: p.index, x: b.x, y: b.y, power: true });
+            fx.hit(b.x, b.y, '#ff2f00', 3);
+            return;
+          }
           const mult = p.stats.kick * spKick(m, p.index);
           const drive = p.kickLob ? C.LOB_DRIVE : 1;
           const lift = p.kickLob ? C.LOB_LIFT : 1;
@@ -664,6 +687,21 @@ function checkGoal(m, fx) {
   else if (b.x - b.r > C.W - C.GOAL_W) scorer = 0;
   if (scorer === null) return false;
 
+  // A GOAL WALL over that net turns the ball away instead. Checked here rather than in the
+  // ball step so there is exactly one place that decides whether a ball in the net is a goal.
+  // Whoever is about to concede is the one whose wall could stop it.
+  const defender = 1 - scorer;
+  if (wallUp(m, defender)) {
+    const left = b.x < C.W / 2;
+    b.x = left ? C.GOAL_W + b.r + 2 : C.W - C.GOAL_W - b.r - 2;
+    b.vx = Math.abs(b.vx) * C.SKILL_WALL_BOUNCE * (left ? 1 : -1);
+    b.vy *= 0.7;
+    m.events.push({ type: 'wallSave', player: defender, x: b.x, y: b.y });
+    fx.shockwave(b.x, b.y, '#9ad0ff');
+    m.hitStop = Math.max(m.hitStop, C.HIT_STOP_KICK);
+    return false;
+  }
+
   m.score[scorer]++;
   m.lastScorer = scorer;
   // A goal restarts the exchange, and the scorer walks back to the spot with their hand
@@ -734,6 +772,7 @@ export function serialize(m) {
     // Six cooldown clocks. The hands themselves are dealt from the two cards at both ends
     // and never travel.
     cd: packCards(m.cards),
+    sk: packSkills(m.sk),
     b: {
       x: m.ball.x, y: m.ball.y, vx: m.ball.vx, vy: m.ball.vy, spin: m.ball.spin,
       // The shot itself is static data; only its live flight state travels.
@@ -761,6 +800,7 @@ export function restore(m, s) {
   if (m.spec) unpackSpectacle(m.spec, s.sp || []);
   if (m.pu) unpackPickups(m.pu, s.pk || []);
   if (m.cards) unpackCards(m.cards, s.cd || []);
+  if (m.sk) unpackSkills(m.sk, s.sk || []);
   const b = m.ball, o = s.b;
   b.x = o.x; b.y = o.y; b.vx = o.vx; b.vy = o.vy; b.spin = o.spin;
   if (!o.pw) b.power = null;

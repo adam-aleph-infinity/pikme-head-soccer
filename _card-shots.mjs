@@ -138,6 +138,20 @@ check('and that card starts cooling', cards[0].fill < 0.98 && !cards[0].ready,
   `fill ${cards[0].fill.toFixed(2)} ready=${cards[0].ready}`);
 check('the other two are still ready', cards[1].ready && cards[2].ready);
 check('a cooling card counts itself down', /^\d+$/.test(cards[0].label), `label "${cards[0].label}"`);
+
+// The other half of pressing one: everybody is told. Before this the only feedback was your
+// own button greying out, and the opponent got no signal that the reason they were suddenly
+// heavy was a card rather than the game.
+const shout = await evalJs(`(() => {
+  const el = document.querySelector('#callouts .callout');
+  if (!el) return null;
+  const cs = getComputedStyle(el);
+  return { who: el.querySelector('.who').textContent, what: el.querySelector('.what').textContent,
+           side: el.className, colour: cs.getPropertyValue('--cc').trim(), anim: cs.animationName };
+})()`);
+check('using a card announces it on screen', !!shout && !!shout.what, JSON.stringify(shout));
+check('and says which player, in that power\'s colour',
+  !!shout && /p0/.test(shout.side) && shout.colour.length > 0, JSON.stringify(shout));
 await shot('02-pressed');
 
 // Holding it down must not machine-gun it — the edge latch, seen from the outside.

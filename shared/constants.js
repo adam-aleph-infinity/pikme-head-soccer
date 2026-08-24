@@ -4,13 +4,18 @@
 // ---- World -----------------------------------------------------------------
 // Fixed logical pitch. The renderer letterboxes this into whatever the screen is,
 // so physics is resolution-independent and a phone plays the same match as a laptop.
-export const W = 960;
-export const H = 530;                 // 960x530 = 1.81:1, measured off a real kickoff screenshot.
+export const W = 1060;
+// 1060x530 = 2.00:1. Widened from 960 on request — a wider pitch is more room to run a ball
+// into, and it costs nothing on a phone: the closer the world gets to a handset's own 2.16:1,
+// the less of the screen ends up as letterbox bar.
+export const H = 530;
                                       // Was 2.04. The black side bars in that screenshot ARE the game
                                       // letterboxing on a 2.16 phone — matching it means accepting them.
                                       // so the pitch fills the screen instead of letterboxing, and the
                                       // camera sits tight enough that a head reads as a HEAD.
-export let GROUND_Y = 445;           // 84% down the screen, as measured
+export let GROUND_Y = 435;           // 82% down. Was 445; the extra 10px is grass, on request —
+                                     // and grass below the feet is also where the controls sit,
+                                     // so a taller apron is a wider berth for a thumb.
 export const CEIL_Y = 30;             // invisible ceiling the ball bounces off
 
 export const TICK = 1 / 60;           // sim step (fixed)
@@ -70,8 +75,11 @@ export let DASH_TIME = 0.16;        // s of locked dash velocity
 export const DASH_COOLDOWN = 0.55;
 
 // ---- Kick ------------------------------------------------------------------
-export let KICK_TIME = 0.20;        // s the leg stays out
-export const KICK_COOLDOWN = 0.26;
+export let KICK_TIME = 0.13;        // s the leg stays out. Shorter is SNAPPIER: the swing is
+                                     // over sooner, so the next one can start sooner.
+// Was 0.26. A quarter of a second between kicks is a quarter of a second of a dead button,
+// and in a game this fast that reads as the kick not registering rather than as a cooldown.
+export const KICK_COOLDOWN = 0.14;
 export let KICK_REACH = 48;          // from body centre. Scaled with the smaller body (was 62/48 wide).
 export let KICK_R = 22;              // kick hitbox radius
 export let KICK_POWER = 520;         // Ball-only slowdown (Adam, 2026-08-21: "make ball slower").
@@ -88,7 +96,11 @@ export let BODY_DEADEN = 0.18;
 // Where the header ends and the chest begins, as the vertical component of the contact
 // normal. 0.35 puts the split a bit below the head's equator.
 export let DEADEN_ZONE = 0.35;
-export let HEAD_POWER = 1.14;       // head hits multiply the bounce-out speed
+export let HEAD_POWER = 0.80;       // head hits multiply the bounce-out speed. Was 1.14: a head
+                                     // was springier than a boot, so the ball pinged off a jump
+                                     // harder than off a kick and heading beat playing. At 0.80
+                                     // a header is a touch — it redirects, the boot is what
+                                     // sends it.
 
 // ---- Jump feel -------------------------------------------------------------
 // The three things that separate a jump that feels good from one that feels broken.
@@ -110,8 +122,14 @@ export let FALL_MULT = 1.55;
 export let TACKLE_GAUGE = 0.11;      // gauge gifted to the tackler
 export let TACKLE_SLOW = 0.55;       // victim's speed multiplier while slowed
 export let TACKLE_SLOW_TIME = 1.7;   // s of slow
-export let TACKLE_STUN = 0.22;       // s of "cannot act" — short, it is a nudge not a knockdown
-export let TACKLE_PUSH = 340;        // knockback
+export let TACKLE_STUN = 0.22;       // s of "cannot act" from the FRONT — a nudge, not a knockdown
+// Kicking someone in the back is the one hit they could not see coming, so it is the one that
+// stops them dead rather than shoving them. Front tackles push (TACKLE_PUSH below), back
+// tackles freeze — same button, and which one you get is decided by where you are standing.
+export let TACKLE_STUN_BACK = 0.75;  // s of "cannot act" when hit from behind
+export let TACKLE_PUSH_BACK = 0.45;  // and the shove is scaled DOWN to this, so a freeze is a
+                                     // freeze rather than a freeze that also slides you away
+export let TACKLE_PUSH = 430;        // knockback from the front — a real shove
 export let TACKLE_LIFT = 200;
 export let TACKLE_IMMUNE = 1.1;      // s before the same player can be tackled again
 
@@ -273,6 +291,30 @@ export let PU_ICE_TIME = 2.2;
 // You hold three cards; each is one of the six powers above, on its own cooldown. The
 // rarity of the card is the ladder: strength up, cooldown down, both geometric so the
 // ordering cannot invert wherever a slider is dragged. Rules in shared/cards.js.
+// ── THE FOUR SPECIALS ────────────────────────────────────────────────────────
+// Epic and legendary cards only. Rules in shared/skills.js; these are the numbers.
+export let SKILL_DART_SPEED = 780;   // px/s — fast enough to be a shot, slow enough to dodge
+export let SKILL_DART_LIFE = 2.2;    // s before it fizzles out
+export let SKILL_DART_R = 9;
+export let SKILL_SHRINK = 0.62;      // head multiplier on a hit
+export let SKILL_SHRINK_TIME = 5;    // s
+export let SKILL_GROW = 1.45;        // and what a dart in the NET pays its shooter instead
+export let SKILL_GROW_TIME = 5;
+
+export let SKILL_WALL_BOUNCE = 0.8;  // how hard the wall throws a saved ball back out
+export let SKILL_WALL_TIME = 1.6;    // s your own goal is shut. Under two on purpose: long
+                                     // enough to survive one attack, too short to defend with.
+export let SKILL_SUPER_ARM = 5;      // s the super kick stays armed waiting for a touch
+export let SKILL_SUPER_BALL = 1.9;   // ball speed multiplier on that touch
+export let SKILL_SUPER_PUSH = 620;   // and what it does to anyone standing by the ball
+export let SKILL_SUPER_LIFT = 260;
+export let SKILL_SUPER_RANGE = 120;  // px from the ball to catch the shove
+
+export let SKILL_DOG_SPEED = 300;    // px/s along the ground — a jump clears it, that is the game
+export let SKILL_DOG_LIFE = 6;       // s before it gets bored and leaves
+export let SKILL_DOG_R = 24;
+export let SKILL_DOG_HOLD = 1.0;     // s it holds whoever it caught
+
 export let CARDS_ON = 1;             // 0 hides the row and takes the buttons out of the sim
 export let CARD_CD_BASE = 26;        // s — a COMMON card's cooldown, the slowest in the game.
                                      // 18 first, and two bots then played 34 cards between
@@ -332,6 +374,9 @@ export let PACE = 0.68;
 const PACE_REF = {
   vel:  { BALL_MAX_SPEED, KICK_POWER, KICK_LIFT, PLAYER_SPEED, DASH_V, JUMP_V,
           TACKLE_PUSH, TACKLE_LIFT, POWER_SHOT_SPEED,
+          // The specials are trajectories too: a dart and a dog that did not ride the pace
+          // dial would cross a slowed pitch in half the time everything else takes.
+          SKILL_DART_SPEED, SKILL_DOG_SPEED, SKILL_SUPER_PUSH, SKILL_SUPER_LIFT,
           // The spectacle rides the pace dial too, or a meteor that throws you 470px/s
           // reads as violent next to a 344px/s run and the two systems drift apart.
           METEOR_PUSH, METEOR_LIFT, METEOR_BALL_POP, METEOR_BALL_PUSH },
@@ -352,6 +397,8 @@ const PACE_REF = {
   time: { KICK_TIME, DASH_TIME, COYOTE_TIME, JUMP_BUFFER, POWER_SHOT_LIFE,
           METEOR_WARN, METEOR_KNOCK,
           PICKUP_WARN, PICKUP_LIFE,
+          SKILL_DART_LIFE, SKILL_SHRINK_TIME, SKILL_GROW_TIME, SKILL_WALL_TIME,
+          SKILL_DOG_LIFE, SKILL_DOG_HOLD,
           PU_GROW_TIME, PU_MAGNET_TIME, PU_SHIELD_TIME, PU_SPRING_TIME, PU_ICE_TIME },
 };
 
@@ -384,6 +431,8 @@ const SETTERS = {
   TACKLE_SLOW_TIME: (v) => { TACKLE_SLOW_TIME = v; },
   TACKLE_STUN: (v) => { TACKLE_STUN = v; },
   TACKLE_PUSH: (v) => { TACKLE_PUSH = v; },
+  TACKLE_STUN_BACK: (v) => { TACKLE_STUN_BACK = v; },
+  TACKLE_PUSH_BACK: (v) => { TACKLE_PUSH_BACK = v; },
   TACKLE_LIFT: (v) => { TACKLE_LIFT = v; },
   TACKLE_IMMUNE: (v) => { TACKLE_IMMUNE = v; },
   HIT_STOP_KICK: (v) => { HIT_STOP_KICK = v; },
@@ -455,6 +504,14 @@ const SETTERS = {
   // ---- power-ups ----
   PICKUPS_ON: (v) => { PICKUPS_ON = v; },
   CARDS_ON: (v) => { CARDS_ON = v; },
+  SKILL_DART_SPEED: (v) => { SKILL_DART_SPEED = v; },
+  SKILL_SHRINK: (v) => { SKILL_SHRINK = v; },
+  SKILL_GROW: (v) => { SKILL_GROW = v; },
+  SKILL_WALL_TIME: (v) => { SKILL_WALL_TIME = v; },
+  SKILL_SUPER_BALL: (v) => { SKILL_SUPER_BALL = v; },
+  SKILL_SUPER_PUSH: (v) => { SKILL_SUPER_PUSH = v; },
+  SKILL_DOG_SPEED: (v) => { SKILL_DOG_SPEED = v; },
+  SKILL_DOG_HOLD: (v) => { SKILL_DOG_HOLD = v; },
   CARD_CD_BASE: (v) => { CARD_CD_BASE = v; },
   CARD_CD_STEP: (v) => { CARD_CD_STEP = v; },
   CARD_POWER_SCALE: (v) => { CARD_POWER_SCALE = v; },

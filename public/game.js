@@ -6,9 +6,10 @@ import { createMatch, step, headY, headR, NO_FX } from '../shared/sim.js';
 import { createBot, botInput, DIFFICULTIES } from '../shared/bot.js';
 import { shotFor, SHOTS } from '../shared/powershots.js';
 import { activeMeteors, isRobot, robotCharging, actKind, ACT } from '../shared/spectacle.js';
-import { activePickup, puBadges, PU, PU_NAME, PU_COLOR, PU_LABEL } from '../shared/powerups.js';
+import { activePickup, puBadges, PU, PU_NAME, PU_COLOR, PU_LABEL, PU_KINDS } from '../shared/powerups.js';
 import { cardAt, cardKind, cardFill, cardReady, cardCd, liveKind, cardCooldown,
          CARD_SLOTS } from '../shared/cards.js';
+import { activeDart, activeDog, goalWallT, hasSuperKick } from '../shared/skills.js';
 import { createEditor, applyLayout, applyOpacity, loadOpacity } from './padlayout.js';
 import { createNet } from './net.js';
 import { playEvent, SFX, setAudioEnabled, audioEnabled } from './audio.js';
@@ -545,6 +546,29 @@ $('#back').onclick = $('#quit').onclick = () => {
 
 // ---- banner ----------------------------------------------------------------
 let bannerT = 0;
+// WHO PLAYED WHAT. A card was the loudest thing a player could do and it happened in silence:
+// your own button greyed out, and your opponent got no signal at all that the reason they were
+// suddenly heavy was a card and not the game. Every use now says so.
+//
+// Capped at three on screen: two players spamming a hand can produce four in a second, and a
+// stack that tall covers the crossbar.
+function callout({ player, name, label, color }) {
+  const box = $('#callouts');
+  if (!box) return;
+  while (box.children.length >= 3) box.firstElementChild.remove();
+  const el = document.createElement('div');
+  el.className = `callout p${player}`;
+  el.style.setProperty('--cc', color);
+  const who = ONLINE
+    ? (player === (NET.you ?? 0) ? 'אתה' : 'היריב')
+    : (player === 0 ? (pick.name || 'אתה') : 'היריב');
+  el.innerHTML = `<span class="who"></span><span class="what"></span><span class="spark">✦</span>`;
+  el.querySelector('.who').textContent = who;
+  el.querySelector('.what').textContent = label || name;
+  box.appendChild(el);
+  setTimeout(() => { el.classList.add('out'); setTimeout(() => el.remove(), 320); }, 1500);
+}
+
 function banner(text, color) {
   const el = $('#banner');
   el.textContent = text;
@@ -594,6 +618,17 @@ function drainEvents() {
     // No banner for the telegraph, for the same reason the meteor has none per rock: a line
     // of Hebrew over the pitch at the exact moment you need to see WHERE the thing is.
     // The token, its ring and its sound are the announcement. The banner is for the payoff.
+    else if (e.type === 'dartHit') { fx.hit(e.x, e.y, '#ff4d6d', 4); flash('#ff4d6d', 0.12); banner('כיווץ!', '#ff4d6d'); }
+    else if (e.type === 'dartGoal') { fx.shockwave(e.x, e.y, '#ffd54a'); banner('ענק!', '#ffd54a'); }
+    else if (e.type === 'wallSave') { fx.shockwave(e.x, e.y, '#9ad0ff'); banner('נעצר!', '#9ad0ff'); }
+    else if (e.type === 'superKick') { fx.shockwave(e.x, e.y, '#ff2f00'); flash('#ff2f00', 0.2); banner('בעיטת על!', '#ff2f00'); }
+    else if (e.type === 'dogBite') { fx.hit(e.x, C.GROUND_Y - 20, '#c98b3a', 4); banner('נתפס!', '#c98b3a'); }
+    // A card fired: say who, and what, in the power's own colour.
+    else if (e.type === 'cardUse') {
+      callout({ player: e.player, name: e.name, label: PU_LABEL[e.kind], color: e.color });
+      playEvent('pu' + e.name[0].toUpperCase() + e.name.slice(1));
+      flash(e.color, 0.10);
+    }
     else if (e.type === 'puTake') {
       // The sim's event name is `puTake` for everything; the SOUND is per item, because
       // knowing what you just grabbed without reading is most of what makes it feel good.
@@ -866,6 +901,7 @@ function draw() {
   drawMeteorMarks(g);                // on the grass, under the players
   for (const p of M.players) drawAura(g, p);
   for (const p of M.players) drawBody(g, p);
+  drawSkills(g);                     // darts, dogs and goal walls, in front of the bodies
   drawPickup(g);                     // in front of the bodies — it must never be hidden
   drawPuBadges(g);                   // and above the heads, clear of the DOM head layer
   drawParts(g, false);
@@ -1344,6 +1380,65 @@ function drawPuToken(g, kind, cx, cy, r, alpha = 1) {
 
 // The crate on the pitch. Two states, and they have to be unmistakably different: a GHOST
 // with a ring closing onto it (you cannot have this yet) and a SOLID one that bobs (go).
+// THE FOUR SPECIALS. Every one of them has to be legible in the half second you have to
+// react to it, so each is one silhouette in one colour: a pink dart at head height, a brown
+// dog on the ground line, a pale barrier across a goal mouth, and a furnace-red ring on the
+// player whose next boot is a super kick.
+function drawSkills(g) {
+  // GOAL WALLS — a lattice across the mouth of a goal that is briefly shut.
+  for (let i = 0; i < 2; i++) {
+    const t = goalWallT(M, i);
+    if (t <= 0) continue;
+    const left = M.players[i].side > 0 ? true : false;
+    const x = left ? 0 : C.W - C.GOAL_W;
+    const top = C.GROUND_Y - C.GOAL_H;
+    // It fades as it runs out, so "about to fail" is something you can see rather than time.
+    g.globalAlpha = Math.min(1, t / 0.5) * 0.85;
+    R2(g, x, top, C.GOAL_W, C.GOAL_H, '#9ad0ff33');
+    for (let y = top; y < C.GROUND_Y; y += 14) R2(g, x, y, C.GOAL_W, 3, '#9ad0ff');
+    R2(g, left ? C.GOAL_W - 3 : C.W - C.GOAL_W, top, 3, C.GOAL_H, '#dff2ff');
+    g.globalAlpha = 1;
+  }
+
+  // THE DART — a bolt with a tail, so its direction reads without watching it move.
+  const d = activeDart(M);
+  if (d) {
+    const dir = Math.sign(d.vx) || 1;
+    R2(g, d.x - dir * 16, d.y - 2, 16, 4, '#ff4d6d66');
+    R2(g, d.x - 5, d.y - 4, 10, 8, '#ff4d6d');
+    R2(g, d.x + dir * 5, d.y - 2, 6, 4, '#fff0f3');
+  }
+
+  // THE DOG — four legs and a tail at the ground line. Blocky, like everything else here.
+  const dog = activeDog(M);
+  if (dog) {
+    const dir = Math.sign(dog.vx) || 1;
+    const y = C.GROUND_Y - 26, x = dog.x;
+    const bob = Math.sin(performance.now() / 70) * 2;
+    R2(g, x - 16, y + bob, 30, 14, '#c98b3a');                 // body
+    R2(g, x + dir * 12, y - 6 + bob, 14, 13, '#c98b3a');       // head
+    R2(g, x + dir * 20, y - 2 + bob, 5, 4, '#3a2a12');         // snout
+    R2(g, x + dir * 15, y - 4 + bob, 3, 3, '#0c0a06');         // eye
+    R2(g, x - dir * 18, y - 4 + bob, 5, 8, '#a97128');         // tail
+    for (let l = 0; l < 4; l++) {
+      const lx = x - 12 + l * 8;
+      R2(g, lx, y + 13 + bob, 4, 12 + (l % 2 ? Math.sin(performance.now() / 55 + l) * 2 : 0), '#a97128');
+    }
+    R2(g, x - 16, C.GROUND_Y - 3, 30, 3, '#00000044');         // its shadow, so it reads as on the ground
+  }
+
+  // THE ARMED SUPER KICK — a ring on the boot that is about to do it.
+  for (let i = 0; i < 2; i++) {
+    if (!hasSuperKick(M, i)) continue;
+    const p = M.players[i];
+    g.strokeStyle = '#ff2f00';
+    g.lineWidth = 3;
+    g.beginPath();
+    g.arc(p.x, p.y - 6, 20 + Math.sin(performance.now() / 90) * 3, 0, Math.PI * 2);
+    g.stroke();
+  }
+}
+
 function drawPickup(g) {
   const pk = activePickup(M);
   if (!pk) return;
@@ -2062,7 +2157,7 @@ $('#tunerCopy').onclick = async () => {
 // SPEC/ACT are here so _spectacle-shots.mjs can force an event instead of waiting nine
 // seconds and hoping the dice pick the one it wants to photograph.
 Object.assign(window, { C, startMatch, pick, SHOTS, ACT, activeMeteors, isRobot,
-                        PU, PU_NAME, PU_COLOR, PU_LABEL, activePickup, puBadges,
+                        PU, PU_NAME, PU_COLOR, PU_LABEL, PU_KINDS, activePickup, puBadges,
                         paintHand, paintHead, cardAt, cardKind });
 Object.defineProperty(window, 'MATCH', { get: () => M });
 Object.defineProperty(window, 'HELD', { get: () => held });

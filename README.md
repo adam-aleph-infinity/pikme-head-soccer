@@ -105,6 +105,20 @@ one and you get that card's power for a few seconds.
 | **קפיצי** spring | a higher jump and one extra jump in the air |
 | **קרח** ice | frozen boots on your opponent. They keep every button, they are just heavy |
 
+**And four more that only the good cards carry** — this is what a rarity is for, now that every
+card fires the same six otherwise:
+
+| | | |
+|---|---|---|
+| **חץ מכווץ** dart | epic+ | a bolt at head height. Hits them → their head shrinks. Misses into the net → **yours grows** |
+| **בעיטת על** super kick | epic+ | your next touch sends the ball twice as far and throws whoever is standing over it |
+| **חומת שער** goal wall | legendary | your own goal is shut for 1.6s. It saves one attack, it cannot hold a lead |
+| **כלב!** dog | legendary | a dog runs the pitch. Standing still when it arrives costs you a second — **jump it** |
+
+Every one of them can be answered: the dart flies one visible line, the dog runs the ground and
+a jump clears it, and the wall goes up on your OWN goal so it never takes a control away from
+the other player.
+
 **Slot 1 is the card you are playing as** — the face on the pitch is the first thing in your
 hand. The other two are dealt from the same rarity, always three different powers, and the
 deal is derived from the two cards so both players compute the identical hands with nothing

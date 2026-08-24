@@ -135,7 +135,10 @@ check('the client booted with a pickup state', (await evalJs('!!window.MATCH && 
 
 const G = await evalJs('({ W: C.W, GROUND_Y: C.GROUND_Y, R: C.PICKUP_R, Y: C.PICKUP_Y })');
 const puY = G.GROUND_Y - G.Y;
-const KINDS = await evalJs('Object.entries(PU_NAME).map(([k, v]) => [ +k, v ])');
+// The CRATE pool only. PU_NAME now also carries the four card-only specials (dart, goal wall,
+// super kick, dog) — they are cast from a hand, never spawned in a crate, and they have no
+// crate glyph to photograph. PU_KINDS is the list of things a crate can actually be.
+const KINDS = await evalJs('PU_KINDS.map((k) => [k, PU_NAME[k]])');
 
 // ═══ 1. EVERY ICON, ONE AT A TIME ══════════════════════════════════════════
 // One shot per item, big enough on screen to judge by eye, plus its silhouette.

@@ -293,6 +293,45 @@ body[data-mode="duo"] #slotFoe { opacity: .45; pointer-events: none; }
   .pick-foot { gap: 8px; }
 }
 
+/* ── CARD CALL-OUTS ──────────────────────────────────────────────────────────
+   A card is the loudest thing a player can do, and until now it happened in silence: the
+   only feedback was your own button greying out, and your opponent got nothing at all. So
+   every use announces itself under the scoreboard — WHO, and WHAT — in the power's own
+   colour, on the side of the pitch that player is defending, so you can tell at a glance
+   whether the thing that just happened was yours.
+
+   Deliberately not the shared #banner: that is one line for one event, and a card fired
+   while a goal banner is up would have replaced it (or been replaced). These stack. */
+.callouts {
+  position: absolute; top: 74px; left: 50%; transform: translateX(-50%);
+  width: min(560px, 92%); display: flex; flex-direction: column; gap: 5px;
+  pointer-events: none; z-index: 6; direction: rtl;
+}
+.callout {
+  align-self: center; display: flex; align-items: center; gap: 7px;
+  padding: 5px 12px 5px 8px; border-radius: 999px;
+  background: #070a12e8; border: 2px solid var(--cc, #fff);
+  box-shadow: 0 0 18px var(--cc, #fff), 0 4px 10px #0009;
+  animation: calloutPop .34s cubic-bezier(.2, 1.6, .4, 1) both;
+  white-space: nowrap;
+}
+.callout.p0 { align-self: flex-start; }        /* left player, left of the scoreboard */
+.callout.p1 { align-self: flex-end; }
+.callout.out { animation: calloutOut .3s ease-in forwards; }
+.callout .who {
+  font-size: 11px; font-weight: 800; color: #0b1020; background: var(--cc, #fff);
+  padding: 1px 7px; border-radius: 999px;
+}
+.callout .what { font-size: 14px; font-weight: 900; color: var(--cc, #fff); letter-spacing: -.2px; }
+.callout .spark { font-size: 13px; animation: calloutSpin .7s linear infinite; }
+@keyframes calloutPop {
+  from { opacity: 0; transform: translateY(-10px) scale(.7); }
+  60%  { opacity: 1; transform: translateY(0) scale(1.12); }
+  to   { opacity: 1; transform: translateY(0) scale(1); }
+}
+@keyframes calloutOut { to { opacity: 0; transform: translateY(-8px) scale(.9); } }
+@keyframes calloutSpin { to { transform: rotate(360deg); } }
+
 .pad {
   position: absolute; inset: 0; pointer-events: none; direction: ltr;
   --u: 62px;

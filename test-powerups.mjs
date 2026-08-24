@@ -753,8 +753,12 @@ function askForSpawn(m, ax = 300, bx = 700) {
      `${r.takes[0] + r.takes[1]} of ${r.spawns} spawned`);
   ok('and most of what spawns gets taken', r.expired < r.spawns * 0.45,
      `${r.expired}/${r.spawns} expired uncollected — a crate nobody wants is scenery`);
-  ok('wanting the crate is on the difficulty ladder', r.go[0] > r.go[1] * 1.8,
-     `legendary spent ${r.go[0]} frames running at one, very-easy ${r.go[1]}`);
+  // The margin, not the number. This was 1.8x when the pitch was 960 wide; widening it to
+  // 1060 inflated the frame count for BOTH bots (everything is further away, so everyone
+  // spends longer running) and compressed the ratio to about 1.4 with no change to the bot.
+  // What the test is protecting is that a good bot wants the crate MORE, and it still does.
+  ok('wanting the crate is on the difficulty ladder', r.go[0] > r.go[1] * 1.3,
+     `legendary spent ${r.go[0]} frames running at one, very-easy ${r.go[1]} (ratio ${(r.go[0] / Math.max(1, r.go[1])).toFixed(2)}x)`);
   ok('and the football skill gradient survives the pickups', r.score[0] > r.score[1],
      `legendary ${r.score[0]} - ${r.score[1]} very-easy`);
   const back = play(0, 5);

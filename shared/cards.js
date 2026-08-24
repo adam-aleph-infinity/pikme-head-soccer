@@ -29,13 +29,34 @@ export const CARDS_PER_RARITY = 45;
 // one — rather than three flavours of the same idea in a row.
 const ORDER = [PU.GROW, PU.MAGNET, PU.SPRING, PU.SHIELD, PU.CHARGE, PU.ICE];
 
+// ── WHAT A RARITY CAN CARRY ──────────────────────────────────────────────────
+// The original rule was "the number says which power, the rarity says how good", and it was
+// a good rule until every rarity fired the same six things. Then "a better card" only ever
+// meant a longer version of what a common already did — which is not a reason to want one.
+//
+// So the rarity now decides WHICH POWERS EXIST for that card as well. Commons and rares keep
+// the six originals, unchanged. An epic adds the two specials that are still football — a
+// dart and a super kick. A legendary adds the two that are not — shutting your own goal, and
+// putting a dog on the pitch.
+//
+// The number still picks within the pool, so "the 12 is the magnet" survives inside a
+// rarity; it just stops being true ACROSS rarities, which is the price of the ladder meaning
+// something. test-skills.mjs asserts the pools.
+const POOL = {
+  common: ORDER,
+  rare: ORDER,
+  epic: [...ORDER, PU.DART, PU.SUPERKICK],
+  legendary: [...ORDER, PU.DART, PU.SUPERKICK, PU.GOALWALL, PU.DOG],
+};
+
 // A card's power. Deterministic, total over the album, and deliberately NOT a hash: 45
 // cards over 6 powers divides almost evenly this way (eight of three powers, seven of the
 // other three), where a hash would leave one power on a fifth of the album and another on a
 // fiftieth. An even album is what stops a hand feeling like it was dealt badly.
 export function cardPower(rarity, number) {
   const n = Math.max(1, Math.min(CARDS_PER_RARITY, Math.round(number) || 1));
-  return ORDER[(n - 1) % ORDER.length];
+  const pool = POOL[rarity] || ORDER;
+  return pool[(n - 1) % pool.length];
 }
 
 // ---------------------------------------------------------------------------
@@ -71,10 +92,17 @@ function rndAt(seed, n) {
 
 // Every number of one rarity that carries a given power. Precomputed once: it is the same
 // list for all four rarities, and it is what makes the deal a pick rather than a search.
+// Per RARITY now, because the pools differ: a legendary's magnet lives on different numbers
+// than a common's, and dealing from the wrong list would hand a player a card whose power is
+// not the one the deal picked.
 const BY_POWER = (() => {
-  const map = new Map(ORDER.map((k) => [k, []]));
-  for (let n = 1; n <= CARDS_PER_RARITY; n++) map.get(cardPower('common', n)).push(n);
-  return map;
+  const all = new Map();
+  for (const r of RARITIES) {
+    const map = new Map((POOL[r] || ORDER).map((k) => [k, []]));
+    for (let n = 1; n <= CARDS_PER_RARITY; n++) map.get(cardPower(r, n)).push(n);
+    all.set(r, map);
+  }
+  return all;
 })();
 
 // Your head card, plus two more of its rarity.
@@ -92,7 +120,7 @@ export function dealHand(mine, theirs, i = 0) {
 
   // The five powers that are not already in the hand, shuffled — a partial Fisher-Yates
   // driven by the seeded stream, so the pick is a permutation and never draws a duplicate.
-  const rest = ORDER.filter((k) => k !== own);
+  const rest = (POOL[rarity] || ORDER).filter((k) => k !== own);
   for (let j = rest.length - 1; j > 0; j--) {
     const r = Math.floor(rndAt(seed, j) * (j + 1));
     [rest[j], rest[r]] = [rest[r], rest[j]];
@@ -101,7 +129,7 @@ export function dealHand(mine, theirs, i = 0) {
   const hand = [{ rarity, number }];
   for (let s = 0; s < 2; s++) {
     const kind = rest[s];
-    const pool = BY_POWER.get(kind);
+    const pool = BY_POWER.get(rarity).get(kind);
     hand.push({ rarity, number: pool[Math.floor(rndAt(seed, 8 + s) * pool.length)] });
   }
   return hand;

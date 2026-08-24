@@ -41,23 +41,32 @@ const every = (fn) => {
 // ── 1. A card's power is part of the card ──────────────────────────────────────
 {
   const kinds = every((r, n) => cardPower(r, n));
+  // 1..10 now: 1..6 are the originals every rarity fires, 7..10 the specials that only epic
+  // and legendary carry (see test-skills.mjs for which rarity gets which).
   ok('every card in the album has a power',
-    kinds.every((k) => k >= 1 && k <= 6),
-    `bad: ${kinds.filter((k) => !(k >= 1 && k <= 6)).length}`);
+    kinds.every((k) => k >= 1 && k <= 10),
+    `bad: ${kinds.filter((k) => !(k >= 1 && k <= 10)).length}`);
 
   ok('and asking twice gives the same answer',
     every((r, n) => cardPower(r, n)).every((k, i) => k === kinds[i]));
 
-  // The number picks the power, the rarity picks how good it is. Said as a test because it
-  // is the thing a player will work out for themselves within three matches: "the 12 is
-  // the magnet". That is only true if it holds across all four rarities.
-  ok('the same number is the same power in every rarity',
-    RARITIES.every((r) => cardPower(r, 12) === cardPower('common', 12)),
-    RARITIES.map((r) => PU_NAME[cardPower(r, 12)]).join('/'));
+  // This used to assert that a number meant the same power in EVERY rarity. It no longer
+  // does, and that is the deliberate change that made rarity worth something: an epic and a
+  // legendary draw from bigger pools (see test-skills.mjs), so number 12 lands on a different
+  // power there. What survives is the half that a player actually learns:
+  //
+  //   • within a rarity, the number always picks the same power, forever;
+  //   • the two rarities that share a pool — common and rare — still agree card for card.
+  ok('a number always means the same power within its rarity',
+    RARITIES.every((r) => cardPower(r, 12) === cardPower(r, 12) && cardPower(r, 12) === every((rr, n) => (rr === r && n === 12 ? cardPower(rr, n) : cardPower(r, 12)))[0]));
+  ok('common and rare agree card for card',
+    Array.from({ length: CARDS_PER_RARITY }, (_, i) => i + 1)
+      .every((n) => cardPower('common', n) === cardPower('rare', n)),
+    `${PU_NAME[cardPower('common', 12)]} vs ${PU_NAME[cardPower('rare', 12)]}`);
 
   const spread = {};
   for (let n = 1; n <= CARDS_PER_RARITY; n++) spread[cardPower('common', n)] = (spread[cardPower('common', n)] || 0) + 1;
-  ok('all six powers are reachable inside one rarity', Object.keys(spread).length === 6,
+  ok('all six of a common\'s powers are reachable', Object.keys(spread).length === 6,
     JSON.stringify(spread));
   // Not a cosmetic point: 45 cards over 6 powers is 7.5 each, and a spread of 20/5/5/5/5/5
   // would mean a third of all album cards are the same button.

@@ -48,11 +48,18 @@
 //      expired before the whistle.
 
 import * as C from './constants.js';
+import { SK } from './skills.js';
 
 // The six. Numbered because the wire is integers.
-export const PU = { NONE: 0, GROW: 1, MAGNET: 2, CHARGE: 3, SHIELD: 4, SPRING: 5, ICE: 6 };
+// 1..6 are the originals — buffs on a timer, on every rarity. 7..10 are the SPECIALS: they
+// put something on the pitch (a dart, a wall, a dog) and only epic and legendary cards carry
+// them. Their rules live in shared/skills.js.
+export const PU = { NONE: 0, GROW: 1, MAGNET: 2, CHARGE: 3, SHIELD: 4, SPRING: 5, ICE: 6,
+                    DART: 7, GOALWALL: 8, SUPERKICK: 9, DOG: 10 };
 export const PU_KINDS = [PU.GROW, PU.MAGNET, PU.CHARGE, PU.SHIELD, PU.SPRING, PU.ICE];
-export const PU_NAME = { 1: 'grow', 2: 'magnet', 3: 'charge', 4: 'shield', 5: 'spring', 6: 'ice' };
+export const PU_SPECIALS = [PU.DART, PU.GOALWALL, PU.SUPERKICK, PU.DOG];
+export const PU_NAME = { 1: 'grow', 2: 'magnet', 3: 'charge', 4: 'shield', 5: 'spring', 6: 'ice',
+                         7: 'dart', 8: 'goalwall', 9: 'superkick', 10: 'dog' };
 
 // One flat colour each, so an item is recognisable before you have read its glyph. The
 // renderer, the particles and the banner all pull from here — a pickup's identity is one
@@ -68,9 +75,14 @@ export const PU_COLOR = {
   4: '#7b5cff',   // shield — violet
   5: '#ff8a1e',   // spring — orange
   6: '#2ec4e8',   // ice    — cyan
+  7: '#ff4d6d',   // dart      — hot pink, the only projectile you own
+  8: '#9ad0ff',   // goal wall — ice blue, it reads as a barrier
+  9: '#ff2f00',   // super kick— furnace red
+  10: '#c98b3a',  // dog       — a dog colour, and nothing else here is brown
 };
 export const PU_LABEL = {
   1: 'ראש ענק', 2: 'מגנט', 3: 'טעינה', 4: 'מגן', 5: 'קפיצי', 6: 'קרח',
+  7: 'חץ מכווץ', 8: 'חומת שער', 9: 'בעיטת על', 10: 'כלב!',
 };
 
 // Four of the six leave a timer on a player. CHARGE is instant (it just fills the gauge)
@@ -99,6 +111,7 @@ const headMid = (p) => p.y - C.BODY_H - C.HEAD_R + 8;
 // spectacle.js, because the constraint is the same one. The seed is match-CONSTANT (both
 // ends derive it from the same two cards, so it never goes on the wire) and the state is a
 // counter that only moves when a pickup actually spawns — a dozen times a match at most.
+const SPECIAL_SET = new Set([PU.DART, PU.GOALWALL, PU.SUPERKICK, PU.DOG]);
 const RARITY_N = { common: 1, rare: 2, epic: 3, legendary: 4 };
 
 export function pickupSeed(charA, charB) {
@@ -420,6 +433,16 @@ export function applyPower(m, i, kind, mult = 1, fx = null, at = null) {
   const slot = SLOT[kind];
   const col = PU_COLOR[kind];
   const x = at ? at.x : p.x, y = at ? at.y : pickupY();
+
+  // The specials are objects on the pitch rather than numbers on a player, so they are cast
+  // rather than applied. Same entry point, so a crate could fire one too if it ever carried
+  // one — there is exactly one definition of what each power means.
+  if (SPECIAL_SET.has(kind)) {
+    SK.cast(m, i, kind);
+    m.hitStop = Math.max(m.hitStop, C.HIT_STOP_PICKUP);
+    if (fx) fx.shockwave(x, y, col);
+    return kind;
+  }
 
   if (slot !== undefined) {
     // Re-applying REFRESHES, it never stacks: two big-head crates do not make a

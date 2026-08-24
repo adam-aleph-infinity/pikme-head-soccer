@@ -335,6 +335,9 @@ export function botInput(bot, m, index, dt) {
 // Deliberately NOT modelled: holding a card back for a better moment later. A bot that
 // hoards is a bot that never uses its hand, and an opponent whose abilities never appear
 // teaches a player that the mechanic does not matter.
+// The x of the goal a player defends — the one on their own side.
+const goalX = (p) => (p.side > 0 ? 0 : C.W);
+
 function playCards(bot, m, p, foe, b, dt, adxb) {
   const out = bot.out;
   out.card1 = out.card2 = out.card3 = false;
@@ -362,6 +365,22 @@ function playCards(bot, m, p, foe, b, dt, adxb) {
     if (kind === PU.SHIELD) score += (foe.armed > 0 || foe.gauge >= 1) ? 0.5 : -0.05;
     if (kind === PU.GROW) score += ballNear ? 0.35 : 0;
     if (kind === PU.SPRING) score += b.y < C.GROUND_Y - 120 ? 0.4 : 0;
+    // The four specials. Each is worth pressing at a different moment, and a bot that fires
+    // them at random is a bot that teaches the player they do not matter.
+    if (kind === PU.DART) {
+      // Worth a shot when they are in front of you and far enough away to be worth a dart
+      // rather than a boot — and it pays either way, so an empty net is also a reason.
+      const ahead = (foe.x - p.x) * p.facing > 0;
+      score += ahead && Math.abs(foe.x - p.x) > 120 ? 0.55 : -0.15;
+    }
+    if (kind === PU.GOALWALL) {
+      // Only when the ball is actually coming at my goal. A wall up at the other end is a
+      // wasted cooldown, which is exactly how a special stops feeling special.
+      const danger = (b.x - p.x) * p.side < 0 && Math.abs(b.x - goalX(p)) < 300;
+      score += danger ? 0.75 : -0.4;
+    }
+    if (kind === PU.SUPERKICK) score += adxb < 200 ? 0.6 : -0.25;
+    if (kind === PU.DOG) score += foe.onGround && Math.abs(foe.x - p.x) > 180 ? 0.5 : -0.1;
     // The read itself is a skill: a weak bot's judgement is mostly noise, a strong one's is
     // mostly the situation. Same shape as `aim` for the boot.
     score = score * d.aim + bot.rng() * (1 - d.aim);
