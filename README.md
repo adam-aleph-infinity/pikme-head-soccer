@@ -89,10 +89,12 @@ device as fractions of the stage, so a layout dragged in landscape survives the 
 OPPONENT and nothing else — three tackles buy one — so it is something you go and take rather
 than something the clock hands you.
 
-Press it with a full gauge and the player winds up for **half a second**: the ball is drawn up
-over their head and lights up in their shot's colour, with a ring closing as a clock. Then it
-fires **dead flat at three times a normal power shot**, at a height a standing player cannot
-reach. **The only way to stop it is to jump into its line at the right moment.**
+Press it with a full gauge and the game **focuses on the striker for a second and a half** —
+the pitch dims to two pools of light, one on them and one on the ball as it is drawn up and
+lights up in their shot's colour, with a ring closing as a clock. Then it fires **dead flat at
+three times a normal power shot**, always from **0.9 of the goal height**, so a defender learns
+one height to jump for. **The only way to stop it is to jump into its line, early** — the head
+has to already be up there when the ball arrives.
 
 The wind-up is the price. You are rooted for that half second in the open, and **a tackle
 landed on you during it cancels the whole thing** — the gauge is already spent. That is what
@@ -128,7 +130,7 @@ turning the ball toward the net for you would take it away.
 **Hold jump while kicking to LOB it** — higher, shorter. The counter to a defender parked on
 their line, and the only aiming the game has.
 
-**Your head deadens the ball too — just less than your body does.** A head keeps 0.34 of the
+**Your head deadens the ball too — just less than your body does.** A head keeps 0.58 of the
 pace where the chest keeps 0.18, so heading is the livelier touch of the two and neither is a
 trampoline. Hitting the ball HARD is always a deliberate act now: the boot, or the kick button
 pressed at head height.

@@ -187,8 +187,10 @@ check('a full gauge lights the HUD', gaugeUi === true);
 // armed state to check and no kick to follow.
 await hold('KeyJ', 90);
 await sleep(90);
-const winding = await evalJs('JSON.stringify({ charge: MATCH.players[0].charge, ballUp: Math.round(C.GROUND_Y - MATCH.ball.y) })');
-check('POWER starts the wind-up', /"charge":0\.[1-9]/.test(winding) || /"charge":0\.0[1-9]/.test(winding), winding);
+// The wind-up is a second and a half now, so a regex looking for "0.x" seconds left stopped
+// matching the moment it got longer. Ask the question instead of pattern-matching the answer.
+const winding = await evalJs('JSON.stringify({ charge: +MATCH.players[0].charge.toFixed(2), ballUp: Math.round(C.GROUND_Y - MATCH.ball.y) })');
+check('POWER starts the wind-up', JSON.parse(winding).charge > 0, winding);
 const btnUi = await evalJs(`document.getElementById('powerBtn').classList.contains('live')`);
 check('and the button shows it counting down', btnUi === true);
 
@@ -208,7 +210,8 @@ await evalJs(`(() => {
 // No kick: the wind-up fires it. Read the EVENT LOG rather than ball.power — a volley fired
 // near the opponent's goal scores within a fifth of a second, and the goal reset wipes
 // ball.power before any poll can see it.
-await sleep(700);
+// …and it therefore takes longer to land: wait out the whole wind-up plus a margin.
+await sleep(2200);
 const fired = await evalJs(`EVENTS.filter(e => e.type === 'powershot' && e.player === 0).map(e => e.shot)[0] || null`);
 check('the wind-up fires the volley', !!fired, String(fired));
 await sleep(160);

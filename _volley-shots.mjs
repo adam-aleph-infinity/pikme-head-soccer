@@ -26,18 +26,29 @@ await ev(`window.__px = (wx, wy, ww, wh) => { const c=document.getElementById('c
   const d=c.getContext('2d').getImageData(Math.round(wx/P),Math.round(wy/P),Math.max(1,Math.round(ww/P)),Math.max(1,Math.round(wh/P))).data;
   let r=0,g=0,b=0,n=0; for(let i=0;i<d.length;i+=4){r+=d[i];g+=d[i+1];b+=d[i+2];n++;} return {r:r/n,g:g/n,b:b/n}; }; true`);
 // start a wind-up and hold it mid-charge
-await ev(`(() => { const p = MATCH.players[0]; p.gauge = 1; p.charge = C.POWER_CHARGE_TIME * 0.5; MATCH.hitStop = 0; })()`);
+await ev(`(() => { const p = MATCH.players[0]; p.gauge = 1; p.charge = C.POWER_CHARGE_TIME * 0.35; MATCH.hitStop = 0; })()`);
 await sleep(200);
-const st = await ev(`JSON.stringify({charge: MATCH.players[0].charge.toFixed(2), ballY: Math.round(C.GROUND_Y - MATCH.ball.y), top: C.POWER_CHARGE_HEIGHT})`);
+const st = await ev(`JSON.stringify({charge: MATCH.players[0].charge.toFixed(2), ballY: Math.round(C.GROUND_Y - MATCH.ball.y), top: C.powerHeight()})`);
 ok('a wind-up is running and the ball is up', true, st);
 const px = await ev(`__px(MATCH.ball.x - 16, MATCH.ball.y - 16, 32, 32)`);
 ok('the ball is lit in the shot colour', px.r + px.g + px.b > 120, JSON.stringify(px));
+// THE FOCUS: a second and a half is a long wait, so the frame closes in on the striker. The
+// corner of the pitch has to go dark while the ball does not.
+const corner = await ev(`__px(30, 60, 60, 40)`);
+const lit = await ev(`__px(MATCH.ball.x - 10, MATCH.ball.y - 10, 20, 20)`);
+ok('the rest of the pitch dims around it', corner.r + corner.g + corner.b < lit.r + lit.g + lit.b,
+   `corner ${Math.round(corner.r + corner.g + corner.b)} vs ball ${Math.round(lit.r + lit.g + lit.b)}`);
+// (The height is asserted at the moment of FIRING, below: mid-charge the ball is still being
+// swept up, so measuring it here measures the sweep.)
 writeFileSync(`${OUT}/volley-charge.png`, Buffer.from((await send('Page.captureScreenshot',{format:'png'})).data,'base64'));
 // let it fire
 await ev(`(() => { MATCH.players[0].charge = 0.02; MATCH.hitStop = 0; })()`);
 await sleep(350);
 const shot = await ev(`JSON.stringify({ power: !!MATCH.ball.power, vx: Math.round(MATCH.ball.vx), mult: MATCH.ball.power && MATCH.ball.power.mult })`);
 ok('and then it fires, fast', /"power":true/.test(shot), shot);
+const launched = await ev(`JSON.stringify({ up: Math.round(C.GROUND_Y - MATCH.ball.y), want: Math.round(C.powerHeight()), goal: C.GOAL_H, flat: Math.abs(MATCH.ball.vy) < 60 })`);
+ok('it leaves at 0.9 of the goal height, in a straight line',
+   /"flat":true/.test(launched) && Math.abs(JSON.parse(launched).up - JSON.parse(launched).want) < 14, launched);
 writeFileSync(`${OUT}/volley-fired.png`, Buffer.from((await send('Page.captureScreenshot',{format:'png'})).data,'base64'));
 ok('no page errors', errs.length === 0, errs.slice(0,2).join(' | '));
 ch.kill();

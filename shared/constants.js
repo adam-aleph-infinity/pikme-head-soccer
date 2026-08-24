@@ -97,7 +97,9 @@ export let BODY_DEADEN = 0.18;
 // does — cancel the approach, keep a fraction of the pace — just a little more of it, so a
 // header is still the livelier touch of the two without being a bounce. Anything that hits
 // the ball HARD is now a deliberate act: the boot, or the kick button pressed at head height.
-export let HEAD_DEADEN = 0.34;       // vs the body's 0.18. About twice as lively, still dead.
+export let HEAD_DEADEN = 0.58;       // vs the body's 0.18. Started at 0.34, which read as dead
+                                     // rather than as a touch; at 0.58 a header keeps most of
+                                     // the pace and still cannot be used as a trampoline.
 // Where the header ends and the chest begins, as the vertical component of the contact
 // normal. 0.35 puts the split a bit below the head's equator.
 export let DEADEN_ZONE = 0.35;
@@ -195,11 +197,16 @@ export const GAUGE_CONCEDE_BONUS = 0.22; // conceding a goal gifts this fraction
 // half a second while the ball is drawn up above their head and lights up; then it fires
 // dead flat at three times a normal power shot, at a height a standing player cannot reach.
 // The only answer is to jump into its line at the right moment.
-export let POWER_CHARGE_TIME = 0.5;   // s of wind-up. Long enough to see and jump for.
-export let POWER_CHARGE_HEIGHT = 122; // px above the ground the ball is held, and flies at.
-                                      // A standing head reaches ~87 and a jump apex ~150, so
-                                      // this is exactly the band a jump owns and standing
-                                      // still does not.
+export let POWER_CHARGE_TIME = 1.5;   // s of wind-up. A second and a half is a long time to
+                                      // stand still in the open — which is the price of the
+                                      // biggest shot in the game, and long enough that the
+                                      // other player can decide what to do about it.
+// The volley always leaves at the SAME height — 0.9 of the goal — so a defender learns one
+// height to jump for instead of guessing per shot. Derived from GOAL_H rather than typed, or
+// the two drift apart the first time the goal is retuned.
+export let POWER_CHARGE_GOAL_FRAC = 0.9;
+// The height itself, as a function so it follows GOAL_H live (the tuner moves both).
+export const powerHeight = () => GOAL_H * POWER_CHARGE_GOAL_FRAC;
 export let POWER_VOLLEY_SPEED = 3;    // multiples of POWER_SHOT_SPEED. Powered balls are
                                       // exempt from BALL_MAX_SPEED, so this actually lands.
 export let POWER_MODE_TIME = 4.5;
@@ -524,7 +531,7 @@ const SETTERS = {
   GAUGE_FULL: (v) => { GAUGE_FULL = v; },
   POWER_MODE_TIME: (v) => { POWER_MODE_TIME = v; },
   POWER_CHARGE_TIME: (v) => { POWER_CHARGE_TIME = v; },
-  POWER_CHARGE_HEIGHT: (v) => { POWER_CHARGE_HEIGHT = v; },
+  POWER_CHARGE_GOAL_FRAC: (v) => { POWER_CHARGE_GOAL_FRAC = v; },
   POWER_VOLLEY_SPEED: (v) => { POWER_VOLLEY_SPEED = v; },
   GAUGE_PASSIVE: (v) => { GAUGE_PASSIVE = v; },
   POWER_SHOT_LIFE: (v) => { POWER_SHOT_LIFE = v; },

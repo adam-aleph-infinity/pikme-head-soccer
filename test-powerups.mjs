@@ -40,7 +40,7 @@ function firePower(mm, i = 0) {
 // a standing head — that is the point of the move — so any test about a defender meeting one
 // has to put them up there.
 function inLine(mm, p) {
-  p.y = C.GROUND_Y - (C.POWER_CHARGE_HEIGHT - C.BODY_H - C.HEAD_R + 18);
+  p.y = C.GROUND_Y - (C.powerHeight() - C.BODY_H - C.HEAD_R + 18);
   p.vy = 0; p.onGround = false;
 }
 

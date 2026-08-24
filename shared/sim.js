@@ -38,7 +38,7 @@ function makePlayer(index, char) {
     vx: 0, vy: 0,
     onGround: true, facing: side,
     jumps: C.MAX_JUMPS,
-    kickT: 0, kickCd: 0, kickLob: false,
+    kickT: 0, kickCd: 0, kickLob: false, kickDir: 0,
     dashT: 0, dashCd: 0, dashDir: 0,
     tapDir: 0, tapT: 0,
     gauge: 0, armed: 0, charge: 0,     // `charge` is the power move's wind-up
@@ -160,7 +160,15 @@ export function step(m, inputs, dt = C.TICK, fx = NO_FX) {
   // After the move and after separation, so the frame you touch a pickup is the frame you
   // get it, and so a player shoved onto one by the separator still collects it.
   collectPickups(m, fx);
-  stepBall(m, dt, fx);
+  // SUB-STEP THE BALL when it is moving faster than the things it can hit. The power volley
+  // travels 34px in a tick and a head is 30px across, so at one step per frame the ball
+  // simply skipped PAST defenders between frames — measured: only one reaction distance in
+  // eight could block it, and the ones that failed failed by tunnelling rather than by
+  // timing. Splitting the tick into slices no longer than a head keeps "get in the way" a
+  // thing the geometry can actually see.
+  const speed = Math.hypot(m.ball.vx, m.ball.vy);
+  const slices = Math.max(1, Math.min(6, Math.ceil((speed * dt) / (C.HEAD_R * 0.8))));
+  for (let i = 0; i < slices; i++) stepBall(m, dt / slices, fx);
 
   // Backstop for every way a ball can end up somewhere nobody can reach it. Cheap, and it
   // turns a hung match into a restart nobody even notices.
@@ -276,6 +284,12 @@ function stepPlayer(m, p, input, dt, fx) {
     // defender parked on the line. Latched at the swing, not read at contact, so the shot
     // you committed to is the shot you get.
     p.kickLob = !!input.jump;
+    // AND THE DIRECTION. The leg is out for a sixth of a second and the ball is often struck
+    // several ticks after the press, so reading `facing` at CONTACT meant turning during the
+    // swing sent the ball backwards — "sometimes it kicks the other way". Football shipped
+    // this exact bug as "shoots wrong direction"; the fix is the same, latch the aim to the
+    // fire edge and use the latch for everything the swing does.
+    p.kickDir = p.facing;
     m.events.push({ type: 'kick', player: p.index, lob: p.kickLob });
     tryCounter(m, p, fx);
     tryTackle(m, p, fx);
@@ -376,7 +390,7 @@ function stepCharge(m, fx) {
     const wasCharging = p.charge;
     p.charge = Math.max(0, p.charge - C.TICK);
 
-    const top = C.GROUND_Y - C.POWER_CHARGE_HEIGHT;
+    const top = C.GROUND_Y - C.powerHeight();
     if (p.charge > 0) {
       // Swept up over the head at a rate that gets it there before the wind-up ends, so the
       // shot always leaves from the same place no matter where the ball started.
@@ -643,14 +657,15 @@ function resolveBallPlayers(m, dt, fx) {
 
     // ---- kick hitbox (only while the leg is out) ----
     if (p.kickT > 0) {
-      const kx = p.x + p.facing * C.KICK_REACH;
+      const dir = p.kickDir || p.facing;            // the aim, as latched at the swing
+      const kx = p.x + dir * C.KICK_REACH;
       const ky = p.y - C.BODY_H * 0.45;
       if (Math.hypot(b.x - kx, b.y - ky) < C.KICK_R + b.r) {
         if (firePowerIfArmed(m, p, b, fx)) return;
         if (!b.power) {
           // An armed SUPER KICK spends itself here, on the ordinary boot: the ball goes twice
           // as far and anyone standing near it goes with it. Same contact, bigger consequence.
-          if (spendSuperKick(m, p.index, b, p.facing)) {
+          if (spendSuperKick(m, p.index, b, dir)) {
             p.kickT = 0;
             m.idle = 0;
             m.events.push({ type: 'strike', player: p.index, x: b.x, y: b.y, power: true });
@@ -668,13 +683,13 @@ function resolveBallPlayers(m, dt, fx) {
           // take the aiming out of the player's hands, and facing is the aiming this game has.
           const goalX = p.side > 0 ? C.W : 0;
           const range = Math.abs(goalX - b.x);
-          const towardsGoal = (goalX - b.x) * p.facing > 0;
+          const towardsGoal = (goalX - b.x) * dir > 0;
           const bow = towardsGoal
             ? Math.max(0, Math.min(1, (range - C.KICK_BOW_MIN) / (C.W - C.KICK_BOW_MIN))) * C.KICK_AIM
             : 0;
-          b.vx = p.facing * C.KICK_POWER * mult * drive + p.vx * 0.4;
+          b.vx = dir * C.KICK_POWER * mult * drive + p.vx * 0.4;
           b.vy = -C.KICK_LIFT * mult * lift * (1 + C.KICK_BOW * bow) + p.vy * 0.3;
-          b.spin = p.facing * 14;
+          b.spin = dir * 14;
           p.kickT = 0;
           m.hitStop = Math.max(m.hitStop, C.HIT_STOP_KICK);
           m.idle = 0;
@@ -867,7 +882,7 @@ const PREV_KEYS = ['left', 'right', 'jump', 'kick', 'power', ...CARD_KEYS];
 const P_FIELDS = [
   'x', 'y', 'vx', 'vy', 'onGround', 'facing', 'jumps',
   'kickT', 'kickCd', 'dashT', 'dashCd', 'dashDir', 'tapDir', 'tapT',
-  'gauge', 'armed', 'charge', 'knocked', 'rooted', 'shoved', 'kickLob',
+  'gauge', 'armed', 'charge', 'knocked', 'rooted', 'shoved', 'kickLob', 'kickDir',
   // Added with the tackle + jump-feel pass. Anything that can change a future step has to
   // travel, or a reconciling client re-runs the last 30 ticks with the wrong state.
   'slow', 'tackleImmune', 'coyote', 'jumpBuf',

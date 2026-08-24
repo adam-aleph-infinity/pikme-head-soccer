@@ -1434,11 +1434,33 @@ function drawPuToken(g, kind, cx, cy, r, alpha = 1) {
 // up, and the whole point is that the OTHER player can read it: the ring tightens, the ball
 // cycles through the shooter's own shot colour, and both of them know exactly when it goes.
 function drawCharge(g) {
+  // THE FOCUS. A second and a half is a long time for the game to be waiting on one player,
+  // so the frame says so: everything except the striker and the ball goes dark, and the light
+  // closes in as the clock runs down. Drawn as one dim pass with two holes rather than as a
+  // spotlight sprite, so it works on every stage without art.
+  const charging = M.players.find((p) => p.charge > 0);
+  if (charging) {
+    const t = 1 - charging.charge / C.POWER_CHARGE_TIME;
+    const cy = C.GROUND_Y - C.powerHeight();
+    g.save();
+    g.beginPath();
+    g.rect(0, 0, C.W, C.H + 170);
+    // the two holes: the player, and the ball above them
+    g.moveTo(charging.x + 76, headY(charging));
+    g.arc(charging.x, headY(charging), 76 - t * 16, 0, Math.PI * 2, true);
+    g.moveTo(M.ball.x + 40, M.ball.y);
+    g.arc(M.ball.x, M.ball.y, 40 - t * 8, 0, Math.PI * 2, true);
+    g.fillStyle = `rgba(4, 6, 14, ${0.30 + t * 0.34})`;
+    g.fill('evenodd');
+    g.restore();
+    void cy;
+  }
+
   for (const p of M.players) {
     if (p.charge <= 0) continue;
     const t = 1 - p.charge / C.POWER_CHARGE_TIME;          // 0 at the press, 1 at the shot
     const col = p.shot.color;
-    const cx = p.x, cy = C.GROUND_Y - C.POWER_CHARGE_HEIGHT;
+    const cx = p.x, cy = C.GROUND_Y - C.powerHeight();
 
     // A ring on the ground under the charging player: this is where it is coming FROM.
     g.strokeStyle = col;

@@ -18,7 +18,7 @@ const NONE = [{}, {}];
 // off the ground. The volley flies at POWER_CHARGE_HEIGHT, above a standing head, so any test
 // about what a hit DOES has to get the defender up there first.
 function inLine(m, p) {
-  p.y = C.GROUND_Y - (C.POWER_CHARGE_HEIGHT - C.BODY_H - C.HEAD_R + 18);
+  p.y = C.GROUND_Y - (C.powerHeight() - C.BODY_H - C.HEAD_R + 18);
   p.vy = 0;
   p.onGround = false;
 }
@@ -642,7 +642,7 @@ const run = (m, ticks, inputs = NONE) => {
   // The wind-up fires it — there is no kick to wait for any more, and the ball comes to the
   // player rather than the player to the ball.
   m.ball.x = p.x + 30; m.ball.y = C.GROUND_Y - C.BALL_R; m.ball.vx = 0; m.ball.vy = 0;
-  for (let i = 0; i < 40 && !m.ball.power; i++) { m.hitStop = 0; step(m, NONE); }
+  for (let i = 0; i < Math.round(C.POWER_CHARGE_TIME / C.TICK) + 10 && !m.ball.power; i++) { m.hitStop = 0; step(m, NONE); }
   ok('the wind-up fires a power shot', !!m.ball.power);
   if (m.ball.power) {
     const sp = Math.hypot(m.ball.vx, m.ball.vy);
@@ -855,6 +855,7 @@ const run = (m, ticks, inputs = NONE) => {
 }
 {
   // 5. A STANDING DEFENDER CANNOT REACH IT — the whole point of the height.
+  // `jump` is false for "stand there", or the distance at which the defender jumps.
   const stand = (jump) => {
     const m = fresh();
     const [a, d] = m.players;
@@ -866,7 +867,7 @@ const run = (m, ticks, inputs = NONE) => {
     let blocked = false;
     for (let i = 0; i < 200 && !blocked; i++) {
       // A defender who jumps does so when the ball is close enough to read.
-      const near = jump && m.ball.power && Math.abs(m.ball.x - d.x) < 210 && d.onGround;
+      const near = jump && m.ball.power && Math.abs(m.ball.x - d.x) < jump && d.onGround;
       m.hitStop = 0;
       step(m, [{}, near ? { jump: true } : {}]);
       blocked = m.events.some((e) => e.type === 'blocked');
@@ -878,8 +879,17 @@ const run = (m, ticks, inputs = NONE) => {
   const standing = stand(false);
   ok('standing still does not block it', !standing.blocked && standing.score === 1,
      `blocked=${standing.blocked} score=${standing.score}`);
-  const jumped = stand(true);
-  ok('jumping into its line does', jumped.blocked, 'a jump did not reach it');
+  // Look for the WINDOW rather than asserting one reaction distance: the ball leaves at 0.9
+  // of the goal and travels at three times a power shot, so WHEN you jump is the whole skill
+  // — and a hardcoded distance silently became wrong the moment the height changed from 122
+  // to 144.
+  // The window is ONE-SIDED: jumping early works and jumping late does not, because the head
+  // has to already be up at 0.9 of the goal when the ball arrives. Measured closest-approach
+  // per timing: 520/460/420px all clear it, and everything later misses by a growing margin.
+  const cleared = [600, 520, 460, 420, 340, 260, 180].filter((at) => stand(at).blocked);
+  ok('jumping into its line does', cleared.length > 0, 'no timing reached it');
+  ok('and the timing window is wide enough for a person', cleared.length >= 2,
+     `blocked when jumping at ${cleared.join(', ')}px`);
 }
 {
   // 6. YOU CANNOT WIND UP WITHOUT THE GAUGE, OR TWICE.
@@ -895,6 +905,75 @@ const run = (m, ticks, inputs = NONE) => {
   step(m, [{ power: true }, {}]);
   ok('and a second press mid-wind-up does nothing', p.charge <= c1 && p.gauge === 1,
      `charge ${p.charge.toFixed(2)} gauge ${p.gauge}`);
+}
+
+// ── THE BOOT GOES WHERE YOU AIMED IT ──────────────────────────────────────────
+// "Sometimes it kicks the other way." The swing latched the LOB at the press but read the
+// DIRECTION at contact, and the leg is out for a sixth of a second — so turning during it
+// sent the ball backwards. This is the same bug football shipped as "shoots wrong direction",
+// and the fix is the same: latch the aim to the fire edge.
+{
+  const m = fresh();
+  const p = m.players[0];
+  p.x = 500; p.facing = 1; p.kickCd = 0; p.prev = {};
+  m.players[1].x = 900;
+  // The ball starts OUT of reach and rolls in, so contact lands a few ticks into the swing —
+  // which is the only way to exercise the latch. Placed inside the hitbox it connects on the
+  // press tick, before any turn, and the test proves nothing.
+  m.ball.x = p.x + C.KICK_REACH + 46; m.ball.y = p.y - C.BODY_H * 0.45;
+  m.ball.vx = -260; m.ball.vy = 0;
+  m.hitStop = 0;
+
+  // Swing facing RIGHT, then hold left before the ball is struck.
+  step(m, [{ kick: true }, {}]);
+  m.events.length = 0;
+  let struck = false;
+  for (let i = 0; i < 10 && !struck; i++) {
+    m.hitStop = 0;
+    step(m, [{ left: true }, {}]);
+    struck = m.events.some((e) => e.type === 'strike');
+    m.events.length = 0;
+  }
+  ok('(the ball was struck during the swing)', struck);
+  ok('a kick aimed right goes right even if you turn during it', m.ball.vx > 0,
+     `vx ${m.ball.vx.toFixed(0)} (turned left mid-swing)`);
+
+  // And the mirror, so this is about the latch and not about a sign.
+  const m2 = fresh();
+  const q = m2.players[0];
+  q.x = 500; q.facing = -1; q.kickCd = 0; q.prev = {};
+  m2.players[1].x = 100;
+  m2.ball.x = q.x - C.KICK_REACH - 46; m2.ball.y = q.y - C.BODY_H * 0.45;
+  m2.ball.vx = 260; m2.ball.vy = 0;
+  m2.hitStop = 0;
+  step(m2, [{ kick: true }, {}]);
+  m2.events.length = 0;
+  let struck2 = false;
+  for (let i = 0; i < 10 && !struck2; i++) {
+    m2.hitStop = 0;
+    step(m2, [{ right: true }, {}]);
+    struck2 = m2.events.some((e) => e.type === 'strike');
+    m2.events.length = 0;
+  }
+  ok('and a kick aimed left goes left', struck2 && m2.ball.vx < 0, `vx ${m2.ball.vx.toFixed(0)}`);
+}
+{
+  // THE VOLLEY LEAVES FROM 0.9 OF THE GOAL, always — so a defender learns one height to jump
+  // for rather than guessing per shot.
+  const m = fresh();
+  const p = m.players[0];
+  p.gauge = 1;
+  m.ball.x = p.x + 200; m.ball.y = C.GROUND_Y - 8;      // on the floor, a long way off
+  m.hitStop = 0;
+  step(m, [{ power: true }, {}]); m.events.length = 0;
+  for (let i = 0; i < Math.round(C.POWER_CHARGE_TIME / C.TICK) + 6 && !m.ball.power; i++) {
+    m.hitStop = 0; step(m, NONE); m.events.length = 0;
+  }
+  const h = C.GROUND_Y - m.ball.y;
+  ok('the volley leaves at 0.9 of the goal height', Math.abs(h - C.GOAL_H * 0.9) < 12,
+     `${h.toFixed(0)}px up, goal is ${C.GOAL_H}`);
+  ok('and the wind-up takes about a second and a half', C.POWER_CHARGE_TIME >= 1.2,
+     `${C.POWER_CHARGE_TIME}s`);
 }
 
 console.log(`test-sim: ${pass} passed, ${fail} failed`);
