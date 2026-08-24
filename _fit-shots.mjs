@@ -77,8 +77,10 @@ await sleep(2200);
 const bar = await ev(`(() => { const b = getComputedStyle(document.body).backgroundColor;
   const st = document.getElementById('stage').getBoundingClientRect();
   return { bg: b, stageW: Math.round(st.width), stageH: Math.round(st.height), vw: innerWidth, vh: innerHeight }; })()`);
-ok('the bars are painted with the backdrop, not black',
-   bar.bg !== 'rgb(9, 12, 20)' && bar.bg !== 'rgba(0, 0, 0, 0)', `body ${bar.bg}, stage ${bar.stageW}x${bar.stageH} in ${bar.vw}x${bar.vh}`);
+// (There was a check here that the BODY had been repainted. It was testing the first
+// implementation, not the property: the body sits behind the stage's own opaque background
+// and is never visible, which is why the bars moved onto the stage. The check below tests
+// what a player can actually see.)
 
 // The bar has to match the pitch at the height you are looking at, or the bottom corners read
 // as holes punched either side of the grass. Sampled off the rendered page, in the bar, at two
