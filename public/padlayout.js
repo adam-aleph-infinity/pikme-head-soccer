@@ -20,7 +20,9 @@
 // Leaf module: it knows about DOM elements and localStorage and nothing else — no sim, no
 // match, no renderer. game.js hands it the pad and the two callbacks it needs.
 const KEY = 'hs.padlayout.v1';
+const OP_KEY = 'hs.padopacity.v1';
 const MIN_S = 0.6, MAX_S = 2.0;
+const DEF_OP = 0.72;
 
 const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
 
@@ -33,6 +35,22 @@ export function loadLayout() {
 
 function save(layout) {
   try { localStorage.setItem(KEY, JSON.stringify(layout)); } catch {}
+}
+
+// How visible the controls are when you are not touching them. Football calls this
+// «שקיפות בקרות» and it is the one control-feel preference worth having: the pad sits on top
+// of the pitch, and how much pitch it is allowed to hide is a matter of taste, not design.
+export function loadOpacity() {
+  const v = parseFloat(localStorage.getItem(OP_KEY));
+  return Number.isFinite(v) ? Math.max(0.2, Math.min(1, v)) : DEF_OP;
+}
+
+export function applyOpacity(pad, v = loadOpacity()) {
+  if (pad) pad.style.setProperty('--ctl-op', String(v));
+}
+
+function saveOpacity(v) {
+  try { localStorage.setItem(OP_KEY, String(v)); } catch {}
 }
 
 // Paint one button's saved offset + size onto it. Called on every apply and after every
@@ -55,8 +73,14 @@ export function applyLayout(pad, stage, layout = loadLayout()) {
 // box, or the fractions it writes are against a box that no longer exists.
 export function createEditor({ pad, stageOf, onChange = () => {} }) {
   let layout = loadLayout();
+  let opacity = loadOpacity();
   let editing = false;
   let drag = null;
+  // What the layout looked like when the editor opened. The editor is a DRAFT — the same
+  // shape football's is — because a control layout is fiddly and the first thing anyone does
+  // is drag something somewhere worse. Without a way back, the only escape is dragging it
+  // home by eye.
+  let before = null;
 
   const recFor = (k) => (layout[k] ||= { x: 0, y: 0, s: 1 });
 
@@ -118,8 +142,15 @@ export function createEditor({ pad, stageOf, onChange = () => {} }) {
 
   return {
     get editing() { return editing; },
+    setOpacity(v) {
+      opacity = Math.max(0.2, Math.min(1, Number(v) || DEF_OP));
+      applyOpacity(pad, opacity);
+      saveOpacity(opacity);
+    },
+    get opacity() { return opacity; },
     start() {
       editing = true;
+      before = JSON.parse(JSON.stringify({ layout, opacity }));
       document.body.classList.add('editing');
       // The grip is created on entry and destroyed on exit rather than living in the HTML,
       // so a button in play can never have a stray hit area sitting on its corner.
@@ -132,16 +163,31 @@ export function createEditor({ pad, stageOf, onChange = () => {} }) {
       }
       repaint();
     },
+    // Keep what was dragged.
     stop() {
       editing = false;
+      before = null;
       document.body.classList.remove('editing');
       for (const g of pad.querySelectorAll('.grip')) g.remove();
       save(layout);
       onChange(layout);
     },
+    // Put everything back the way it was when the editor opened.
+    cancel() {
+      if (before) {
+        layout = before.layout;
+        opacity = before.opacity;
+        applyOpacity(pad, opacity);
+      }
+      this.stop();
+      repaint();
+    },
     reset() {
       layout = {};
+      opacity = DEF_OP;
       save(layout);
+      saveOpacity(opacity);
+      applyOpacity(pad, opacity);
       repaint();
       onChange(layout);
     },

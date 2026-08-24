@@ -118,15 +118,20 @@
       </div>
     </div>
 
-    <!-- Edit mode: drag any button, pull its corner to resize, saved on this device. -->
+    <!-- Edit mode: drag any button, pull its corner to resize, saved on this device.
+         Same shape as football's controls editor — a DRAFT with a way back, because the
+         first thing anyone does in a layout editor is drag something somewhere worse. -->
     <div class="editbar hidden" id="editBar">
       <span>גרור כפתור להזזה · משוך את הפינה לשינוי גודל</span>
-      <button class="ghost" id="editReset">אפס</button>
-      <button class="play" id="editDone">סיום</button>
+      <label class="ce-slider">שקיפות
+        <input type="range" id="editOpacity" min="0.2" max="1" step="0.05">
+      </label>
+      <button class="ghost" id="editReset">איפוס</button>
+      <button class="ghost" id="editCancel">ביטול</button>
+      <button class="play" id="editDone">שמירה</button>
     </div>
 
     <button class="gear" id="gear">⚙</button>
-    <button class="editBtn" id="editBtn" title="סדר כפתורים">✥</button>
     <button class="keysInGame" id="keysInGame" title="מקשים">⌨</button>
     <button class="sndBtn" id="sndBtn" title="צליל">🔊</button>
     <button class="quit" id="quit">✕</button>
@@ -158,6 +163,9 @@
 <!-- ═══ TUNER ═══ live feel dials ════════════════════════════════════════ -->
 <aside id="tuner" class="hidden">
   <header>כיוונון <button id="tunerClose">✕</button></header>
+  <!-- The one row in here that is for PLAYERS rather than for tuning the feel, so it sits at
+       the top and does not scroll away under sixty sliders. Same place football puts it. -->
+  <button id="editCtlBtn" class="ctl-edit-row">🎛️ עריכת בקרות</button>
   <div id="tunerBody"></div>
   <footer><button id="tunerReset">אתחל</button><button id="tunerCopy">העתק JSON</button></footer>
 </aside>

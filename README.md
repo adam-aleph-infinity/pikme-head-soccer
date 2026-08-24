@@ -43,9 +43,13 @@ app and out of it.
 | **touch** | ◀ ▶ (left thumb) | double-tap | קפיצה | בעיטה | POWER | the three cards |
 
 **The buttons are on screen on every device**, mouse or thumb — they hold your hand of
-cards, and an ability you cannot see is an ability nobody presses. **✥ in the top bar opens
-edit mode**: drag any button to move it, pull its corner to resize it. Saved on that device
-(as fractions of the stage, so it survives rotating the phone), with a reset in the bar.
+cards, and an ability you cannot see is an ability nobody presses.
+
+**⚙ → 🎛️ עריכת בקרות** opens the layout editor, the same shape as football's: drag any
+button to move it, pull its corner to resize it, and a **שקיפות** slider for how much pitch
+the pad is allowed to hide. **שמירה / ביטול / איפוס** — a draft with a way back, because the
+first thing anyone does in a layout editor is drag something somewhere worse. Saved per
+device as fractions of the stage, so a layout dragged in landscape survives the rotation.
 
 **POWER is a mode, not a shot.** With a full gauge, press POWER and you are *powered up*
 for ~4.5s. While it lasts:

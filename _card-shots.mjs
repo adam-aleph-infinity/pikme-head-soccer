@@ -177,9 +177,18 @@ check('a card whose power is already running is marked live',
 await evalJs('MATCH.pu.eff.fill(0)');
 
 // ── 4. EDIT MODE ─────────────────────────────────────────────────────────────
-await evalJs(`document.getElementById('editBtn').click()`);
+// The editor is reached from SETTINGS now, the way football's is. Going through the gear is
+// the point of the check: an editor only reachable from a button I remember to keep on the
+// top bar is an editor a player never finds.
+await evalJs(`document.getElementById('gear').click()`);
+await sleep(150);
+check('settings has a row that opens the controls editor',
+  (await evalJs(`!!document.getElementById('editCtlBtn') && document.getElementById('editCtlBtn').getBoundingClientRect().width > 0`)) === true);
+await evalJs(`document.getElementById('editCtlBtn').click()`);
 await sleep(200);
 check('the edit bar opens', (await evalJs(`!document.getElementById('editBar').classList.contains('hidden')`)) === true);
+check('and settings closes behind it',
+  (await evalJs(`document.getElementById('tuner').classList.contains('hidden')`)) === true);
 await shot('10-edit-open');
 
 cards = await evalJs('__cards()');
@@ -213,6 +222,16 @@ await shot('11-edited');
 check('a saved layout is written to this device',
   (await evalJs(`!!localStorage.getItem('hs.padlayout.v1')`)) === true);
 
+// The opacity preference — football's «שקיפות בקרות», the one control-feel setting here.
+await evalJs(`(() => { const s = document.getElementById('editOpacity'); s.value = '0.35';
+  s.dispatchEvent(new Event('input', { bubbles: true })); })()`);
+await sleep(150);
+check('the opacity slider dims the pad',
+  Math.abs((await evalJs(`parseFloat(getComputedStyle(document.querySelector('.pad .jump')).opacity)`)) - 0.35) < 0.02,
+  `jump opacity ${await evalJs(`getComputedStyle(document.querySelector('.pad .jump')).opacity`)}`);
+await evalJs(`(() => { const s = document.getElementById('editOpacity'); s.value = '0.72';
+  s.dispatchEvent(new Event('input', { bubbles: true })); })()`);
+
 await evalJs(`document.getElementById('editDone').click()`);
 await sleep(200);
 check('closing edit mode leaves no key stuck down',
@@ -228,7 +247,8 @@ await sleep(2800);
 await evalJs(`
   window.__cards = () => [...document.querySelectorAll('#cardRow .card')].map((b) => {
     const r = b.getBoundingClientRect();
-    return { x: r.left + r.width / 2, w: r.width, size: getComputedStyle(b).getPropertyValue('--s').trim(),
+    return { x: r.left + r.width / 2, y: r.top + r.height / 2, w: r.width,
+             size: getComputedStyle(b).getPropertyValue('--s').trim(),
              art: getComputedStyle(b.querySelector('.card-art')).backgroundImage };
   });
   true;
@@ -239,8 +259,25 @@ check('the layout survives a reload', Math.abs(reloaded.x - savedX) < 25 && relo
 check('and the card is still painted after the reload', /url\(/.test(reloaded.art));
 await shot('12-after-reload');
 
+// CANCEL is the way back. A layout editor without one leaves dragging-it-home-by-eye as the
+// only escape, which is how football's got its ביטול too.
+const keepX = (await evalJs('__cards()'))[0].x;
+await evalJs(`document.getElementById('gear').click(); document.getElementById('editCtlBtn').click();`);
+await sleep(200);
+const cCards = await evalJs('__cards()');
+await dragBy(cCards[0].x, cCards[0].y, 90, -40);
+await sleep(200);
+const nudged = (await evalJs('__cards()'))[0].x;
+check('(a drag moved it)', Math.abs(nudged - keepX) > 40, `${keepX.toFixed(0)} → ${nudged.toFixed(0)}`);
+await evalJs(`document.getElementById('editCancel').click()`);
+await sleep(250);
+check('cancel puts the layout back where it was',
+  Math.abs((await evalJs('__cards()'))[0].x - keepX) < 6,
+  `${nudged.toFixed(0)} → ${(await evalJs('__cards()'))[0].x.toFixed(0)}, wanted ${keepX.toFixed(0)}`);
+check('and leaves edit mode', (await evalJs(`document.getElementById('editBar').classList.contains('hidden')`)) === true);
+
 // Reset puts it back where the designer left it.
-await evalJs(`document.getElementById('editBtn').click()`);
+await evalJs(`document.getElementById('gear').click(); document.getElementById('editCtlBtn').click();`);
 await sleep(150);
 await evalJs(`document.getElementById('editReset').click()`);
 await sleep(250);

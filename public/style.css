@@ -211,8 +211,11 @@ button { font: inherit; color: inherit; border: 0; background: none; cursor: poi
 .pad-r { right: calc(var(--edge) + var(--pr)); align-items: flex-end; }
 .pad .btn {
   /* --s and --xf are the saved layout: size multiplier and translate. Untouched buttons
-     carry the defaults (1 and none), so a fresh device gets the tuned layout exactly. */
+     carry the defaults (1 and none), so a fresh device gets the tuned layout exactly.
+     --ctl-op is how visible the pad is when idle: the controls sit on top of the pitch, and
+     how much pitch they may hide is taste. Pressing one always shows it at full strength. */
   --s: 1;
+  opacity: var(--ctl-op, 0.72);
   transform: var(--xf, none);
   pointer-events: auto; min-width: calc(var(--u) * var(--s)); height: calc(var(--u) * var(--s));
   padding: 0 calc(var(--u) * var(--s) * 0.19);
@@ -222,7 +225,7 @@ button { font: inherit; color: inherit; border: 0; background: none; cursor: poi
   font-weight: 800; backdrop-filter: blur(3px);
   touch-action: none; user-select: none; -webkit-user-select: none;
 }
-.pad .btn:active, .pad .btn.on { background: #3a4d78d0; }
+.pad .btn:active, .pad .btn.on { background: #3a4d78d0; opacity: 1; }
 .pad .btn:active, .pad .btn.on { transform: var(--xf, none) scale(.94); }
 .pad .kick { background: #2a5f3ba8; }
 .pad .power { background: #5a3a12a8; opacity: .35; pointer-events: none; }
@@ -270,7 +273,7 @@ body.no-touch .pad .btn { cursor: pointer; }
   color: #ffffffc2; text-shadow: 0 1px 2px #000; font-weight: 800; pointer-events: none;
 }
 body.no-touch .pad .card .card-key { display: block; }
-.pad .card.ready { pointer-events: auto; }
+.pad .card.ready { pointer-events: auto; opacity: 1; }
 .pad .card.ready::before { opacity: 1; animation: cardReady 1.1s infinite alternate; }
 .pad .card:not(.ready) { pointer-events: none; }
 .pad .card.spent { filter: grayscale(.55) brightness(.72); }
@@ -279,7 +282,10 @@ body.no-touch .pad .card .card-key { display: block; }
 @keyframes cardReady { from { filter: none; } to { filter: brightness(1.25); } }
 
 /* ── EDIT MODE ────────────────────────────────────────────────────────────── */
-body.editing .pad .btn { pointer-events: auto !important; opacity: 1 !important; touch-action: none; }
+/* Edit mode makes every button grabbable — but it must NOT force them opaque. The opacity
+   slider lives in the edit bar, so overriding opacity here meant setting a preference whose
+   effect you could not see until you closed the editor. */
+body.editing .pad .btn { pointer-events: auto !important; touch-action: none; }
 /* A card clips its art to its rounded box. The grip hangs OUTSIDE that box, so while the
    layout is being edited the clip has to come off or the corner cannot be grabbed at all —
    it is drawn, it is just not there. */
@@ -300,15 +306,24 @@ body.editing .pad .btn .grip {
 .editbar {
   position: absolute; left: 50%; top: 46px; transform: translateX(-50%);
   display: flex; align-items: center; gap: 10px; z-index: 12;
+  max-width: 94vw; white-space: nowrap;
   background: #0a0f1ce8; border: 1px solid #ffffff24; border-radius: 12px;
   padding: 8px 12px; font-size: 13px; color: #dfe7ff; direction: rtl;
 }
 .editbar .ghost, .editbar .play { padding: 5px 12px; font-size: 13px; border-radius: 8px; }
-.editBtn {
-  position: absolute; top: 44px; width: 34px; height: 34px; border-radius: 10px;
-  background: #0a0f1cbb; border: 1px solid #ffffff1f; font-size: 15px;
-  right: 132px; color: #dfe7ff;
+/* The settings row that opens the editor. Full width and at the top of the panel, because
+   it is the only row in there a player (rather than a tuner) is looking for. */
+.ctl-edit-row {
+  display: block; width: calc(100% - 16px); margin: 8px; padding: 9px 10px;
+  border-radius: 10px; background: #24345ad9; border: 1px solid #ffffff2b;
+  color: #eaf0ff; font-size: 14px; font-weight: 700; text-align: center;
 }
+.ctl-edit-row:active { background: #31456fd9; }
+.editbar .ce-slider {
+  display: flex; align-items: center; gap: 6px; font-size: 12px; color: #b9c6e6;
+}
+.editbar .ce-slider input { width: 92px; }
+.editbar > span { flex: 0 1 auto; overflow: hidden; text-overflow: ellipsis; }
 
 .gear, .quit {
   position: absolute; top: 44px; width: 34px; height: 34px; border-radius: 10px;

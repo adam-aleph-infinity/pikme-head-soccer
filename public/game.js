@@ -9,7 +9,7 @@ import { activeMeteors, isRobot, robotCharging, actKind, ACT } from '../shared/s
 import { activePickup, puBadges, PU, PU_NAME, PU_COLOR, PU_LABEL } from '../shared/powerups.js';
 import { cardAt, cardKind, cardFill, cardReady, cardCd, liveKind, cardCooldown,
          CARD_SLOTS } from '../shared/cards.js';
-import { createEditor, applyLayout } from './padlayout.js';
+import { createEditor, applyLayout, applyOpacity, loadOpacity } from './padlayout.js';
 import { createNet } from './net.js';
 import { playEvent, SFX, setAudioEnabled, audioEnabled } from './audio.js';
 import { STAGES, randomStage, stageById } from './stages.js';
@@ -241,16 +241,27 @@ EDITOR = createEditor({
   // back as a blurry upscale.
   onChange: () => { if (M) paintHand(); },
 });
-const setEditing = (on) => {
-  if (on) EDITOR.start(); else EDITOR.stop();
+applyOpacity($('#pad'), loadOpacity());
+$('#editOpacity').value = String(loadOpacity());
+
+// `how` is which of the editor's three exits was taken. Save keeps the drag, cancel puts
+// everything back the way it was on open, and neither leaves a key stuck down.
+const setEditing = (on, how = 'save') => {
+  if (on) EDITOR.start();
+  else if (how === 'cancel') EDITOR.cancel();
+  else EDITOR.stop();
   $('#editBar').classList.toggle('hidden', !on);
-  // Nothing should be held down across the transition in either direction.
+  $('#editOpacity').value = String(EDITOR.opacity);
   for (const k of Object.keys(held)) held[k] = false;
   for (const b of document.querySelectorAll('.pad .btn')) b.classList.remove('on');
+  if (M) paintHand();
 };
-$('#editBtn').onclick = () => setEditing(!EDITOR.editing);
-$('#editDone').onclick = () => setEditing(false);
-$('#editReset').onclick = () => { EDITOR.reset(); if (M) paintHand(); };
+// Reached from settings, the way football's is — one entry point, not a button in the way.
+$('#editCtlBtn').onclick = () => { $('#tuner').classList.add('hidden'); setEditing(true); };
+$('#editDone').onclick = () => setEditing(false, 'save');
+$('#editCancel').onclick = () => setEditing(false, 'cancel');
+$('#editReset').onclick = () => { EDITOR.reset(); $('#editOpacity').value = String(EDITOR.opacity); if (M) paintHand(); };
+$('#editOpacity').oninput = (e) => EDITOR.setOpacity(+e.target.value);
 
 // ═══════════════════════════════════════════════════════════════════════════
 // KEYS — view and rebind
