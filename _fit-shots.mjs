@@ -55,6 +55,20 @@ ok('the album scrolls to show more', scrollable.canScroll && scrollable.cards ==
 ok('and the last card is reachable', scrollable.lastVisible, JSON.stringify(scrollable));
 ok('while the play controls stay pinned', scrollable.footMoved <= 2, `moved ${scrollable.footMoved}px`);
 
+// The home screen's shape, asserted rather than eyeballed: one header row, one control row,
+// and the album gets the rest. Before this it was three stacked blocks eating 135px of a
+// 390px screen — a third of the phone before a single card.
+const shape = await ev(`(() => {
+  const box = (sel) => { const r = document.querySelector(sel).getBoundingClientRect(); return { y: Math.round(r.top), h: Math.round(r.height) }; };
+  return { top: box('.pick-top'), bar: box('.pick-bar'), grid: box('#cardGrid'), vh: innerHeight };
+})()`);
+ok('the header is one row, not three', shape.top.h <= 90, `${shape.top.h}px tall`);
+ok('the control row is a thumb tall', shape.bar.h <= 56, `${shape.bar.h}px tall`);
+ok('and the album gets most of the screen', shape.grid.h > shape.top.h + shape.bar.h,
+   `album ${shape.grid.h}px vs chrome ${shape.top.h + shape.bar.h}px`);
+
+// The in-match top-right row lost its ⌨ button; the survivors have to close ranks rather
+// than leave a 34px hole where it was.
 ok('the pick screen offers two modes',
    (await ev(`[...document.querySelectorAll('#modes button')].map(b=>b.dataset.mode).join(',')`)) === 'bot,duo');
 ok('bot mode shows difficulty and hides the link buttons',

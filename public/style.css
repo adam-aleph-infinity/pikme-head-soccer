@@ -238,15 +238,41 @@ body[data-mode="duo"] #slotFoe { opacity: .45; pointer-events: none; }
      instead of scrubbing a 2-row window — while the part you press stays pinned. */
   #pick { gap: 6px; padding: env(safe-area-inset-top) 10px 6px; overflow-y: auto; overflow-x: hidden; }
   #pick .grid { flex: none; overflow: visible; min-height: 0; }
-  /* Pinned so «שחק» is always one thumb away no matter how far you have scrolled. */
-  #pick .modes, #pick .pick-foot {
-    position: sticky; z-index: 3; background: #070a12ee;
-    backdrop-filter: blur(6px); margin-inline: -10px; padding-inline: 10px;
+  /* ONE header row, not three stacked. Title, the two cards and the rarity tabs used to eat
+     135px of a 390px screen — a third of the phone before a single album card. Side by side
+     they take about 70px and the album gets the rest. */
+  #pick .pick-top {
+    display: flex; align-items: center; justify-content: space-between; gap: 10px;
+    flex: none;
   }
-  /* Full width, or the album scrolls past either side of the sticky bar and the two modes
-     look like they are floating on top of a moving grid. */
-  #pick .modes { bottom: 44px; padding-top: 4px; width: auto; max-width: none; }
-  #pick .pick-foot { bottom: 0; padding-bottom: max(4px, env(safe-area-inset-bottom)); padding-top: 4px; }
+  #pick .pick-head { padding: 0; text-align: start; }
+  #pick .slots { flex: 0 0 auto; }
+  #pick .rarity-tabs { flex-wrap: wrap; justify-content: flex-end; max-width: 40%; gap: 4px; }
+
+  /* ONE control row, pinned. The modes and the play controls were two stacked sticky bars
+     with a seam between them; together they are a single bar a thumb's height tall. */
+  #pick .pick-bar {
+    position: sticky; bottom: 0; z-index: 3; flex: none;
+    display: flex; align-items: center; gap: 8px;
+    background: #070a12; margin-inline: -10px;
+    padding: 5px 10px max(5px, env(safe-area-inset-bottom));
+    box-shadow: 0 -10px 14px #070a12;      /* the album fades out under it instead of peeking */
+  }
+  #pick .modes { flex: 0 0 auto; width: auto; max-width: none; margin: 0; padding: 0; gap: 6px; }
+  /* One line each. «נגד המחשב» wrapped to two and made the bar taller than the button it
+     contains, which is how a control row starts eating the album again. */
+  #pick .modes button { padding: 6px 10px; white-space: nowrap; }
+  #pick .modes button b { font-size: 11.5px; }
+  #pick .pick-foot { flex: 1; padding: 0; }
+  /* No padding under the bar: the page's own bottom padding was showing a sliver of album
+     below it, which reads as the layout not quite fitting — which is exactly what it was. */
+  #pick { padding-bottom: 0; }
+  /* The header row is as tall as the slots, so the slots decide how much album you see. */
+  #pick .slot { width: 66px; padding: 3px; }
+  #pick .slot-art { width: 34px; height: 34px; }
+  #pick .slot-cap { font-size: 9px; }
+  #pick .slot-shot { font-size: 9px; min-height: 11px; }
+  #pick .vs { font-size: 11px; }
   .pick-head { padding-top: 2px; }
   .pick-head h1 { font-size: 17px; }
   .pick-head .sub { display: none; }        /* the two slots below say the same thing */
@@ -505,7 +531,9 @@ body.editing .pad .btn .grip {
    while playing, not before. */
 
 .sndBtn {
-  position: absolute; top: 44px; right: 90px; width: 34px; height: 34px; border-radius: 10px;
+  /* 48, not 90: the ⌨ button used to sit between this and the gear, and removing it left a
+     34px hole in the middle of the row. */
+  position: absolute; top: 44px; right: 48px; width: 34px; height: 34px; border-radius: 10px;
   background: #0a0f1cbb; border: 1px solid #ffffff1f; font-size: 14px;
 }
 .sndBtn.off { opacity: .45; }

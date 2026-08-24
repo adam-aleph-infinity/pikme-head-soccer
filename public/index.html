@@ -12,6 +12,7 @@
 
 <!-- ═══ PICK ═══ choose a card for each head ══════════════════════════════ -->
 <section id="pick" class="screen">
+  <div class="pick-top">
   <header class="pick-head">
     <h1>סלטיז <span>ראשים</span></h1>
     <p class="sub">בחר את הקלף שיילחם בשבילך</p>
@@ -38,12 +39,14 @@
     <button data-r="rare">נדיר</button>
     <button data-r="common">רגיל</button>
   </nav>
+  </div>
 
   <div class="grid" id="cardGrid"></div>
 
   <!-- The two ways to play, stated as a choice rather than left implicit. The old screen had
        one «שחק» button plus two link-shaped buttons in a row of utilities, so 1v1 read as an
        afterthought instead of as the other half of the game. -->
+  <div class="pick-bar">
   <nav class="modes" id="modes">
     <button data-mode="bot" class="on"><b>🤖 נגד המחשב</b><span>שחק מיד</span></button>
     <button data-mode="duo"><b>👥 1 על 1</b><span>שלח קישור לחבר</span></button>
@@ -59,6 +62,7 @@
     <button class="play" id="hostBtn">🔗 צור קישור</button>
     <button class="ghost" id="joinBtn">הצטרף לקוד</button>
   </footer>
+  </div>
 </section>
 
 <!-- ═══ LOBBY ═══ private room, joined by a 4-char code ═══════════════════ -->

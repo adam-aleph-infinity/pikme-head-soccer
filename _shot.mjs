@@ -133,6 +133,17 @@ const scaleXY = await evalJs(`(() => {
   const cv = document.getElementById('cv');
   return { sx: r.width / C.W, sy: r.height / (cv.height * 2) };   // backing is half-res (PIXEL 2)
 })()`);
+// The ⌨ button was removed from this row. Its neighbours have to close ranks — a 34px hole
+// in a row of three buttons reads as a missing button, which is exactly what it is.
+const topRow = await evalJs(`(() => {
+  const b = ['quit','sndBtn','gear'].map(id => document.getElementById(id)).filter(Boolean)
+    .map(e => e.getBoundingClientRect());
+  const right = b.filter(r => r.left > innerWidth / 2).sort((x, y) => x.left - y.left);
+  return { n: b.length, gaps: right.slice(1).map((r, i) => Math.round(r.left - right[i].right)) };
+})()`);
+check('the in-game buttons sit together', topRow.gaps.every((g) => g >= 0 && g <= 12),
+      `gaps ${topRow.gaps.join(', ')}px`);
+
 check('the pitch is drawn at a uniform scale', Math.abs(scaleXY.sx - scaleXY.sy) < 0.01,
       `x${scaleXY.sx.toFixed(3)} vs y${scaleXY.sy.toFixed(3)}`);
 check('both heads are inside the stage', geo.heads.every((h) => h.x > -h.w && h.x < geo.stage.w && h.y > -h.w && h.y < geo.stage.h),
