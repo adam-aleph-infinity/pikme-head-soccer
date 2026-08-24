@@ -191,31 +191,55 @@ const fire = (m, i, kind) => { SK.cast(m, i, kind); m.hitStop = 0; };
   }
   ok('it catches a player standing still', bit);
   ok('and holds them', rootedAtBite > 0.5, `rooted ${rootedAtBite.toFixed(2)}s`);
-  ok('then it leaves', !activeDog(m));
+
+  // It LATCHES rather than vanishing. The old version deleted the dog on the frame it bit,
+  // so the one second it holds you happened with nothing on screen — a player was frozen by
+  // an animal that had already disappeared.
+  const dog = activeDog(m);
+  ok('the dog is still there, holding on', !!dog, 'the dog vanished at the moment it bit');
+  ok('and it is on the player it caught', !!dog && Math.abs(dog.x - foe.x) < 40,
+    dog ? `dog ${dog.x.toFixed(0)} vs foe ${foe.x.toFixed(0)}` : '');
+  ok('the renderer can tell it is biting', !!dog && dog.on === 2, dog ? `on=${dog.on}` : '');
+
+  // It follows them while it holds, rather than being left behind if they slide.
+  foe.x += 25;
+  run(m, 4);
+  const still = activeDog(m);
+  ok('it goes with them', !still || Math.abs(still.x - foe.x) < 40,
+    still ? `dog ${still.x.toFixed(0)} vs foe ${foe.x.toFixed(0)}` : 'gone');
+
+  run(m, 200);
+  ok('then it lets go and leaves', !activeDog(m));
+  ok('and the player is free', m.players[1].rooted <= 0);
 }
 {
-  // The whole promise: a player in the AIR is not bitten.
-  const m = fresh();
-  const [me, foe] = m.players;
-  me.x = 300; foe.x = 700; foe.y = me.y;
-  fire(m, 0, PU.DOG);
-  const seen = [];
-  let jumped = false;
-  for (let i = 0; i < 300; i++) {
-    const dog = activeDog(m);
-    // Jump when it is nearly on you — a hurdle, not a starting gun. Jumping 150px out (the
-    // first version of this test) means landing again before it arrives, which is the dog
-    // doing its job rather than the dog being unfair: it crosses the pitch slowly enough that
-    // WHEN you jump is the whole skill of it.
-    const jump = !jumped && dog && Math.abs(dog.x - foe.x) < 58;
-    if (jump) jumped = true;
-    m.hitStop = 0;
-    step(m, [{}, jump ? { jump: true } : {}]);
-    for (const e of m.events) seen.push(e);
-    m.events.length = 0;
+  // THE WHOLE PROMISE: a jump clears it. Rather than hardcoding one reaction distance — which
+  // silently became wrong the moment the dog's reach went from 24 to 32 — this looks for the
+  // WINDOW: jump too early and you have landed again before it arrives, too late and it is
+  // already on you. What has to be true is that a timing exists, and that it is wide enough
+  // for a person rather than a frame-perfect input.
+  const cleared = [];
+  for (const at of [200, 170, 140, 120, 100, 85, 70, 58]) {
+    const m = fresh();
+    const [me, foe] = m.players;
+    me.x = 300; foe.x = 760; foe.y = me.y;
+    fire(m, 0, PU.DOG);
+    let jumped = false, bitten = false;
+    for (let i = 0; i < 300 && !bitten; i++) {
+      const dog = activeDog(m);
+      const jump = !jumped && dog && Math.abs(dog.x - foe.x) < at;
+      if (jump) jumped = true;
+      m.hitStop = 0;
+      step(m, [{}, jump ? { jump: true } : {}]);
+      bitten = m.events.some((e) => e.type === 'dogBite');
+      m.events.length = 0;
+      if (!activeDog(m)) break;
+    }
+    if (jumped && !bitten) cleared.push(at);
   }
-  ok('a player who jumps it is not bitten', !seen.some((e) => e.type === 'dogBite'),
-    seen.filter((e) => e.type.startsWith('dog')).map((e) => e.type).join(','));
+  ok('a jump clears the dog', cleared.length > 0, 'no reaction distance escaped it');
+  ok('and the window is wide enough for a person', cleared.length >= 3,
+    `cleared when jumping at ${cleared.join(', ')}px`);
 }
 
 // ── 4. All of it travels ───────────────────────────────────────────────────────

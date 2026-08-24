@@ -20,6 +20,15 @@ const send=(m,p={})=>new Promise(r=>{pend.set(++id,r);ws.send(JSON.stringify({id
 const ev=async x=>(await send('Runtime.evaluate',{expression:x,returnByValue:true,awaitPromise:true}))?.result?.value;
 const fails=[];const ok=(n,c,e='')=>{console.log(`  ${c?'✓':'✗'} ${n}${e?'  — '+e:''}`); if(!c) fails.push(n);};
 const shot=async(n)=>{const s=await send('Page.captureScreenshot',{format:'png'}); writeFileSync(`${OUT}/${n}.png`, Buffer.from(s.data,'base64'));};
+// A magnified crop of one world box. A 40px dog judged off a 900px screenshot is judged at
+// the wrong size — the pickup harness learned this about its 22px icons.
+const crop=async(n, wx, wy, ww, wh, scale=6)=>{
+  const r = await ev(`(() => { const cv = document.getElementById('cv').getBoundingClientRect();
+    const k = cv.width / C.W; return { x: cv.left + ${wx} * k, y: cv.top + ${wy} * k, w: ${ww} * k, h: ${wh} * k }; })()`);
+  if (!r) return;
+  const s = await send('Page.captureScreenshot', { format: 'png', clip: { x: r.x, y: r.y, width: r.w, height: r.h, scale } });
+  if (s?.data) writeFileSync(`${OUT}/${n}.png`, Buffer.from(s.data, 'base64'));
+};
 await send('Page.enable');await send('Runtime.enable');await send('Network.enable');await send('Network.setCacheDisabled',{cacheDisabled:true});
 await send('Emulation.setDeviceMetricsOverride',{width:900,height:620,deviceScaleFactor:1,mobile:false});
 await send('Page.navigate',{url:`${BASE}/?me=legendary_3&foe=legendary_2&diff=3&solo=1&play=1&stage=neon`});
@@ -47,9 +56,35 @@ await shot('01-dart');
 // THE DOG, on the ground line.
 await ev(`(() => { const d = MATCH.sk.dog; d.on=1; d.by=0; d.x=520; d.vx=200; d.life=300; MATCH.sk.dart.on=0; })()`);
 await sleep(200);
-px = await ev('__px(496, C.GROUND_Y-30, 56, 26)');
-ok('a dog is on the ground and it is brown', px.r > px.b + 30 && px.g > px.b, JSON.stringify(px));
+px = await ev('__px(492, C.GROUND_Y-42, 64, 40)');
+ok('a dog is on the ground and it is brown', px.r > px.b + 20 && px.g > px.b, JSON.stringify(px));
 await shot('02-dog');
+await crop('02-dog-zoom', 470, (await ev('C.GROUND_Y')) - 48, 104, 56, 8);
+
+// THE DOG, BITING — the pose it holds you in. Teeth and gums, at shin height.
+// Stand the victim in open grass first: latched, the dog sits at their shins, and against
+// the goal frame (where player 1 spawns) the photograph is mostly goal.
+await ev(`(() => { MATCH.players[1].x = 560; const d = MATCH.sk.dog; d.on=2; d.by=0; d.hold=90; d.x=560; })()`);
+await sleep(220);
+const bitePx = await ev('__px(MATCH.players[1].x - 34, C.GROUND_Y - 40, 68, 38)');
+ok('a biting dog is on the shins of the player it caught', bitePx.r > bitePx.b + 20, JSON.stringify(bitePx));
+// Teeth: the brightest thing in the jaw box, and they have to survive being 2px wide.
+const teeth = await ev(`(() => {
+  const c = document.getElementById('cv'); const P = 2;
+  const x0 = Math.round((MATCH.players[1].x - 34) / P), y0 = Math.round((C.GROUND_Y - 34) / P);
+  const d = c.getContext('2d').getImageData(x0, y0, Math.round(68 / P), Math.round(30 / P)).data;
+  let bright = 0, n = 0;
+  for (let i = 0; i < d.length; i += 4) { n++; if (d[i] > 225 && d[i+1] > 220 && d[i+2] > 205) bright++; }
+  return { bright, n, pct: +(100 * bright / n).toFixed(2) };
+})()`);
+ok('and its teeth are visible in the jaw', teeth.bright >= 4, JSON.stringify(teeth));
+await shot('02b-dog-biting');
+// The heads are DOM nodes ON TOP of the canvas and a head is 60px across, so it hangs into
+// any crop of the shins. Hidden for the photograph only — this is a picture of a dog.
+await ev(`[0,1].forEach(i => { document.getElementById('head'+i).style.visibility = 'hidden'; })`);
+await crop('02b-dog-biting-zoom', await ev('MATCH.players[1].x - 52'), await ev('C.GROUND_Y - 44'), 104, 50, 8);
+await ev(`[0,1].forEach(i => { document.getElementById('head'+i).style.visibility = ''; })`);
+await ev(`(() => { MATCH.sk.dog.on = 0; })()`);
 
 // THE GOAL WALL, across a mouth.
 await ev(`(() => { MATCH.sk.dog.on=0; MATCH.sk.wall[0]=90; })()`);

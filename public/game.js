@@ -1412,23 +1412,11 @@ function drawSkills(g) {
     R2(g, d.x + dir * 5, d.y - 2, 6, 4, '#fff0f3');
   }
 
-  // THE DOG — four legs and a tail at the ground line. Blocky, like everything else here.
+  // THE DOG. Bigger than it was and drawn in the same grammar as the fighters: flat colour,
+  // a black keyline round every mass, one highlight tone. It has two poses, because it does
+  // two things — it RUNS, and then it hangs off your leg with its teeth in your shin.
   const dog = activeDog(M);
-  if (dog) {
-    const dir = Math.sign(dog.vx) || 1;
-    const y = C.GROUND_Y - 26, x = dog.x;
-    const bob = Math.sin(performance.now() / 70) * 2;
-    R2(g, x - 16, y + bob, 30, 14, '#c98b3a');                 // body
-    R2(g, x + dir * 12, y - 6 + bob, 14, 13, '#c98b3a');       // head
-    R2(g, x + dir * 20, y - 2 + bob, 5, 4, '#3a2a12');         // snout
-    R2(g, x + dir * 15, y - 4 + bob, 3, 3, '#0c0a06');         // eye
-    R2(g, x - dir * 18, y - 4 + bob, 5, 8, '#a97128');         // tail
-    for (let l = 0; l < 4; l++) {
-      const lx = x - 12 + l * 8;
-      R2(g, lx, y + 13 + bob, 4, 12 + (l % 2 ? Math.sin(performance.now() / 55 + l) * 2 : 0), '#a97128');
-    }
-    R2(g, x - 16, C.GROUND_Y - 3, 30, 3, '#00000044');         // its shadow, so it reads as on the ground
-  }
+  if (dog) drawDog(g, dog);
 
   // THE ARMED SUPER KICK — a ring on the boot that is about to do it.
   for (let i = 0; i < 2; i++) {
@@ -1440,6 +1428,91 @@ function drawSkills(g) {
     g.arc(p.x, p.y - 6, 20 + Math.sin(performance.now() / 90) * 3, 0, Math.PI * 2);
     g.stroke();
   }
+}
+
+// One dog, two poses. `biting` is the sim's own latch flag (skills.js `on === 2`), so what is
+// drawn and what is happening cannot disagree.
+const DOG = { fur: '#c98b3a', dark: '#a97128', line: '#160e04', snout: '#3a2a12',
+              eye: '#0c0a06', tooth: '#fffaf0', gum: '#d34a63', tongue: '#e8657f' };
+
+function drawDog(g, dog) {
+  const t = performance.now();
+  const biting = dog.on === 2;
+  const dir = biting ? -(Math.sign(dog.vx) || 1) : (Math.sign(dog.vx) || 1);
+  // 2.0, not the 1.45 it started at. At 1.45 the teeth came out a single texel wide — the
+  // canvas renders at half resolution on purpose (PIXEL = 2), so anything under about 3 world
+  // px simply is not drawable. A mouth you cannot see is not a mouth.
+  const S = 2.0;
+  const x = dog.x;
+  // Biting, it drops to the shins and hangs; running, it lopes with a bob.
+  const bob = biting ? Math.sin(t / 45) * 1.5 : Math.sin(t / 70) * 2.5;
+  // Latched, it sits LOW — the jaw has to close round a shin, not a hip. 14px up from the
+  // grass puts the open mouth across the bottom third of a player's leg.
+  const y = C.GROUND_Y - (biting ? 15 : 30) + bob;
+  const px = (v) => Math.round(v * S);
+  // Every mass gets a keyline: draw the black box first, the colour inset by one.
+  const K = (bx, by, bw, bh, col) => {
+    R2(g, x + px(bx) - 1, y + px(by) - 1, px(bw) + 2, px(bh) + 2, DOG.line);
+    R2(g, x + px(bx), y + px(by), px(bw), px(bh), col);
+  };
+
+  // shadow first, so it always reads as standing ON the grass
+  R2(g, x - px(13), C.GROUND_Y - 3, px(26), 3, '#00000055');
+
+  // ---- body, haunch, chest ----
+  K(-12, 0, 22, 11, DOG.fur);
+  K(-14 * dir, -1, 8, 10, DOG.dark);                // haunch, at the back
+  K(2 * dir, -2, 9, 12, DOG.fur);                   // chest, at the front
+
+  // ---- tail: up and wagging when it runs, stiff when it has hold of something ----
+  const wag = biting ? 0 : Math.sin(t / 60) * 3;
+  K(-16 * dir, -6 + wag * 0.3, 5, 9, DOG.dark);
+
+  // ---- legs ----
+  for (let l = 0; l < 4; l++) {
+    const lx = -9 + l * 6.5;
+    const swing = biting ? (l < 2 ? 2 : 0) : Math.sin(t / 55 + l * 1.7) * 2.5;
+    K(lx, 10, 4, 8 + swing, DOG.dark);
+    K(lx - 0.5, 17 + swing, 5, 3, DOG.fur);         // paw
+  }
+
+  // ---- head ----
+  const hx = 9 * dir;
+  K(hx - 4, -12, 12, 12, DOG.fur);                  // skull
+  K(hx + (dir > 0 ? 5 : -5), -15, 5, 6, DOG.dark);  // ear, flopping forward
+  K(hx - 4, -14, 4, 5, DOG.dark);                   // the other ear
+  R2(g, x + px(hx + dir * 2) - 1, y + px(-8) - 1, px(3) + 2, px(3) + 2, DOG.line);
+  R2(g, x + px(hx + dir * 2), y + px(-8), px(3), px(3), DOG.eye);     // eye
+  R2(g, x + px(hx + dir * 2.2), y + px(-8), px(1), px(1), '#ffffff'); // and its glint
+
+  if (!biting) {
+    // Muzzle closed: a snout and a nose, and that is all a running dog needs to read.
+    K(hx + dir * 5, -6, 7, 5, DOG.snout);
+    R2(g, x + px(hx + dir * 10), y + px(-5), px(3), px(3), DOG.eye);  // nose
+    return;
+  }
+
+  // ---- THE BITE: an open jaw round the shin, gums and teeth showing ----
+  // Drawn as two jaws hinged at the back of the muzzle so the mouth reads as CLAMPED on
+  // something rather than merely open. The gum is the loud part — teeth alone on a small
+  // sprite just read as a white smudge.
+  const gape = 5 + Math.sin(t / 40) * 1.2;          // it worries at the leg while it holds
+  const jx = hx + dir * 4;
+  // upper jaw
+  K(jx, -6, 9, 4, DOG.snout);
+  R2(g, x + px(jx), y + px(-3), px(9), px(1.6), DOG.gum);
+  for (let i = 0; i < 4; i++) {
+    R2(g, x + px(jx + 0.5 + i * 2.2), y + px(-2), px(2.2), px(2.6), DOG.tooth);
+  }
+  // lower jaw, swung open by `gape`
+  K(jx, -2 + gape * 0.5, 8, 4, DOG.snout);
+  R2(g, x + px(jx), y + px(-2 + gape * 0.5), px(8), px(1.4), DOG.gum);
+  for (let i = 0; i < 3; i++) {
+    R2(g, x + px(jx + 1.1 + i * 2.4), y + px(-3.6 + gape * 0.5), px(2.2), px(2.4), DOG.tooth);
+  }
+  R2(g, x + px(jx + 1), y + px(-1 + gape * 0.5), px(4), px(1.4), DOG.tongue);
+  // nose on top of the upper jaw
+  R2(g, x + px(jx + 7), y + px(-7), px(3), px(3), DOG.eye);
 }
 
 function drawPickup(g) {

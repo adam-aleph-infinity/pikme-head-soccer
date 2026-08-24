@@ -331,9 +331,16 @@ export let SKILL_SUPER_PUSH = 620;   // and what it does to anyone standing by t
 export let SKILL_SUPER_LIFT = 260;
 export let SKILL_SUPER_RANGE = 120;  // px from the ball to catch the shove
 
-export let SKILL_DOG_SPEED = 300;    // px/s along the ground — a jump clears it, that is the game
+// px/s along the ground. Raised from 300 (204 after PACE) because at that speed a jump did
+// not clear it: a jump is airborne for about 0.47s and the dog covered only 96px in that
+// time, so you rose, the dog kept coming, and you landed on top of it. A hurdle you cannot
+// hurdle is just a delayed hit. At 480 it covers ~155px while you are in the air, which is
+// what makes "jump it" the answer rather than a suggestion.
+export let SKILL_DOG_SPEED = 480;
 export let SKILL_DOG_LIFE = 6;       // s before it gets bored and leaves
-export let SKILL_DOG_R = 24;
+export let SKILL_DOG_R = 32;         // was 24. The drawn dog got bigger, so its reach did too —
+                                     // an animal that looks like it can reach you and cannot is
+                                     // a lie the player pays for.
 export let SKILL_DOG_HOLD = 1.0;     // s it holds whoever it caught
 
 export let CARDS_ON = 1;             // 0 hides the row and takes the buttons out of the sim

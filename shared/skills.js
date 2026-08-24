@@ -37,8 +37,10 @@ export function createSkills() {
   return {
     // One dart in flight: x, y, vx, owner, life. kind 0 = nothing there.
     dart: { on: 0, x: 0, y: 0, vx: 0, by: 0, life: 0 },
-    // One dog: runs the ground, bites a player who is standing on it.
-    dog: { on: 0, x: 0, vx: 0, by: 0, life: 0 },
+    // One dog: runs the ground, bites a player who is standing on it, and then HANGS ON.
+    // `on` is 0 gone, 1 running, 2 latched onto a leg — the renderer draws a different animal
+    // for each — and `hold` is how much longer it keeps hold.
+    dog: { on: 0, x: 0, vx: 0, by: 0, life: 0, hold: 0 },
     // Goal walls, one clock per side, on the goal that player DEFENDS.
     wall: [0, 0],
     // Armed super kicks, one flag per player.
@@ -91,7 +93,7 @@ export const SK = {
       case DOG: {
         const d = m.sk.dog;
         const foe = m.players[1 - i];
-        d.on = 1; d.by = i; d.life = ticks(C.SKILL_DOG_LIFE);
+        d.on = 1; d.by = i; d.life = ticks(C.SKILL_DOG_LIFE); d.hold = 0;
         d.x = p.x;
         // It runs at whoever it was not sent by, wherever they happen to be standing.
         d.vx = Math.sign(foe.x - p.x || 1) * C.SKILL_DOG_SPEED;
@@ -165,16 +167,33 @@ function stepDart(m, fx) {
 function stepDog(m, fx) {
   const d = m.sk.dog;
   if (!d.on) return;
+
+  // Hanging off a leg: it goes where the leg goes, and the player stays held for exactly as
+  // long as it is there rather than for a timer that runs independently of the animal.
+  if (d.on === 2) {
+    const held = m.players[1 - d.by];
+    d.x = held.x;
+    held.rooted = Math.max(held.rooted, 2 * C.TICK);
+    held.vx = 0;
+    if (--d.hold <= 0) { d.on = 0; d.hold = 0; d.life = 0; m.events.push({ type: 'dogLetGo', on: held.index }); }
+    return;
+  }
+
   d.x += d.vx * C.TICK;
 
   const foe = m.players[1 - d.by];
   if (foe.onGround && Math.abs(d.x - foe.x) < C.BODY_W / 2 + C.SKILL_DOG_R) {
+    // It LATCHES rather than vanishing. The first version deleted the dog on the frame it
+    // bit, so the whole second it holds you happened with nothing on screen — a player
+    // frozen by an animal that was no longer in the game.
+    d.on = 2;
+    d.hold = ticks(C.SKILL_DOG_HOLD);
+    d.x = foe.x;
     foe.rooted = Math.max(foe.rooted, C.SKILL_DOG_HOLD);
     foe.vx = 0;
     m.events.push({ type: 'dogBite', player: d.by, on: foe.index, x: d.x });
     m.hitStop = Math.max(m.hitStop, C.HIT_STOP_TACKLE);
     if (fx) fx.hit(d.x, C.GROUND_Y - 14, '#c98b3a', 3);
-    d.on = 0; d.life = 0;
     return;
   }
 
@@ -224,7 +243,7 @@ export function spendSuperKick(m, i, b, dir) {
 export function wipeSkills(m) {
   if (!m.sk) return;
   retire(m.sk.dart);
-  m.sk.dog.on = 0; m.sk.dog.life = 0;
+  m.sk.dog.on = 0; m.sk.dog.life = 0; m.sk.dog.hold = 0;
   m.sk.wall[0] = m.sk.wall[1] = 0;
   m.sk.size[0] = m.sk.size[1] = 0;
   m.sk.sizeK[0] = m.sk.sizeK[1] = 1;
@@ -237,7 +256,7 @@ export function packSkills(sk) {
   if (!sk) return [];
   const a = [
     sk.dart.on, Math.round(sk.dart.x), Math.round(sk.dart.y), Math.round(sk.dart.vx), sk.dart.by, sk.dart.life,
-    sk.dog.on, Math.round(sk.dog.x), Math.round(sk.dog.vx), sk.dog.by, sk.dog.life,
+    sk.dog.on, Math.round(sk.dog.x), Math.round(sk.dog.vx), sk.dog.by, sk.dog.life, sk.dog.hold,
     sk.wall[0], sk.wall[1], sk.sup[0], sk.sup[1],
     sk.size[0], sk.size[1], Math.round(sk.sizeK[0] * 100), Math.round(sk.sizeK[1] * 100),
   ];
@@ -251,11 +270,14 @@ export function unpackSkills(sk, a) {
   const v = (i) => (i < a.length ? a[i] : 0);
   sk.dart.on = v(0); sk.dart.x = v(1); sk.dart.y = v(2); sk.dart.vx = v(3); sk.dart.by = v(4); sk.dart.life = v(5);
   sk.dog.on = v(6); sk.dog.x = v(7); sk.dog.vx = v(8); sk.dog.by = v(9); sk.dog.life = v(10);
-  sk.wall[0] = v(11); sk.wall[1] = v(12);
-  sk.sup[0] = v(13); sk.sup[1] = v(14);
-  sk.size[0] = v(15); sk.size[1] = v(16);
+  // The latch clock. Without it a reconciling client shows a dog that has already let go —
+  // or, worse, one that never does.
+  sk.dog.hold = v(11);
+  sk.wall[0] = v(12); sk.wall[1] = v(13);
+  sk.sup[0] = v(14); sk.sup[1] = v(15);
+  sk.size[0] = v(16); sk.size[1] = v(17);
   // The multipliers are packed x100; a zero means "not shrunk", which is a scale of 1.
-  sk.sizeK[0] = v(17) ? v(17) / 100 : 1;
-  sk.sizeK[1] = v(18) ? v(18) / 100 : 1;
+  sk.sizeK[0] = v(18) ? v(18) / 100 : 1;
+  sk.sizeK[1] = v(19) ? v(19) / 100 : 1;
   return sk;
 }

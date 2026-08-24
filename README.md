@@ -139,7 +139,7 @@ card fires the same six otherwise:
 | **חץ מכווץ** dart | epic+ | a bolt at head height. Hits them → their head shrinks. Misses into the net → **yours grows** |
 | **בעיטת על** super kick | epic+ | your next touch sends the ball twice as far and throws whoever is standing over it |
 | **חומת שער** goal wall | legendary | your own goal is shut for 1.6s. It saves one attack, it cannot hold a lead |
-| **כלב!** dog | legendary | a dog runs the pitch. Standing still when it arrives costs you a second — **jump it** |
+| **כלב!** dog | legendary | a dog runs the pitch and **hangs off your shin** for a second, teeth and gums showing — **jump it** |
 
 Every one of them can be answered: the dart flies one visible line, the dog runs the ground and
 a jump clears it, and the wall goes up on your OWN goal so it never takes a control away from
