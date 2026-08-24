@@ -26,6 +26,12 @@ npm test           # sim + bot tests, headless
 node _shot.mjs     # drives the real client in Chrome and screenshots it
 ```
 
+## Two ways to play
+
+The pick screen asks which, rather than leaving it implicit: **🤖 נגד המחשב** (difficulty slider
++ שחק) or **👥 1 על 1** (a share link, or join a 4-char code). The choice is remembered per
+device. In 1v1 the opponent brings their own card, so the יריב slot goes inert.
+
 ## Play with someone else
 
 Tap **🔗 שחק עם חבר** → you get a 4-char code and a share link. Send the link; opening it

@@ -144,6 +144,28 @@ function renderSlots() {
 $('#slotMe').onclick = () => { pick.target = 'me'; renderSlots(); renderGrid(); };
 $('#slotFoe').onclick = () => { pick.target = 'foe'; renderSlots(); renderGrid(); };
 
+// ── THE TWO MODES ──────────────────────────────────────────────────────────
+// bot | duo. It is only a UI state — nothing about the sim or the netcode changes — but
+// stating the choice is the point: the old screen had one «שחק» button and put "play a
+// friend" in a row of utilities next to the keyboard help, so half the game read as a
+// footnote. The mode picks which footer controls apply, and it is remembered per device
+// because whichever way you play is almost always the way you will play next time.
+const MODE_KEY = 'hs.mode.v1';
+function setMode(mode) {
+  const m = mode === 'duo' ? 'duo' : 'bot';
+  document.body.dataset.mode = m;
+  for (const b of $('#modes').children) b.classList.toggle('on', b.dataset.mode === m);
+  // Choosing a card for someone who is about to bring their own is meaningless, so a duo
+  // switch hands the picker back to your own slot.
+  if (m === 'duo' && pick.target === 'foe') { pick.target = 'me'; renderSlots(); renderGrid(); }
+  try { localStorage.setItem(MODE_KEY, m); } catch {}
+}
+$('#modes').onclick = (e) => {
+  const b = e.target.closest('button[data-mode]');
+  if (b) setMode(b.dataset.mode);
+};
+try { setMode(localStorage.getItem(MODE_KEY) || 'bot'); } catch { setMode('bot'); }
+
 $('#rarityTabs').onclick = (e) => {
   const b = e.target.closest('button');
   if (!b) return;
@@ -708,7 +730,11 @@ function frame(now) {
 // ═══════════════════════════════════════════════════════════════════════════
 const cv = $('#cv');
 const ctx = cv.getContext('2d');
-let SC = 1, crowd = [];
+// SC is world units -> CSS px. OX/OY are where world (0,0) lands inside the stage, and they
+// are NOT always zero: the canvas is COVER-fitted on a wide screen, so it hangs off the top.
+// Anything that positions a DOM node over the pitch must go through all three — the heads are
+// DOM nodes, and a head placed with SC alone drifts by exactly the crop.
+let SC = 1, OX = 0, OY = 0, crowd = [];
 
 // Street Fighter II is PIXEL art, and the cheapest honest way to get there is to render at
 // half resolution and upscale with smoothing off. One texel becomes a fat on-screen pixel,
@@ -716,19 +742,43 @@ let SC = 1, crowd = [];
 // free. Drawing "pixel-style" at full res never convinces — the edges stay clean.
 const PIXEL = 2;
 
+// How much sky may be cropped to fill more of the screen — and the number is set by the
+// BALL, not by taste. The pitch is 960x530 (1.81:1) against a phone's 2.16:1, so filling the
+// width completely would mean hiding 86px off the top. Measured over twelve bot matches, the
+// ball reaches y=42 and spends 4.5% of the playing time above that line: a full-bleed fit
+// would lose the ball off the top of the screen one tick in twenty-two. So the crop stops
+// short of the highest the ball ever gets, and whatever is left over stays as bars — painted
+// the colour of the sky (see paintLetterbox) rather than black.
+const MAX_CROP_PX = 34;               // world units, against a measured ball ceiling of 42
+
 function resize() {
   const vw = innerWidth, vh = innerHeight;
   const ratio = C.W / C.H;
-  let w = vw, h = w / ratio;
-  if (h > vh) { h = vh; w = h * ratio; }
+
+  // Scale up until either the width is full or the crop reaches its ceiling, whichever comes
+  // first. The excess hangs off the TOP only — the ground, the players' feet and the pad all
+  // live at the bottom and none of them may be cut.
+  const scale = Math.min(vw / C.W, vh / (C.H - MAX_CROP_PX));
+  const w = C.W * scale, h = C.H * scale;
+
+  // The stage is the whole viewport whenever the canvas overflows it, so the HUD and the pad
+  // — which are positioned against the stage — stay where a thumb expects them instead of
+  // riding up with the canvas.
   const stage = $('#stage');
-  stage.style.width = w + 'px';
-  stage.style.height = h + 'px';
+  const sw = Math.min(vw, Math.max(w, vw)), sh = h > vh ? vh : h;
+  stage.style.width = sw + 'px';
+  stage.style.height = sh + 'px';
   SC = w / C.W;
-  sizePad(w, h, vw, vh);
+  OX = (sw - w) / 2;
+  OY = sh - h;                       // bottom-anchored: 0 when contained, negative when cover
+  cv.style.left = OX + 'px';
+  cv.style.top = OY + 'px';
+  cv.style.width = w + 'px';
+  cv.style.height = h + 'px';
+  sizePad(sw, sh, vw, vh);
   // Saved offsets are fractions of the stage, so they have to be re-multiplied whenever the
   // stage changes — rotation, a resized window, the keyboard opening on a phone.
-  applyLayout($('#pad'), { w, h });
+  applyLayout($('#pad'), { w: sw, h: sh });
   cv.width = Math.ceil(C.W / PIXEL);
   cv.height = Math.ceil(C.H / PIXEL);
   ctx.setTransform(1 / PIXEL, 0, 0, 1 / PIXEL, 0, 0);   // draw in WORLD units, land on texels
@@ -817,6 +867,25 @@ function centreRow() {
 addEventListener('resize', () => { if (M) resize(); });
 addEventListener('orientationchange', () => setTimeout(() => M && resize(), 120));
 
+// THE LETTERBOX. The pitch is a fixed 960x470 (2.04:1) and a modern phone is 2.16:1 or
+// wider, so a centred stage always leaves a bar at each end. Black bars read as "the page
+// does not fit" — the game looks like it is sitting in a box rather than filling the screen.
+//
+// Cropping the world instead would either cut the HUD (it lives at the top of the stage) or
+// cut the goals, so the stage keeps its aspect and the BARS get painted the colour of the
+// backdrop behind them. Sampled from the canvas rather than read off the stage definition,
+// because the four art directions each paint their own sky and a hardcoded colour would be
+// wrong for three of them. One sample per stage, not per frame.
+let barStage = null;
+function paintLetterbox() {
+  if (!STAGE || STAGE.id === barStage) return;
+  try {
+    const d = ctx.getImageData(2, 2, 1, 1).data;
+    document.body.style.background = `rgb(${d[0]}, ${d[1]}, ${d[2]})`;
+    barStage = STAGE.id;
+  } catch { /* a tainted canvas would throw; the default background is fine */ }
+}
+
 function draw() {
   const g = ctx;
   g.clearRect(0, 0, C.W, C.H);
@@ -828,6 +897,7 @@ function draw() {
     g.translate((Math.random() - .5) * shake, (Math.random() - .5) * shake);
   }
   drawStadium(g);
+  paintLetterbox();
   drawGoal(g, true);
   drawGoal(g, false);
   drawWind(g);                       // in the air, behind the players
@@ -1749,7 +1819,7 @@ function drawHeads() {
       el.style.width = el.style.height = size + 'px';
       el.dataset.card = key;
     }
-    const x = p.x * SC, y = headY(p) * SC;
+    const x = OX + p.x * SC, y = OY + headY(p) * SC;
     const tilt = Math.max(-.34, Math.min(.34, p.vx / 1100)) + (p.knocked > 0 ? p.side * 1.2 : 0);
     el.style.transform = `translate(${x - size / 2}px, ${y - size / 2}px) rotate(${tilt}rad)`;
     // The head is a DOM node over the canvas, so the robot treatment has to be CSS: the

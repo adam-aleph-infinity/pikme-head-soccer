@@ -40,9 +40,15 @@
 
   <div class="grid" id="cardGrid"></div>
 
+  <!-- The two ways to play, stated as a choice rather than left implicit. The old screen had
+       one «שחק» button plus two link-shaped buttons in a row of utilities, so 1v1 read as an
+       afterthought instead of as the other half of the game. -->
+  <nav class="modes" id="modes">
+    <button data-mode="bot" class="on"><b>🤖 נגד המחשב</b><span>שחק מיד</span></button>
+    <button data-mode="duo"><b>👥 1 על 1</b><span>שלח קישור לחבר</span></button>
+  </nav>
+
   <div class="online-row">
-    <button class="ghost" id="hostBtn">🔗 שחק עם חבר</button>
-    <button class="ghost" id="joinBtn">הצטרף לקוד</button>
     <button class="ghost" id="keysBtn">⌨ מקשים</button>
     <b class="netdot" id="netdot" title="חיבור"></b>
   </div>
@@ -54,6 +60,8 @@
       <b id="diffName">קשה</b>
     </label>
     <button class="play" id="playBtn">שחק</button>
+    <button class="play" id="hostBtn">🔗 צור קישור</button>
+    <button class="ghost" id="joinBtn">הצטרף לקוד</button>
   </footer>
 </section>
 
