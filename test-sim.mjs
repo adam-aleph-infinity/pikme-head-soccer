@@ -775,15 +775,19 @@ const run = (m, ticks, inputs = NONE) => {
   // Count the tackles that LAND, not the swings taken: a swing that misses is not what the
   // rule is about, and counting attempts made this read as four when it is three.
   let landed = 0;
-  for (let i = 0; i < 6 && a.gauge < 1; i++) {
+  for (let i = 0; i < 9 && a.gauge < 1; i++) {
     a.x = 500; b.x = 500 + 34; b.y = a.y; a.facing = 1; b.facing = -1;
     a.kickCd = 0; a.prev = {}; b.tackleImmune = 0; b.knocked = 0; b.rooted = 0; m.hitStop = 0;
     step(m, [{ kick: true }, {}]);
     if (m.events.some((e) => e.type === 'tackle')) landed++;
     m.events.length = 0;
   }
-  ok('three kicks into the opponent fill it', a.gauge >= 1 && landed === 3,
-     `${landed} landed tackles, gauge ${a.gauge.toFixed(2)}`);
+  // FIVE now, not three: TACKLE_GAUGE came down to 0.2 when a three-tackle volley turned out
+  // to be cheap enough for two bots to trade ten of them a match. Derived from the constant so
+  // the next retune does not need this line edited.
+  const want = Math.ceil(1 / C.TACKLE_GAUGE);
+  ok('a handful of kicks into the opponent fills it', a.gauge >= 1 && landed === want,
+     `${landed} landed tackles (wanted ${want}), gauge ${a.gauge.toFixed(2)}`);
 }
 {
   // 2. PRESSING POWER WINDS UP — it does not fire, and it does not arm a later kick.
@@ -837,6 +841,8 @@ const run = (m, ticks, inputs = NONE) => {
 
   // The tackle lands on this tick; the cancel is read on the NEXT one, when stepCharge sees
   // the rooted flag the tackle set.
+  // Inside the CANCEL WINDOW (the first second): later than that and the shot is coming
+  // whatever you do to them.
   m.hitStop = 0;
   step(m, [{}, { kick: true }]);
   const tackled = m.events.some((e) => e.type === 'tackle');
@@ -865,7 +871,7 @@ const run = (m, ticks, inputs = NONE) => {
     m.hitStop = 0;
     step(m, [{ power: true }, {}]); m.events.length = 0;
     let blocked = false, holding = 0;
-    for (let i = 0; i < 200 && !blocked; i++) {
+    for (let i = 0; i < Math.round(C.POWER_CHARGE_TIME / C.TICK) + 240 && !blocked; i++) {
       // A defender who jumps does so when the ball is close enough to read — and HOLDS the
       // button, because this game has variable jump height: a tap tops out at 146px and a
       // held jump reaches 239, so a tapped jump cannot meet a shot at 0.9 of the goal. The

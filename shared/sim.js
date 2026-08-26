@@ -381,7 +381,10 @@ function stepCharge(m, fx) {
     // strictly better the more often you could charge, which inverted the skill ladder —
     // measured over twenty matches, a level-2 bot beat a level-5 bot by charging nine times
     // as often.
-    if (p.knocked > 0 || p.rooted > 0) {
+    // …but only inside the CANCEL WINDOW. The elapsed time is the charge counting down, so
+    // "still in the first second" is charge > total - window.
+    const elapsed = C.POWER_CHARGE_TIME - p.charge;
+    if ((p.knocked > 0 || p.rooted > 0) && elapsed <= C.POWER_CANCEL_WINDOW) {
       p.charge = 0;
       m.events.push({ type: 'chargeLost', player: p.index });
       continue;

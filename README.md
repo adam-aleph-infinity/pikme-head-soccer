@@ -86,10 +86,10 @@ first thing anyone does in a layout editor is drag something somewhere worse. Sa
 device as fractions of the stage, so a layout dragged in landscape survives the rotation.
 
 **POWER is a committed volley, and you earn it by kicking people.** The gauge fills off the
-OPPONENT and nothing else — three tackles buy one — so it is something you go and take rather
+OPPONENT and nothing else — five tackles buy one — so it is something you go and take rather
 than something the clock hands you.
 
-Press it with a full gauge and the game **focuses on the striker for a second and a half** —
+Press it with a full gauge and the game **focuses on the striker for three seconds** —
 the pitch dims to two pools of light, one on them and one on the ball as it is drawn up and
 lights up in their shot's colour, with a ring closing as a clock. Then it fires **dead flat at
 three times a normal power shot**, always from **0.9 of the goal height** (capped at what a

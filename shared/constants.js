@@ -157,7 +157,11 @@ export let FALL_MULT = 1.55;
 // The gauge is now EARNED OFF THE OPPONENT and nothing else: a third of it per tackle, so
 // three hits buy a volley. It used to fill on a clock whether you played or not, which made
 // the super move a thing that happened TO a match rather than something a player did.
-export let TACKLE_GAUGE = 0.34;      // gauge gifted to the tackler
+export let TACKLE_GAUGE = 0.2;       // gauge gifted to the tackler — FIVE hits for a volley.
+                                     // Three (0.34) was cheap enough that two bots produced
+                                     // ten volleys and eleven goals a match once the cancel
+                                     // window let the shots through. Five keeps it a thing you
+                                     // work towards.
 export let TACKLE_SLOW = 0.55;       // victim's speed multiplier while slowed
 export let TACKLE_SLOW_TIME = 1.7;   // s of slow
 export let TACKLE_STUN = 0.22;       // s of "cannot act" from the FRONT — a nudge, not a knockdown
@@ -204,10 +208,19 @@ export const GAUGE_CONCEDE_BONUS = 0.22; // conceding a goal gifts this fraction
 // half a second while the ball is drawn up above their head and lights up; then it fires
 // dead flat at three times a normal power shot, at a height a standing player cannot reach.
 // The only answer is to jump into its line at the right moment.
-export let POWER_CHARGE_TIME = 1.5;   // s of wind-up. A second and a half is a long time to
-                                      // stand still in the open — which is the price of the
-                                      // biggest shot in the game, and long enough that the
-                                      // other player can decide what to do about it.
+// How long a wind-up can be knocked out of. At a 0.5s wind-up "a tackle cancels it" was a
+// fair read; at 3 seconds it is a certainty — anyone can cross the pitch in three seconds, so
+// bots stopped landing volleys ENTIRELY (measured: 4.8 a match down to 0). So the punish is a
+// WINDOW: get to them in the first second and the shot is gone, miss it and the shot is
+// coming and you had better be on the line. Both players know which phase they are in, which
+// is what makes a three-second commitment playable rather than merely long.
+export let POWER_CANCEL_WINDOW = 1.0;
+export let POWER_CHARGE_TIME = 3;     // s of wind-up. Three seconds is a very long time to
+                                      // stand still in the open — it is a fifth of the match —
+                                      // which makes this the most committed thing either
+                                      // player can do, and gives the other one time to choose
+                                      // between running at you to cancel it and setting up on
+                                      // the line to jump.
 // The volley always leaves at the SAME height — 0.9 of the goal — so a defender learns one
 // height to jump for instead of guessing per shot. Derived from GOAL_H rather than typed, or
 // the two drift apart the first time the goal is retuned.
@@ -551,6 +564,7 @@ const SETTERS = {
   GAUGE_FULL: (v) => { GAUGE_FULL = v; },
   POWER_MODE_TIME: (v) => { POWER_MODE_TIME = v; },
   POWER_CHARGE_TIME: (v) => { POWER_CHARGE_TIME = v; },
+  POWER_CANCEL_WINDOW: (v) => { POWER_CANCEL_WINDOW = v; },
   POWER_CHARGE_GOAL_FRAC: (v) => { POWER_CHARGE_GOAL_FRAC = v; },
   POWER_VOLLEY_SPEED: (v) => { POWER_VOLLEY_SPEED = v; },
   GAUGE_PASSIVE: (v) => { GAUGE_PASSIVE = v; },

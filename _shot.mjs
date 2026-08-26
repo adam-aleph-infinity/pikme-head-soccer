@@ -210,8 +210,9 @@ await evalJs(`(() => {
 // No kick: the wind-up fires it. Read the EVENT LOG rather than ball.power — a volley fired
 // near the opponent's goal scores within a fifth of a second, and the goal reset wipes
 // ball.power before any poll can see it.
-// …and it therefore takes longer to land: wait out the whole wind-up plus a margin.
-await sleep(2200);
+// …and it therefore takes longer to land: wait out the whole wind-up plus a margin. Read from
+// the constant rather than hardcoded, because this number has now changed three times.
+await sleep(await evalJs('C.POWER_CHARGE_TIME * 1000 + 900'));
 const fired = await evalJs(`EVENTS.filter(e => e.type === 'powershot' && e.player === 0).map(e => e.shot)[0] || null`);
 check('the wind-up fires the volley', !!fired, String(fired));
 await sleep(160);

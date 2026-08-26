@@ -126,8 +126,15 @@ export function botInput(bot, m, index, dt) {
     // Two answers, and choosing between them is the skill. If I can REACH them inside the
     // wind-up, go and hit them: a tackle cancels the whole move and the gauge is already
     // spent. If I cannot, get on the goal line and wait to jump.
+    // The wind-up has two phases and they want opposite things. Inside the CANCEL WINDOW a
+    // tackle kills the shot, so go and get them. Once that window shuts the shot is coming
+    // whatever you do, and every frame spent running at the charger is a frame not spent
+    // getting onto the line — which is how two bots ended up conceding ten volleys a match.
+    const elapsed = C.POWER_CHARGE_TIME - foe.charge;
+    const windowLeft = C.POWER_CANCEL_WINDOW - elapsed;
     const reach = Math.abs(foe.x - p.x);
-    const canGetThere = reach < C.PLAYER_SPEED * foe.charge * 0.9 + C.KICK_REACH;
+    const canGetThere = windowLeft > 0 &&
+                        reach < C.PLAYER_SPEED * windowLeft * 0.9 + C.KICK_REACH;
     if (canGetThere && bot.rng() < d.aim) {
       out.left = foe.x < p.x - 6;
       out.right = foe.x > p.x + 6;
@@ -140,7 +147,14 @@ export function botInput(bot, m, index, dt) {
     const post = Math.max(C.GOAL_W + 24, Math.min(C.W - C.GOAL_W - 24, myGoalX + p.side * 60));
     out.left = p.x > post + 8;
     out.right = p.x < post - 8;
-    out.jump = false;
+    // Time the jump off the WIND-UP, not off the ball: the volley crosses the pitch in half a
+    // second and the shot leaves at 0.9 of the goal, so a defender who waits to see it leave
+    // is already too late. Jump so the head is up there as it arrives — and HOLD it, because a
+    // tapped jump cannot reach that height at all.
+    const flight = Math.abs(post - foe.x) / (C.POWER_SHOT_SPEED * C.POWER_VOLLEY_SPEED);
+    if (foe.charge <= flight + 0.22 && Math.abs(p.x - post) < 90) bot.holdJump = 16;
+    out.jump = bot.holdJump > 0;
+    if (bot.holdJump > 0) bot.holdJump--;
     out.kick = false;
     out.power = false;
     return out;
