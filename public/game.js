@@ -1095,22 +1095,37 @@ function drawGoal(g, left) {
   const x0 = left ? 0 : C.W - C.GOAL_W;
   const top = C.GROUND_Y - C.GOAL_H;
   const frontX = left ? x0 + C.GOAL_W : x0;
-  const backX  = left ? x0 : x0 + C.GOAL_W;
-  const sgn = Math.sign(backX - frontX);          // +1 or -1: which way "back" is on screen
+  const sgn = left ? -1 : 1;                      // which way "back" is on screen
+  // The box has to fit inside the goal's own footprint, and it needs room for TWO horizontal
+  // things: the depth, and the sideways shift of the far side. Spending all of GOAL_W on
+  // depth put the far posts at negative x on the left goal, where the canvas simply cut them
+  // off and the box lost a corner. 74% depth + 22% shift = 96%, so the far rear post lands
+  // just inside the touchline instead of past it. Pointing the shift the other way, into the
+  // pitch, was tried too: it draws structure in FRONT of the goal line, which is worse than
+  // ugly — it lies about where the line is.
+  const depth  = C.GOAL_W * 0.74;
+  const backX  = frontX + sgn * depth;
   const bar = C.POST_R * 2;
 
-  // The rear frame is smaller than the mouth; both numbers stay small because a side-on game
-  // with a hard vanishing point looks like the goal is aimed off the pitch.
-  const rTop = top + C.GOAL_H * 0.10;
-  const rBot = C.GROUND_Y - C.GOAL_H * 0.05;
-  // The width axis: up, and a little further back. This is the whole 3D cue.
-  const zx = sgn * C.GOAL_W * 0.13;
-  const zy = -C.GOAL_H * 0.145;
+  // EVERY FOOT IS ON THE GROUND LINE. This is the rule the previous pass broke: it offset the
+  // whole far side up by a constant, feet included, so the back corners hung in mid-air. In a
+  // real 3/4 view that is correct — the ground recedes upward — but nothing else in this game
+  // recedes. Players, the ball and the grass all live on ONE line, so a goal whose corners
+  // float reads as a bug rather than as perspective.
+  //
+  // So the offset TAPERS: full at the top, almost nothing at the foot. The far posts lean back
+  // instead of levitating, which is also how a real goal is built — uprights at the mouth, and
+  // the net slung back and down to a bar lying on the grass.
+  const rTop = top + C.GOAL_H * 0.10;      // the rear frame is shorter than the mouth…
+  const rBot = C.GROUND_Y;                 // …but it still stands on the grass
+  const zx = sgn * C.GOAL_W * 0.22;
+  const zy = -C.GOAL_H * 0.17;
+  const FOOT = 0.45;                       // how much of the sideways shift survives to the floor
 
   // near-side corners
   const nFT = [frontX, top], nBT = [backX, rTop], nBB = [backX, rBot], nFB = [frontX, C.GROUND_Y];
-  const off = (p) => [p[0] + zx, p[1] + zy];
-  const fFT = off(nFT), fBT = off(nBT), fBB = off(nBB), fFB = off(nFB);
+  const fFT = [frontX + zx, top + zy],  fBT = [backX + zx, rTop + zy];
+  const fFB = [frontX + zx * FOOT, C.GROUND_Y], fBB = [backX + zx * FOOT, C.GROUND_Y];
 
   const poly = (pts) => { g.beginPath(); g.moveTo(pts[0][0], pts[0][1]);
     for (let i = 1; i < pts.length; i++) g.lineTo(pts[i][0], pts[i][1]); g.closePath(); };
@@ -1178,7 +1193,7 @@ function drawGoal(g, left) {
   g.beginPath(); g.arc(nFT[0], nFT[1], bar * 0.62, 0, 6.2832); g.fill();
 
   g.fillStyle = '#ffffff88';               // goal line on the grass
-  g.fillRect(Math.min(frontX, backX), C.GROUND_Y - 2, C.GOAL_W, 3);
+  g.fillRect(left ? 0 : C.W - C.GOAL_W, C.GROUND_Y - 2, C.GOAL_W, 3);
   g.restore();
 }
 
