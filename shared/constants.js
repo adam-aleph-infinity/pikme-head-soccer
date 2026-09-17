@@ -21,7 +21,15 @@ export const CEIL_Y = 30;             // invisible ceiling the ball bounces off
 export const TICK = 1 / 60;           // sim step (fixed)
 
 // ---- Goals -----------------------------------------------------------------
-export let GOAL_W = 53;              // depth:height 0.33, as measured (was 0.29).
+export let GOAL_W = 64;              // depth:height 0.33 against GOAL_H 192, which is the
+                                     // ratio measured off the reference shot. It read 0.28
+                                     // while GOAL_W sat at 53 through the goal's +20% — the
+                                     // net got shallower than anyone asked for. 64 restores
+                                     // the measured ratio AND buys the net room: the canvas
+                                     // renders at half resolution (PIXEL 2), so a mesh drawn
+                                     // into 53px had cords thinner than a texel and turned
+                                     // to mush. Depth is not a scoring dimension — the line
+                                     // is at the front post — so this is paint, not balance.
 export let GOAL_H = 192;             // +20% on request (was 160). The volley's launch height
                                     // rides this (0.9 of it), so a taller goal also raises the
                                     // line a defender has to jump to — one number, both.             // 2.02x the 79px player — the measured ratio exactly.

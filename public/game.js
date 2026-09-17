@@ -1076,102 +1076,108 @@ function drawGuardian(g, cx, top, bot) {
 }
 
 function drawGoal(g, left) {
-  // A REAL GOAL, built as a box in perspective instead of a flat panel. The mouth faces the
-  // pitch at full height; the frame behind it is shorter and its feet sit higher, and the net
-  // that joins the two is drawn as a grid running back to it. That recession is the entire 3D
-  // read — there is no shading trick here, only the fact that the far frame is smaller.
+  // A GOAL AS A BOX, not as a panel with a slope on it.
   //
-  // The cavity used to be filled OPAQUE, deliberately, so the stadium would not show through
-  // the mesh. It is see-through now, on request: a real net shows the crowd behind it, and
-  // that is most of what separates a net from a dark hole. What is left is a wash rather than
-  // a fill — enough to seat a white ball against a bright crowd, little enough that the
-  // background still reads through the mesh.
+  // The earlier pass drew one quad receding backwards, which is a flat rectangle in
+  // perspective — it never read as 3D because a real goal is a box and you can see three of
+  // its faces: the near side net, the ROOF, and the back. Those three, meeting at shared
+  // edges, are what the eye reads as volume. Shading would not have fixed the previous one;
+  // the missing thing was geometry.
+  //
+  // Two directions, then everything follows:
+  //   DEPTH  front (the mouth, facing the pitch) -> back (the rear, at the screen edge)
+  //   WIDTH  near side (towards the camera) -> far side, projected up and slightly back
+  //
+  // EVERY LINE IS AT LEAST 2 WORLD PX. The canvas renders at half resolution on purpose
+  // (PIXEL = 2), so a 1px cord is half a texel and comes out as grey mush — which is exactly
+  // what "the net looks blurry" was. A readable net here means FEWER, fatter cords with real
+  // gaps, not more of them.
   const x0 = left ? 0 : C.W - C.GOAL_W;
   const top = C.GROUND_Y - C.GOAL_H;
-  const frontX = left ? x0 + C.GOAL_W : x0;   // the mouth, facing the pitch
-  const backX  = left ? x0 : x0 + C.GOAL_W;   // the rear, at the screen edge
+  const frontX = left ? x0 + C.GOAL_W : x0;
+  const backX  = left ? x0 : x0 + C.GOAL_W;
+  const sgn = Math.sign(backX - frontX);          // +1 or -1: which way "back" is on screen
   const bar = C.POST_R * 2;
 
-  // The vanishing. Both numbers are small on purpose: this is a side-on game and a goal that
-  // recedes hard starts to look like it is pointing off the pitch rather than standing on it.
-  const rTop = top + C.GOAL_H * 0.11;
-  const rBot = C.GROUND_Y - C.GOAL_H * 0.055;
+  // The rear frame is smaller than the mouth; both numbers stay small because a side-on game
+  // with a hard vanishing point looks like the goal is aimed off the pitch.
+  const rTop = top + C.GOAL_H * 0.10;
+  const rBot = C.GROUND_Y - C.GOAL_H * 0.05;
+  // The width axis: up, and a little further back. This is the whole 3D cue.
+  const zx = sgn * C.GOAL_W * 0.13;
+  const zy = -C.GOAL_H * 0.145;
 
-  const X  = (t) => frontX + (backX - frontX) * t;   // t: 0 at the mouth, 1 at the rear
-  const TY = (t) => top + (rTop - top) * t;
-  const BY = (t) => C.GROUND_Y + (rBot - C.GROUND_Y) * t;
+  // near-side corners
+  const nFT = [frontX, top], nBT = [backX, rTop], nBB = [backX, rBot], nFB = [frontX, C.GROUND_Y];
+  const off = (p) => [p[0] + zx, p[1] + zy];
+  const fFT = off(nFT), fBT = off(nBT), fBB = off(nBB), fFB = off(nFB);
+
+  const poly = (pts) => { g.beginPath(); g.moveTo(pts[0][0], pts[0][1]);
+    for (let i = 1; i < pts.length; i++) g.lineTo(pts[i][0], pts[i][1]); g.closePath(); };
+  const line = (a, b) => { g.beginPath(); g.moveTo(a[0], a[1]); g.lineTo(b[0], b[1]); g.stroke(); };
+  const mix = (a, b, t) => [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t];
+
+  // A mesh across any quad, walking both pairs of opposite edges. One routine for all three
+  // faces, so the cords line up where the faces meet instead of drifting apart at the seam.
+  function mesh(A, B, C2, D, nAB, nBC, alpha) {
+    g.save(); poly([A, B, C2, D]); g.clip();
+    g.lineWidth = 2; g.lineCap = 'butt';
+    g.strokeStyle = `rgba(255,255,255,${alpha})`;
+    for (let i = 0; i <= nAB; i++) line(mix(A, B, i / nAB), mix(D, C2, i / nAB));
+    for (let i = 0; i <= nBC; i++) line(mix(A, D, i / nBC), mix(B, C2, i / nBC));
+    g.restore();
+  }
 
   g.save();
-  g.beginPath();
-  g.moveTo(frontX, top); g.lineTo(backX, rTop);
-  g.lineTo(backX, rBot); g.lineTo(frontX, C.GROUND_Y);
-  g.closePath();
-  g.clip();
 
-  g.fillStyle = '#0a1020';
-  g.globalAlpha = 0.20;
-  g.fillRect(Math.min(frontX, backX), top, C.GOAL_W, C.GOAL_H);
-  g.globalAlpha = 1;
+  // 1. BACK face, furthest away and therefore dimmest.
+  poly([nBT, fBT, fBB, nBB]); g.fillStyle = '#0a1220'; g.globalAlpha = 0.34; g.fill(); g.globalAlpha = 1;
+  mesh(nBT, fBT, fBB, nBB, 4, 9, 0.6);
 
-  // THE NET. Two families: cords running back into the goal, which converge on the rear
-  // frame and carry the perspective, and hoops across it, which stay parallel to the mouth.
-  // Every fourth cord is brighter — an evenly lit grid reads as graph paper, and the thing
-  // that makes a net look like rope is that some of it catches the light and some does not.
-  g.lineWidth = 1;
-  const HOOPS = 26, CORDS = 18;
-  for (let i = 0; i <= HOOPS; i++) {
-    const f = i / HOOPS;
-    g.strokeStyle = i % 4 ? '#ffffff7a' : '#ffffffc4';
-    g.beginPath();
-    g.moveTo(frontX, top + (C.GROUND_Y - top) * f);
-    g.lineTo(backX, rTop + (rBot - rTop) * f);
-    g.stroke();
-  }
-  for (let i = 0; i <= CORDS; i++) {
-    const t = i / CORDS;
-    g.strokeStyle = i % 3 ? '#ffffff72' : '#ffffffb8';
-    g.beginPath();
-    g.moveTo(X(t), TY(t));
-    g.lineTo(X(t), BY(t));
-    g.stroke();
-  }
+  // 2. ROOF, seen from below and slightly outside. This face is the one that says "box".
+  poly([nFT, nBT, fBT, fFT]); g.fillStyle = '#0a1220'; g.globalAlpha = 0.26; g.fill(); g.globalAlpha = 1;
+  mesh(nFT, nBT, fBT, fFT, 9, 4, 0.72);
+
+  // 3. NEAR side, the big one the ball is seen through. Lightest wash of the three so the
+  //    crowd still carries on behind it — a net you cannot see the stadium through reads as
+  //    a hole, which is what the opaque cavity this replaced always looked like.
+  poly([nFT, nBT, nBB, nFB]); g.fillStyle = '#0a1220'; g.globalAlpha = 0.16; g.fill(); g.globalAlpha = 1;
+  mesh(nFT, nBT, nBB, nFB, 9, 22, 0.52);
+
   g.restore();
 
-  // THE FRAME, far to near, so the mouth overlaps the rear and the box closes.
+  // THE FRAME. Far members first, dimmer and thinner, so the near ones overlap them.
   g.save();
-  g.lineCap = 'round';
-  g.lineJoin = 'round';
+  g.lineCap = 'round'; g.lineJoin = 'round';
 
-  g.strokeStyle = '#b9c8dd';                 // rear upright: dimmer because it is further off
-  g.lineWidth = bar * 0.62;
-  g.beginPath(); g.moveTo(backX, rTop); g.lineTo(backX, rBot); g.stroke();
+  g.strokeStyle = '#9fb2c9'; g.lineWidth = bar * 0.55;
+  line(fFT, fBT);                         // far top rail
+  line(fBT, fBB);                         // far rear upright
+  line(fFT, fFB);                         // far post
+  line(fFB, fBB);                         // far ground rail
 
-  g.strokeStyle = '#e2ebf8';                 // the floor rail, back along the ground
-  g.lineWidth = bar * 0.5;
-  g.beginPath(); g.moveTo(frontX, C.GROUND_Y); g.lineTo(backX, rBot); g.stroke();
+  g.strokeStyle = '#c9d8ea'; g.lineWidth = bar * 0.6;
+  line(nBT, fBT);                         // rear crossbar, across the goal's width
+  line(nBB, fBB);                         // rear ground bar
 
-  // The crossbar IS the roof rail: in the sim the ball bounces off the bar across the whole
-  // depth of the net, so the thing it bounces off is what gets drawn thick and bright.
-  g.strokeStyle = '#f7fbff';
-  g.lineWidth = bar * 0.92;
-  g.beginPath(); g.moveTo(frontX, top); g.lineTo(backX, rTop); g.stroke();
+  g.strokeStyle = '#e6eefa'; g.lineWidth = bar * 0.7;
+  line(nFB, nBB);                         // near ground rail
+  line(nBT, nBB);                         // near rear upright
 
-  // the mouth post, nearest the camera and the one a player actually aims at
+  // The near top rail is the bar the ball actually bounces off across the whole depth, so it
+  // is drawn as the heaviest member after the mouth itself.
+  g.strokeStyle = '#f7fbff'; g.lineWidth = bar * 0.95;
+  line(nFT, nBT);
+
+  // THE MOUTH: the crossbar across the goal's width, and the post under it. Nearest the
+  // camera, brightest, thickest, drawn last so nothing crosses in front of it.
   g.lineWidth = bar;
-  g.beginPath(); g.moveTo(frontX, top); g.lineTo(frontX, C.GROUND_Y); g.stroke();
+  line(nFT, fFT);                         // crossbar
+  line(nFT, nFB);                         // post
+  g.fillStyle = '#ffffff';
+  g.beginPath(); g.arc(nFT[0], nFT[1], bar * 0.62, 0, 6.2832); g.fill();
 
-  // a sliver of shadow down the inside of the post, so it sits in FRONT of the net
-  g.strokeStyle = '#00000030';
-  g.lineWidth = 3;
-  g.beginPath();
-  g.moveTo(frontX + (left ? -bar * 0.6 : bar * 0.6), top);
-  g.lineTo(frontX + (left ? -bar * 0.6 : bar * 0.6), C.GROUND_Y);
-  g.stroke();
-
-  g.fillStyle = '#ffffff';                   // the cap where bar meets post
-  g.beginPath(); g.arc(frontX, top, bar * 0.6, 0, 6.2832); g.fill();
-
-  g.fillStyle = '#ffffff88';                 // goal line on the grass
+  g.fillStyle = '#ffffff88';               // goal line on the grass
   g.fillRect(Math.min(frontX, backX), C.GROUND_Y - 2, C.GOAL_W, 3);
   g.restore();
 }
