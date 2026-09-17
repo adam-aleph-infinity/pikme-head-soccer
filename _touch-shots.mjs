@@ -9,7 +9,7 @@
 //   node _touch-shots.mjs
 import { spawn } from 'node:child_process';
 import { setTimeout as sleep } from 'node:timers/promises';
-const CDP = 9515, OUT = process.env.SHOT_OUT || '/tmp/hs-touch';
+const CDP = 9515, OUT = process.env.SHOT_OUT || `${import.meta.dirname}/.shots/touch`;
 const BASE = process.env.BASE || 'http://127.0.0.1:3020';
 const ch = spawn('/Applications/Google Chrome.app/Contents/MacOS/Google Chrome', [`--remote-debugging-port=${CDP}`,'--headless=new','--no-first-run','--mute-audio','--hide-scrollbars',`--user-data-dir=${OUT}/prof`,'about:blank'],{stdio:'ignore'});
 let t;for(let i=0;i<60&&!t;i++){await sleep(200);try{t=(await(await fetch(`http://127.0.0.1:${CDP}/json/list`)).json()).find(x=>x.type==='page');}catch{}}

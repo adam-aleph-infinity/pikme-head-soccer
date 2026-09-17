@@ -8,7 +8,7 @@
 import { spawn } from 'node:child_process';
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { setTimeout as sleep } from 'node:timers/promises';
-const OUT=process.env.SHOT_OUT, CDP=9513;
+const OUT = process.env.SHOT_OUT || `${import.meta.dirname}/.shots/volley`, CDP=9513;
 mkdirSync(OUT,{recursive:true});
 const ch=spawn('/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',[`--remote-debugging-port=${CDP}`,'--headless=new','--no-first-run','--mute-audio','--hide-scrollbars',`--user-data-dir=${OUT}/vprof`,'about:blank'],{stdio:'ignore'});
 let t;for(let i=0;i<60&&!t;i++){await sleep(200);try{t=(await(await fetch(`http://127.0.0.1:${CDP}/json/list`)).json()).find(x=>x.type==='page');}catch{}}

@@ -6,7 +6,9 @@
   "description": "Throwaway prototype: Head Soccer-style 1v1 where your Saltiz cards are the heads.",
   "scripts": {
     "start": "node server.js",
-    "test": "for f in test-*.mjs; do node $f || exit 1; done"
+    "sim": "node _sim.mjs",
+    "test": "for f in test-*.mjs; do node $f || exit 1; done",
+    "shot": "node _shot.mjs"
   },
   "dependencies": {
     "ws": "^8.18.0"

@@ -18,7 +18,7 @@ import { mkdirSync, writeFileSync } from 'node:fs';
 import { setTimeout as sleep } from 'node:timers/promises';
 
 const PORT = process.env.PORT || 3020;
-const OUT = process.env.SHOT_OUT || '/tmp/hs-cards';
+const OUT = process.env.SHOT_OUT || `${import.meta.dirname}/.shots/cards`;
 const ME = process.argv[2] || 'legendary_3';
 const FOE = process.argv[3] || 'legendary_2';
 const CDP = 9467;

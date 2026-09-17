@@ -3,7 +3,7 @@ import { spawn } from 'node:child_process';
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { setTimeout as sleep } from 'node:timers/promises';
 const PORT = process.env.PORT || 3020, CDP = 9478;
-const OUT = process.env.SHOT_OUT || '/private/tmp/claude-501/-Users-adamleeperelman-Documents-pikeme/804b6db3-a3c7-4f5a-8329-32cb1d4a0836/scratchpad/pad';
+const OUT = process.env.SHOT_OUT || `${import.meta.dirname}/.shots/pad`;
 mkdirSync(OUT, { recursive: true });
 const DEVICES = [
   ['se-land',    667, 375, 2],

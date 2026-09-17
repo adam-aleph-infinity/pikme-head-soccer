@@ -6,7 +6,7 @@ import { spawn, execSync } from 'node:child_process';
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { setTimeout as sleep } from 'node:timers/promises';
 const PORT = process.env.PORT || 3020, CDP = 9491;
-const OUT = '/private/tmp/claude-501/-Users-adamleeperelman-Documents-pikeme/09ade469-cc19-4722-96c1-c6973e0f4a82/scratchpad/motion-live';
+const OUT = `${import.meta.dirname}/.shots/motion-live`;
 mkdirSync(OUT, { recursive: true });
 const IDS = ['neon', 'reef', 'orbit', 'luna', 'japan', 'china'];
 const chrome = spawn('/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',

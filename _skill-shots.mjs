@@ -7,7 +7,7 @@
 import { spawn } from 'node:child_process';
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { setTimeout as sleep } from 'node:timers/promises';
-const OUT = process.env.SHOT_OUT || '/tmp/hs-skills', CDP = 9509;
+const OUT = process.env.SHOT_OUT || `${import.meta.dirname}/.shots/skills`, CDP = 9509;
 const BASE = process.env.BASE || 'http://127.0.0.1:3020';
 mkdirSync(OUT, { recursive: true });
 const ch = spawn('/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',[`--remote-debugging-port=${CDP}`,'--headless=new','--no-first-run','--mute-audio','--hide-scrollbars','--force-device-scale-factor=1',`--user-data-dir=${OUT}/prof`,'about:blank'],{stdio:'ignore'});

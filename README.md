@@ -7,11 +7,16 @@ Saltiz cards**, cropped to the face automatically.
 > Same "mock" status as `football-mock` and `voxel-mock` — built to be *felt*, argued with,
 > and thrown away or promoted. Nothing here is wired to the app yet.
 
+> **New here?** Start with [`ONBOARDING.md`](ONBOARDING.md) — how to run it, what you may break,
+> and how a push reaches a phone. Hand [`AGENT_PROMPT.md`](AGENT_PROMPT.md) to your coding agent.
+
 ## Run
 
 ```bash
 cd head-soccer-mock
+npm install
 npm start          # PORT=3020 by default (3010-3019 belong to other agents)
+npm run sim        # a Chrome window the size of a phone, in landscape, with touch — see below
 ```
 
 Then open the **phone URL** the server prints (the LAN IP), not `localhost`.
@@ -25,6 +30,24 @@ Then open the **phone URL** the server prints (the LAN IP), not `localhost`.
 npm test           # sim + bot tests, headless
 node _shot.mjs     # drives the real client in Chrome and screenshots it
 ```
+
+## The phone simulator
+
+A desktop browser is a liar for this game: it ships in landscape, inside a WKWebView, played with
+thumbs. `npm run sim` opens a Chrome window the exact size of a phone with real touch emulation,
+an iOS user agent, and the album injected at the same moment the app injects it.
+
+```bash
+npm run sim -- --list            # every device preset
+npm run sim -- --device=se       # 667x375 — the floor. Break it here first
+npm run sim -- --duo             # two phones side by side: host a room on the left, join on the right
+npm run sim -- --album=8         # pretend the player owns 8 cards, so the head gate is ON
+npm run sim -- --devtools
+```
+
+The album flag is the one worth knowing. Inside the app `window.SALTIZ_CARDS` decides which heads
+are playable; outside it there is deliberately no gate at all, so the browser stays testable.
+Those are two code paths, and only `--album` reaches the second one without a real build.
 
 ## The pitch sits above your thumbs
 

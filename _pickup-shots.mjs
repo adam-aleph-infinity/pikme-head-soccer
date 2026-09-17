@@ -15,7 +15,7 @@ import { setTimeout as sleep } from 'node:timers/promises';
 
 const PORT = process.env.PORT || 3020;
 const OUT = process.env.SHOT_OUT ||
-  '/private/tmp/claude-501/-Users-adamleeperelman-Documents-pikeme/09ade469-cc19-4722-96c1-c6973e0f4a82/scratchpad/pu';
+  `${import.meta.dirname}/.shots/pu`;
 const ME = process.argv[2] || 'legendary_3';
 const FOE = process.argv[3] || 'legendary_2';
 const CDP = 9461;

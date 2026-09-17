@@ -10,7 +10,7 @@ import { mkdirSync, writeFileSync } from 'node:fs';
 import { setTimeout as sleep } from 'node:timers/promises';
 
 const PORT = process.env.PORT || 3020, CDP = 9488;
-const OUT = '/private/tmp/claude-501/-Users-adamleeperelman-Documents-pikeme/09ade469-cc19-4722-96c1-c6973e0f4a82/scratchpad/motion';
+const OUT = `${import.meta.dirname}/.shots/motion`;
 mkdirSync(OUT, { recursive: true });
 const IDS = ['neon', 'reef', 'orbit', 'luna'];
 const TIMES = [0, 1.5, 3, 4.5, 6, 9];

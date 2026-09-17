@@ -9,7 +9,7 @@
 import { spawn } from 'node:child_process';
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { setTimeout as sleep } from 'node:timers/promises';
-const OUT = process.env.SHOT_OUT || '/tmp/hs-fit', CDP = 9499;
+const OUT = process.env.SHOT_OUT || `${import.meta.dirname}/.shots/fit`, CDP = 9499;
 // Defaults to the local server; BASE=https://pikme-headsoccer.onrender.com checks what the
 // app actually loads, which is the only version that matters to a tester.
 const BASE = process.env.BASE || 'http://127.0.0.1:3020';
