@@ -28,8 +28,13 @@ Then open the **phone URL** the server prints (the LAN IP), not `localhost`.
 
 ```bash
 npm test           # sim + bot tests, headless
+npm start          # in another shell — _shot and _duo do not start a server themselves
 node _shot.mjs     # drives the real client in Chrome and screenshots it
 ```
+
+The simulator and every screenshot harness drive a **Chrome-family browser** over the DevTools
+Protocol, which Safari does not speak: `brew install --cask google-chrome`, or point
+`CHROME_BIN` at Chromium/Edge/Brave.
 
 ## The phone simulator
 
@@ -123,6 +128,27 @@ flies above the tap.
 The wind-up is the price. You are rooted for that half second in the open, and **a tackle
 landed on you during it cancels the whole thing** — the gauge is already spent. That is what
 keeps the move honest: reading it is worth as much as throwing it.
+
+**Why there is a clamp on the launch height.** "0.9 of the goal height" and "a 20% taller
+goal" are two requests that collide: 0.9 × 192 = **173px**, and a *tapped* jump does not get
+a head near that. The move's entire rule — *the only way to stop it is to jump* — would have
+quietly become false. It did not, because jump height here is variable: a held jump puts the
+top of the head at **237px**, well over the shot.
+
+So `powerHeight()` is `min(0.9 × GOAL_H, headReach() − 14)`, derived from `JUMP_V` and
+`PLAYER_GRAV` rather than typed:
+
+- Today it honours the 0.9 — 173 is under the 215 ceiling, so **the clamp is not binding**.
+- It starts binding above `GOAL_H` ≈ **239**. That is the guard rail: no future goal retune
+  can make the volley unanswerable without someone noticing.
+- Because apex is ballistic (`v²/2a`), it is **invariant under `PACE`** — the dial cannot
+  move a defender out of reach of a shot. `_pace.mjs` measures 1.9% apex drift across the
+  whole sweep, which is that claim being checked rather than asserted.
+
+**Known and not fixed:** bots only block 1–3 volleys per sixteen matches. They mostly take the
+other answer — running at the charger to cancel the wind-up — which is legitimate and the
+skill ladder is healthy, but a defending bot that jumped more often would make solo play read
+better. Filed rather than fudged.
 
 <details><summary>The old power mode (superseded)</summary>
 
@@ -268,24 +294,37 @@ resumes.
 
 ## Pace
 
-`PACE` (`shared/constants.js`, shipped at **0.80**) is one dial over how fast the whole match
+`PACE` (`shared/constants.js`, shipped at **0.68**) is one dial over how fast the whole match
 runs. It is **slow-motion, not a nerf**: velocities scale by *k*, accelerations by *k²*,
 per-tick drags by *^k* and action durations by *1/k*, so every trajectory keeps its **shape** —
 same jump height, same arc, same reach — and only the clock on it changes. Scaling speeds
 alone would flatten every arc instead, which is a different game rather than a slower one.
 
-At *k*=1 a struck ball crossed the pitch in **1.6s**, inside the window a human needs to see
-it, decide, and press. Measured over 20 bot-vs-bot matches per row (`node _pace.mjs`):
+**It got there in two moves, and they are worth separating.** First the *ball* was slowed on
+its own, so the gap between ball and player closed rather than both shrinking together: a
+kicked ball went from 1.49× the player's speed to 1.21×, and from crossing the pitch in 1.67s
+to 2.05s against the player's 2.48s. That ratio is the whole point — a chase you can
+plausibly win instead of one you cannot. Only then did `PACE` go 0.80 → 0.68 for everything
+else. The ball-vs-player ratio is untouched by the dial, by design.
 
-| k | goals/match | ball avg | cross-pitch | jump apex | legendary : very-easy |
-|---|---|---|---|---|---|
-| 1.00 | 5.6 | 587 px/s | 1.64s | 143px | 21:3 |
-| **0.80** | **4.6** | **471 px/s** | **2.04s** | **144px** | **19:5** |
-| 0.60 | 3.5 | 376 px/s | 2.55s | 146px | 16:8 |
+Re-measured at the shipped constants, 20 bot-vs-bot matches per row (`node _pace.mjs`):
 
-0.80 buys **24% more time on every ball** while holding the goal rate at the target and
-losing nothing off the skill gradient. Below ~0.7 the goal rate falls away and skill starts
-washing out. The apex column is the proof it is a time change and not a physics change.
+| k | goals/match | ball avg | cross-pitch | jump apex | hang | legendary : very-easy |
+|---|---|---|---|---|---|---|
+| 1.00 | 9.0 | 393 px/s | 2.70s | 143px | 0.65s | 23:1 |
+| 0.90 | 7.9 | 373 px/s | 2.84s | 144px | 0.72s | 23:1 |
+| 0.80 | 7.3 | 339 px/s | 3.12s | 144px | 0.82s | 23:1 |
+| **0.70** | **6.0** | **316 px/s** | **3.36s** | **145px** | **0.92s** | **24:0** |
+| 0.60 | 5.3 | 287 px/s | 3.69s | 146px | 1.08s | 24:0 |
+
+0.68 sits just under the 0.70 row; `_feel.mjs` puts the shipped game at **6.3 goals a match**.
+The apex column is still the proof it is a time change and not a physics change — 1.9% drift
+across the whole sweep, while hang time stretches by exactly 1/k.
+
+⚠ **The skill column has stopped being evidence.** It reads 23:1 or better at *every* k, so it
+no longer discriminates and cannot be used to defend a pace. What picks 0.68 now is the goal
+rate and the ball-to-player ratio above. Two of this README's arguments have died this way
+(see the goal mouth, below); when a sweep goes flat, say so rather than keep quoting it.
 
 Live: the `PACE` row in the tuner, or `?pace=0.7` on the URL. Both are client-side — in an
 online match the server keeps its own pace, so use them for solo feel-finding.
@@ -293,9 +332,14 @@ online match the server keeps its own pace, so use them for solo feel-finding.
 **A power shot is now as fast as it says it is.** `stepBall` clamped every ball to
 `BALL_MAX_SPEED` *after* `stepPowerShot` had set its speed, so `POWER_SHOT_SPEED = 2100`
 silently flew at 1250 and the tuner knob above 1250 did nothing. Powered balls now skip that
-clamp — their velocity is re-set every tick, so it cannot run away — and the constant is set
-to 1250, the speed power shots actually had. Nothing about the balance changed; the number
-stopped lying.
+clamp — their velocity is re-set every tick, so it cannot run away — and the constant was set
+to the speed power shots actually had. Nothing about the balance changed; the number stopped
+lying. It is **1000** today, cut again with the ball pass above.
+
+> **The speed constants are written pre-`PACE`, and the dial scales them on load.** Shipped,
+> `BALL_MAX_SPEED` 1050 and `POWER_SHOT_SPEED` 1000 are **714** and **680** live. So a figure
+> read off the source is not the figure the ball flies at, and the two are 32% apart at 0.68 —
+> far enough to read as a bug when it is arithmetic. Print the constant, do not trust the file.
 
 ## Proportions
 
@@ -304,25 +348,38 @@ Measured off a real Head Soccer gameplay screenshot rather than guessed:
 Second pass used a real kickoff screenshot Adam sent, which is a better reference than the
 App Store art — and it moved several numbers again.
 
+The "character height" every row below is measured against is the **on-screen silhouette,
+79px** — the 60px head plus the 19px of body that shows under it — not `BODY_H + 2·HEAD_R`.
+Get that wrong and every ratio here moves.
+
 | | Head Soccer | here |
 |---|---|---|
-| pitch aspect | 1.81 : 1 | **1.81 : 1** |
+| pitch aspect | 1.81 : 1 | 1.81 : 1 *(see below)* |
 | head : body height | 2.9 : 1 | **3.2 : 1** |
-| goal height : character height | 2.02 : 1 | **2.03 : 1** |
-| goal depth : goal height | 0.33 | **0.33** |
+| goal height : character height | 2.02 : 1 | **2.43 : 1** ⚠ |
+| goal depth : goal height | 0.33 | **0.28** ⚠ |
 | character height / screen | 14.1% | **14.9%** |
-| goal height / screen | 28.5% | **30.2%** |
-| ground line | 84% down screen | **84%** |
+| goal height / screen | 28.5% | **36.2%** ⚠ |
+| ground line | 84% down screen | **82%** |
 
 The black side bars in that screenshot are the real game letterboxing on a 2.16 phone —
 matching its 1.81 aspect means accepting them here too.
 
-The one deliberate departure: a strict match puts the head at 5.8% of pitch width
+The three ⚠ rows are all **one deliberate change**: `GOAL_H` 160 → 192, a 20% taller goal
+asked for directly. They are the price of it, not separate drift. `GOAL_W` stayed at 53, so
+the goal also got *shallower* in proportion — 0.33 → 0.28 — which nobody asked for and which
+is the row to revisit first if the net starts looking wrong.
+
+The other deliberate departure: a strict match puts the head at 5.8% of pitch width
 (`HEAD_R` 28); it is held at 30 because the head is a Saltiz card face and the hook stops
 working when you cannot tell who it is.
 
-`GOAL_H` 160 is where the measurement and the sweep agree — 2.03x the player, and the best
-skill gradient of anything tried (legendary bot 10:1 over very-easy).
+> **Unresolved, and not part of the goal change:** `W`/`H` are 1060×530, which is **2.00 : 1**,
+> not the 1.81 : 1 the top row claims — and neither has ever been edited since the first
+> commit. Either that row measures something other than the world box (the rendered pitch
+> region, most likely) or it has been wrong from the start. Left alone rather than quietly
+> corrected, because guessing which would put a made-up number in the one table that exists
+> to hold measured ones.
 
 A consequence worth knowing: at these proportions the torso is a 12px sliver, so
 "head bounces, body deadens" had to become a rule about HEIGHT on the silhouette
@@ -340,28 +397,44 @@ up. One was found parked at (939, 215) with an entire match hung underneath it.
 `BALL_IDLE_RESET` is the backstop for every other way a ball can end up somewhere nobody can
 reach: untouched for 6s, it returns to the centre spot.
 
-Mouth height was swept against bot-vs-bot outcomes rather than guessed. At 146 the game gave
-2.6 goals a match and the legendary bot *lost* to the very-easy one — too few goals for skill
-to show through. 170 gives ~5 goals and a clear skill gradient.
+### The mouth is 192, and it is a request, not a measurement
 
-That sweep was run at `PACE` 1.0. Re-run at the shipped 0.80 it reads 146 → 3.3 goals and
-170 → 5.1, with the legendary bot at 10:1 over very-easy at **every** mouth height — a
-slower ball gives a defender time to be somewhere, so the goal size stopped being the thing
-holding the gradient up.
+`GOAL_H` shipped at 160 for a long time on two independent arguments. **Both are now gone**,
+and it is worth being blunt about that rather than leaving the old reasoning standing over a
+number it no longer describes.
 
-**160 still stands, on the other argument.** The mouth had two independent justifications
-and the pace change kills exactly one:
+- *the sweep* — 160 was the best skill gradient of the values tried, back when the sweep
+  discriminated. **Dead.** Slower play gives a defender time to be somewhere, so mouth height
+  stopped being what holds the gradient up; `_pace.mjs` now reads 23:1 or better at every k.
+- *the measurement* — 160 was **2.03× the 79px silhouette**, against 2.02× measured off a real
+  Head Soccer kickoff screenshot. **Dead too, as a defence of the shipped number**: 192 is
+  **2.43×**, a deliberate 20% departure from the reference. The measurement is still correct;
+  it just no longer describes what is in the file.
 
-- *the sweep* — 160 was the best skill gradient of the values tried. **Dead.** At 0.80 the
-  sweep no longer discriminates between heights, so it has stopped being a measuring
-  instrument for this question.
-- *the measurement* — 160 is **2.03× the 79px player** (feet to the top of the head:
-  `HEAD_R` 30 + `BODY_H` 27, per `headY`), against 2.02× measured off the real Head Soccer
-  kickoff screenshot. **Alive, and pace-independent** — it is a ratio between two objects on
-  screen, and `PACE` moves no distance in the game, only the clock on it.
+**What holds 192 up is that Adam asked for it.** That is a legitimate reason and it is the
+real one, so it is written here instead of a retrofitted measurement. The honest status: the
+mouth is a taste decision with a known cost, and the cost is below.
 
-So leave 160 alone unless the pace itself moves. If it does, the thing to re-argue is the
-ratio against a fresh reference screenshot, *not* the sweep.
+**The cost, measured.** The crossbar sits at y=243; the top of a standing head is at y=348.
+So **105px of the 192px mouth — 55% — is above a standing defender's head** and can only be
+defended by jumping. At 160 the bar was at y=275 and that figure was 73px, or 46%.
+
+That shows up directly in the goal census (`node _why.mjs`): **88% of goals pass over the
+defender's head**, while the defender is *at* the line for 50% of them and the median
+conceder is 45px from their post. Read those together — the defender is usually in the right
+place and simply cannot reach. `_wall.mjs` agrees from the other side: a correctly positioned
+**static** defender is beaten by 24% of shots, and the leaks are almost all upward angles.
+
+Two things follow that are easy to misdiagnose:
+
+- **Goals run at 6.3 a match** (`_feel.mjs`), against the ~4.6 the old pace section targeted.
+- **Knockdowns never happen — 0%.** That is not a second bug. `applyEffect` only fires when a
+  shot *connects with a defender*, and at 88% lobbed the ball rarely touches one. It is the
+  same finding wearing a different hat; do not go hunting for it in `powershots.js`.
+
+So: 160 was measured, 192 is chosen. If the goal rate is judged too high, the mouth is the
+first dial to reach for and the reference ratio is waiting at 160 — but that is Adam's call,
+not a defect to quietly fix.
 
 ## Netcode
 
@@ -434,14 +507,19 @@ This exists because arguing about `KICK_LIFT` between restarts is not how a feel
 
 Balance was measured, not guessed. Each of these answers one question:
 
-⚠ Every figure quoted elsewhere in this README, and in the comments in `shared/constants.js`,
-was measured at `PACE` 1.0 — before the match was slowed. Re-run the instrument before
-trusting a number against the game as it ships.
+⚠ The figures in **Pace**, **Proportions** and **The goal** were re-measured at the shipped
+constants. Anything quoted elsewhere here, and the comments in `shared/constants.js`, may
+still date from `PACE` 1.0 and a 160px mouth. Re-run the instrument before trusting a number.
+
+They also need a Chrome-family browser for the four that drive one (`_shot`, `_duo`, `_pad`,
+and the shot harnesses): `brew install --cask google-chrome`, or set `CHROME_BIN`. `_chrome.mjs`
+resolves it and says so plainly when there is none. `_shot.mjs` and `_duo.mjs` do **not** start
+the server — run `npm start` first or they fail on an empty page.
 
 | | question |
 |---|---|
 | `node _feel.mjs 3,3` | how many goals does a match actually produce? |
-| `node _why.mjs 3,3 8` | *where* do the goals come from — power shot, lob, out of position? |
+| `node _why.mjs 3,3 8` | *where* do the goals come from — power shot, lob, out of position? **A fixed matchup** (legendary_3 vs legendary_2), so it is an A/B instrument, not a census: its "56% power shots" is two cards, not the game |
 | `node _wall.mjs static` | can a positioned defender stop shots at all? (physics vs bot) |
 | `node _sweep.mjs` | isolate one bot dial and watch the scoreline move |
 | `node _shot.mjs` | drive one real Chrome client and screenshot it (`?solo=1` freezes the bot) |
@@ -463,10 +541,12 @@ Three real bugs came out of them, all invisible to the unit tests:
 
 ## Open questions for Adam
 
-1. **Goal rate.** Level 3 bots average ~9-10 goals a 60s match; level 5 about 5. Head
-   Soccer is genuinely high-scoring, but this may still be too frantic. The tuner is
-   deliberately the answer here rather than another number I picked — `GOAL_H`,
-   `KICK_POWER` and `PLAYER_SPEED` are the three that move it most.
+1. **Goal rate — the live one.** Level 3 bots average **6.3 goals a 60s match** (`_feel.mjs`,
+   at the shipped `PACE` 0.68 and `GOAL_H` 192), against the ~4.6 an earlier pass targeted.
+   Head Soccer is genuinely high-scoring, so this may be right; it is above where the game
+   used to aim, and the 20% taller goal is most of the difference. `GOAL_H`, `KICK_POWER` and
+   `PLAYER_SPEED` move it most, and the tuner is deliberately the answer rather than another
+   number picked here. **This is the open decision the goal-mouth section above defers to.**
 2. **Is the card the head, or should the card *be* the character?** Right now it's a
    face crop. The alternative — the whole trading card as the body — is a different game.
 3. **Rarity stats.** Legendary is ~6% faster / 8% harder-hitting than common. Deliberately

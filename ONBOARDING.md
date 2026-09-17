@@ -3,7 +3,7 @@
 You own this game. Not a ticket in it — the whole thing.
 
 `README.md` explains what the game *is* and why every number in it is what it is. Read it once,
-properly; it is long because the answers to "why is the goal 160 tall" are all in there and you
+properly; it is long because the answers to "why is the goal 192 tall" are all in there and you
 will otherwise re-derive them. This file is the other half: how to run it, what you are allowed
 to break, and how your change reaches a phone.
 
