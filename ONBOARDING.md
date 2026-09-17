@@ -97,6 +97,9 @@ Balance here was measured, not argued about. The throwaway scripts in the repo r
 | `node _pace.mjs` | the `PACE` table in the README, regenerated |
 | `node _shot.mjs` | drives the real client in headless Chrome and screenshots it. Screenshots land in `.shots/` |
 
+The screenshot harnesses start a server themselves if one is not already listening, and leave a
+server you started alone. You do not need `npm start` in another terminal first.
+
 They found a ball-tunnelling bug worth 52% of all goals that no unit test ever saw. A number like
 "the score was 15-12" reads as broken without telling you which of twenty constants did it.
 

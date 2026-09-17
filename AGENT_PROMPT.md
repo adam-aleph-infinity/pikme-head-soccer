@@ -63,7 +63,7 @@ Before you tell anyone a change works:
 
 - **Render it at the size it ships at.** `npm run sim -- --device=se` is the smallest screen we
   support and the one that breaks. `node _shot.mjs` drives the real client in headless Chrome and
-  writes PNGs to `.shots/` — look at them.
+  writes PNGs to `.shots/` — look at them. It starts its own server if one is not running.
 - **Measure balance, never assert it.** `node _why.mjs` classifies goals by cause (from one
   fixed matchup — an A/B instrument, not a population census);
   `node _feel.mjs` gives goals per match; `node _wall.mjs` says whether a correctly positioned

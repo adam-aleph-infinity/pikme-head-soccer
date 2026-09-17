@@ -17,9 +17,11 @@ import { spawn } from 'node:child_process';
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { setTimeout as sleep } from 'node:timers/promises';
 import { chromePath } from './_chrome.mjs';
+import { ensureServer } from './_serve.mjs';
 const CHROME = chromePath();   // CHROME_BIN overrides; see _chrome.mjs
 
 const PORT = process.env.PORT || 3020;
+await ensureServer(PORT);   // starts one only if nothing is listening
 const OUT = process.env.SHOT_OUT || `${import.meta.dirname}/.shots/cards`;
 const ME = process.argv[2] || 'legendary_3';
 const FOE = process.argv[3] || 'legendary_2';
