@@ -21,7 +21,7 @@ export const CEIL_Y = 30;             // invisible ceiling the ball bounces off
 export const TICK = 1 / 60;           // sim step (fixed)
 
 // ---- Goals -----------------------------------------------------------------
-export let GOAL_W = 64;              // depth:height 0.33 against GOAL_H 192, which is the
+export let GOAL_W = 92;              // depth:height 0.33 against GOAL_H 192, which is the
                                      // ratio measured off the reference shot. It read 0.28
                                      // while GOAL_W sat at 53 through the goal's +20% — the
                                      // net got shallower than anyone asked for. 64 restores

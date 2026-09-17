@@ -1103,7 +1103,10 @@ function drawGoal(g, left) {
   // just inside the touchline instead of past it. Pointing the shift the other way, into the
   // pitch, was tried too: it draws structure in FRONT of the goal line, which is worse than
   // ugly — it lies about where the line is.
-  const depth  = C.GOAL_W * 0.74;
+  // 0.78 + the 0.22 sideways shift = exactly 1.0, so the REARMOST post lands on x0 — flush
+  // against the back wall. At 0.74 it stopped a few px short and the goal read as floating
+  // away from the hoardings instead of standing against them.
+  const depth  = C.GOAL_W * 0.78;
   const backX  = frontX + sgn * depth;
   const bar = C.POST_R * 2;
 
@@ -1119,7 +1122,10 @@ function drawGoal(g, left) {
   const rTop = top + C.GOAL_H * 0.10;      // the rear frame is shorter than the mouth…
   const rBot = C.GROUND_Y;                 // …but it still stands on the grass
   const zx = sgn * C.GOAL_W * 0.22;
-  const zy = -C.GOAL_H * 0.17;
+  // POSITIVE: the offset side hangs BELOW the base one. Up put the open end away from the
+  // camera — you were looking at the goal's back shoulder, over the top of it, towards the
+  // crowd. Down swings it round: the mouth is the near edge, and you look INTO the net.
+  const zy = C.GOAL_H * 0.15;
   const FOOT = 0.45;                       // how much of the sideways shift survives to the floor
 
   // near-side corners
@@ -1146,8 +1152,8 @@ function drawGoal(g, left) {
   g.save();
 
   // 1. BACK face, furthest away and therefore dimmest.
-  poly([nBT, fBT, fBB, nBB]); g.fillStyle = '#0a1220'; g.globalAlpha = 0.34; g.fill(); g.globalAlpha = 1;
-  mesh(nBT, fBT, fBB, nBB, 4, 9, 0.6);
+  poly([nBT, fBT, fBB, nBB]); g.fillStyle = '#0a1220'; g.globalAlpha = 0.40; g.fill(); g.globalAlpha = 1;
+  mesh(nBT, fBT, fBB, nBB, 5, 14, 0.82);
 
   // 2. ROOF, seen from below and slightly outside. This face is the one that says "box".
   poly([nFT, nBT, fBT, fFT]); g.fillStyle = '#0a1220'; g.globalAlpha = 0.26; g.fill(); g.globalAlpha = 1;

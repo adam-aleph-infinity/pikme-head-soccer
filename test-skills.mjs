@@ -128,9 +128,18 @@ const fire = (m, i, kind) => { SK.cast(m, i, kind); m.hitStop = 0; };
   ok('and only on your own goal', goalWallT(m, 1) === 0);
 
   // A ball rolling in is turned away while it is up.
+  //
+  // Checked SIX ticks after the shot, not twenty, and against the wallSave event rather than
+  // only the sign of vx. The save lands on tick 1; the remaining nineteen ticks were testing
+  // nothing about the wall and everything about what the ball happened to meet next. When
+  // GOAL_W widened, the bounce-out point moved 28px down the pitch, the ball reached the
+  // player parked at x=250 inside the window, a body deadened it exactly as it is supposed
+  // to, and vx came back 0 — a passing wall reported as a broken one.
   m.ball.x = C.GOAL_W + 6; m.ball.y = C.GROUND_Y - 40; m.ball.vx = -600; m.ball.vy = 0;
-  run(m, 20);
+  const saved = run(m, 6);
   ok('a ball that would have gone in does not', m.score[1] === 0, m.score.join('-'));
+  ok('the wall is what turned it away', saved.some((e) => e.type === 'wallSave'),
+    saved.map((e) => e.type).join(',') || 'no events');
   ok('it comes back out', m.ball.vx > 0, `vx ${m.ball.vx.toFixed(0)}`);
 
   run(m, 400);
