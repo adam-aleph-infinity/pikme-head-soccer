@@ -45,6 +45,14 @@ and [deploy hook scope](https://render.com/docs/deploy-hooks).
 - A fixed test port could hit another checkout's server. The online test now asks the OS
   for a port; simulator browser debugging ports are also allocated automatically.
 
+## Canonical repository
+
+Use `adam-aleph-infinity/pikme-head-soccer`. During this repair another session created a
+separate private repository at `adamp-svg/pikme-head-soccer` and temporarily pointed Render
+at it. That copy had a pending Idan invitation and no Actions deploy secret. It is not a
+completed transfer. Production was restored to the original repository so Idan retains his
+accepted access and existing clone. The private copy has been left untouched.
+
 ## Keep it working
 
 - Do not give Idan Adam's GitHub login, Render API key, or shared workspace membership.
