@@ -164,22 +164,47 @@ body.safedemo { --safe-l: 44px; --safe-r: 44px; --safe-b: 21px; --safe-t: 12px; 
 .scoreboard #s0 { color: #6fa0ff; }
 .scoreboard #s1 { color: #ff7a6f; }
 .scoreboard .rtt { font-style: normal; font-size: 8px; color: #7a7a92; }
+/* ── THE POWER METER ──────────────────────────────────────────────────────────
+   Was a plain rectangle that only grew. It is the one number a player watches all match,
+   so it now says how full it is in COLOUR as well as in length — green, yellow, orange,
+   red — and catches fire when it is ready to spend.
+
+   The shape is a slanted arcade tank rather than a box, cut with clip-path and mirrored
+   per side so the two meters lean away from the scoreboard in the middle.
+
+   NOTE the glow is a `filter: drop-shadow`, not a `box-shadow`. clip-path clips a box
+   shadow away with everything else outside the silhouette; drop-shadow follows the cut
+   shape and paints outside it, which is the whole point of a glow. */
 .gauge {
-  flex: 1; max-width: 300px; height: 22px; position: relative;
-  background: #101018;
-  border: 3px solid #000;
-  box-shadow: 0 0 0 2px #d8d8e4, 3px 3px 0 #0009;
+  flex: 1; max-width: 300px; height: 26px; position: relative;
+  /* The element IS the frame: a pale rim the empty meter can still be seen by. This used to
+     be `box-shadow: 0 0 0 2px #d8d8e4`, which clip-path discards along with everything else
+     outside the silhouette — an empty bar went invisible against a night sky, found at
+     667x375 where the bars start at zero. The dark track is ::before, inset inside it. */
+  background: #dcdce8;
+  --slant: 11px;
+  clip-path: polygon(0 0, 100% 0, calc(100% - var(--slant)) 100%, var(--slant) 100%);
+  filter: drop-shadow(0 2px 0 #0009);
   overflow: hidden;
 }
-.gauge .fill {
-  position: absolute; inset: 2px; width: 0;
-  transition: width .08s linear;
-  background: linear-gradient(180deg, #fff07a 0 35%, #ffd23c 35% 65%, #e08a00 65% 100%);
+.gauge.g1 { clip-path: polygon(var(--slant) 0, calc(100% - var(--slant)) 0, 100% 100%, 0 100%); }
+/* the empty tank behind the fill */
+.gauge::before {
+  content: ''; position: absolute; inset: 3px; background: #0d0d18;
 }
-.gauge.g1 .fill { background: linear-gradient(180deg, #ffb0a0 0 35%, #ff5c4c 35% 65%, #a01e10 65% 100%); }
+.gauge .fill {
+  position: absolute; inset: 3px; width: 0;
+  transition: width .08s linear, background .25s linear;
+  background: linear-gradient(180deg, #b6f36a 0 34%, #63c81e 34% 66%, #2f7d08 66% 100%);
+}
+/* The tiers. Same four for both players: a meter that means a different colour on each
+   side is a meter you have to translate. Player identity is the name and the position. */
+.gauge[data-lvl="2"] .fill { background: linear-gradient(180deg, #fff07a 0 34%, #ffd23c 34% 66%, #c99000 66% 100%); }
+.gauge[data-lvl="3"] .fill { background: linear-gradient(180deg, #ffc46b 0 34%, #ff8c1a 34% 66%, #b64e00 66% 100%); }
+.gauge[data-lvl="4"] .fill { background: linear-gradient(180deg, #ffd0c0 0 34%, #ff3b21 34% 66%, #8f1400 66% 100%); }
 /* segment ticks, so the bar reads as an arcade meter rather than a progress bar */
 .gauge::after {
-  content: ''; position: absolute; inset: 2px; pointer-events: none;
+  content: ''; position: absolute; inset: 3px; pointer-events: none;
   background: repeating-linear-gradient(90deg, #0000 0 12px, #00000055 12px 14px);
 }
 .gauge .nm {
@@ -187,10 +212,21 @@ body.safedemo { --safe-l: 44px; --safe-r: 44px; --safe-b: 21px; --safe-t: 12px; 
   font-size: 11px; font-weight: 900; letter-spacing: .5px;
   color: #fff; -webkit-text-stroke: 1px #000; text-shadow: 1px 1px 0 #000;
 }
-.gauge.full { animation: gaugeFull .4s infinite alternate; }
-.gauge.full .fill { background: linear-gradient(180deg, #ffffff 0 35%, #ffd23c 35% 65%, #ff7a00 65% 100%) !important; }
+/* FULL. The bolt only appears when the move is actually available, so the icon is the
+   signal rather than decoration — see it, press POWER. */
+.gauge.full .nm::before { content: '\26A1'; margin-inline-end: 4px; -webkit-text-stroke: 0; }
+.gauge.full .fill {
+  background: linear-gradient(180deg, #fffdf0 0 30%, #ffd23c 30% 62%, #ff6a00 62% 100%) !important;
+}
+.gauge.full { animation: gaugeReady .45s infinite alternate; }
 .gauge.powered .fill { background: linear-gradient(180deg, #fff 0 30%, #ff4d4d 30% 65%, #7a0000 65% 100%) !important; }
-.gauge.powered { animation: gaugeFull .3s infinite alternate; }
+.gauge.powered { animation: gaugeReady .3s infinite alternate; }
+@keyframes gaugeReady {
+  from { filter: drop-shadow(0 2px 0 #0009) drop-shadow(0 0 3px #ffb80066); }
+  to   { filter: drop-shadow(0 2px 0 #0009) drop-shadow(0 0 12px #ffc21e) drop-shadow(0 0 22px #ff7a00cc); }
+}
+/* Kept: other rules still reference gaugeFull (the clock at ten seconds, the POWER
+   button, the lobby gauge), and those are box-shadow elements with no clip-path. */
 @keyframes gaugeFull { from { box-shadow: 0 0 0 2px #d8d8e4, 3px 3px 0 #0009; } to { box-shadow: 0 0 0 2px #ffd23c, 0 0 14px 3px #ffb80099, 3px 3px 0 #0009; } }
 
 .banner {
@@ -680,7 +716,10 @@ body.editing .pad .btn .grip {
 /* POWER MODE is a timed state, not a one-shot. The bar counts down, the button shows the
    seconds left, and the head glows in that character's colour. */
 .gauge.powered .fill { background: linear-gradient(90deg, #ff4d4d, #ffb800) !important; }
-.gauge.powered { animation: gaugeFull .35s infinite alternate; }
+/* gaugeReady, not gaugeFull: the meter is clip-path'd now, and clip-path throws away a
+   box-shadow along with everything else outside the silhouette. This rule sits after the
+   meter's own and would otherwise silently un-glow power mode. */
+.gauge.powered { animation: gaugeReady .35s infinite alternate; }
 .pad .power.live { opacity: 1; pointer-events: auto; background: #b23a12d0; animation: gaugeFull .3s infinite alternate; }
 .head.armed { animation: armedGlow .5s infinite alternate; }
 @keyframes armedGlow {
