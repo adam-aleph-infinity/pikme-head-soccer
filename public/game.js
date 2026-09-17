@@ -1076,47 +1076,103 @@ function drawGuardian(g, cx, top, bot) {
 }
 
 function drawGoal(g, left) {
-  // Head Soccer's goals read as a chunky white FRAME with a diamond net behind it, standing
-  // on the ground line — not the thin outline this had. The crossbar is drawn as an actual
-  // bar because it now IS one in the sim: the ball bounces off it.
+  // A REAL GOAL, built as a box in perspective instead of a flat panel. The mouth faces the
+  // pitch at full height; the frame behind it is shorter and its feet sit higher, and the net
+  // that joins the two is drawn as a grid running back to it. That recession is the entire 3D
+  // read — there is no shading trick here, only the fact that the far frame is smaller.
+  //
+  // The cavity used to be filled OPAQUE, deliberately, so the stadium would not show through
+  // the mesh. It is see-through now, on request: a real net shows the crowd behind it, and
+  // that is most of what separates a net from a dark hole. What is left is a wash rather than
+  // a fill — enough to seat a white ball against a bright crowd, little enough that the
+  // background still reads through the mesh.
   const x0 = left ? 0 : C.W - C.GOAL_W;
-  const x1 = x0 + C.GOAL_W;
   const top = C.GROUND_Y - C.GOAL_H;
-  const postX = left ? x1 : x0;               // the front post, facing the pitch
+  const frontX = left ? x0 + C.GOAL_W : x0;   // the mouth, facing the pitch
+  const backX  = left ? x0 : x0 + C.GOAL_W;   // the rear, at the screen edge
   const bar = C.POST_R * 2;
 
-  g.save();
-  // net cavity — opaque, so the stadium behind does not read through the mesh
-  g.fillStyle = '#05080f';
-  g.fillRect(x0, top, C.GOAL_W, C.GOAL_H);
+  // The vanishing. Both numbers are small on purpose: this is a side-on game and a goal that
+  // recedes hard starts to look like it is pointing off the pitch rather than standing on it.
+  const rTop = top + C.GOAL_H * 0.11;
+  const rBot = C.GROUND_Y - C.GOAL_H * 0.055;
 
-  // diamond mesh — clipped to the cavity so it never bleeds onto the pitch
-  g.beginPath(); g.rect(x0, top, C.GOAL_W, C.GOAL_H); g.clip();
-  g.strokeStyle = '#ffffff2e';
-  g.lineWidth = 1.2;
-  const step = 15;
+  const X  = (t) => frontX + (backX - frontX) * t;   // t: 0 at the mouth, 1 at the rear
+  const TY = (t) => top + (rTop - top) * t;
+  const BY = (t) => C.GROUND_Y + (rBot - C.GROUND_Y) * t;
+
+  g.save();
   g.beginPath();
-  for (let d = -C.GOAL_H; d < C.GOAL_W + C.GOAL_H; d += step) {
-    g.moveTo(x0 + d, top); g.lineTo(x0 + d + C.GOAL_H, C.GROUND_Y);
-    g.moveTo(x0 + d, top); g.lineTo(x0 + d - C.GOAL_H, C.GROUND_Y);
+  g.moveTo(frontX, top); g.lineTo(backX, rTop);
+  g.lineTo(backX, rBot); g.lineTo(frontX, C.GROUND_Y);
+  g.closePath();
+  g.clip();
+
+  g.fillStyle = '#0a1020';
+  g.globalAlpha = 0.20;
+  g.fillRect(Math.min(frontX, backX), top, C.GOAL_W, C.GOAL_H);
+  g.globalAlpha = 1;
+
+  // THE NET. Two families: cords running back into the goal, which converge on the rear
+  // frame and carry the perspective, and hoops across it, which stay parallel to the mouth.
+  // Every fourth cord is brighter — an evenly lit grid reads as graph paper, and the thing
+  // that makes a net look like rope is that some of it catches the light and some does not.
+  g.lineWidth = 1;
+  const HOOPS = 26, CORDS = 18;
+  for (let i = 0; i <= HOOPS; i++) {
+    const f = i / HOOPS;
+    g.strokeStyle = i % 4 ? '#ffffff7a' : '#ffffffc4';
+    g.beginPath();
+    g.moveTo(frontX, top + (C.GROUND_Y - top) * f);
+    g.lineTo(backX, rTop + (rBot - rTop) * f);
+    g.stroke();
   }
-  g.stroke();
+  for (let i = 0; i <= CORDS; i++) {
+    const t = i / CORDS;
+    g.strokeStyle = i % 3 ? '#ffffff72' : '#ffffffb8';
+    g.beginPath();
+    g.moveTo(X(t), TY(t));
+    g.lineTo(X(t), BY(t));
+    g.stroke();
+  }
   g.restore();
 
+  // THE FRAME, far to near, so the mouth overlaps the rear and the box closes.
   g.save();
-  // frame: crossbar across the whole roof, then the front post down to the grass
-  g.fillStyle = '#f4f8ff';
-  g.fillRect(x0, top - bar / 2, C.GOAL_W, bar);
-  g.fillRect(postX - bar / 2, top - bar / 2, bar, C.GOAL_H + bar / 2);
-  // a soft shadow under the bar so the frame sits in front of the net
-  g.fillStyle = '#00000038';
-  g.fillRect(x0, top + bar / 2, C.GOAL_W, 4);
-  // rounded cap where bar meets post
-  g.fillStyle = '#ffffff';
-  g.beginPath(); g.arc(postX, top, bar * 0.62, 0, 6.2832); g.fill();
-  // goal line on the grass
-  g.fillStyle = '#ffffff88';
-  g.fillRect(Math.min(postX, x0), C.GROUND_Y - 2, C.GOAL_W, 3);
+  g.lineCap = 'round';
+  g.lineJoin = 'round';
+
+  g.strokeStyle = '#b9c8dd';                 // rear upright: dimmer because it is further off
+  g.lineWidth = bar * 0.62;
+  g.beginPath(); g.moveTo(backX, rTop); g.lineTo(backX, rBot); g.stroke();
+
+  g.strokeStyle = '#e2ebf8';                 // the floor rail, back along the ground
+  g.lineWidth = bar * 0.5;
+  g.beginPath(); g.moveTo(frontX, C.GROUND_Y); g.lineTo(backX, rBot); g.stroke();
+
+  // The crossbar IS the roof rail: in the sim the ball bounces off the bar across the whole
+  // depth of the net, so the thing it bounces off is what gets drawn thick and bright.
+  g.strokeStyle = '#f7fbff';
+  g.lineWidth = bar * 0.92;
+  g.beginPath(); g.moveTo(frontX, top); g.lineTo(backX, rTop); g.stroke();
+
+  // the mouth post, nearest the camera and the one a player actually aims at
+  g.lineWidth = bar;
+  g.beginPath(); g.moveTo(frontX, top); g.lineTo(frontX, C.GROUND_Y); g.stroke();
+
+  // a sliver of shadow down the inside of the post, so it sits in FRONT of the net
+  g.strokeStyle = '#00000030';
+  g.lineWidth = 3;
+  g.beginPath();
+  g.moveTo(frontX + (left ? -bar * 0.6 : bar * 0.6), top);
+  g.lineTo(frontX + (left ? -bar * 0.6 : bar * 0.6), C.GROUND_Y);
+  g.stroke();
+
+  g.fillStyle = '#ffffff';                   // the cap where bar meets post
+  g.beginPath(); g.arc(frontX, top, bar * 0.6, 0, 6.2832); g.fill();
+
+  g.fillStyle = '#ffffff88';                 // goal line on the grass
+  g.fillRect(Math.min(frontX, backX), C.GROUND_Y - 2, C.GOAL_W, 3);
   g.restore();
 }
 
