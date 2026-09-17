@@ -37,11 +37,16 @@ to hand to someone new.
 
 ## 2. Get it running (5 minutes)
 
-Requires **Node 20 or newer** (`node -v`). Nothing else — no database, no env file, no account.
+Requires **Node 20 or newer** (`node -v`). Nothing else — no database, no env file, no secrets.
 
 You also need a Chrome-family browser for the simulator and the screenshot harnesses — they
 drive one over the DevTools Protocol, which Safari does not speak. `brew install --cask
 google-chrome`, or point `CHROME_BIN` at Chromium/Edge/Brave if you already have one.
+
+The repository is **private**, and your own GitHub account (`idanb-shino`) already has write
+access to it — that one repo and nothing else. So authenticate as yourself; nobody needs to hand
+you a token, and if someone offers one, you do not need it. `gh auth login` (GitHub CLI, browser)
+is the shortest path; an SSH key or a classic PAT you generate yourself works identically.
 
 ```bash
 git clone https://github.com/adam-aleph-infinity/pikme-head-soccer.git
@@ -140,6 +145,12 @@ the point is to iterate fast. The test suite is the only gate, and it is there t
 does not boot", not "the feel got worse".
 
 Watch it: the **Actions** tab on GitHub. Verify it: open the URL on your phone.
+
+> **Broken right now (2026-09-17).** The repo was made private and Render was wired to it by
+> public URL, so the deploy hook answers `400 not found: .../repositories/1344849088` and
+> production is frozen at `6951f09`. The tests still run on every push; only the last step fails.
+> Adam has to re-connect GitHub to the `pikme-headsoccer` service in the Render dashboard once.
+> Delete this note when a push reaches the URL.
 
 **If you break it:** either push a fix, or `git revert` and push — same 3 minutes either way. If
 the service itself is wedged, ask Adam to roll back the deploy in the Render dashboard; previous
