@@ -169,12 +169,16 @@ body.safedemo { --safe-l: 44px; --safe-r: 44px; --safe-b: 21px; --safe-t: 12px; 
    so it now says how full it is in COLOUR as well as in length — green, yellow, orange,
    red — and catches fire when it is ready to spend.
 
-   The shape is a slanted arcade tank rather than a box, cut with clip-path and mirrored
-   per side so the two meters lean away from the scoreboard in the middle.
+   The outline is a plain rectangle and stayed one. A slanted tank, a zigzag bolt and a crown
+   of flames were each built and each rejected on sight; what reads here is the ramp and the
+   halo, not the silhouette.
 
-   NOTE the glow is a `filter: drop-shadow`, not a `box-shadow`. clip-path clips a box
-   shadow away with everything else outside the silhouette; drop-shadow follows the cut
-   shape and paints outside it, which is the whole point of a glow. */
+   THE GLOW LIVES ON `.meter`, one level up, and that is not an accident. CSS applies filter
+   BEFORE clip-path, so any drop-shadow set on a clipped bar is computed and then discarded
+   by the clip — it renders nothing, silently. The wrapper is unclipped, so the halo is cast
+   from the silhouette of what it contains. The bar is square again and could carry its own
+   shadow now, but the wrapper stays: it is the arrangement that does not break the next time
+   someone cuts a shape out of this. */
 .meter {
   flex: 1; max-width: 300px; line-height: 0;
   filter: drop-shadow(0 2px 0 #0009);
@@ -182,96 +186,17 @@ body.safedemo { --safe-l: 44px; --safe-r: 44px; --safe-b: 21px; --safe-t: 12px; 
 .meter:has(.gauge.full)    { animation: gaugeReady .45s infinite alternate; }
 .meter:has(.gauge.powered) { animation: gaugeReady .30s infinite alternate; }
 .gauge {
-  width: 100%; height: 34px; position: relative;
-  /* The element IS the frame: a pale rim the empty meter can still be seen by. This used to
-     be `box-shadow: 0 0 0 2px #d8d8e4`, which clip-path discards along with everything else
-     outside the silhouette — an empty bar went invisible against a night sky, found at
-     667x375 where the bars start at zero. The dark track is ::before, inset inside it. */
+  /* A plain rectangle, by request. The flame and bolt silhouettes were tried and dropped;
+     what carries this meter is the colour ramp and the halo, not the outline. Keeping it
+     square also gives the shot name the whole height back — every shape attempt here ended
+     up fighting that label, because a clip shears a child rather than drawing over it. */
+  width: 100%; height: 24px; position: relative;
+  /* The element IS the frame: a pale rim the empty meter can still be seen by, with the dark
+     track as ::before inset inside it. Worth keeping even now the bar is square — an empty
+     meter against a night sky is invisible without it, which is how it was found at
+     667x375, where both bars start at zero. */
   background: #dcdce8;
-  /* FLAMES ON TOP, FLAT UNDERNEATH — the shape from Idan's reference, and the one that
-     actually works here. The previous bolt zigzagged BOTH edges, which meant the shot name
-     had nowhere safe to sit: the label is a child of a clipped element, so whatever it
-     overhangs is cut rather than drawn over, and Hebrew descenders kept losing their
-     bottoms. Putting the jag on the top edge only leaves a solid band along the bottom that
-     the name can live in, so the flames can be as sharp as they like. Tapered to a point at
-     the leading end. Mirrored on the right so both bars burn away from the scoreboard. */
-  clip-path: polygon(
-    0.0% 68.0%,
-    4.0% 52.0%,
-    9.4% 24.0%,
-    12.0% 52.0%,
-    16.0% 52.0%,
-    16.0% 52.0%,
-    21.4% 18.0%,
-    24.0% 52.0%,
-    28.0% 52.0%,
-    28.0% 52.0%,
-    33.4% 26.0%,
-    36.0% 52.0%,
-    40.0% 52.0%,
-    40.0% 52.0%,
-    45.4% 20.0%,
-    48.0% 52.0%,
-    52.0% 52.0%,
-    52.0% 52.0%,
-    57.4% 15.0%,
-    60.0% 52.0%,
-    64.0% 52.0%,
-    64.0% 52.0%,
-    69.4% 25.0%,
-    72.0% 52.0%,
-    76.0% 52.0%,
-    76.0% 52.0%,
-    81.4% 19.0%,
-    84.0% 52.0%,
-    88.0% 52.0%,
-    88.0% 52.0%,
-    93.4% 22.0%,
-    96.0% 52.0%,
-    100.0% 52.0%,
-    100.0% 40.0%,
-    100.0% 100.0%,
-    0.0% 100.0%);
   overflow: hidden;
-}
-.gauge.g1 {
-  clip-path: polygon(
-    100.0% 68.0%,
-    96.0% 52.0%,
-    90.6% 24.0%,
-    88.0% 52.0%,
-    84.0% 52.0%,
-    84.0% 52.0%,
-    78.6% 18.0%,
-    76.0% 52.0%,
-    72.0% 52.0%,
-    72.0% 52.0%,
-    66.6% 26.0%,
-    64.0% 52.0%,
-    60.0% 52.0%,
-    60.0% 52.0%,
-    54.6% 20.0%,
-    52.0% 52.0%,
-    48.0% 52.0%,
-    48.0% 52.0%,
-    42.6% 15.0%,
-    40.0% 52.0%,
-    36.0% 52.0%,
-    36.0% 52.0%,
-    30.6% 25.0%,
-    28.0% 52.0%,
-    24.0% 52.0%,
-    24.0% 52.0%,
-    18.6% 19.0%,
-    16.0% 52.0%,
-    12.0% 52.0%,
-    12.0% 52.0%,
-    6.6% 22.0%,
-    4.0% 52.0%,
-    0.0% 52.0%,
-    0.0% 40.0%,
-    0.0% 100.0%,
-    100.0% 100.0%);
 }
 /* the empty tank behind the fill */
 .gauge::before {
@@ -294,11 +219,8 @@ body.safedemo { --safe-l: 44px; --safe-r: 44px; --safe-b: 21px; --safe-t: 12px; 
   content: ''; position: absolute; inset: 3px; pointer-events: none;
   background: repeating-linear-gradient(104deg, #0000 0 11px, #00000055 11px 13px);
 }
-/* The label sits in the SOLID band under the flames. padding-top pushes the centred content
-   down out of the spikes; anything up there would be cut into ribbons by the clip. */
 .gauge .nm {
   position: absolute; inset: 0; display: grid; place-items: center;
-  padding-top: 15px;
   /* line-height pinned: the ⚡ added at full has a taller line box than Hebrew text, which
      pushed the whole centred label down past the bar and sheared its bottom off. Only at
      full, which is exactly when the label matters most. */
