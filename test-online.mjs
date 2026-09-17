@@ -5,7 +5,7 @@ import { spawn } from 'node:child_process';
 import { setTimeout as sleep } from 'node:timers/promises';
 import { unpackInput, packInput, decodeSnapshot } from './shared/net.js';
 
-const PORT = 3099;
+let PORT;
 let pass = 0, fail = 0;
 const ok = (name, cond, extra = '') => {
   if (cond) pass++;
@@ -13,7 +13,19 @@ const ok = (name, cond, extra = '') => {
 };
 
 const srv = spawn(process.execPath, ['server.js'], {
-  env: { ...process.env, PORT: String(PORT) }, stdio: 'ignore',
+  env: { ...process.env, PORT: '0', RENDER_GIT_COMMIT: 'c'.repeat(40) }, stdio: ['ignore', 'pipe', 'inherit'],
+});
+// Let the OS allocate a port so another checkout's tests cannot silently answer ours.
+const listening = new Promise((resolve, reject) => {
+  const timer = setTimeout(() => reject(new Error('Test server did not start')), 10000);
+  let output = '';
+  srv.stdout.on('data', (chunk) => {
+    output += chunk;
+    const match = output.match(/local\s+http:\/\/localhost:(\d+)/);
+    if (match) { PORT = Number(match[1]); clearTimeout(timer); resolve(); }
+  });
+  srv.once('error', (error) => { clearTimeout(timer); reject(error); });
+  srv.once('exit', () => { clearTimeout(timer); reject(new Error('Test server exited')); });
 });
 const die = (code) => { try { srv.kill(); } catch {} process.exit(code); };
 process.on('uncaughtException', (e) => { console.log('  ✗ threw:', e.message); die(1); });
@@ -42,7 +54,11 @@ const until = async (fn, ms = 4000) => {
   return false;
 };
 
-await sleep(1200);   // let the server bind
+await listening;
+
+const version = await fetch(`http://127.0.0.1:${PORT}/version`);
+ok('version identifies the running commit', (await version.json()).commit === 'c'.repeat(40));
+ok('version cannot be cached', version.headers.get('cache-control') === 'no-store');
 
 const A = client('אדם', { rarity: 'legendary', number: 3 });
 const B = client('חבר', { rarity: 'epic', number: 7 });

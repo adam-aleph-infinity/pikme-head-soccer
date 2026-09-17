@@ -9,7 +9,8 @@ services:
     # for most a minute before the lobby appears is not a shareable game. Approved by Adam
     # 2026-08-21.
     plan: starter
-    buildCommand: npm install --omit=dev
+    buildCommand: npm ci --omit=dev
     startCommand: npm start
     healthCheckPath: /
-    autoDeploy: true
+    # GitHub Actions tests, deploys an exact SHA, and verifies /version.
+    autoDeployTrigger: off

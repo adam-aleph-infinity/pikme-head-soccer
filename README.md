@@ -480,6 +480,9 @@ Three real bugs came out of them, all invisible to the unit tests:
 
 ## Shipping
 
+For Idan's Mac setup, simulator, and push-to-production workflow, see [ONBOARDING.md](ONBOARDING.md).
+The running commit is available at https://pikme-headsoccer.onrender.com/version.
+
 - `render.yaml` provisions **`pikme-headsoccer`** on the **starter (paid)** plan. Free was
   rejected on purpose: a free instance sleeps after 15 minutes and takes 30-50s to wake, and
   the whole feature is a link you send a friend.

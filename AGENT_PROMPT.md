@@ -21,8 +21,9 @@ Everything you do happens inside **this repository**. Nothing else exists for yo
 
 - Do not look for, ask for, or use credentials for: the Saltiz iOS app repos, the production
   backend, the cards/album system, Render, Supabase, MongoDB, App Store Connect.
-- Do not add a dependency that needs an API key, and do not introduce environment variables. The
-  only one this project has is `PORT`, and that is the way it should stay.
+- No credentials for other games or shared infrastructure belong here. Local development needs
+  no secrets. `PORT` selects the server port; Render supplies the non-secret `RENDER_GIT_COMMIT`
+  for `/version`. Any future external service must be dedicated to this game.
 - If a task appears to need something outside this repo, **stop and say so**. Do not work around
   it, do not scaffold a substitute, do not go hunting for a token on the machine.
 
@@ -43,13 +44,13 @@ Do not restate these files back at the user. Read them and act.
 ## Run it
 
 ```bash
-npm install
+npm ci
 npm test                    # ~1500 assertions across 10 suites. Must be green before and after.
 npm start                   # http://localhost:3020 — prints a LAN URL for a real phone too
 npm run sim                 # the phone simulator, below
 ```
 
-Node 20+, plus a Chrome-family browser for the visual harnesses — they speak the DevTools
+Node 22+, plus a Chrome-family browser for the visual harnesses — they speak the DevTools
 Protocol and Safari does not. `brew install --cask google-chrome`, or set `CHROME_BIN`.
 `npm test` takes well under a minute; run it, do not assume it.
 
@@ -135,8 +136,10 @@ the app injects it, and mirrors page errors into the terminal. Ctrl-C cleans up.
 Push to `main` → a GitHub Action runs `npm test` → Render redeploys
 **https://pikme-headsoccer.onrender.com** in 2-4 minutes. No review gate, by design.
 
-Never claim a deploy succeeded from the fact that you pushed. Check the Actions run, then check
-the URL answers, then look at it on a phone.
+Never claim a deploy succeeded from the fact that you pushed. Check the Actions run and verify
+that `/version` returns the pushed commit SHA, then look at it on a phone. The workflow verifies
+the exact commit, page, and WebSocket. Idan uses his own GitHub login; no Adam PAT or Render login
+is needed. Read ONBOARDING.md for Mac setup and docs/ACCESS.md for the enforced boundary.
 
 Do not change the Render service name, the production URL, or the `/ws` path — things outside this
 repo point at them.

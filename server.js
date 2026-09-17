@@ -1,7 +1,4 @@
-// Dumb static server. The match runs entirely in the browser for now — this exists only so
-// the phone on the LAN can load it, and so `/shared` is reachable from the client's imports.
-// When this graduates to real 1v1, server.js becomes the authoritative host and `shared/sim.js`
-// is already the thing both sides run.
+// Static game files and the authoritative 1v1 WebSocket host.
 
 import http from 'node:http';
 import fs from 'node:fs';
@@ -17,7 +14,7 @@ import { createRegistry, createRoom, joinRoom, leave, setReady, bothReady, roomO
 import { createInputQueue, ingest, takeNext, unpackInput, encodeSnapshot } from './shared/net.js';
 
 const ROOT = path.dirname(fileURLToPath(import.meta.url));
-const PORT = Number(process.env.PORT) || 3020;
+const PORT = Number(process.env.PORT ?? 3020);
 
 const TYPES = {
   '.html': 'text/html; charset=utf-8',
@@ -38,6 +35,12 @@ const server = http.createServer((req, res) => {
   let rel = (req.url || '/').split('?')[0].split('#')[0];
   try { rel = decodeURIComponent(rel); } catch { /* keep the raw path */ }
   rel = '/' + rel.split('/').filter(Boolean).join('/');
+  // Render supplies this non-secret SHA. A healthy old build must not pass a new deploy.
+  if (rel === '/version') {
+    res.writeHead(200, { 'content-type': 'application/json', 'cache-control': 'no-store' });
+    res.end(JSON.stringify({ commit: process.env.RENDER_GIT_COMMIT || 'local' }));
+    return;
+  }
   if (rel === '/') rel = '/index.html';
 
   // /shared/* maps to the repo's shared folder; everything else lives under /public.
@@ -63,12 +66,13 @@ const server = http.createServer((req, res) => {
 });
 
 server.listen(PORT, '0.0.0.0', () => {
+  const listeningPort = server.address().port;
   const nets = Object.values(os.networkInterfaces()).flat()
     .filter((n) => n && n.family === 'IPv4' && !n.internal)
     .map((n) => n.address);
   console.log(`⚽ head-soccer mock`);
-  console.log(`   local   http://localhost:${PORT}`);
-  for (const ip of nets) console.log(`   phone   http://${ip}:${PORT}`);
+  console.log(`   local   http://localhost:${listeningPort}`);
+  for (const ip of nets) console.log(`   phone   http://${ip}:${listeningPort}`);
 });
 
 // ═══════════════════════════════════════════════════════════════════════════

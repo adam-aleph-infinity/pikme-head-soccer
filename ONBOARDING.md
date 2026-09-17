@@ -12,8 +12,7 @@ to break, and how your change reaches a phone.
 ## 1. The one rule
 
 **This repository is your whole world.** Change anything in it, ship it whenever you like, break
-it in production if that is what learning costs — nobody will be angry, and there is a rollback
-button that takes thirty seconds.
+it in production if that is what learning costs. Push a fix or revert a commit to recover.
 
 What is *not* yours, and what you have no access to:
 
@@ -27,34 +26,53 @@ What is *not* yours, and what you have no access to:
 You do not need any of them to do this job, and you will not be given them. If a change seems to
 require one, that is the signal to stop and ask — not to go looking for credentials.
 
-**Why the game can be broken freely and the rest cannot:** this game is a self-contained static
-page plus a small WebSocket server. It holds no user data, no secrets, and no database. Its only
-dependency is `ws`. The worst outage you can cause is "one mini-game does not load", and today it
-is not even shipped in the app build yet — it is a URL. That is exactly why it is the good thing
-to hand to someone new.
+**How the boundary is enforced:** your GitHub account has write access to this repository.
+Its only deployment secret is a hook for this one Render service. The service runs in the
+`Head Football / Production` environment with cross-environment private traffic blocked.
+It has no database, configured secrets, or shared environment groups. Nicknames and card choices
+are transient game data; the app does not inject its authentication token into this game.
+See `docs/ACCESS.md` for the owner-side configuration and audit.
 
 ---
 
 ## 2. Get it running (5 minutes)
 
-Requires **Node 20 or newer** (`node -v`). Nothing else — no database, no env file, no secrets.
+Requires **Node 22 or newer** (`node -v`); `.nvmrc` pins 22. The simulator and tests need Node's
+built-in WebSocket. No database, env file, or production credentials are needed.
 
-You also need a Chrome-family browser for the simulator and the screenshot harnesses — they
-drive one over the DevTools Protocol, which Safari does not speak. `brew install --cask
-google-chrome`, or point `CHROME_BIN` at Chromium/Edge/Brave if you already have one.
+Your own GitHub account (`idanb-shino`) already has write access. Authenticate as yourself using
+the browser login below. Do not use Adam's account or a token generated from it.
 
-The repository is **private**, and your own GitHub account (`idanb-shino`) already has write
-access to it — that one repo and nothing else. So authenticate as yourself; nobody needs to hand
-you a token, and if someone offers one, you do not need it. `gh auth login` (GitHub CLI, browser)
-is the shortest path; an SSH key or a classic PAT you generate yourself works identically.
+On a Mac with Homebrew, install the tools once:
 
 ```bash
+brew install node@22 gh
+brew install --cask google-chrome
+export PATH="$(brew --prefix node@22)/bin:$PATH"
+node -v
+gh auth login --hostname github.com --git-protocol https --web --scopes workflow
+gh auth setup-git
+gh api user --jq .login   # must say idanb-shino
+```
+
+Use that PATH line in each new terminal, or add it once to `~/.zshrc`. If you already use nvm,
+run `nvm install && nvm use` inside the clone instead. Install Homebrew first from
+https://brew.sh if `brew` is not available.
+
+Then clone **only this repository**, into its own folder (skip cloning if it already exists):
+
+```bash
+cd ~
 git clone https://github.com/adam-aleph-infinity/pikme-head-soccer.git
 cd pikme-head-soccer
-npm install
-npm test          # ~1500 assertions, all green. If they are not, say so before you change anything.
-npm start         # → http://localhost:3020
+npm ci
+npm test
+npm run sim
 ```
+
+The simulator starts the game server and opens a phone-sized Chrome window. Chrome emulates
+screen size and touch input; it is not Apple's iOS Simulator and does not reproduce WKWebView
+exactly. No Xcode or access to the main app is needed. You can also run `npm start` by itself.
 
 `npm start` prints two URLs. The second is your LAN IP — open **that** on your actual phone,
 on the same wifi, and you are playing the real thing with real thumbs. Do this on day one. It is
@@ -139,26 +157,34 @@ Production is one URL: **https://pikme-headsoccer.onrender.com** — a single Re
 Frankfurt, paid plan (a free one sleeps for 30-50s, which kills a game whose entire feature is
 "send a friend a link").
 
-**Push to `main` and it ships.** A GitHub Action runs `npm test` and then redeploys; the whole
-thing takes 2-4 minutes. There is no review gate and no staging, on purpose — this is a mock and
-the point is to iterate fast. The test suite is the only gate, and it is there to catch "the page
-does not boot", not "the feel got worse".
+**Push to `main` and it ships.** A GitHub Action installs dependencies, runs `npm test`, asks
+Render to deploy that exact commit, then checks the live `/version`, page, and WebSocket.
+There is no approval or pull-request requirement. A missing hook or an old build fails the
+Action instead of reporting success. Deployments usually take a few minutes.
 
-Watch it: the **Actions** tab on GitHub. Verify it: open the URL on your phone.
+```bash
+npm test
+git add <the-files-you-changed>
+git commit -m "feat: describe your game change"
+git push origin main
+gh run list --workflow deploy.yml --branch main --limit 3
+```
 
-> **Broken right now (2026-09-17).** The repo was made private and Render was wired to it by
-> public URL, so the deploy hook answers `400 not found: .../repositories/1344849088` and
-> production is frozen at `6951f09`. The tests still run on every push; only the last step fails.
-> Adam has to re-connect GitHub to the `pikme-headsoccer` service in the Render dashboard once.
-> Delete this note when a push reaches the URL.
+Watch the [Actions tab](https://github.com/adam-aleph-infinity/pikme-head-soccer/actions).
+Open https://pikme-headsoccer.onrender.com/version to see the full commit SHA that is live.
+It should match `git rev-parse HEAD`. A green Action checks this automatically.
 
-**If you break it:** either push a fix, or `git revert` and push — same 3 minutes either way. If
-the service itself is wedged, ask Adam to roll back the deploy in the Render dashboard; previous
-builds are one click away.
+The repository is currently **public** because this Render service deploys from a public repo
+URL. That lets anyone read it; only collaborators can push. Making it private requires Adam
+to connect Render's GitHub integration first. No ownership transfer is required for your setup.
+
+**If you break it:** either push a fix, or `git revert <bad-commit-sha>` and push. You can also
+rerun the latest workflow from Actions to redeploy main. If the service itself is wedged,
+ask Adam to roll back or restart this service in Render.
 
 Two things not to change without asking, because something outside this repo points at them:
 - the Render service **name** (`pikme-headsoccer`) and therefore the URL — the app hard-codes it
-- the WebSocket **path** (`/ws`) and the shape of what crosses it, while a released build is live
+- the WebSocket **path** (`/ws`); coordinate protocol changes for players already in a match
 
 ---
 

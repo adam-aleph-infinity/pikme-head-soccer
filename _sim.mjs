@@ -21,7 +21,7 @@
 import { spawn } from 'node:child_process';
 import { setTimeout as sleep } from 'node:timers/promises';
 import net from 'node:net';
-import { mkdtempSync, rmSync } from 'node:fs';
+import { mkdtempSync, rmSync, readFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { chromePath } from './_chrome.mjs';
@@ -111,11 +111,13 @@ if (await listening(PORT)) {
 
 // ── one emulated phone ──────────────────────────────────────────────────────
 const profiles = [];
-async function phone({ cdp, x, label }) {
+async function phone({ x, label }) {
   const profile = mkdtempSync(join(tmpdir(), 'hs-sim-'));
   profiles.push(profile);
   const args = [
-    `--remote-debugging-port=${cdp}`, `--user-data-dir=${profile}`,
+    // Chrome chooses a free port and writes it into this private profile. A second
+    // simulator must never attach to a browser from another checkout.
+    '--remote-debugging-port=0', `--user-data-dir=${profile}`,
     '--no-first-run', '--no-default-browser-check',
     // A real phone plays sound without a tap and has no scrollbars. Match it, or you will
     // chase an audio bug that only exists in the simulator.
@@ -130,6 +132,7 @@ async function phone({ cdp, x, label }) {
   for (let i = 0; i < 80 && !target; i++) {
     await sleep(150);
     try {
+      const cdp = Number(readFileSync(join(profile, 'DevToolsActivePort'), 'utf8').split('\n')[0]);
       const list = await (await fetch(`http://127.0.0.1:${cdp}/json/list`)).json();
       target = list.find((t) => t.type === 'page' && t.url.includes(`:${PORT}`));
     } catch { /* chrome not up yet */ }
@@ -174,8 +177,8 @@ async function phone({ cdp, x, label }) {
   return { ch, ws };
 }
 
-const phones = [await phone({ cdp: 9520, x: 60, label: 'phone-1' })];
-if (duo) phones.push(await phone({ cdp: 9521, x: 60 + dev.w + 24, label: 'phone-2' }));
+const phones = [await phone({ x: 60, label: 'phone-1' })];
+if (duo) phones.push(await phone({ x: 60 + dev.w + 24, label: 'phone-2' }));
 
 console.log('');
 console.log(`  📱 ${dev.label} — ${dev.w}x${dev.h} @${dev.dpr}x, touch on, iOS UA`);

@@ -3,6 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
+  "engines": { "node": ">=22" },
   "description": "Throwaway prototype: Head Soccer-style 1v1 where your Saltiz cards are the heads.",
   "scripts": {
     "start": "node server.js",
