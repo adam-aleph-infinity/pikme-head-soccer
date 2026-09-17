@@ -9,12 +9,14 @@
 import { spawn } from 'node:child_process';
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { setTimeout as sleep } from 'node:timers/promises';
+import { chromePath } from './_chrome.mjs';
+const CHROME = chromePath();   // CHROME_BIN overrides; see _chrome.mjs
 const OUT = process.env.SHOT_OUT || `${import.meta.dirname}/.shots/fit`, CDP = 9499;
 // Defaults to the local server; BASE=https://pikme-headsoccer.onrender.com checks what the
 // app actually loads, which is the only version that matters to a tester.
 const BASE = process.env.BASE || 'http://127.0.0.1:3020';
 mkdirSync(OUT, { recursive: true });
-const ch = spawn('/Applications/Google Chrome.app/Contents/MacOS/Google Chrome', [`--remote-debugging-port=${CDP}`,'--headless=new','--no-first-run','--mute-audio','--hide-scrollbars',`--user-data-dir=${OUT}/fitprof`,'about:blank'],{stdio:'ignore'});
+const ch = spawn(CHROME, [`--remote-debugging-port=${CDP}`,'--headless=new','--no-first-run','--mute-audio','--hide-scrollbars',`--user-data-dir=${OUT}/fitprof`,'about:blank'],{stdio:'ignore'});
 let t; for(let i=0;i<60&&!t;i++){ await sleep(200); try{ t=(await(await fetch(`http://127.0.0.1:${CDP}/json/list`)).json()).find(x=>x.type==='page'); }catch{} }
 const ws=new WebSocket(t.webSocketDebuggerUrl); await new Promise(r=>{ws.onopen=r;});
 let id=0; const pend=new Map(); ws.onmessage=e=>{const m=JSON.parse(e.data); if(m.id&&pend.has(m.id)){pend.get(m.id)(m.result??m.error);pend.delete(m.id);}};

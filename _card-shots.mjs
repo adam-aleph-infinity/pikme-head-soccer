@@ -16,6 +16,8 @@
 import { spawn } from 'node:child_process';
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { setTimeout as sleep } from 'node:timers/promises';
+import { chromePath } from './_chrome.mjs';
+const CHROME = chromePath();   // CHROME_BIN overrides; see _chrome.mjs
 
 const PORT = process.env.PORT || 3020;
 const OUT = process.env.SHOT_OUT || `${import.meta.dirname}/.shots/cards`;
@@ -24,7 +26,7 @@ const FOE = process.argv[3] || 'legendary_2';
 const CDP = 9467;
 mkdirSync(OUT, { recursive: true });
 
-const chrome = spawn('/Applications/Google Chrome.app/Contents/MacOS/Google Chrome', [
+const chrome = spawn(CHROME, [
   `--remote-debugging-port=${CDP}`, '--headless=new', '--no-first-run', '--mute-audio',
   '--hide-scrollbars', '--force-device-scale-factor=1',
   `--user-data-dir=${OUT}/prof`, 'about:blank',

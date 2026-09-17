@@ -39,6 +39,10 @@ to hand to someone new.
 
 Requires **Node 20 or newer** (`node -v`). Nothing else — no database, no env file, no account.
 
+You also need a Chrome-family browser for the simulator and the screenshot harnesses — they
+drive one over the DevTools Protocol, which Safari does not speak. `brew install --cask
+google-chrome`, or point `CHROME_BIN` at Chromium/Edge/Brave if you already have one.
+
 ```bash
 git clone https://github.com/adam-aleph-infinity/pikme-head-soccer.git
 cd pikme-head-soccer
@@ -86,7 +90,7 @@ Balance here was measured, not argued about. The throwaway scripts in the repo r
 
 | | |
 |---|---|
-| `node _why.mjs` | **run this first.** A census of goals by cause — power shots, lobs, a defender out of position. Each of those has a different fix, and guessing which one you have is how a day disappears |
+| `node _why.mjs` | **run this first.** Goals classified by cause — power shots, lobs, a defender out of position. Each has a different fix, and guessing which one you have is how a day disappears. Note it plays a FIXED matchup (legendary_3 vs legendary_2), so it is an A/B instrument, not a population census |
 | `node _feel.mjs` | goals per match over many bot-vs-bot matches — the headline number |
 | `node _wall.mjs` | can a correctly positioned defender stop a shot at all? Separates a physics hole from a bot that is standing in the wrong place |
 | `node _sweep.mjs` | isolate one dial and watch the outcome move |

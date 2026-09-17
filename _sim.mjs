@@ -24,9 +24,10 @@ import net from 'node:net';
 import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { chromePath } from './_chrome.mjs';
 
 const PORT = Number(process.env.PORT) || 3020;
-const CHROME = process.env.CHROME_BIN || '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome';
+const CHROME = chromePath();   // CHROME_BIN overrides; see _chrome.mjs
 
 // Landscape, because the app pins this screen to landscape. Width is the LONG edge.
 // dpr matters: the heads are background-positioned card art, and a half-pixel window offset

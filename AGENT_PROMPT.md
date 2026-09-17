@@ -49,7 +49,9 @@ npm start                   # http://localhost:3020 — prints a LAN URL for a r
 npm run sim                 # the phone simulator, below
 ```
 
-Node 20+. `npm test` takes well under a minute; run it, do not assume it.
+Node 20+, plus a Chrome-family browser for the visual harnesses — they speak the DevTools
+Protocol and Safari does not. `brew install --cask google-chrome`, or set `CHROME_BIN`.
+`npm test` takes well under a minute; run it, do not assume it.
 
 ## Verification — the part that matters most
 
@@ -62,7 +64,8 @@ Before you tell anyone a change works:
 - **Render it at the size it ships at.** `npm run sim -- --device=se` is the smallest screen we
   support and the one that breaks. `node _shot.mjs` drives the real client in headless Chrome and
   writes PNGs to `.shots/` — look at them.
-- **Measure balance, never assert it.** `node _why.mjs` gives a census of goals by cause;
+- **Measure balance, never assert it.** `node _why.mjs` classifies goals by cause (from one
+  fixed matchup — an A/B instrument, not a population census);
   `node _feel.mjs` gives goals per match; `node _wall.mjs` says whether a correctly positioned
   defender can stop a shot at all. A tuning change with no before/after number is not finished.
 - **Test both album paths.** `npm run sim -- --album=8` simulates the app injecting a real card
