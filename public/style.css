@@ -375,7 +375,7 @@ body[data-mode="duo"] #slotFoe { opacity: .45; pointer-events: none; }
   transform: var(--xf, none);
   pointer-events: auto; min-width: calc(var(--u) * var(--s)); height: calc(var(--u) * var(--s));
   padding: 0 calc(var(--u) * var(--s) * 0.19);
-  border-radius: 50%; background: #1620359e;
+  border-radius: var(--r, 50%); background: #1620359e;
   border: max(2px, calc(var(--u) * var(--s) * 0.032)) solid #ffffff26;
   font-size: clamp(11px, calc(var(--u) * var(--s) * 0.24), 24px);
   font-weight: 800; backdrop-filter: blur(3px);
@@ -388,9 +388,98 @@ body[data-mode="duo"] #slotFoe { opacity: .45; pointer-events: none; }
 }
 .pad .btn:active, .pad .btn.on { background: #3a4d78d0; opacity: 1; }
 .pad .btn:active, .pad .btn.on { transform: var(--xf, none) scale(.94); }
-.pad .kick { background: #2a5f3ba8; }
-.pad .power { background: #5a3a12a8; opacity: .35; pointer-events: none; }
-.pad .power.ready { opacity: 1; pointer-events: auto; animation: gaugeFull .5s infinite alternate; }
+
+/* ── THE ARCADE PAD ───────────────────────────────────────────────────────────
+   Modelled on Head Soccer's own controls, because that is the game this is in the
+   mould of and its pad is the part players touch for the whole match: fat gold
+   arrows for the feet, carved stone plaques for the actions. The old pad was five
+   translucent grey circles — readable, and completely forgettable.
+
+   Everything below is paint only. Sizing still comes from --u (the thumb unit) and
+   --s (the layout editor's per-button multiplier), and --xf still carries a dragged
+   position, so the editor and _pad.mjs's thumb-size checks are untouched. */
+
+/* The walk arrows. The shape IS the button — clip-path cuts the arrow out of the box,
+   and the dark element showing through around the inset gold ::before is what draws
+   the outline, because a border does not follow a clipped edge. The hit area stays
+   the full rectangle, which is the point: a thumb aiming at a fat arrow should not
+   have to land inside the pointy bit. */
+.pad-l .btn {
+  --arrow: polygon(0% 50%, 46% 0%, 46% 26%, 100% 26%, 100% 74%, 46% 74%, 46% 100%);
+  /* 1.12, not the 1.24 this started at. The hand of cards lives BETWEEN the two thumb
+     groups, and centreRow() stacks it above the pad when the gap drops under ~172px at
+     667x375. 1.24 ate that budget and pushed three cards over the pitch — measured, not
+     guessed. Fat arrows are worth 12%; they are not worth the cards moving. */
+  min-width: calc(var(--u) * var(--s) * 1.08);
+  background: #4a2708; border: 0; border-radius: 0;
+  clip-path: var(--arrow);
+  color: #5d3410; font-size: clamp(9px, calc(var(--u) * var(--s) * 0.19), 19px);
+  backdrop-filter: none;
+  filter: drop-shadow(0 calc(var(--u) * var(--s) * 0.045) 0 #2e1704cc);
+  display: grid; place-items: center;
+}
+.pad-l .btn[data-k="right"] {
+  --arrow: polygon(100% 50%, 54% 0%, 54% 26%, 0% 26%, 0% 74%, 54% 74%, 54% 100%);
+}
+.pad-l .btn::before {
+  content: ''; position: absolute; inset: max(3px, calc(var(--u) * var(--s) * 0.075));
+  clip-path: var(--arrow);
+  background: linear-gradient(#ffe066 0%, #ffc021 46%, #e98f12 100%);
+}
+/* The glyph rides on top of the gold, like the L/R letters on the reference pad. */
+.pad-l .btn { position: relative; }
+.pad-l .btn > * , .pad-l .btn { z-index: 0; }
+.pad-l .btn:active, .pad-l .btn.on { background: #3a1d05; }
+.pad-l .btn:active::before, .pad-l .btn.on::before {
+  background: linear-gradient(#fff3a8 0%, #ffd047 46%, #f5a01a 100%);
+}
+
+/* The action plaques: jump, kick, power. Rounded stone rather than a circle, a heavy
+   dark rim, and a top-lit face so they read as carved instead of printed. */
+.pad-r .btn {
+  --r: calc(var(--u) * var(--s) * 0.30);
+  /* No min-width override: the Hebrew labels already make these wider than tall, and every
+     px here comes straight out of the card row's gap (see the arrows above). */
+  background: linear-gradient(#f7dfa2 0%, #e0b45c 42%, #b8801f 100%);
+  /* The heavy rim is an INSET SHADOW, not a border. A border is part of the box, so
+     thickening it widened every plaque, which stole the card row's gap and stacked the
+     hand over the pitch. A shadow paints the same rim for zero layout cost. */
+  border: max(2px, calc(var(--u) * var(--s) * 0.032)) solid #4a2708;
+  color: #3a1d05;
+  text-shadow: 0 1px 0 #ffeeb8, 0 -1px 0 #00000033;
+  backdrop-filter: none;
+  box-shadow:
+    inset 0 0 0 max(2px, calc(var(--u) * var(--s) * 0.045)) #4a2708,
+    inset 0 calc(var(--u) * var(--s) * 0.10) 0 #fffdf0aa,
+    inset 0 calc(var(--u) * var(--s) * -0.11) 0 #9c6a1f77,
+    0 calc(var(--u) * var(--s) * 0.05) 0 #2e1704aa;
+}
+.pad-r .btn:active, .pad-r .btn.on {
+  background: linear-gradient(#f3dfa8 0%, #dcb865 40%, #b8852c 100%);
+  box-shadow: inset 0 calc(var(--u) * var(--s) * 0.05) 0 #00000033;
+}
+/* Jump and kick are deliberately the SAME plaque, as they are in the reference. Tinting
+   them apart was the first thing tried and it looked like three different games; the pad
+   reads as one carved set, and position is what tells them apart under a thumb. */
+
+/* POWER is the one that has to shout when it is ready, and sit down when it is not. */
+.pad-r .power {
+  background: linear-gradient(#f7d9b0 0%, #c89a63 40%, #8a5a25 100%);
+  color: #3a1d05; opacity: .35; pointer-events: none;
+}
+.pad-r .power.ready {
+  opacity: 1; pointer-events: auto;
+  animation: gaugeFull .5s infinite alternate;
+  background: linear-gradient(#fff1a8 0%, #ffb524 45%, #e0530d 100%);
+  border-color: #6d2a05;
+  color: #5e1d02; text-shadow: 0 1px 0 #ffe9a0;
+  box-shadow:
+    inset 0 0 0 max(2px, calc(var(--u) * var(--s) * 0.045)) #6d2a05,
+    inset 0 calc(var(--u) * var(--s) * 0.10) 0 #fffbe0cc,
+    inset 0 calc(var(--u) * var(--s) * -0.11) 0 #a33b0577,
+    0 0 calc(var(--u) * var(--s) * 0.26) #ff8c1aaa,
+    0 calc(var(--u) * var(--s) * 0.05) 0 #40160099;
+}
 /* The pad used to be hidden on anything without a coarse pointer. It is the ability UI
    now — three cards you cannot press if you cannot see them — so it shows everywhere, and
    the keyboard keeps working alongside it. */

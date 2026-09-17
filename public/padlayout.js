@@ -22,7 +22,11 @@
 const KEY = 'hs.padlayout.v1';
 const OP_KEY = 'hs.padopacity.v1';
 const MIN_S = 0.6, MAX_S = 2.0;
-const DEF_OP = 0.72;
+// 0.94, not the old 0.72. That number was chosen for five flat grey circles, which were
+// meant to recede into the pitch. The pad is painted now — gold arrows and stone plaques —
+// and paint at 72% over grass reads as faded rather than as restrained. The slider still
+// goes all the way down for anyone who wants the pitch back.
+const DEF_OP = 0.94;
 
 const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
 
