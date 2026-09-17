@@ -175,28 +175,103 @@ body.safedemo { --safe-l: 44px; --safe-r: 44px; --safe-b: 21px; --safe-t: 12px; 
    NOTE the glow is a `filter: drop-shadow`, not a `box-shadow`. clip-path clips a box
    shadow away with everything else outside the silhouette; drop-shadow follows the cut
    shape and paints outside it, which is the whole point of a glow. */
+.meter {
+  flex: 1; max-width: 300px; line-height: 0;
+  filter: drop-shadow(0 2px 0 #0009);
+}
+.meter:has(.gauge.full)    { animation: gaugeReady .45s infinite alternate; }
+.meter:has(.gauge.powered) { animation: gaugeReady .30s infinite alternate; }
 .gauge {
-  flex: 1; max-width: 300px; height: 32px; position: relative;
+  width: 100%; height: 34px; position: relative;
   /* The element IS the frame: a pale rim the empty meter can still be seen by. This used to
      be `box-shadow: 0 0 0 2px #d8d8e4`, which clip-path discards along with everything else
      outside the silhouette — an empty bar went invisible against a night sky, found at
      667x375 where the bars start at zero. The dark track is ::before, inset inside it. */
   background: #dcdce8;
-  /* A LIGHTNING BOLT, not a box. The trick is that the band's PATH zigzags at constant
-     thickness — an edge-only sawtooth just reads as a wavy ribbon, which is what the first
-     two attempts looked like. The amplitude is a COMPROMISE, and the constraint is the shot
-     name: the label is a child, so the clip cuts it wherever it falls outside the band. A
-     deeper jag looked better and sliced the name in half. 70% thickness against a 30% swing
-     keeps the text inside the stroke everywhere it can sit. Mirrored on the right so the two
-     bolts strike away from the scoreboard rather than both leaning one way. */
-  clip-path: polygon(0% 0%, 33% 30%, 66% 0%, 100% 30%,
-                     100% 100%, 66% 70%, 33% 100%, 0% 70%);
-  filter: drop-shadow(0 2px 0 #0009);
+  /* FLAMES ON TOP, FLAT UNDERNEATH — the shape from Idan's reference, and the one that
+     actually works here. The previous bolt zigzagged BOTH edges, which meant the shot name
+     had nowhere safe to sit: the label is a child of a clipped element, so whatever it
+     overhangs is cut rather than drawn over, and Hebrew descenders kept losing their
+     bottoms. Putting the jag on the top edge only leaves a solid band along the bottom that
+     the name can live in, so the flames can be as sharp as they like. Tapered to a point at
+     the leading end. Mirrored on the right so both bars burn away from the scoreboard. */
+  clip-path: polygon(
+    0.0% 68.0%,
+    4.0% 52.0%,
+    9.4% 24.0%,
+    12.0% 52.0%,
+    16.0% 52.0%,
+    16.0% 52.0%,
+    21.4% 18.0%,
+    24.0% 52.0%,
+    28.0% 52.0%,
+    28.0% 52.0%,
+    33.4% 26.0%,
+    36.0% 52.0%,
+    40.0% 52.0%,
+    40.0% 52.0%,
+    45.4% 20.0%,
+    48.0% 52.0%,
+    52.0% 52.0%,
+    52.0% 52.0%,
+    57.4% 15.0%,
+    60.0% 52.0%,
+    64.0% 52.0%,
+    64.0% 52.0%,
+    69.4% 25.0%,
+    72.0% 52.0%,
+    76.0% 52.0%,
+    76.0% 52.0%,
+    81.4% 19.0%,
+    84.0% 52.0%,
+    88.0% 52.0%,
+    88.0% 52.0%,
+    93.4% 22.0%,
+    96.0% 52.0%,
+    100.0% 52.0%,
+    100.0% 40.0%,
+    100.0% 100.0%,
+    0.0% 100.0%);
   overflow: hidden;
 }
 .gauge.g1 {
-  clip-path: polygon(0% 30%, 33% 0%, 66% 30%, 100% 0%,
-                     100% 70%, 66% 100%, 33% 70%, 0% 100%);
+  clip-path: polygon(
+    100.0% 68.0%,
+    96.0% 52.0%,
+    90.6% 24.0%,
+    88.0% 52.0%,
+    84.0% 52.0%,
+    84.0% 52.0%,
+    78.6% 18.0%,
+    76.0% 52.0%,
+    72.0% 52.0%,
+    72.0% 52.0%,
+    66.6% 26.0%,
+    64.0% 52.0%,
+    60.0% 52.0%,
+    60.0% 52.0%,
+    54.6% 20.0%,
+    52.0% 52.0%,
+    48.0% 52.0%,
+    48.0% 52.0%,
+    42.6% 15.0%,
+    40.0% 52.0%,
+    36.0% 52.0%,
+    36.0% 52.0%,
+    30.6% 25.0%,
+    28.0% 52.0%,
+    24.0% 52.0%,
+    24.0% 52.0%,
+    18.6% 19.0%,
+    16.0% 52.0%,
+    12.0% 52.0%,
+    12.0% 52.0%,
+    6.6% 22.0%,
+    4.0% 52.0%,
+    0.0% 52.0%,
+    0.0% 40.0%,
+    0.0% 100.0%,
+    100.0% 100.0%);
 }
 /* the empty tank behind the fill */
 .gauge::before {
@@ -219,29 +294,41 @@ body.safedemo { --safe-l: 44px; --safe-r: 44px; --safe-b: 21px; --safe-t: 12px; 
   content: ''; position: absolute; inset: 3px; pointer-events: none;
   background: repeating-linear-gradient(104deg, #0000 0 11px, #00000055 11px 13px);
 }
-/* The label rides INSIDE the stroke. The band is a clip, so anything the name overhangs is
-   cut rather than drawn over — Hebrew descenders were losing their bottom half where the
-   bolt slopes down. padding-bottom lifts the grid's centred content into the thick part of
-   the stroke; the size drop buys the rest of the margin. */
+/* The label sits in the SOLID band under the flames. padding-top pushes the centred content
+   down out of the spikes; anything up there would be cut into ribbons by the clip. */
 .gauge .nm {
   position: absolute; inset: 0; display: grid; place-items: center;
-  padding-bottom: 7px;
-  font-size: 10px; font-weight: 900; letter-spacing: .3px;
+  padding-top: 15px;
+  /* line-height pinned: the ⚡ added at full has a taller line box than Hebrew text, which
+     pushed the whole centred label down past the bar and sheared its bottom off. Only at
+     full, which is exactly when the label matters most. */
+  font-size: 10px; font-weight: 900; letter-spacing: .3px; line-height: 1;
   color: #fff; -webkit-text-stroke: 1px #000; text-shadow: 1px 1px 0 #000;
 }
 /* FULL. The bolt only appears when the move is actually available, so the icon is the
    signal rather than decoration — see it, press POWER. */
-.gauge.full .nm::before { content: '\26A1'; margin-inline-end: 4px; -webkit-text-stroke: 0; }
+.gauge.full .nm::before {
+  content: '\26A1'; margin-inline-end: 4px; -webkit-text-stroke: 0;
+  font-size: 9px; line-height: 1; vertical-align: middle;
+}
 /* At full the ramp STAYS — swapping it for a flat gold was the "jumping colour" this was
    asked to stop. What marks ready is the bolt, the glow, and a white-hot sheen over the
    top of the ramp rather than instead of it. */
 .gauge.full .fill { filter: saturate(1.25) brightness(1.12); }
-.gauge.full { animation: gaugeReady .45s infinite alternate; }
 .gauge.powered .fill { background: linear-gradient(180deg, #fff 0 30%, #ff4d4d 30% 65%, #7a0000 65% 100%) !important; }
-.gauge.powered { animation: gaugeReady .3s infinite alternate; }
+/* The ready halo. Stacked drop-shadows rather than one: each is applied to the result of
+   the last, so a tight white core, a yellow body and a wide amber bloom build a glow with
+   falloff instead of a flat ring. It never drops to nothing — at full the bar is ALWAYS
+   lit and the pulse only changes how hard. */
 @keyframes gaugeReady {
-  from { filter: drop-shadow(0 2px 0 #0009) drop-shadow(0 0 3px #ffb80066); }
-  to   { filter: drop-shadow(0 2px 0 #0009) drop-shadow(0 0 12px #ffc21e) drop-shadow(0 0 22px #ff7a00cc); }
+  from {
+    filter: drop-shadow(0 2px 0 #0009) drop-shadow(0 0 4px #fff8c8)
+            drop-shadow(0 0 9px #ffe14a) drop-shadow(0 0 16px #ffc40088);
+  }
+  to {
+    filter: drop-shadow(0 2px 0 #0009) drop-shadow(0 0 6px #fffde8)
+            drop-shadow(0 0 14px #ffe66a) drop-shadow(0 0 24px #ffc400cc);
+  }
 }
 /* Kept: other rules still reference gaugeFull (the clock at ten seconds, the POWER
    button, the lobby gauge), and those are box-shadow elements with no clip-path. */
@@ -734,10 +821,8 @@ body.editing .pad .btn .grip {
 /* POWER MODE is a timed state, not a one-shot. The bar counts down, the button shows the
    seconds left, and the head glows in that character's colour. */
 .gauge.powered .fill { background: linear-gradient(90deg, #ff4d4d, #ffb800) !important; }
-/* gaugeReady, not gaugeFull: the meter is clip-path'd now, and clip-path throws away a
-   box-shadow along with everything else outside the silhouette. This rule sits after the
-   meter's own and would otherwise silently un-glow power mode. */
-.gauge.powered { animation: gaugeReady .35s infinite alternate; }
+/* The glow lives on .meter (see there); this rule used to re-point the animation at the bar
+   itself, where a clip-path eats it. */
 .pad .power.live { opacity: 1; pointer-events: auto; background: #b23a12d0; animation: gaugeFull .3s infinite alternate; }
 .head.armed { animation: armedGlow .5s infinite alternate; }
 @keyframes armedGlow {
