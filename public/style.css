@@ -176,48 +176,66 @@ body.safedemo { --safe-l: 44px; --safe-r: 44px; --safe-b: 21px; --safe-t: 12px; 
    shadow away with everything else outside the silhouette; drop-shadow follows the cut
    shape and paints outside it, which is the whole point of a glow. */
 .gauge {
-  flex: 1; max-width: 300px; height: 26px; position: relative;
+  flex: 1; max-width: 300px; height: 32px; position: relative;
   /* The element IS the frame: a pale rim the empty meter can still be seen by. This used to
      be `box-shadow: 0 0 0 2px #d8d8e4`, which clip-path discards along with everything else
      outside the silhouette — an empty bar went invisible against a night sky, found at
      667x375 where the bars start at zero. The dark track is ::before, inset inside it. */
   background: #dcdce8;
-  --slant: 11px;
-  clip-path: polygon(0 0, 100% 0, calc(100% - var(--slant)) 100%, var(--slant) 100%);
+  /* A LIGHTNING BOLT, not a box. The trick is that the band's PATH zigzags at constant
+     thickness — an edge-only sawtooth just reads as a wavy ribbon, which is what the first
+     two attempts looked like. The amplitude is a COMPROMISE, and the constraint is the shot
+     name: the label is a child, so the clip cuts it wherever it falls outside the band. A
+     deeper jag looked better and sliced the name in half. 70% thickness against a 30% swing
+     keeps the text inside the stroke everywhere it can sit. Mirrored on the right so the two
+     bolts strike away from the scoreboard rather than both leaning one way. */
+  clip-path: polygon(0% 0%, 33% 30%, 66% 0%, 100% 30%,
+                     100% 100%, 66% 70%, 33% 100%, 0% 70%);
   filter: drop-shadow(0 2px 0 #0009);
   overflow: hidden;
 }
-.gauge.g1 { clip-path: polygon(var(--slant) 0, calc(100% - var(--slant)) 0, 100% 100%, 0 100%); }
+.gauge.g1 {
+  clip-path: polygon(0% 30%, 33% 0%, 66% 30%, 100% 0%,
+                     100% 70%, 66% 100%, 33% 70%, 0% 100%);
+}
 /* the empty tank behind the fill */
 .gauge::before {
   content: ''; position: absolute; inset: 3px; background: #0d0d18;
 }
+/* ONE ramp, across the FULL track, revealed by the clip — never a growing box. The colour
+   therefore belongs to a position on the bar rather than to a tier, so the leading edge
+   slides green -> lime -> yellow -> amber -> orange -> red with no step anywhere in it.
+   Stops are close enough together that no two neighbours read as separate colours. */
 .gauge .fill {
-  position: absolute; inset: 3px; width: 0;
-  transition: width .08s linear, background .25s linear;
-  background: linear-gradient(180deg, #b6f36a 0 34%, #63c81e 34% 66%, #2f7d08 66% 100%);
+  position: absolute; inset: 3px; width: auto;
+  clip-path: inset(0 calc(100% - var(--p, 0%)) 0 0);
+  transition: clip-path .08s linear;
+  background: linear-gradient(90deg,
+    #2ec40a 0%, #6ad40e 14%, #a8e010 27%, #dced14 39%,
+    #ffd91a 52%, #ffb115 65%, #ff8410 77%, #ff5a0c 88%, #ff2408 100%);
 }
-/* The tiers. Same four for both players: a meter that means a different colour on each
-   side is a meter you have to translate. Player identity is the name and the position. */
-.gauge[data-lvl="2"] .fill { background: linear-gradient(180deg, #fff07a 0 34%, #ffd23c 34% 66%, #c99000 66% 100%); }
-.gauge[data-lvl="3"] .fill { background: linear-gradient(180deg, #ffc46b 0 34%, #ff8c1a 34% 66%, #b64e00 66% 100%); }
-.gauge[data-lvl="4"] .fill { background: linear-gradient(180deg, #ffd0c0 0 34%, #ff3b21 34% 66%, #8f1400 66% 100%); }
 /* segment ticks, so the bar reads as an arcade meter rather than a progress bar */
 .gauge::after {
   content: ''; position: absolute; inset: 3px; pointer-events: none;
-  background: repeating-linear-gradient(90deg, #0000 0 12px, #00000055 12px 14px);
+  background: repeating-linear-gradient(104deg, #0000 0 11px, #00000055 11px 13px);
 }
+/* The label rides INSIDE the stroke. The band is a clip, so anything the name overhangs is
+   cut rather than drawn over — Hebrew descenders were losing their bottom half where the
+   bolt slopes down. padding-bottom lifts the grid's centred content into the thick part of
+   the stroke; the size drop buys the rest of the margin. */
 .gauge .nm {
   position: absolute; inset: 0; display: grid; place-items: center;
-  font-size: 11px; font-weight: 900; letter-spacing: .5px;
+  padding-bottom: 7px;
+  font-size: 10px; font-weight: 900; letter-spacing: .3px;
   color: #fff; -webkit-text-stroke: 1px #000; text-shadow: 1px 1px 0 #000;
 }
 /* FULL. The bolt only appears when the move is actually available, so the icon is the
    signal rather than decoration — see it, press POWER. */
 .gauge.full .nm::before { content: '\26A1'; margin-inline-end: 4px; -webkit-text-stroke: 0; }
-.gauge.full .fill {
-  background: linear-gradient(180deg, #fffdf0 0 30%, #ffd23c 30% 62%, #ff6a00 62% 100%) !important;
-}
+/* At full the ramp STAYS — swapping it for a flat gold was the "jumping colour" this was
+   asked to stop. What marks ready is the bolt, the glow, and a white-hot sheen over the
+   top of the ramp rather than instead of it. */
+.gauge.full .fill { filter: saturate(1.25) brightness(1.12); }
 .gauge.full { animation: gaugeReady .45s infinite alternate; }
 .gauge.powered .fill { background: linear-gradient(180deg, #fff 0 30%, #ff4d4d 30% 65%, #7a0000 65% 100%) !important; }
 .gauge.powered { animation: gaugeReady .3s infinite alternate; }

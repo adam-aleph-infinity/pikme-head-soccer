@@ -2126,19 +2126,15 @@ function syncHud() {
     const powered = p.armed > 0;
     // While POWER MODE is live the bar counts DOWN — the gauge stops being "how close am I"
     // and becomes "how long have I got", which is the only number that matters then.
-    gEl.querySelector('.fill').style.width =
-      (powered ? (p.armed / C.POWER_MODE_TIME) * 100 : p.gauge * 100) + '%';
+    // The fill is ONE continuous ramp painted across the whole track and revealed by a
+    // clip, rather than a growing box. Growing a box squeezes the gradient into whatever
+    // is filled, so the colour under the tip never changes and you get a shorter rainbow
+    // instead of a climbing one. Revealing a fixed ramp is what makes the leading edge
+    // travel green -> yellow -> orange -> red with nothing to step over.
+    const pct = (powered ? (p.armed / C.POWER_MODE_TIME) : p.gauge) * 100;
+    gEl.style.setProperty('--p', pct.toFixed(2) + '%');
     gEl.classList.toggle('full', p.gauge >= 1 && !powered);
     gEl.classList.toggle('powered', powered);
-    // Colour the bar by HOW FULL it is — green, yellow, orange, then red at the top. A kid
-    // should be able to answer "can I POWER yet?" from the corner of their eye, without
-    // reading the width of a bar against a bar they cannot see. Four coarse tiers rather
-    // than a smooth ramp, because four states have names and a gradient does not.
-    // Red has to land BELOW full, or it never shows: at 1.0 the `full` class takes the bar
-    // gold and glowing, so a red tier keyed on >= 1 would be painted over on the same frame.
-    // Red is the last 10% — "one more tackle" — which is when it is worth looking up.
-    gEl.dataset.lvl = powered ? 'on'
-      : p.gauge >= 0.9 ? '4' : p.gauge >= 0.66 ? '3' : p.gauge >= 0.33 ? '2' : '1';
     gEl.querySelector('.nm').textContent = powered
       ? `${p.shot.name} ${p.armed.toFixed(1)}s`
       : p.shot.name;
