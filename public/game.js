@@ -1106,16 +1106,24 @@ function drawGoal(g, left) {
   const top = C.GROUND_Y - C.GOAL_H;
   const bar = C.POST_R * 2;
 
-  // The width axis runs away from the camera, so it projects to a step towards the vanishing
-  // point — which for a left goal is off to the RIGHT — and a step UP the screen. Pointing it
-  // the other way, out towards the touchline, is what put the far posts off the canvas and
-  // cost the left goal a corner.
+  // WHERE THE FAR FRAME GOES, and the one rule it may not break.
   //
-  // The RATIO of these two is the camera angle, and it is the number that took the most
-  // looking at. Steep (0.30 / 0.13, a 42° step) turns the back net's cords into near-diagonal
-  // hatching and lifts the far posts so far off the grass that they stand in the crowd.
-  // Shallow reads as a photograph but leaves no roof to see. 0.40 / 0.13 is 34°: a roof band
-  // wide enough to say "box", a mouth you can see into, and far feet only 25px off the line.
+  // It steps towards the vanishing point — which for a left goal is off to the RIGHT — and UP
+  // the screen, and that step is what puts a roof band above the near crossbar. The roof is
+  // the single cue doing most of the work here: take it away and the goal is a flat panel
+  // again, however many nets are hung on it.
+  //
+  // But its FEET DO NOT MOVE. This game draws the whole pitch on one ground line — near
+  // touchline and far touchline land on the same y — so a post that stops 25px short of that
+  // line is not "further back", it is hanging in the air, and that is exactly what it looked
+  // like. So the far posts step sideways and their tops step up, and then they run all the
+  // way down to GROUND_Y like everything else in this world.
+  //
+  // The price is that the far frame comes out slightly TALLER than the near one instead of
+  // slightly shorter. That is the wrong way round for a photograph and the right way round
+  // for this pitch: a real net is pegged to the grass behind the goal anyway, so the far side
+  // reaching the ground is what the eye expects. It is drawn dim and thin, and at the size a
+  // thumb sees it the extra 25px reads as net coming down to the floor, which is what it is.
   const wx = inward * C.GOAL_W * 0.40;
   const wy = -C.GOAL_H * 0.13;
 
@@ -1124,9 +1132,9 @@ function drawGoal(g, left) {
   // so the thing the player aims at is the thing the rules use.
   const nFT = [lineX, top], nFB = [lineX, C.GROUND_Y];
   const nBT = [wallX, top], nBB = [wallX, C.GROUND_Y];
-  // …and the FAR frame, the same rectangle one step deeper.
-  const off = (p) => [p[0] + wx, p[1] + wy];
-  const fFT = off(nFT), fFB = off(nFB), fBT = off(nBT), fBB = off(nBB);
+  // …and the FAR frame: tops stepped back, feet on the same grass.
+  const fFT = [lineX + wx, top + wy],   fBT = [wallX + wx, top + wy];
+  const fFB = [lineX + wx, C.GROUND_Y], fBB = [wallX + wx, C.GROUND_Y];
 
   const poly = (pts) => { g.beginPath(); g.moveTo(pts[0][0], pts[0][1]);
     for (let i = 1; i < pts.length; i++) g.lineTo(pts[i][0], pts[i][1]); g.closePath(); };
@@ -1147,27 +1155,32 @@ function drawGoal(g, left) {
 
   g.save();
 
-  // 1. THE BACK, furthest away. It is a full panel now, from the wall post across to the far
-  //    one, floor to bar — not the splinter it used to be. You see it through the near net,
-  //    which is what makes the inside of a goal look deep.
-  wash([nBT, fBT, fBB, nBB], '#0a1220', 0.34);
-  mesh(nBT, fBT, fBB, nBB, 3, 20, 0.58);
+  // FOUR NETS, drawn deepest first so each one shows through the one in front of it, and
+  // every one of them dimmer than the near side — it is a net, and a net you look through
+  // has to stay quieter than the net you look at.
 
-  // 2. THE FLOOR. Not a net — a real goal has none — but the shadow the box casts on its own
-  //    ground. It is also what stops the far posts reading as floating: a foot with a shadow
-  //    running back to it is standing on something.
-  wash([nBB, fBB, fFB, nFB], '#04080f', 0.52);
-  mesh(nBB, fBB, fFB, nFB, 2, 9, 0.16);
+  // 1. THE FAR SIDE. This panel had no net at all, so the far half of the goal was an empty
+  //    wire frame: the mouth opened onto bare crowd and the eye had nothing to read depth on.
+  wash([fFT, fBT, fBB, fFB], '#0a1220', 0.13);
+  mesh(fFT, fBT, fBB, fFB, 9, 22, 0.36);
 
-  // 3. THE ROOF, seen from just below. This face and the floor are the two that say "box".
-  wash([nFT, nBT, fBT, fFT], '#0a1220', 0.24);
-  mesh(nFT, nBT, fBT, fFT, 9, 3, 0.70);
+  // 2. THE BACK, the panel joining the two rear posts.
+  wash([nBT, fBT, fBB, nBB], '#0a1220', 0.16);
+  mesh(nBT, fBT, fBB, nBB, 4, 20, 0.40);
+
+  // 3. THE ROOF. The face that says "box", and the reason the far frame steps up at all.
+  wash([nFT, nBT, fBT, fFT], '#0a1220', 0.20);
+  mesh(nFT, nBT, fBT, fFT, 9, 4, 0.62);
 
   // 4. THE NEAR SIDE, the big one the ball is seen through. Lightest wash of the four so the
   //    crowd still carries on behind it — a net you cannot see the stadium through reads as
   //    a hole, which is what the opaque cavity this replaced always looked like.
-  wash([nFT, nBT, nBB, nFB], '#0a1220', 0.14);
-  mesh(nFT, nBT, nBB, nFB, 9, 20, 0.50);
+  //
+  //    There is no FLOOR face any more. Both frames stand on GROUND_Y now, so the floor is
+  //    edge on and has no area; the dark quad that used to be drawn there was a shadow doing
+  //    the job of feet that should never have been off the ground.
+  wash([nFT, nBT, nBB, nFB], '#0a1220', 0.10);
+  mesh(nFT, nBT, nBB, nFB, 9, 20, 0.54);
 
   g.restore();
 
@@ -1175,17 +1188,17 @@ function drawGoal(g, left) {
   g.save();
   g.lineCap = 'round'; g.lineJoin = 'round';
 
-  g.strokeStyle = '#8598ae'; g.lineWidth = bar * 0.44;
+  g.strokeStyle = '#76889d'; g.lineWidth = bar * 0.38;
   line(fFT, fBT);                         // far top rail
   line(fBT, fBB);                         // far post, at the wall
   line(fBB, fFB);                         // far ground rail
   line(fFB, fFT);                         // far post, on the line
 
-  // The four members that run from the near frame to the far one — the goal's actual width.
+  // The bars that run from the near frame to the far one — the goal's actual width. The two
+  // at the bottom are missing on purpose: both frames now stand on GROUND_Y, so a bar from
+  // one foot to the other lies along the ground line and the rails already drew it.
   g.strokeStyle = '#c3d3e8'; g.lineWidth = bar * 0.6;
   line(nBT, fBT);                         // back top bar
-  line(nBB, fBB);                         // back ground bar
-  line(nFB, fFB);                         // the goal line, post foot to post foot
 
   // THE CROSSBAR: post to post across the mouth. Bright, because it is the mouth's top edge.
   g.strokeStyle = '#eef5ff'; g.lineWidth = bar * 0.78;
