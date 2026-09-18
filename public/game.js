@@ -1184,38 +1184,41 @@ function drawGoal(g, left) {
 
   g.restore();
 
-  // THE FRAME. Far members first, dimmer and thinner, so the near ones overlap them.
+  // THE FRAME, AND ALL OF IT IS WHITE.
+  //
+  // Every member used to be tinted by how far away it is — #76889d at the back through
+  // #eef5ff at the mouth — on the theory that a dimmer bar reads as a deeper one. It does
+  // not. At this size the tint just reads as unpainted metal, and a goal frame is one
+  // colour in life. Depth is carried by the line WIDTHS instead, which still run from
+  // 0.38 of a bar at the far side to a full bar at the mouth, and by the draw order: far
+  // members first so the near ones cross in front of them.
   g.save();
   g.lineCap = 'round'; g.lineJoin = 'round';
+  g.strokeStyle = '#ffffff';
 
-  g.strokeStyle = '#76889d'; g.lineWidth = bar * 0.38;
+  g.lineWidth = bar * 0.38;
   line(fFT, fBT);                         // far top rail
   line(fBB, fFB);                         // far ground rail
   line(fFB, fFT);                         // far post, on the line
+  line(fBT, fBB);                         // far post, at the wall
 
-  // THE TWO AT THE BACK, in white. They were the last members still carrying depth shading —
-  // #c3d3e8 and #76889d — and next to a frame that is otherwise white they did not read as
-  // "further away", they read as paint someone forgot to finish. Same members, same widths,
-  // same order; colour only.
-  //
-  // (The bars from one foot to the other are missing on purpose: both frames stand on
-  // GROUND_Y now, so a bar between the feet lies along the ground line and the rails
-  // already drew it.)
-  g.strokeStyle = '#ffffff';
-  g.lineWidth = bar * 0.38; line(fBT, fBB);   // far post, at the wall
-  g.lineWidth = bar * 0.6;  line(nBT, fBT);   // back top bar
+  // The bar from the near frame to the far one across the back. The two along the bottom are
+  // missing on purpose: both frames stand on GROUND_Y now, so a bar between the feet lies
+  // along the ground line and the rails already drew it.
+  g.lineWidth = bar * 0.6;
+  line(nBT, fBT);                         // back top bar
 
-  // THE CROSSBAR: post to post across the mouth. Bright, because it is the mouth's top edge.
-  g.strokeStyle = '#eef5ff'; g.lineWidth = bar * 0.78;
+  // THE CROSSBAR: post to post across the mouth.
+  g.lineWidth = bar * 0.78;
   line(nFT, fFT);
 
-  g.strokeStyle = '#e6eefa'; g.lineWidth = bar * 0.8;
+  g.lineWidth = bar * 0.8;
   line(nBT, nBB);                         // near post, at the wall
   line(nBB, nFB);                         // near ground rail
 
   // The near top rail is the bar the ball actually bounces off, and the near front post is
-  // the goal line. Brightest and thickest, drawn last so nothing crosses in front of them.
-  g.strokeStyle = '#ffffff'; g.lineWidth = bar;
+  // the goal line. Thickest, drawn last so nothing crosses in front of them.
+  g.lineWidth = bar;
   line(nFT, nBT);
   line(nFT, nFB);
   g.fillStyle = '#ffffff';
