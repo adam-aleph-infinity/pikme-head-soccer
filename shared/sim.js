@@ -15,8 +15,13 @@ import { createPickups, stepPickups, collectPickups, wipePickups, applyMagnet, s
 
 // A player's geometry, derived (never stored) so nothing can drift out of sync.
 // `y` is the FEET line; the body box hangs above it and the head sits on the body.
-export const headY = (p) => p.y - C.BODY_H - C.HEAD_R + 8;
-export const bodyTop = (p) => p.y - C.BODY_H;
+// Taken from the FEET LINE rather than from the player, so a collision test can ask for the
+// geometry at a swept pose — where the player was part-way through the tick — and not only
+// at where they ended it. One formula, two callers, nothing to drift apart.
+const headYAt = (y) => y - C.BODY_H - C.HEAD_R + 8;
+const bodyTopAt = (y) => y - C.BODY_H;
+export const headY = (p) => headYAt(p.y);
+export const bodyTop = (p) => bodyTopAt(p.y);
 // The head's RADIUS is not constant any more: the big-head pickup grows it. It grows around
 // the existing centre — headY above is deliberately untouched — so a player who collects one
 // gets bigger without moving. Everything that collides with a head goes through this.
@@ -155,6 +160,14 @@ export function step(m, inputs, dt = C.TICK, fx = NO_FX) {
   stepSkills(m, fx);
   stepPickups(m, fx);
 
+  // Where each player STARTED this tick. The players move once, in full, before the ball
+  // moves at all, so a contact tested only against where they ENDED is a contact tested
+  // against a body that teleported: a player running onto the ball crosses it between
+  // frames, and the push-out then fires from whichever side it happens to land on — often
+  // the back one, which is the ball "passing through" the player. resolveBallPlayers sweeps
+  // the pose from here to there across the ball's sub-steps, so the contact is continuous
+  // for BOTH bodies. The ball already had this half; the player never did.
+  for (const p of m.players) { p.x0 = p.x; p.y0 = p.y; }
   for (let i = 0; i < 2; i++) stepPlayer(m, m.players[i], inputs[i] || {}, dt, fx);
   separatePlayers(m);
   // After the move and after separation, so the frame you touch a pickup is the frame you
@@ -168,7 +181,7 @@ export function step(m, inputs, dt = C.TICK, fx = NO_FX) {
   // thing the geometry can actually see.
   const speed = Math.hypot(m.ball.vx, m.ball.vy);
   const slices = Math.max(1, Math.min(6, Math.ceil((speed * dt) / (C.HEAD_R * 0.8))));
-  for (let i = 0; i < slices; i++) stepBall(m, dt / slices, fx);
+  for (let i = 0; i < slices; i++) stepBall(m, dt / slices, fx, i / slices, 1 / slices);
 
   // Backstop for every way a ball can end up somewhere nobody can reach it. Cheap, and it
   // turns a hung match into a restart nobody even notices.
@@ -425,7 +438,9 @@ function stepCharge(m, fx) {
   }
 }
 
-function stepBall(m, dt, fx) {
+// `a0`/`aSpan` are this call's slice of the tick, as a fraction: the swept player pose in
+// resolveBallPlayers is read at a0 + aSpan * (progress through the sub-steps).
+function stepBall(m, dt, fx, a0 = 0, aSpan = 1) {
   const b = m.ball;
 
   const powered = stepPowerShot(b, m.players, dt, fx);
@@ -457,7 +472,7 @@ function stepBall(m, dt, fx) {
     b.x += b.vx * sdt;
     b.y += b.vy * sdt;
     collideBounds(m, b, fx);
-    resolveBallPlayers(m, sdt, fx);
+    resolveBallPlayers(m, fx, a0 + aSpan * ((i + 1) / sub));
     if (checkGoal(m, fx)) return;
   }
 }
@@ -646,7 +661,48 @@ function tryTackle(m, p, fx) {
   return true;
 }
 
-function resolveBallPlayers(m, dt, fx) {
+// ONE contact response for every surface a player has. `nx,ny` is the unit normal pointing
+// out of the player toward the ball; `keep` is how much of the ball's pace survives the
+// touch (HEAD_DEADEN or BODY_DEADEN) and `carry` how much of the player's run it picks up.
+// Returns whether this was an IMPACT, so the caller can add the extras that only belong to
+// one (a jump's lift, a strike event).
+//
+// Three rules here are what stop a ball welding itself to a player:
+//
+// 1. NEVER SINK. Any approach along the normal is cancelled, on every contact, strike or
+//    not. This is the only part that runs unconditionally.
+//
+// 2. THE DEADEN IS A STRIKE, NOT A STATE. Scrubbing the pace only happens when the ball is
+//    actually going INTO the player harder than CONTACT_IMPACT_V. The old code re-scrubbed
+//    on every tick of an overlap, and `vy *= 0.18` sixty times a second is a brake that
+//    beats gravity — so a ball held against a player hung there with its physics apparently
+//    switched off. Note this has to be a SPEED cutoff and not merely "is it approaching":
+//    on a curved surface, the side of a head, a ball sliding down under gravity is moving
+//    into the surface every tick by definition, and it would never get to roll off.
+//
+// 3. NON-PENETRATION FLOOR. However dead the touch, the ball may not leave it travelling
+//    into the player along the normal SLOWER than the player is travelling along it. The
+//    old code handed the ball 0.22 of a 310px/s run, so the player closed on it at 227px/s
+//    and the contact walked from the front of the torso, through the middle and out the
+//    back — the ball "passed through" the player while touching it the whole way. Matching
+//    the player's own normal speed is the deadest response that is still physical: zero
+//    restitution, nothing bounced, but the surface can never overtake the ball again.
+function contactResponse(b, p, nx, ny, keep, carry, spinKeep) {
+  const vn = (b.vx - p.vx) * nx + (b.vy - p.vy) * ny;
+  if (vn < 0) { b.vx -= vn * nx; b.vy -= vn * ny; }      // cancel the approach, never reflect
+  const impact = vn < -C.CONTACT_IMPACT_V;
+  if (impact) {
+    b.vx = b.vx * keep + p.vx * carry;
+    b.vy *= keep;
+    b.spin *= spinKeep;
+  }
+  const out = b.vx * nx + b.vy * ny;
+  const pn = p.vx * nx + p.vy * ny;
+  if (out < pn) { const add = pn - out; b.vx += add * nx; b.vy += add * ny; }
+  return impact;
+}
+
+function resolveBallPlayers(m, fx, alpha = 1) {
   const b = m.ball;
   for (const p of m.players) {
     // A knocked-down player is on the floor: nothing collides with them. That IS the payoff
@@ -656,13 +712,18 @@ function resolveBallPlayers(m, dt, fx) {
     // otherwise a trapping shot would trap the defender and then bounce off their face.
     if (b.power && b.power.owner !== p.index && p.rooted > 0) continue;
 
-    const hy = headY(p);
+    // The pose this sub-step collides against: swept from where the player started the tick
+    // to where they finished it. Without it every test runs against the end pose and a
+    // running player simply appears on the far side of the ball.
+    const px = p.x0 === undefined ? p.x : p.x0 + (p.x - p.x0) * alpha;
+    const py = p.y0 === undefined ? p.y : p.y0 + (p.y - p.y0) * alpha;
+    const hy = headYAt(py);
 
     // ---- kick hitbox (only while the leg is out) ----
     if (p.kickT > 0) {
       const dir = p.kickDir || p.facing;            // the aim, as latched at the swing
-      const kx = p.x + dir * C.KICK_REACH;
-      const ky = p.y - C.BODY_H * 0.45;
+      const kx = px + dir * C.KICK_REACH;
+      const ky = py - C.BODY_H * 0.45;
       if (Math.hypot(b.x - kx, b.y - ky) < C.KICK_R + b.r) {
         if (firePowerIfArmed(m, p, b, fx)) return;
         if (!b.power) {
@@ -709,75 +770,131 @@ function resolveBallPlayers(m, dt, fx) {
     }
 
     // ---- head (circle) ----
-    const dx = b.x - p.x, dy = b.y - hy;
+    const dx = b.x - px, dy = b.y - hy;
     const d = Math.hypot(dx, dy);
     const min = headR(m, p) + b.r;
-    if (d < min && d > 0.0001) {
+    if (d < min) {
       // No firing from the head: the power shot comes off the BOOT only. Firing on any
       // touch is what made the POWER button feel dead — the shot went off on a stray
       // header seconds after you pressed it.
       if (b.power && b.power.owner !== p.index) { hitByPowerShot(m, p, b, fx); return; }
-      const nx = dx / d, ny = dy / d;
-      b.x = p.x + nx * min; b.y = hy + ny * min;
+      // A ball sitting exactly ON the head's centre has no direction to be pushed in. Send
+      // it back the way it came, or straight up if it is not moving either — anything but
+      // the old answer, which was to skip the contact and let it fall through the player.
+      let nx, ny;
+      if (d > 0.0001) { nx = dx / d; ny = dy / d; }
+      else {
+        const s = Math.hypot(b.vx, b.vy);
+        if (s > 0.0001) { nx = -b.vx / s; ny = -b.vy / s; } else { nx = 0; ny = -1; }
+      }
+      // Which HEIGHT on the silhouette was struck decides how dead the touch is, and that is
+      // the question the raw normal answers. Keep it before the grass may bend the normal.
+      const zoneNy = ny;
+      // The head's circle reaches 42px from a centre 49px up, so its lower arc dips BELOW the
+      // boots: pushing a low ball out along it drives the ball into the pitch, and
+      // collideBounds shoves it straight back — a 5px buzz rather than a resolution. Stop at
+      // the grass; the torso below is what ejects it sideways, on the fall-through.
+      b.x = px + nx * min;
+      b.y = Math.min(hy + ny * min, C.GROUND_Y - b.r);
 
       // "Head bounces, body deadens" has to be a rule about HEIGHT, not about which collider
       // you clipped. At real Head Soccer proportions the character is ~80% head, so the torso
       // is a 12px sliver and a box-based rule almost never fired. Contact on the upper part
       // of the silhouette is a header; chest height and below is a body touch and dies.
-      if (ny > C.DEADEN_ZONE) {
+      if (zoneNy > C.DEADEN_ZONE) {
         m.idle = 0;
-        const dot = b.vx * nx + b.vy * ny;
-        if (dot < 0) { b.vx -= dot * nx; b.vy -= dot * ny; }   // cancel, do not reflect
-        b.vx = b.vx * C.BODY_DEADEN + p.vx * 0.22;
-        b.vy *= C.BODY_DEADEN;
-        b.spin *= 0.5;
+        contactResponse(b, p, nx, ny, C.BODY_DEADEN, 0.22, 0.5);
         fx.hit(b.x, b.y, '#cfd8ea', 0.4);
-        continue;
+      } else {
+        // A HEAD DEADENS, like the chest, only livelier. It used to REFLECT — (1 + HEAD_POWER)
+        // times the approach speed, back out — which made a head the hardest surface on the
+        // pitch and heading beat playing. Dropping HEAD_POWER twice (1.14 -> 0.80 -> 0.52)
+        // made it a weaker trampoline, not a different thing; this makes it a different thing.
+        //
+        // Cancel the approach, keep a fraction of the pace. The fraction is HEAD_DEADEN
+        // against the body's 0.18 — about twice as lively, and still dead. Hitting the ball
+        // hard is now always a deliberate act: the boot, or the kick button pressed at head
+        // height (tryHeader).
+        if (contactResponse(b, p, nx, ny, C.HEAD_DEADEN, 0.30, 0.6)) {
+          b.vy += Math.min(0, p.vy) * 0.35;                  // a jump still lifts it a little
+        }
+        m.idle = 0;
+        m.events.push({ type: 'strike', player: p.index, x: b.x, y: b.y, head: true });
+        fx.hit(b.x, b.y, '#ffffff', 0.7);
       }
 
-      // A HEAD DEADENS, like the chest, only livelier. It used to REFLECT — (1 + HEAD_POWER)
-      // times the approach speed, back out — which made a head the hardest surface on the
-      // pitch and heading beat playing. Dropping HEAD_POWER twice (1.14 -> 0.80 -> 0.52) made
-      // it a weaker trampoline, not a different thing; this makes it a different thing.
-      //
-      // Same two lines the body uses: cancel the approach, keep a fraction of the pace. The
-      // fraction is HEAD_DEADEN (0.34) against the body's 0.18 — about twice as lively, and
-      // still dead. Hitting the ball hard is now always a deliberate act: the boot, or the
-      // kick button pressed at head height (tryHeader).
-      const rel = (b.vx - p.vx) * nx + (b.vy - p.vy) * ny;
-      if (rel < 0) { b.vx -= rel * nx; b.vy -= rel * ny; }     // cancel, do not reflect
-      b.vx = b.vx * C.HEAD_DEADEN + p.vx * 0.30;
-      b.vy *= C.HEAD_DEADEN;
-      b.vy += Math.min(0, p.vy) * 0.35;                        // a jump still lifts it a little
-      b.spin *= 0.6;
-      m.idle = 0;
-      m.events.push({ type: 'strike', player: p.index, x: b.x, y: b.y, head: true });
-      fx.hit(b.x, b.y, '#ffffff', 0.7);
-      continue;
+      // NOTHING COMES TO REST ON A HEAD. Land a ball dead on the crown and it sits at the one
+      // point where the contact normal is straight up: gravity has no sideways component to
+      // roll it off with, so it balances there for the rest of the match with its physics
+      // apparently switched off. Same hang the crossbar had at (939, 215), same answer —
+      // anything slow enough to settle gets nudged off toward the middle of the pitch.
+      if (ny < -0.94 && Math.hypot(b.vx - p.vx, b.vy - p.vy) < 60) {
+        b.vx += (Math.sign(nx) || (px < C.W / 2 ? 1 : -1)) * 70;
+      }
+      // NO `continue` HERE. The head's lower arc is narrower than the torso plus the ball —
+      // 19.9px of clearance at grass level against the 28px the box wants — so resolving a
+      // low contact against the head alone leaves the ball still buried in the chest. The
+      // two shapes are one silhouette, and a contact has to come out of BOTH of them.
     }
 
     // ---- body box ----
     const halfW = C.BODY_W / 2;
-    const top = bodyTop(p);
-    const nearestX = clamp(b.x, p.x - halfW, p.x + halfW);
-    const nearestY = clamp(b.y, top, p.y);
+    const top = bodyTopAt(py);
+    const nearestX = clamp(b.x, px - halfW, px + halfW);
+    const nearestY = clamp(b.y, top, py);
     const bx = b.x - nearestX, by = b.y - nearestY;
     const bd = Math.hypot(bx, by);
-    if (bd < b.r && bd > 0.0001) {
-      if (b.power && b.power.owner !== p.index) { hitByPowerShot(m, p, b, fx); return; }
-      m.idle = 0;
-      // HEAD BOUNCES, BODY DEADENS (Adam, 2026-08-21). Running into the ball used to
-      // pinball it away, so most touches were accidents rather than decisions. Now your
-      // torso kills it and drops it at your feet, and only a kick sends it anywhere.
-      const nx = bx / bd, ny = by / bd;
-      b.x = nearestX + nx * b.r; b.y = nearestY + ny * b.r;
-      const dot = b.vx * nx + b.vy * ny;
-      if (dot < 0) { b.vx -= dot * nx; b.vy -= dot * ny; }   // cancel, do not reflect
-      b.vx = b.vx * C.BODY_DEADEN + p.vx * 0.22;             // keep a little of your momentum
-      b.vy *= C.BODY_DEADEN;
-      b.spin *= 0.5;
-      fx.hit(b.x, b.y, '#cfd8ea', 0.4);
+    let nx, ny, sx, sy;
+    if (bd > 0.0001) {
+      if (bd >= b.r) continue;                     // no contact with this player
+      nx = bx / bd; ny = by / bd; sx = nearestX; sy = nearestY;
+    } else {
+      // THE BALL'S CENTRE IS INSIDE THE TORSO — the deepest overlap there is, and the one
+      // case the old code did nothing about: it needed a non-zero distance to build a normal
+      // from, so `bd > 0.0001` silently dropped the contact. That left an unguarded slab
+      // about 32px wide and 10px tall at the feet (the head circle reaches 42px from a
+      // centre 49px up, so it stops short of the boots) through which a ball simply passed
+      // UNDERNEATH the player. Push out along the shallowest face instead — the minimum
+      // translation vector, which is what a zero-distance contact actually means.
+      //
+      // Which way out: for a box the shallower horizontal face is just the side the ball
+      // already sits on, but a player who is RUNNING has swept into it, and a ball that
+      // leaves behind their heels is a ball that went through them. So a moving player
+      // always ejects it the way they are going; only a near-stationary one falls back to
+      // the geometric answer.
+      const side = Math.abs(p.vx) > 40 ? Math.sign(p.vx) : (Math.sign(b.x - px) || 1);
+      const dh = side > 0 ? (px + halfW) - b.x : b.x - (px - halfW);
+      // Never eject UP through the torso while the ball is sitting on the grass: standing on
+      // a ball does not lift it onto your chest, and the head's lower arc already covers the
+      // top of this box anyway (it reaches to within 7px of the boots). And never eject DOWN
+      // through the grass, or the ball is left under the pitch and collideBounds puts it
+      // straight back inside the torso on the next sub-step — a trap, not a resolution.
+      // For a ball at the feet that leaves the way out that is really there: sideways.
+      // The down face lands the ball at py + r, so it is only available when THAT clears the
+      // grass — otherwise the ball is left sunk in the pitch and shoved back up next
+      // sub-step, which is the buzz this whole branch exists to avoid.
+      const du = b.y > C.GROUND_Y - b.r - 0.5 ? Infinity : b.y - top;
+      const dd = py + b.r > C.GROUND_Y - b.r ? Infinity : py - b.y;
+      if (du <= dh && du <= dd) { nx = 0; ny = -1; sx = b.x; sy = top; }
+      else if (dd <= dh)        { nx = 0; ny =  1; sx = b.x; sy = py; }
+      else                      { nx = side; ny = 0; sx = px + side * halfW; sy = b.y; }
     }
+    // A ball caught between the boots and the grass cannot be pushed DOWN — the pitch is
+    // there. Send it out of the side of the torso instead. Without this a player landing
+    // over the ball drove it up to 18px into the turf, and collideBounds spent the next
+    // sub-step shoving it back out.
+    if (ny > 0 && sy + ny * b.r > C.GROUND_Y - b.r) {
+      const side = Math.abs(p.vx) > 40 ? Math.sign(p.vx) : (Math.sign(b.x - px) || 1);
+      nx = side; ny = 0; sx = px + side * halfW; sy = b.y;
+    }
+    if (b.power && b.power.owner !== p.index) { hitByPowerShot(m, p, b, fx); return; }
+    m.idle = 0;
+    // HEAD BOUNCES, BODY DEADENS (Adam, 2026-08-21). Running into the ball used to
+    // pinball it away, so most touches were accidents rather than decisions. Now your
+    // torso kills it and drops it at your feet, and only a kick sends it anywhere.
+    b.x = sx + nx * b.r; b.y = sy + ny * b.r;
+    contactResponse(b, p, nx, ny, C.BODY_DEADEN, 0.22, 0.5);
+    fx.hit(b.x, b.y, '#cfd8ea', 0.4);
   }
 }
 

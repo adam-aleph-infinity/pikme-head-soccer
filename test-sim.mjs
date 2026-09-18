@@ -1,6 +1,6 @@
 // Physics + rules tests. Run: node test-sim.mjs
 import * as C from './shared/constants.js';
-import { createMatch, step, headY } from './shared/sim.js';
+import { createMatch, step, headY, headR } from './shared/sim.js';
 import { shotFor, SHOTS } from './shared/powershots.js';
 
 let pass = 0, fail = 0;
@@ -990,6 +990,268 @@ const run = (m, ticks, inputs = NONE) => {
      `${h.toFixed(0)}px up, goal is ${C.GOAL_H}`);
   ok('and the wind-up takes about a second and a half', C.POWER_CHARGE_TIME >= 1.2,
      `${C.POWER_CHARGE_TIME}s`);
+}
+
+// --- player/ball contact: never through, never under, never stuck -----------
+// Two reported bugs, one cause. The torso test needed a non-zero distance to build a normal
+// from (`bd > 0.0001`), so the DEEPEST overlap there is — the ball's centre inside the box —
+// was the single case that produced no response at all, leaving an unguarded slab at the
+// feet a ball passed straight underneath. And the response handed the ball 0.22 of the
+// player's run, which is less than the run: the player closed on it every tick, walked the
+// contact from the front of the torso through the middle and out the back, and re-applied
+// `vy *= 0.18` sixty times a second so the ball stopped falling and hung there.
+{
+  // Signed: how far INSIDE the silhouette the ball is, negative when it is clear by that
+  // much. The silhouette is the UNION of the head circle and the torso box, so the ball is
+  // only really clear when it is outside both.
+  const depth = (m, p) => {
+    const b = m.ball;
+    const dh = Math.hypot(b.x - p.x, b.y - headY(p));
+    const head = (headR(m, p) + C.BALL_R) - dh;
+    const cx = Math.max(p.x - C.BODY_W / 2, Math.min(b.x, p.x + C.BODY_W / 2));
+    const cy = Math.max(p.y - C.BODY_H, Math.min(b.y, p.y));
+    const body = C.BALL_R - Math.hypot(b.x - cx, b.y - cy);
+    return Math.max(head, body);
+  };
+  const embed = (m, p) => Math.max(0, depth(m, p));
+  const REST_Y = C.GROUND_Y - C.BALL_R;
+
+  // ---- a FAST PLAYER running onto the ball ---------------------------------
+  {
+    // At a dash — the quickest a player can ever move — and straight through a ball sitting
+    // on the grass. The ball has to end up in FRONT of them, every tick, for the length of
+    // the pitch. It used to be overtaken at ~227px/s and come out the back.
+    const m = fresh();
+    const p = m.players[0], b = m.ball;
+    p.x = 220; p.y = C.GROUND_Y;
+    m.players[1].x = C.W - 60;
+    b.x = 330; b.y = REST_Y; b.vx = 0; b.vy = 0;
+    let behind = 0, deepest = 0;
+    // Stop before the far goal: a goal resets both of them to the spawn spots, and comparing
+    // positions across that would be measuring the restart, not the contact.
+    for (let i = 0; i < 60 && p.x < C.W - C.GOAL_W - 120; i++) {
+      p.dashT = C.DASH_TIME; p.dashDir = 1; p.facing = 1;   // hold the dash
+      m.hitStop = 0;
+      step(m, NONE);
+      if (b.x < p.x) behind++;
+      deepest = Math.max(deepest, embed(m, p));
+    }
+    ok('a dashing player never overtakes the ball', behind === 0, `${behind} ticks with the ball behind`);
+    ok('and never ends a tick inside it', deepest < 1, `${deepest.toFixed(2)}px embedded`);
+    ok('the ball is pushed along, not run over', b.x > 330, `ball at ${b.x.toFixed(0)}`);
+  }
+
+  // ---- a FAST BALL into a standing player ----------------------------------
+  {
+    // Flat out at the speed ceiling, into someone who is not moving. It must not come out
+    // the other side.
+    const m = fresh();
+    const p = m.players[0], b = m.ball;
+    p.x = 600; p.y = C.GROUND_Y;
+    m.players[1].x = 80;
+    b.x = 300; b.y = C.GROUND_Y - 40; b.vx = C.BALL_MAX_SPEED; b.vy = 0;
+    let through = false, deepest = 0;
+    for (let i = 0; i < 40; i++) {
+      m.hitStop = 0;
+      step(m, NONE);
+      if (b.x > p.x + C.BODY_W) through = true;
+      deepest = Math.max(deepest, embed(m, p));
+    }
+    ok('a ball at the speed ceiling does not tunnel through a player', !through,
+       `ball ${b.x.toFixed(0)} vs player ${p.x.toFixed(0)}`);
+    ok('and never ends a tick inside them', deepest < 1, `${deepest.toFixed(2)}px embedded`);
+    ok('a stationary player deadens it', Math.abs(b.vx) < C.BALL_MAX_SPEED * 0.5,
+       `vx=${b.vx.toFixed(0)} of ${C.BALL_MAX_SPEED}`);
+  }
+
+  // ---- UNDERNEATH a grounded player ----------------------------------------
+  {
+    // Rolling flat along the grass, straight at the boots. The body box reaches the feet
+    // line, so there is no gap to go through — but the ball's centre ends up INSIDE that
+    // box, which is exactly the case the old code dropped.
+    const m = fresh();
+    const p = m.players[0], b = m.ball;
+    p.x = 520; p.y = C.GROUND_Y;
+    m.players[1].x = 80;
+    b.x = 300; b.y = REST_Y; b.vx = 900; b.vy = 0;
+    let through = false;
+    for (let i = 0; i < 60; i++) { m.hitStop = 0; step(m, NONE); if (b.x > p.x + C.BODY_W) through = true; }
+    ok('a ball cannot roll underneath a grounded player', !through,
+       `ball ${b.x.toFixed(0)} vs player ${p.x.toFixed(0)}`);
+  }
+  {
+    // The measured dead zone: a player whose boots are a few px off the grass — landing, or
+    // hopping over the ball. The head circle reaches 42px from a centre 49px up, so it stops
+    // short of the feet, and the torso interior was doing nothing. A 32x10px slab of the
+    // silhouette was a hole you could roll a ball through.
+    const m = fresh();
+    const p = m.players[0], b = m.ball;
+    m.players[1].x = 80;
+    b.x = 300; b.y = REST_Y; b.vx = 900; b.vy = 0;
+    let through = false;
+    for (let i = 0; i < 60; i++) {
+      p.x = 520; p.y = C.GROUND_Y - 5; p.vx = 0; p.vy = 0; p.onGround = false;   // boots just clear
+      m.hitStop = 0;
+      step(m, NONE);
+      if (b.x > p.x + C.BODY_W) through = true;
+    }
+    ok('nor underneath one whose feet are just off the grass', !through,
+       `ball ${b.x.toFixed(0)} vs player ${p.x.toFixed(0)}`);
+  }
+
+  // ---- a JUMPING player ----------------------------------------------------
+  {
+    // Jump first, then fire at the head once they are off the ground — aiming at the grass
+    // and calling it a collision test would only prove that a jump clears a rolling ball.
+    const m = fresh();
+    const p = m.players[0], b = m.ball;
+    p.x = 560; p.y = C.GROUND_Y;
+    m.players[1].x = 80;
+    b.x = -500; b.y = 0; b.vx = 0; b.vy = 0;              // parked off-pitch until the apex
+    let airborne = 0;
+    for (let i = 0; i < 40 && (p.onGround || p.vy < 0); i++) {
+      m.hitStop = 0;
+      step(m, [{ jump: i < 3 }, {}]);
+      if (!p.onGround) airborne++;
+    }
+    ok('the player actually left the ground', airborne > 5 && !p.onGround,
+       `${airborne} airborne ticks, onGround=${p.onGround}`);
+    b.x = p.x - 90; b.y = headY(p); b.vx = 900; b.vy = 0;  // fired at the head, at the apex
+    let through = false, deepest = 0;
+    for (let i = 0; i < 30; i++) {
+      m.hitStop = 0;
+      step(m, NONE);
+      if (b.x > p.x + C.BODY_W) through = true;
+      deepest = Math.max(deepest, embed(m, p));
+    }
+    ok('a ball into a jumping player does not pass through', !through,
+       `ball ${b.x.toFixed(0)} vs player ${p.x.toFixed(0)}`);
+    ok('and is never left embedded in them', deepest < 1, `${deepest.toFixed(2)}px embedded`);
+  }
+
+  // ---- SEPARATION: the ball keeps obeying gravity ---------------------------
+  {
+    // The stick. A ball taken on the chest by a running player used to have `vy *= 0.18`
+    // applied on every tick of the overlap, which beats gravity — so it hung at chest
+    // height and travelled sideways with the player as if bolted on. It has to fall.
+    const m = fresh();
+    const p = m.players[0], b = m.ball;
+    p.x = 240; p.y = C.GROUND_Y;
+    m.players[1].x = C.W - 60;
+    b.x = 320; b.y = C.GROUND_Y - 70; b.vx = 0; b.vy = 0;
+    let landed = -1;
+    for (let i = 0; i < 120; i++) {
+      m.hitStop = 0;
+      step(m, [{ right: true }, {}]);
+      if (landed < 0 && b.y > REST_Y - 1.5) landed = i;
+    }
+    ok('a ball taken on the run still falls to the grass', landed >= 0,
+       `ball stopped at y=${b.y.toFixed(1)}, rest is ${REST_Y}`);
+    ok('and it gets there promptly', landed >= 0 && landed < 90, `${landed} ticks`);
+  }
+  {
+    // And it comes OFF. Run into the ball, then stand still: the ball must roll away rather
+    // than stay welded at the contact distance for the rest of the match.
+    const m = fresh();
+    const p = m.players[0], b = m.ball;
+    p.x = 240; p.y = C.GROUND_Y;
+    m.players[1].x = C.W - 60;
+    b.x = 300; b.y = REST_Y; b.vx = 0; b.vy = 0;
+    for (let i = 0; i < 60; i++) { m.hitStop = 0; step(m, [{ right: true }, {}]); }
+    const gapWhileRunning = b.x - p.x;
+    for (let i = 0; i < 90; i++) { m.hitStop = 0; step(m, NONE); }     // let go of everything
+    ok('the ball separates once the player stops', b.x - p.x > gapWhileRunning + 8,
+       `gap ${gapWhileRunning.toFixed(1)} -> ${(b.x - p.x).toFixed(1)}`);
+    ok('and it is rolling, not stuck to them', embed(m, p) < 1, `${embed(m, p).toFixed(2)}px embedded`);
+  }
+  {
+    // Dropped dead on the crown. That is the one spot where the contact normal points
+    // straight up and gravity has nothing to roll the ball off with, so it used to balance
+    // there indefinitely — the clearest form of "the ball sticks and its physics stop".
+    // It has to come off the head and reach the grass.
+    const m = fresh();
+    const p = m.players[0], b = m.ball;
+    p.x = 400; p.y = C.GROUND_Y;
+    m.players[1].x = 80;
+    b.x = p.x; b.y = C.GROUND_Y - 200; b.vx = 0; b.vy = 300;
+    let reached = -1, under = 0, deepest = 0;
+    for (let i = 0; i < 180; i++) {
+      m.hitStop = 0;
+      step(m, NONE);
+      if (reached < 0 && b.y > REST_Y - 1) reached = i;
+      if (b.y > REST_Y + 0.5) under++;
+      deepest = Math.max(deepest, embed(m, p));
+    }
+    ok('a ball dropped on a head does not balance there', reached >= 0,
+       `never reached the grass; ended at y=${b.y.toFixed(1)}, rest is ${REST_Y}`);
+    ok('it rolls off promptly', reached >= 0 && reached < 60, `${reached} ticks`);
+    ok('it is never pushed under the grass', under === 0, `${under} ticks below the pitch`);
+    ok('and never ends a tick inside the player', deepest < 1, `${deepest.toFixed(2)}px embedded`);
+  }
+
+  {
+    // A player standing squarely ON a resting ball. It is pinned between the boots and the
+    // grass, so the only way out is sideways — it must not be lifted onto their chest, and
+    // it must not be pushed down through the pitch.
+    const m = fresh();
+    const p = m.players[0], b = m.ball;
+    m.players[1].x = 80;
+    b.x = 400; b.y = REST_Y; b.vx = 0; b.vy = 0;
+    let lifted = 0, under = 0;
+    for (let i = 0; i < 40; i++) {
+      p.x = 400; p.y = C.GROUND_Y; p.vx = 0; p.vy = 0; p.onGround = true;   // stand on it
+      m.hitStop = 0;
+      step(m, NONE);
+      if (b.y < REST_Y - 6) lifted++;
+      if (b.y > REST_Y + 0.5) under++;
+    }
+    ok('standing on a ball squeezes it out sideways', Math.abs(b.x - 400) > C.BODY_W / 2,
+       `ball moved to ${b.x.toFixed(1)} from 400`);
+    ok('it is not lifted onto the chest', lifted === 0, `${lifted} ticks above the grass`);
+    ok('and not pushed through the pitch', under === 0, `${under} ticks below the grass`);
+    ok('and it is left clear of the player', embed(m, p) < 1, `${embed(m, p).toFixed(2)}px embedded`);
+  }
+
+  // ---- SOAK: no embedding anywhere, over a long random match ----------------
+  {
+    // The assertions above each aim at one geometry. This one just plays: both players
+    // mashing buttons for half a minute of match time, asserting only that the ball never
+    // ends a tick inside a player it is supposed to collide with. Seeded, so a failure is
+    // reproducible.
+    let seed = 20260918;
+    const rnd = () => ((seed = (seed * 1103515245 + 12345) & 0x7fffffff) / 0x7fffffff);
+    const m = fresh({ duration: 9999 });
+    let deepest = 0, worst = null;
+    const held = [{}, {}];
+    for (let i = 0; i < 4000; i++) {
+      for (let s = 0; s < 2; s++) {
+        if (rnd() < 0.12) held[s] = { left: rnd() < 0.35, right: rnd() < 0.35,
+                                      jump: rnd() < 0.25, kick: rnd() < 0.3 };
+      }
+      // A hit-stop or a kickoff freeze makes step() return before ANY physics runs, so the
+      // ball stays wherever the freeze caught it — including mid-contact. Has to be read
+      // before the step, not after: the last frame of a hit-stop ends with hitStop back at 0.
+      const frozen = m.hitStop > 0 || m.freeze > 0;
+      step(m, held);
+      // Skip the frames where the sim deliberately owns or ignores the ball: a wind-up holds
+      // it over the player's head, and a knocked-down or rooted player is passed through by
+      // design (see resolveBallPlayers).
+      if (frozen || m.freeze > 0 || m.hitStop > 0) continue;
+      // And skip a CONTESTED ball. Two players are held 29px apart by separatePlayers while
+      // each wants 28px of clearance, so a ball between them has no position that satisfies
+      // both — it is over-constrained, not unresolved, and the resolver settles it in favour
+      // of whichever player it handled last. What this soak is for is the single-player case.
+      if (m.players.filter((p) => depth(m, p) > -1).length > 1) continue;
+      for (const p of m.players) {
+        if (p.charge > 0 || p.knocked > 0) continue;
+        if (m.ball.power && m.ball.power.owner !== p.index && p.rooted > 0) continue;
+        const e = embed(m, p);
+        if (e > deepest) { deepest = e; worst = { i, p: p.index }; }
+      }
+    }
+    ok('4000 ticks of random play leave the ball embedded in nobody', deepest < 1.5,
+       `${deepest.toFixed(2)}px at tick ${worst?.i} on player ${worst?.p}`);
+  }
 }
 
 console.log(`test-sim: ${pass} passed, ${fail} failed`);

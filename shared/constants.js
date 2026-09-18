@@ -118,6 +118,16 @@ export let HEAD_DEADEN = 0.58;       // vs the body's 0.18. Started at 0.34, whi
 // Where the header ends and the chest begins, as the vertical component of the contact
 // normal. 0.35 puts the split a bit below the head's equator.
 export let DEADEN_ZONE = 0.35;
+// How hard the ball has to be going INTO a player, along the contact normal, for the touch
+// to count as a strike and take the deaden. Below it the ball is merely resting or sliding
+// on the surface and only gets pushed out, with its pace left alone.
+//
+// This threshold is the difference between a touch and a state. On a curved surface — the
+// side of a head — gravity shows up as motion INTO the surface every single tick, so a
+// deaden with no floor under it re-scrubbed the ball's speed sixty times a second and the
+// ball simply hung on the player instead of rolling off. Same shape of cutoff as the ones
+// on the grass bounce (60) and the crossbar (90), and the same reason.
+export let CONTACT_IMPACT_V = 60;
 // ── THE BOOT, AIMED ──────────────────────────────────────────────────────────
 // A kick used to fire dead flat along the way you were facing, which meant the only way to
 // put the ball in the net was to be standing in exactly the right place. Now it BOWS toward
@@ -522,6 +532,7 @@ export function setPace(k) {
 // gives every module a live binding, so a slider change lands on the very next tick.
 const SETTERS = {
   DEADEN_ZONE: (v) => { DEADEN_ZONE = v; },
+  CONTACT_IMPACT_V: (v) => { CONTACT_IMPACT_V = v; },
   BODY_DEADEN: (v) => { BODY_DEADEN = v; },
   HEAD_DEADEN: (v) => { HEAD_DEADEN = v; },
   LOB_LIFT: (v) => { LOB_LIFT = v; },
@@ -666,6 +677,7 @@ export function tune(patch) {
 export function snapshot() {
   return {
     DEADEN_ZONE,
+    CONTACT_IMPACT_V,
     BODY_DEADEN,
     LOB_LIFT,
     LOB_DRIVE,
