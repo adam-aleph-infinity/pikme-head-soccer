@@ -1076,69 +1076,65 @@ function drawGuardian(g, cx, top, bot) {
 }
 
 function drawGoal(g, left) {
-  // A GOAL AS A BOX, not as a panel with a slope on it.
+  // A GOAL AS A BOX, AND THE BOX IS ONE SHAPE PUSHED ONE STEP DEEPER.
   //
-  // The earlier pass drew one quad receding backwards, which is a flat rectangle in
-  // perspective — it never read as 3D because a real goal is a box and you can see three of
-  // its faces: the near side net, the ROOF, and the back. Those three, meeting at shared
-  // edges, are what the eye reads as volume. Shading would not have fixed the previous one;
-  // the missing thing was geometry.
+  // The pass before this one drew two frames that disagreed with each other: the far one was
+  // TALLER and HIGHER than the near one, and offset downwards as well. Nearer things are
+  // bigger, so the eye read the tall frame as the near one, then hit the offset pointing the
+  // other way and gave up. That is why it did not look like a box and why the back never
+  // showed — the "back" had ended up as a 20px splinter jammed against the canvas edge.
   //
-  // Two directions, then everything follows:
-  //   DEPTH  front (the mouth, facing the pitch) -> back (the rear, at the screen edge)
-  //   WIDTH  near side (towards the camera) -> far side, projected up and slightly back
+  // This is an OBLIQUE projection, the one pixel art has always used: the far frame is the
+  // near frame translated, not shrunk. Same size, one step along the depth axis. It is not
+  // photographic — a photographic goal would need its far posts to shrink and the pitch to
+  // recede with them, and this pitch has no depth to recede into — but it is CONSISTENT,
+  // and consistency is what the eye reads as solid.
+  //
+  // THREE AXES, and every corner falls out of them:
+  //   depth   lineX -> wallX, along the ground: the net's front-to-back. Horizontal, because
+  //           the camera is side on and the sim scores on a vertical line.
+  //   height  GROUND_Y -> top.
+  //   width   post to post, running INTO the screen, so it projects to ONE offset (wx, wy).
   //
   // EVERY LINE IS AT LEAST 2 WORLD PX. The canvas renders at half resolution on purpose
   // (PIXEL = 2), so a 1px cord is half a texel and comes out as grey mush — which is exactly
   // what "the net looks blurry" was. A readable net here means FEWER, fatter cords with real
   // gaps, not more of them.
-  const x0 = left ? 0 : C.W - C.GOAL_W;
+  const lineX = left ? C.GOAL_W : C.W - C.GOAL_W;   // the goal line — the near post stands on it
+  const wallX = left ? C.POST_R : C.W - C.POST_R;   // the back of the net, hard against the wall
+  const inward = left ? 1 : -1;                     // towards the middle of the pitch
   const top = C.GROUND_Y - C.GOAL_H;
-  const frontX = left ? x0 + C.GOAL_W : x0;
-  const sgn = left ? -1 : 1;                      // which way "back" is on screen
-  // The box has to fit inside the goal's own footprint, and it needs room for TWO horizontal
-  // things: the depth, and the sideways shift of the far side. Spending all of GOAL_W on
-  // depth put the far posts at negative x on the left goal, where the canvas simply cut them
-  // off and the box lost a corner. 74% depth + 22% shift = 96%, so the far rear post lands
-  // just inside the touchline instead of past it. Pointing the shift the other way, into the
-  // pitch, was tried too: it draws structure in FRONT of the goal line, which is worse than
-  // ugly — it lies about where the line is.
-  // 0.78 + the 0.22 sideways shift = exactly 1.0, so the REARMOST post lands on x0 — flush
-  // against the back wall. At 0.74 it stopped a few px short and the goal read as floating
-  // away from the hoardings instead of standing against them.
-  const depth  = C.GOAL_W * 0.78;
-  const backX  = frontX + sgn * depth;
   const bar = C.POST_R * 2;
 
-  // EVERY FOOT IS ON THE GROUND LINE. This is the rule the previous pass broke: it offset the
-  // whole far side up by a constant, feet included, so the back corners hung in mid-air. In a
-  // real 3/4 view that is correct — the ground recedes upward — but nothing else in this game
-  // recedes. Players, the ball and the grass all live on ONE line, so a goal whose corners
-  // float reads as a bug rather than as perspective.
+  // The width axis runs away from the camera, so it projects to a step towards the vanishing
+  // point — which for a left goal is off to the RIGHT — and a step UP the screen. Pointing it
+  // the other way, out towards the touchline, is what put the far posts off the canvas and
+  // cost the left goal a corner.
   //
-  // So the offset TAPERS: full at the top, almost nothing at the foot. The far posts lean back
-  // instead of levitating, which is also how a real goal is built — uprights at the mouth, and
-  // the net slung back and down to a bar lying on the grass.
-  const rTop = top + C.GOAL_H * 0.10;      // the rear frame is shorter than the mouth…
-  const rBot = C.GROUND_Y;                 // …but it still stands on the grass
-  const zx = sgn * C.GOAL_W * 0.22;
-  // POSITIVE: the offset side hangs BELOW the base one. Up put the open end away from the
-  // camera — you were looking at the goal's back shoulder, over the top of it, towards the
-  // crowd. Down swings it round: the mouth is the near edge, and you look INTO the net.
-  const zy = C.GOAL_H * 0.15;
-  const FOOT = 0.45;                       // how much of the sideways shift survives to the floor
+  // The RATIO of these two is the camera angle, and it is the number that took the most
+  // looking at. Steep (0.30 / 0.13, a 42° step) turns the back net's cords into near-diagonal
+  // hatching and lifts the far posts so far off the grass that they stand in the crowd.
+  // Shallow reads as a photograph but leaves no roof to see. 0.40 / 0.13 is 34°: a roof band
+  // wide enough to say "box", a mouth you can see into, and far feet only 25px off the line.
+  const wx = inward * C.GOAL_W * 0.40;
+  const wy = -C.GOAL_H * 0.13;
 
-  // near-side corners
-  const nFT = [frontX, top], nBT = [backX, rTop], nBB = [backX, rBot], nFB = [frontX, C.GROUND_Y];
-  const fFT = [frontX + zx, top + zy],  fBT = [backX + zx, rTop + zy];
-  const fFB = [frontX + zx * FOOT, C.GROUND_Y], fBB = [backX + zx * FOOT, C.GROUND_Y];
+  // The NEAR frame: all four corners real. Its foot is the grass, its bar is the bar the sim
+  // bounces the ball off, and its front post is the goal line itself. Nothing here is fudged,
+  // so the thing the player aims at is the thing the rules use.
+  const nFT = [lineX, top], nFB = [lineX, C.GROUND_Y];
+  const nBT = [wallX, top], nBB = [wallX, C.GROUND_Y];
+  // …and the FAR frame, the same rectangle one step deeper.
+  const off = (p) => [p[0] + wx, p[1] + wy];
+  const fFT = off(nFT), fFB = off(nFB), fBT = off(nBT), fBB = off(nBB);
 
   const poly = (pts) => { g.beginPath(); g.moveTo(pts[0][0], pts[0][1]);
     for (let i = 1; i < pts.length; i++) g.lineTo(pts[i][0], pts[i][1]); g.closePath(); };
   const line = (a, b) => { g.beginPath(); g.moveTo(a[0], a[1]); g.lineTo(b[0], b[1]); g.stroke(); };
   const mix = (a, b, t) => [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t];
+  const wash = (pts, c, a) => { poly(pts); g.fillStyle = c; g.globalAlpha = a; g.fill(); g.globalAlpha = 1; };
 
-  // A mesh across any quad, walking both pairs of opposite edges. One routine for all three
+  // A mesh across any quad, walking both pairs of opposite edges. One routine for all four
   // faces, so the cords line up where the faces meet instead of drifting apart at the seam.
   function mesh(A, B, C2, D, nAB, nBC, alpha) {
     g.save(); poly([A, B, C2, D]); g.clip();
@@ -1151,19 +1147,27 @@ function drawGoal(g, left) {
 
   g.save();
 
-  // 1. BACK face, furthest away and therefore dimmest.
-  poly([nBT, fBT, fBB, nBB]); g.fillStyle = '#0a1220'; g.globalAlpha = 0.40; g.fill(); g.globalAlpha = 1;
-  mesh(nBT, fBT, fBB, nBB, 5, 14, 0.82);
+  // 1. THE BACK, furthest away. It is a full panel now, from the wall post across to the far
+  //    one, floor to bar — not the splinter it used to be. You see it through the near net,
+  //    which is what makes the inside of a goal look deep.
+  wash([nBT, fBT, fBB, nBB], '#0a1220', 0.34);
+  mesh(nBT, fBT, fBB, nBB, 3, 20, 0.58);
 
-  // 2. ROOF, seen from below and slightly outside. This face is the one that says "box".
-  poly([nFT, nBT, fBT, fFT]); g.fillStyle = '#0a1220'; g.globalAlpha = 0.26; g.fill(); g.globalAlpha = 1;
-  mesh(nFT, nBT, fBT, fFT, 9, 4, 0.72);
+  // 2. THE FLOOR. Not a net — a real goal has none — but the shadow the box casts on its own
+  //    ground. It is also what stops the far posts reading as floating: a foot with a shadow
+  //    running back to it is standing on something.
+  wash([nBB, fBB, fFB, nFB], '#04080f', 0.52);
+  mesh(nBB, fBB, fFB, nFB, 2, 9, 0.16);
 
-  // 3. NEAR side, the big one the ball is seen through. Lightest wash of the three so the
+  // 3. THE ROOF, seen from just below. This face and the floor are the two that say "box".
+  wash([nFT, nBT, fBT, fFT], '#0a1220', 0.24);
+  mesh(nFT, nBT, fBT, fFT, 9, 3, 0.70);
+
+  // 4. THE NEAR SIDE, the big one the ball is seen through. Lightest wash of the four so the
   //    crowd still carries on behind it — a net you cannot see the stadium through reads as
   //    a hole, which is what the opaque cavity this replaced always looked like.
-  poly([nFT, nBT, nBB, nFB]); g.fillStyle = '#0a1220'; g.globalAlpha = 0.16; g.fill(); g.globalAlpha = 1;
-  mesh(nFT, nBT, nBB, nFB, 9, 22, 0.52);
+  wash([nFT, nBT, nBB, nFB], '#0a1220', 0.14);
+  mesh(nFT, nBT, nBB, nFB, 9, 20, 0.50);
 
   g.restore();
 
@@ -1171,32 +1175,33 @@ function drawGoal(g, left) {
   g.save();
   g.lineCap = 'round'; g.lineJoin = 'round';
 
-  g.strokeStyle = '#9fb2c9'; g.lineWidth = bar * 0.55;
+  g.strokeStyle = '#8598ae'; g.lineWidth = bar * 0.44;
   line(fFT, fBT);                         // far top rail
-  line(fBT, fBB);                         // far rear upright
-  line(fFT, fFB);                         // far post
-  line(fFB, fBB);                         // far ground rail
+  line(fBT, fBB);                         // far post, at the wall
+  line(fBB, fFB);                         // far ground rail
+  line(fFB, fFT);                         // far post, on the line
 
-  g.strokeStyle = '#c9d8ea'; g.lineWidth = bar * 0.6;
-  line(nBT, fBT);                         // rear crossbar, across the goal's width
-  line(nBB, fBB);                         // rear ground bar
+  // The four members that run from the near frame to the far one — the goal's actual width.
+  g.strokeStyle = '#c3d3e8'; g.lineWidth = bar * 0.6;
+  line(nBT, fBT);                         // back top bar
+  line(nBB, fBB);                         // back ground bar
+  line(nFB, fFB);                         // the goal line, post foot to post foot
 
-  g.strokeStyle = '#e6eefa'; g.lineWidth = bar * 0.7;
-  line(nFB, nBB);                         // near ground rail
-  line(nBT, nBB);                         // near rear upright
+  // THE CROSSBAR: post to post across the mouth. Bright, because it is the mouth's top edge.
+  g.strokeStyle = '#eef5ff'; g.lineWidth = bar * 0.78;
+  line(nFT, fFT);
 
-  // The near top rail is the bar the ball actually bounces off across the whole depth, so it
-  // is drawn as the heaviest member after the mouth itself.
-  g.strokeStyle = '#f7fbff'; g.lineWidth = bar * 0.95;
+  g.strokeStyle = '#e6eefa'; g.lineWidth = bar * 0.8;
+  line(nBT, nBB);                         // near post, at the wall
+  line(nBB, nFB);                         // near ground rail
+
+  // The near top rail is the bar the ball actually bounces off, and the near front post is
+  // the goal line. Brightest and thickest, drawn last so nothing crosses in front of them.
+  g.strokeStyle = '#ffffff'; g.lineWidth = bar;
   line(nFT, nBT);
-
-  // THE MOUTH: the crossbar across the goal's width, and the post under it. Nearest the
-  // camera, brightest, thickest, drawn last so nothing crosses in front of it.
-  g.lineWidth = bar;
-  line(nFT, fFT);                         // crossbar
-  line(nFT, nFB);                         // post
+  line(nFT, nFB);
   g.fillStyle = '#ffffff';
-  g.beginPath(); g.arc(nFT[0], nFT[1], bar * 0.62, 0, 6.2832); g.fill();
+  g.beginPath(); g.arc(nFT[0], nFT[1], bar * 0.6, 0, 6.2832); g.fill();
 
   g.fillStyle = '#ffffff88';               // goal line on the grass
   g.fillRect(left ? 0 : C.W - C.GOAL_W, C.GROUND_Y - 2, C.GOAL_W, 3);
