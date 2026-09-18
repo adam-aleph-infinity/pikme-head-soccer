@@ -1190,15 +1190,20 @@ function drawGoal(g, left) {
 
   g.strokeStyle = '#76889d'; g.lineWidth = bar * 0.38;
   line(fFT, fBT);                         // far top rail
-  line(fBT, fBB);                         // far post, at the wall
   line(fBB, fFB);                         // far ground rail
   line(fFB, fFT);                         // far post, on the line
 
-  // The bars that run from the near frame to the far one — the goal's actual width. The two
-  // at the bottom are missing on purpose: both frames now stand on GROUND_Y, so a bar from
-  // one foot to the other lies along the ground line and the rails already drew it.
-  g.strokeStyle = '#c3d3e8'; g.lineWidth = bar * 0.6;
-  line(nBT, fBT);                         // back top bar
+  // THE TWO AT THE BACK, in white. They were the last members still carrying depth shading —
+  // #c3d3e8 and #76889d — and next to a frame that is otherwise white they did not read as
+  // "further away", they read as paint someone forgot to finish. Same members, same widths,
+  // same order; colour only.
+  //
+  // (The bars from one foot to the other are missing on purpose: both frames stand on
+  // GROUND_Y now, so a bar between the feet lies along the ground line and the rails
+  // already drew it.)
+  g.strokeStyle = '#ffffff';
+  g.lineWidth = bar * 0.38; line(fBT, fBB);   // far post, at the wall
+  g.lineWidth = bar * 0.6;  line(nBT, fBT);   // back top bar
 
   // THE CROSSBAR: post to post across the mouth. Bright, because it is the mouth's top edge.
   g.strokeStyle = '#eef5ff'; g.lineWidth = bar * 0.78;
