@@ -95,6 +95,10 @@
          blank in WKWebView, so the one thing that MUST survive the app is an <img>/CSS layer. -->
     <div class="head" id="head0"><i></i></div>
     <div class="head" id="head1"><i></i></div>
+    <!-- The near net, and only the near net, over the heads. A head is DOM and the canvas
+         below can never draw on one, so a player standing INSIDE the goal would have their
+         body behind the net and their face in front of it. See drawHeadNet in game.js. -->
+    <canvas id="cvnet"></canvas>
 
     <div class="hud">
       <div class="meter"><div class="gauge g0"><div class="fill"></div><span class="nm"></span></div></div>

@@ -12,6 +12,7 @@ import { createSkills, stepSkills, wipeSkills, wallUp, spendSuperKick, headScale
          packSkills, unpackSkills } from './skills.js';
 import { createPickups, stepPickups, collectPickups, wipePickups, applyMagnet, spendShield,
          packPickups, unpackPickups, puHeadScale, puJump, puMaxJumps } from './powerups.js';
+import { walkBounds, barY, barCeiling } from './goalbox.js';
 
 // A player's geometry, derived (never stored) so nothing can drift out of sync.
 // `y` is the FEET line; the body box hangs above it and the head sits on the body.
@@ -223,7 +224,7 @@ function stepPlayer(m, p, input, dt, fx) {
   if (p.knocked > 0) {
     p.knocked -= dt;
     p.vx *= 0.86;
-    integrate(p, dt, playerGrav(m, p.index), puMaxJumps(m, p.index));
+    integrate(p, dt, playerGrav(m, p.index), puMaxJumps(m, p.index), headR(m, p));
     p.prev = { ...input };
     return;                             // knocked down = no input at all
   }
@@ -335,14 +336,14 @@ function stepPlayer(m, p, input, dt, fx) {
     }
   }
 
-  integrate(p, dt, playerGrav(m, p.index), puMaxJumps(m, p.index));
+  integrate(p, dt, playerGrav(m, p.index), puMaxJumps(m, p.index), headR(m, p));
   p.prev = { ...input };
 }
 
 // `gm` is the spectacle's gravity multiplier for this player: lighter under a moon phase,
 // heavier as a robot. `jumps` is how many the pickups say they get back on landing. Both
 // are arguments rather than lookups so integrate() stays a pure function of the player.
-function integrate(p, dt, gm = 1, maxJumps = C.MAX_JUMPS) {
+function integrate(p, dt, gm = 1, maxJumps = C.MAX_JUMPS, hr = C.HEAD_R) {
   // Falling faster than you rose is what stops a jump reading as floaty.
   p.vy += C.PLAYER_GRAV * gm * (p.vy > 0 ? C.FALL_MULT : 1) * dt;
   p.x += p.vx * dt;
@@ -356,10 +357,45 @@ function integrate(p, dt, gm = 1, maxJumps = C.MAX_JUMPS) {
   } else {
     p.onGround = false;
   }
-  // Players hold the goal LINE but never stand inside the net — otherwise the
-  // right answer to every match is "park in the goal and never move".
-  const lo = C.GOAL_W + C.BODY_W / 2;
-  const hi = C.W - C.GOAL_W - C.BODY_W / 2;
+  applyBounds(p, hr);
+}
+
+// THE GOAL IS A ROOM, NOT A WALL — AND IT HAS A CEILING.
+//
+// Both players used to be clamped at the goal LINE, which put an invisible pane of glass
+// across the mouth of a goal you can see straight into: you could stand on the line and never
+// in the net, and the net you could never reach was drawn in front of you anyway. The mouth
+// is a doorway now. The back of the net is the wall, and the CROSSBAR is the ceiling.
+//
+// The bar is the same one the ball has always bounced off — `bounceOffCrossbar` below and
+// `barCeiling` in goalbox.js are the same capsule, radius POST_R, laid along y = barY across
+// the goal's depth. A head meets it exactly where a ball does, which is the only way the two
+// can agree about where the roof of the net is.
+//
+// IT IS RESOLVED STRAIGHT DOWN, not out along the contact normal the way the ball is. A normal
+// push would also shove the player sideways — up to 16px in a frame for a head clipping the
+// bar's end — and a body that slides sideways when you jump is a worse bug than the one this
+// fixes. Down is the only direction a ceiling needs.
+//
+// `hr` is the player's REAL head radius, so a big-head pickup meets the bar where its own head
+// is rather than where a nominal one would be. It is an argument rather than a lookup so this
+// stays a pure function of the player.
+function applyBounds(p, hr = C.HEAD_R) {
+  const hOff = p.y - headYAt(p.y);              // feet line to head centre; a constant 49px
+  const ceil = barCeiling(p.x, hr) + hOff;      // …as a feet line. -Infinity out on the pitch
+  // The guard is for a mouth tuned shorter than a player is tall: a ceiling under the grass
+  // would fight the ground clamp forever. Such a goal is simply one nobody can stand in, and
+  // the bounds below are what keep them out of it.
+  if (ceil <= C.GROUND_Y && p.y < ceil) {
+    p.y = ceil;
+    if (p.vy < 0) p.vy = 0;                     // the bump: the rise stops, gravity does the rest
+  }
+  // …and now, standing where they ended up: is there room to be IN the goal? The test is the
+  // crown against the underside of the bar, and under the bar it is the same number the
+  // ceiling just produced, so a player pinned against the bar inside the net reads as "under
+  // it" and keeps the doorway. Miss that and they would be flung out sideways mid-jump.
+  const crown = p.y - hOff - hr;
+  const { lo, hi } = walkBounds(C.BODY_W, crown >= barY() + C.POST_R - 1e-6);
   if (p.x < lo) { p.x = lo; if (p.vx < 0) p.vx = 0; }
   if (p.x > hi) { p.x = hi; if (p.vx > 0) p.vx = 0; }
 }
@@ -372,6 +408,11 @@ function separatePlayers(m) {
   if (ad < min && ad > 0.0001) {
     const push = (min - ad) / 2 * Math.sign(d);
     a.x -= push; b.x += push;
+    // …and back inside the world. The push happens after both players have already been
+    // bounded, so two bodies jammed into the same corner used to be shoved half a body width
+    // THROUGH the back of the net. They stay overlapped for a tick instead, which nobody can
+    // see, rather than standing behind the goal, which everybody can.
+    applyBounds(a, headR(m, a)); applyBounds(b, headR(m, b));
   }
 }
 
@@ -500,9 +541,13 @@ function collideBounds(m, b, fx) {
     if (b.x < b.r) { b.x = b.r; b.vx = Math.abs(b.vx) * C.BALL_WALL_BOUNCE; }
     if (b.x > C.W - b.r) { b.x = C.W - b.r; b.vx = -Math.abs(b.vx) * C.BALL_WALL_BOUNCE; }
   } else {
-    // back of the net
-    if (b.x < b.r) { b.x = b.r; b.vx = Math.abs(b.vx) * 0.2; }
-    if (b.x > C.W - b.r) { b.x = C.W - b.r; b.vx = -Math.abs(b.vx) * 0.2; }
+    // BACK OF THE NET, and it is the frame's rear post rather than the screen edge. Those are
+    // POST_R apart, which is nothing to the physics and everything to the picture: the back
+    // rail is drawn at POST_R, so a ball stopping at the edge of the canvas was a ball resting
+    // half way THROUGH the back of the goal it had just gone into.
+    const back = b.r + C.POST_R;
+    if (b.x < back) { b.x = back; b.vx = Math.abs(b.vx) * 0.2; }
+    if (b.x > C.W - back) { b.x = C.W - back; b.vx = -Math.abs(b.vx) * 0.2; }
   }
 
   // crossbars: a full bar over each net, plus the front post it hangs off

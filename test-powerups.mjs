@@ -807,7 +807,10 @@ function askForSpawn(m, ax = 300, bx = 700) {
              { left: i % 33 < 16, jump: i % 29 === 0, kick: i % 17 === 0 }]);
     m.events.length = 0;
     for (const p of m.players) {
-      if (p.y > C.GROUND_Y + 0.5 || p.x < C.GOAL_W || p.x > C.W - C.GOAL_W) bad++;
+      // The goal is a room a player may stand in, so the wall that matters is the BACK of the
+      // net rather than the goal line (shared/goalbox.js).
+      const wall = C.POST_R + C.BODY_W / 2;
+      if (p.y > C.GROUND_Y + 0.5 || p.x < wall || p.x > C.W - wall) bad++;
       if (p.jumps > C.MAX_JUMPS + Math.round(C.PU_SPRING_JUMPS)) bad++;
     }
     if (m.pu.eff.some((v) => v < 0)) bad++;

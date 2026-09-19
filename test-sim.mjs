@@ -169,10 +169,16 @@ const run = (m, ticks, inputs = NONE) => {
   ok('double-tap dashes', p.dashT > 0 && Math.abs(p.vx) > C.PLAYER_SPEED, `vx=${p.vx.toFixed(0)}`);
 }
 {
+  // A player walks INTO their own goal and is stopped by the BACK of the net, not by the goal
+  // line — the mouth is a doorway now, see shared/goalbox.js. test-goal.mjs owns the rest of
+  // the room (the crossbar ceiling, no entry from above, no teleports); this is the one line
+  // that used to say the opposite and has to keep saying the new thing.
   const m = fresh();
   run(m, 400, [{ left: true }, { right: true }]);
-  ok('player 0 stops at its goal line', m.players[0].x >= C.GOAL_W + C.BODY_W / 2 - 0.01, `x=${m.players[0].x}`);
-  ok('player 1 stops at its goal line', m.players[1].x <= C.W - C.GOAL_W - C.BODY_W / 2 + 0.01);
+  ok('player 0 stops at the back of its net', m.players[0].x >= C.POST_R + C.BODY_W / 2 - 0.01, `x=${m.players[0].x}`);
+  ok('player 0 got past the goal line', m.players[0].x < C.GOAL_W, `x=${m.players[0].x}`);
+  ok('player 1 stops at the back of its net', m.players[1].x <= C.W - C.POST_R - C.BODY_W / 2 + 0.01);
+  ok('player 1 got past the goal line', m.players[1].x > C.W - C.GOAL_W, `x=${m.players[1].x}`);
 }
 {
   const m = fresh();

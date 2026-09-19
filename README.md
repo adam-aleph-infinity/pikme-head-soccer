@@ -397,6 +397,56 @@ up. One was found parked at (939, 215) with an entire match hung underneath it.
 `BALL_IDLE_RESET` is the backstop for every other way a ball can end up somewhere nobody can
 reach: untouched for 6s, it returns to the centre spot.
 
+### It is a room, and that is one file
+
+The goal used to be described in two places that had never been introduced. The renderer knew
+it was a box drawn in oblique projection; the sim knew it was a vertical line at `GOAL_W` with
+a wall behind it. Neither had an INTERIOR, and both bugs that fell out of that were reported
+as one: **the ball appeared outside the goal, on the near side of the net**, and a player
+could never get into a net you can see straight into.
+
+[`shared/goalbox.js`](shared/goalbox.js) is the floor plan both sides now read. Three axes:
+**depth** is the sim's own x (the camera is side on, so front-to-back of the net IS x),
+**height** is y, and **width** — post to post, into the screen — is not simulated at all. It
+is a depth `z` the renderer projects: 0 at the near side net, 1 at the far one, and
+`INSIDE_Z` (0.5) for anything standing in the goal.
+
+That one number is the fix. The draw order falls out of it — [`public/game.js`](public/game.js)
+draws the box in **two passes**, `drawGoalBack` before the bodies and `drawGoalFront` after
+them, so the order down the screen is *camera → near net → ball and players → far net* — and
+so does the small step across the screen that puts a ball visibly inside the box rather than
+pasted on its front face. The step ramps in over half the goal's depth, because switching it
+on at the line would throw the ball 18px *backwards* out of the goal it had just entered.
+
+Two things follow that are worth knowing before touching either side:
+
+- **A player can stand in their own goal.** The mouth is a doorway under the bar and the back
+  of the net is the wall. Bots never walk in (`shared/bot.js` aims at `GOAL_W + 24` and always
+  did); for a human it is a keeper's option and a way to get stuck behind your own net.
+- **The crossbar is solid, and it is the bar the BALL bounces off.** `barCeiling` and
+  `bounceOffCrossbar` are the same capsule — radius `POST_R`, laid along `y = barY` across the
+  goal's depth — so a head meets the roof of the net exactly where a ball does. It is resolved
+  straight down rather than along the contact normal: a normal would also shove the player up
+  to 16px sideways, and a body that slides when you jump is worse than the bug it fixes.
+
+  Two consequences. A jump directly under the bar stops with the crown on its **underside**,
+  not on its centre line, so nothing is ever drawn buried in the frame. And because the capsule
+  is round, the height you can reach grows smoothly as you step away from the post, arriving at
+  a full jump one head-radius past it — **so a defender standing on their own line can no
+  longer jump over their own bar**, and has to stand ~38px off it to meet a lob. That is the
+  one real gameplay change in this pass: bot-vs-bot goals went **6.2 → 5.8 a match** (`_feel`),
+  the ceiling fires on 0.06% of player-ticks, and no body ever overlaps the bar.
+- **The heads are DOM nodes and a canvas cannot draw over one.** So the front of the net is
+  stroked a second time on `#cvnet`, a canvas above the heads, clipped to the head itself —
+  otherwise a player in the goal has their body behind the net and their face in front of it.
+  The **frame** is left out of that second pass (`netOnly`): the mesh is honestly in front of a
+  head at that depth, but a crossbar stroked across the face of someone standing at the post is
+  the very illusion of "my head is inside the bar" that the collider above exists to end.
+
+`node _goalshots.mjs` is the proof in pixels: it parks a ball and a player in each net and
+checks that none of the ball's own white survives (everything in there is under the near
+panel's wash) while half its disc is still bright enough to see through the cords.
+
 ### The mouth is 192, and it is a request, not a measurement
 
 `GOAL_H` shipped at 160 for a long time on two independent arguments. **Both are now gone**,
@@ -468,6 +518,7 @@ transport would break it — so the canary is testing something real.
 ```
 shared/constants.js    every tunable number, live-bindable (see the tuner below)
 shared/sim.js          authoritative physics + rules. Pure, no DOM, no timers.
+shared/goalbox.js      the goal as a room: its corners, its walls, and the depth it is drawn at
 shared/powershots.js   the five shot behaviours + the card→shot mapping
 shared/bot.js          the opponent. Emits the same input a human does.
 shared/rooms.js        private-room registry: codes, join, leave. Pure, no sockets.
@@ -523,6 +574,7 @@ the server — run `npm start` first or they fail on an empty page.
 | `node _wall.mjs static` | can a positioned defender stop shots at all? (physics vs bot) |
 | `node _sweep.mjs` | isolate one bot dial and watch the scoreline move |
 | `node _shot.mjs` | drive one real Chrome client and screenshot it (`?solo=1` freezes the bot) |
+| `node _goalshots.mjs` | is the ball actually *inside* the goal? Parks one in each net and reads the pixels back — the picture half of the goal box, which geometry cannot prove |
 | `node _duo.mjs` | two real Chrome clients playing each other through the real server |
 | `node _pace.mjs` | how slow can the match get before it stops being a game? |
 | `node _pad.mjs` | is the touch pad thumb-sized, on-pitch and non-overlapping on 5 devices? |

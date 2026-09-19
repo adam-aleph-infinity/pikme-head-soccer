@@ -567,14 +567,17 @@ function forceMeteor(m, x, warn = C.METEOR_WARN) {
 
 // ═══ 12. IT DID NOT BREAK THE FOOTBALL ═════════════════════════════════════
 {
-  // A meteor must not leave a player parked inside the goal or under the pitch.
+  // A meteor must not leave a player behind the net or under the pitch. INSIDE the net is
+  // allowed — the goal is a room you can walk into (shared/goalbox.js) — so the wall this
+  // asks about is the back of it.
   const m = fresh();
+  const wall = C.POST_R + C.BODY_W / 2;
   let bad = 0;
   for (let i = 0; i < ticks(120); i++) {
     step(m, [{ right: i % 40 < 20, kick: i % 11 === 0 }, { left: i % 33 < 16, jump: i % 29 === 0 }]);
     m.events.length = 0;
     for (const p of m.players) {
-      if (p.y > C.GROUND_Y + 0.5 || p.x < C.GOAL_W || p.x > C.W - C.GOAL_W) bad++;
+      if (p.y > C.GROUND_Y + 0.5 || p.x < wall || p.x > C.W - wall) bad++;
     }
   }
   ok('two minutes of spectacle leaves everyone on the pitch', bad === 0, `${bad} out-of-bounds ticks`);

@@ -10,6 +10,7 @@ import { activePickup, puBadges, PU, PU_NAME, PU_COLOR, PU_LABEL, PU_TIP, PU_KIN
 import { cardAt, cardKind, cardFill, cardReady, cardCd, liveKind, cardCooldown,
          CARD_SLOTS } from '../shared/cards.js';
 import { activeDart, activeDog, goalWallT, hasSuperKick } from '../shared/skills.js';
+import { goalBox, goalAt, depthPoint, INSIDE_Z } from '../shared/goalbox.js';
 import { createEditor, applyLayout, applyOpacity, loadOpacity } from './padlayout.js';
 import { headCrop } from './head-crop.js';
 import { createNet } from './net.js';
@@ -735,6 +736,10 @@ function frame(now) {
 // ═══════════════════════════════════════════════════════════════════════════
 const cv = $('#cv');
 const ctx = cv.getContext('2d');
+// The layer above the DOM heads. Same size, same transform, same pixel grid as `cv` — it is
+// the same picture, and anything drawn on it has to land on the same texels. See drawHeadNet.
+const cvNet = $('#cvnet');
+const ctxNet = cvNet.getContext('2d');
 // SC is world units -> CSS px. OX/OY are where world (0,0) lands inside the stage, and they
 // are NOT always zero: the canvas is COVER-fitted on a wide screen, so it hangs off the top.
 // Anything that positions a DOM node over the pitch must go through all three — the heads are
@@ -788,19 +793,23 @@ function resize() {
   // Anchored by the GROUND LINE rather than by either edge: everything else follows from
   // where the players' feet have to be.
   OY = (vh - band) - C.GROUND_Y * scale;
-  cv.style.left = OX + 'px';
-  cv.style.top = OY + 'px';
-  cv.style.width = w + 'px';
-  cv.style.height = h + 'px';
+  for (const el of [cv, cvNet]) {
+    el.style.left = OX + 'px';
+    el.style.top = OY + 'px';
+    el.style.width = w + 'px';
+    el.style.height = h + 'px';
+  }
   sizePad(sw, sh, vw, vh);
   applyBars();                       // the gradient's cut is the ground line, which just moved
   // Saved offsets are fractions of the stage, so they have to be re-multiplied whenever the
   // stage changes — rotation, a resized window, the keyboard opening on a phone.
   applyLayout($('#pad'), { w: sw, h: sh });
-  cv.width = Math.ceil(C.W / PIXEL);
-  cv.height = Math.ceil((C.H + BLEED) / PIXEL);
-  ctx.setTransform(1 / PIXEL, 0, 0, 1 / PIXEL, 0, 0);   // draw in WORLD units, land on texels
-  ctx.imageSmoothingEnabled = false;
+  for (const [el, c] of [[cv, ctx], [cvNet, ctxNet]]) {
+    el.width = Math.ceil(C.W / PIXEL);
+    el.height = Math.ceil((C.H + BLEED) / PIXEL);
+    c.setTransform(1 / PIXEL, 0, 0, 1 / PIXEL, 0, 0);   // draw in WORLD units, land on texels
+    c.imageSmoothingEnabled = false;
+  }
   if (!crowd.length) {
     for (let i = 0; i < 520; i++) {
       crowd.push({ x: Math.random() * C.W, f: Math.random(), r: 4 + Math.random() * 5,
@@ -940,8 +949,11 @@ function draw() {
   }
   drawStadium(g);
   paintLetterbox();
-  drawGoal(g, true);
-  drawGoal(g, false);
+  // THE GOAL IS A BOX AND THE BODIES GO INSIDE IT. Everything between these two calls is
+  // drawn in the goal's interior when it is in one: behind the near net, in front of the far
+  // one. See drawGoalBack / drawGoalFront and shared/goalbox.js.
+  drawGoalBack(g, true);
+  drawGoalBack(g, false);
   drawWind(g);                       // in the air, behind the players
   drawMeteorMarks(g);                // on the grass, under the players
   for (const p of M.players) drawAura(g, p);
@@ -953,6 +965,8 @@ function draw() {
   drawParts(g, false);
   drawBall(g, M.ball);
   drawParts(g, true);
+  drawGoalFront(g, true);            // the net you look through, over whatever is in the goal
+  drawGoalFront(g, false);
   drawMeteorRocks(g);                // falling in front of everything
   drawMoon(g);                       // a wash over the whole pitch
   if (shake > 0) g.restore();
@@ -964,7 +978,49 @@ function draw() {
     g.restore();
   }
   drawHeads();
+  drawHeadNet();                     // …and the near net again, over a head that is in the goal
   if (M.freeze > 0 && M.phase !== 'over') drawReady(g);
+}
+
+// THE ONE THING THE CANVAS CANNOT REACH.
+//
+// A head is a DOM node — card art drawn into a canvas comes out blank in WKWebView, so the
+// biggest thing on screen is an element sitting above the whole pitch. Which means the near
+// net, drawn on the canvas underneath it, cannot cover a head standing in the goal: body
+// behind the net, head in front of it, and the illusion dies at the neck.
+//
+// So the front of the net is stroked a second time on a canvas ABOVE the heads, clipped to
+// the head it has to cover. Clipped, because that layer must touch nothing else: everywhere
+// but inside that circle the net on the main canvas is the real one, and two passes over the
+// same pixels would show up as a double-strength cord. Inside the circle there is no first
+// pass to double — the head is opaque and hides it.
+//
+// It is the SAME pass the main canvas runs, not a version of it gated on "is this player in
+// the goal". The net only paints where the net is, so a head half way through the mouth comes
+// out half netted — exactly as the body below it does — instead of flipping all at once the
+// frame the player's middle crosses the line. The bounding test below skips the work when the
+// head is nowhere near a goal and can change nothing, so it cannot pop either.
+function drawHeadNet() {
+  ctxNet.clearRect(0, 0, C.W, C.H + BLEED);
+  for (const p of M.players) {
+    const h = depthPoint(p.x, headY(p));
+    // Exactly the head's own disc. Wider and the wash would land on pixels the main canvas
+    // has already washed, and a second 10% would ring the head in a darker halo.
+    const r = headR(M, p);
+    for (const left of [true, false]) {
+      const box = goalBox(left);
+      // The whole box, all four uprights: the near pair sit at wallX/lineX and the far pair
+      // one width-step inward, and which of those is leftmost flips between the two goals.
+      const xs = [box.wallX, box.wallX + box.wx, box.lineX, box.lineX + box.wx];
+      if (h.x + r < Math.min(...xs) || h.x - r > Math.max(...xs) || h.y + r < box.top + box.wy) continue;
+      ctxNet.save();
+      ctxNet.beginPath();
+      ctxNet.arc(h.x, h.y, r, 0, 6.2832);
+      ctxNet.clip();
+      drawGoalFront(ctxNet, left, true);   // net only — see drawGoalFront
+      ctxNet.restore();
+    }
+  }
 }
 
 // SF2 stages are warm, saturated and built from hard bands — no gradients anywhere, and a
@@ -1075,116 +1131,130 @@ function drawGuardian(g, cx, top, bot) {
   g.fillRect(x + 4, Math.round(top + h * 0.46), w - 8, 7);
 }
 
-function drawGoal(g, left) {
-  // A GOAL AS A BOX, AND THE BOX IS ONE SHAPE PUSHED ONE STEP DEEPER.
-  //
-  // The pass before this one drew two frames that disagreed with each other: the far one was
-  // TALLER and HIGHER than the near one, and offset downwards as well. Nearer things are
-  // bigger, so the eye read the tall frame as the near one, then hit the offset pointing the
-  // other way and gave up. That is why it did not look like a box and why the back never
-  // showed — the "back" had ended up as a 20px splinter jammed against the canvas edge.
-  //
-  // This is an OBLIQUE projection, the one pixel art has always used: the far frame is the
-  // near frame translated, not shrunk. Same size, one step along the depth axis. It is not
-  // photographic — a photographic goal would need its far posts to shrink and the pitch to
-  // recede with them, and this pitch has no depth to recede into — but it is CONSISTENT,
-  // and consistency is what the eye reads as solid.
-  //
-  // THREE AXES, and every corner falls out of them:
-  //   depth   lineX -> wallX, along the ground: the net's front-to-back. Horizontal, because
-  //           the camera is side on and the sim scores on a vertical line.
-  //   height  GROUND_Y -> top.
-  //   width   post to post, running INTO the screen, so it projects to ONE offset (wx, wy).
-  //
-  // EVERY LINE IS AT LEAST 2 WORLD PX. The canvas renders at half resolution on purpose
-  // (PIXEL = 2), so a 1px cord is half a texel and comes out as grey mush — which is exactly
-  // what "the net looks blurry" was. A readable net here means FEWER, fatter cords with real
-  // gaps, not more of them.
-  const lineX = left ? C.GOAL_W : C.W - C.GOAL_W;   // the goal line — the near post stands on it
-  const wallX = left ? C.POST_R : C.W - C.POST_R;   // the back of the net, hard against the wall
-  const inward = left ? 1 : -1;                     // towards the middle of the pitch
-  const top = C.GROUND_Y - C.GOAL_H;
-  const bar = C.POST_R * 2;
-
-  // WHERE THE FAR FRAME GOES, and the one rule it may not break.
-  //
-  // It steps towards the vanishing point — which for a left goal is off to the RIGHT — and UP
-  // the screen, and that step is what puts a roof band above the near crossbar. The roof is
-  // the single cue doing most of the work here: take it away and the goal is a flat panel
-  // again, however many nets are hung on it.
-  //
-  // But its FEET DO NOT MOVE. This game draws the whole pitch on one ground line — near
-  // touchline and far touchline land on the same y — so a post that stops 25px short of that
-  // line is not "further back", it is hanging in the air, and that is exactly what it looked
-  // like. So the far posts step sideways and their tops step up, and then they run all the
-  // way down to GROUND_Y like everything else in this world.
-  //
-  // The price is that the far frame comes out slightly TALLER than the near one instead of
-  // slightly shorter. That is the wrong way round for a photograph and the right way round
-  // for this pitch: a real net is pegged to the grass behind the goal anyway, so the far side
-  // reaching the ground is what the eye expects. It is drawn dim and thin, and at the size a
-  // thumb sees it the extra 25px reads as net coming down to the floor, which is what it is.
-  const wx = inward * C.GOAL_W * 0.40;
-  const wy = -C.GOAL_H * 0.13;
-
+// A GOAL AS A BOX, AND THE BOX IS ONE SHAPE PUSHED ONE STEP DEEPER.
+//
+// THE BOX IS DRAWN IN TWO PASSES, and that is the whole of the depth fix. It used to be one,
+// before the bodies, so every part of the net — including the near side you are supposed to
+// look THROUGH — was painted behind the ball and the players. A goal nothing can ever be
+// behind is a sticker on the backdrop, which is exactly what it looked like.
+//
+//   drawGoalBack   the far side net, the back, the far half of the roof and the far frame.
+//                  Drawn before the bodies: everything inside the goal is in front of it.
+//   drawGoalFront  the near side net, the near half of the roof and the near frame. Drawn
+//                  after the bodies, so a ball in the net is seen THROUGH it.
+//
+// Between the two sit the ball and the players, at the depth shared/goalbox.js gives them —
+// which is how "inside the goal" stopped being a thing only the scoreline knew about.
+//
+// The pass before all this drew two frames that disagreed with each other: the far one was
+// TALLER and HIGHER than the near one, and offset downwards as well. Nearer things are
+// bigger, so the eye read the tall frame as the near one, then hit the offset pointing the
+// other way and gave up. That is why it did not look like a box and why the back never
+// showed — the "back" had ended up as a 20px splinter jammed against the canvas edge.
+//
+// This is an OBLIQUE projection, the one pixel art has always used: the far frame is the
+// near frame translated, not shrunk. Same size, one step along the depth axis. It is not
+// photographic — a photographic goal would need its far posts to shrink and the pitch to
+// recede with them, and this pitch has no depth to recede into — but it is CONSISTENT,
+// and consistency is what the eye reads as solid.
+//
+// THREE AXES, and every corner falls out of them:
+//   depth   lineX -> wallX, along the ground: the net's front-to-back. Horizontal, because
+//           the camera is side on and the sim scores on a vertical line.
+//   height  GROUND_Y -> top.
+//   width   post to post, running INTO the screen, so it projects to ONE offset (wx, wy).
+//
+// EVERY LINE IS AT LEAST 2 WORLD PX. The canvas renders at half resolution on purpose
+// (PIXEL = 2), so a 1px cord is half a texel and comes out as grey mush — which is exactly
+// what "the net looks blurry" was. A readable net here means FEWER, fatter cords with real
+// gaps, not more of them.
+//
+// WHERE THE FAR FRAME GOES, and the one rule it may not break.
+//
+// It steps towards the vanishing point — which for a left goal is off to the RIGHT — and UP
+// the screen, and that step is what puts a roof band above the near crossbar. The roof is
+// the single cue doing most of the work here: take it away and the goal is a flat panel
+// again, however many nets are hung on it.
+//
+// But its FEET DO NOT MOVE. This game draws the whole pitch on one ground line — near
+// touchline and far touchline land on the same y — so a post that stops 25px short of that
+// line is not "further back", it is hanging in the air, and that is exactly what it looked
+// like. So the far posts step sideways and their tops step up, and then they run all the
+// way down to GROUND_Y like everything else in this world.
+//
+// The price is that the far frame comes out slightly TALLER than the near one instead of
+// slightly shorter. That is the wrong way round for a photograph and the right way round
+// for this pitch: a real net is pegged to the grass behind the goal anyway, so the far side
+// reaching the ground is what the eye expects. It is drawn dim and thin, and at the size a
+// thumb sees it the extra 25px reads as net coming down to the floor, which is what it is.
+function goalCorners(left) {
+  const box = goalBox(left);
+  const { lineX, wallX, top } = box;
+  const G = C.GROUND_Y;
   // The NEAR frame: all four corners real. Its foot is the grass, its bar is the bar the sim
   // bounces the ball off, and its front post is the goal line itself. Nothing here is fudged,
   // so the thing the player aims at is the thing the rules use.
-  const nFT = [lineX, top], nFB = [lineX, C.GROUND_Y];
-  const nBT = [wallX, top], nBB = [wallX, C.GROUND_Y];
-  // …and the FAR frame: tops stepped back, feet on the same grass.
-  const fFT = [lineX + wx, top + wy],   fBT = [wallX + wx, top + wy];
-  const fFB = [lineX + wx, C.GROUND_Y], fBB = [wallX + wx, C.GROUND_Y];
+  const c = {
+    box,
+    bar: C.POST_R * 2,
+    nFT: [lineX, top], nFB: [lineX, G],
+    nBT: [wallX, top], nBB: [wallX, G],
+    // …and the FAR frame: tops stepped back, feet on the same grass.
+    fFT: [lineX + box.wx, top + box.wy], fBT: [wallX + box.wx, top + box.wy],
+    fFB: [lineX + box.wx, G], fBB: [wallX + box.wx, G],
+  };
+  // The MID-WIDTH top corners — the plane a body inside the net is drawn on. The roof is cut
+  // here so that its near half can go in front of a ball tucked under the bar while its far
+  // half stays behind it. Every other face is wholly in front of or wholly behind that plane,
+  // so the roof is the only one that has to be split.
+  c.mFT = mix(c.nFT, c.fFT, INSIDE_Z);
+  c.mBT = mix(c.nBT, c.fBT, INSIDE_Z);
+  return c;
+}
 
-  const poly = (pts) => { g.beginPath(); g.moveTo(pts[0][0], pts[0][1]);
-    for (let i = 1; i < pts.length; i++) g.lineTo(pts[i][0], pts[i][1]); g.closePath(); };
-  const line = (a, b) => { g.beginPath(); g.moveTo(a[0], a[1]); g.lineTo(b[0], b[1]); g.stroke(); };
-  const mix = (a, b, t) => [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t];
-  const wash = (pts, c, a) => { poly(pts); g.fillStyle = c; g.globalAlpha = a; g.fill(); g.globalAlpha = 1; };
+const mix = (a, b, t) => [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t];
+const poly = (g, pts) => { g.beginPath(); g.moveTo(pts[0][0], pts[0][1]);
+  for (let i = 1; i < pts.length; i++) g.lineTo(pts[i][0], pts[i][1]); g.closePath(); };
+const line = (g, a, b) => { g.beginPath(); g.moveTo(a[0], a[1]); g.lineTo(b[0], b[1]); g.stroke(); };
+const wash = (g, pts, c, a) => { poly(g, pts); g.fillStyle = c; g.globalAlpha = a; g.fill(); g.globalAlpha = 1; };
 
-  // A mesh across any quad, walking both pairs of opposite edges. One routine for all four
-  // faces, so the cords line up where the faces meet instead of drifting apart at the seam.
-  function mesh(A, B, C2, D, nAB, nBC, alpha) {
-    g.save(); poly([A, B, C2, D]); g.clip();
-    g.lineWidth = 2; g.lineCap = 'butt';
-    g.strokeStyle = `rgba(255,255,255,${alpha})`;
-    for (let i = 0; i <= nAB; i++) line(mix(A, B, i / nAB), mix(D, C2, i / nAB));
-    for (let i = 0; i <= nBC; i++) line(mix(A, D, i / nBC), mix(B, C2, i / nBC));
-    g.restore();
-  }
+// A mesh across any quad, walking both pairs of opposite edges. One routine for all the
+// faces, so the cords line up where the faces meet instead of drifting apart at the seam.
+function mesh(g, A, B, C2, D, nAB, nBC, alpha) {
+  g.save(); poly(g, [A, B, C2, D]); g.clip();
+  g.lineWidth = 2; g.lineCap = 'butt';
+  g.strokeStyle = `rgba(255,255,255,${alpha})`;
+  for (let i = 0; i <= nAB; i++) line(g, mix(A, B, i / nAB), mix(D, C2, i / nAB));
+  for (let i = 0; i <= nBC; i++) line(g, mix(A, D, i / nBC), mix(B, C2, i / nBC));
+  g.restore();
+}
+
+// PASS ONE: everything behind a body standing in the net. Drawn deepest first so each net
+// shows through the one in front of it, and every one of them dimmer than the near side — it
+// is a net, and a net you look through has to stay quieter than the net you look at.
+function drawGoalBack(g, left) {
+  const { box, bar, nBT, nBB, fFT, fBT, fFB, fBB, mFT, mBT } = goalCorners(left);
 
   g.save();
 
-  // FOUR NETS, drawn deepest first so each one shows through the one in front of it, and
-  // every one of them dimmer than the near side — it is a net, and a net you look through
-  // has to stay quieter than the net you look at.
-
   // 1. THE FAR SIDE. This panel had no net at all, so the far half of the goal was an empty
   //    wire frame: the mouth opened onto bare crowd and the eye had nothing to read depth on.
-  wash([fFT, fBT, fBB, fFB], '#0a1220', 0.13);
-  mesh(fFT, fBT, fBB, fFB, 9, 22, 0.36);
+  wash(g, [fFT, fBT, fBB, fFB], '#0a1220', 0.13);
+  mesh(g, fFT, fBT, fBB, fFB, 9, 22, 0.36);
 
-  // 2. THE BACK, the panel joining the two rear posts.
-  wash([nBT, fBT, fBB, nBB], '#0a1220', 0.16);
-  mesh(nBT, fBT, fBB, nBB, 4, 20, 0.40);
+  // 2. THE BACK, the panel joining the two rear posts. Wholly behind anything in the net:
+  //    a body inside the goal is at least its own radius in front of the back plane.
+  wash(g, [nBT, fBT, fBB, nBB], '#0a1220', 0.16);
+  mesh(g, nBT, fBT, fBB, nBB, 4, 20, 0.40);
 
-  // 3. THE ROOF. The face that says "box", and the reason the far frame steps up at all.
-  wash([nFT, nBT, fBT, fFT], '#0a1220', 0.20);
-  mesh(nFT, nBT, fBT, fFT, 9, 4, 0.62);
-
-  // 4. THE NEAR SIDE, the big one the ball is seen through. Lightest wash of the four so the
-  //    crowd still carries on behind it — a net you cannot see the stadium through reads as
-  //    a hole, which is what the opaque cavity this replaced always looked like.
-  //
-  //    There is no FLOOR face any more. Both frames stand on GROUND_Y now, so the floor is
-  //    edge on and has no area; the dark quad that used to be drawn there was a shadow doing
-  //    the job of feet that should never have been off the ground.
-  wash([nFT, nBT, nBB, nFB], '#0a1220', 0.10);
-  mesh(nFT, nBT, nBB, nFB, 9, 20, 0.54);
+  // 3. THE ROOF, far half. The face that says "box", and the reason the far frame steps up at
+  //    all. Its near half is held back for the front pass — see goalCorners.
+  wash(g, [mFT, mBT, fBT, fFT], '#0a1220', 0.20);
+  mesh(g, mFT, mBT, fBT, fFT, 9, 2, 0.62);
 
   g.restore();
 
-  // THE FRAME, AND ALL OF IT IS WHITE.
+  // THE FAR FRAME, AND ALL OF IT IS WHITE.
   //
   // Every member used to be tinted by how far away it is — #76889d at the back through
   // #eef5ff at the mouth — on the theory that a dimmer bar reads as a deeper one. It does
@@ -1197,37 +1267,77 @@ function drawGoal(g, left) {
   g.strokeStyle = '#ffffff';
 
   g.lineWidth = bar * 0.38;
-  line(fFT, fBT);                         // far top rail
-  line(fBB, fFB);                         // far ground rail
-  line(fFB, fFT);                         // far post, on the line
-  line(fBT, fBB);                         // far post, at the wall
+  line(g, fFT, fBT);                      // far top rail
+  line(g, fBB, fFB);                      // far ground rail
+  line(g, fFB, fFT);                      // far post, on the line
+  line(g, fBT, fBB);                      // far post, at the wall
 
   // The bar from the near frame to the far one across the back. The two along the bottom are
   // missing on purpose: both frames stand on GROUND_Y now, so a bar between the feet lies
   // along the ground line and the rails already drew it.
   g.lineWidth = bar * 0.6;
-  line(nBT, fBT);                         // back top bar
+  line(g, nBT, fBT);                      // back top bar
+
+  // The goal area painted on the grass. It belongs to the FLOOR, so it stays in the back
+  // pass — put it in the front one and it paints a stripe across the boots of anyone
+  // standing in their own six-yard box.
+  g.fillStyle = '#ffffff88';
+  g.fillRect(box.left ? 0 : C.W - C.GOAL_W, C.GROUND_Y - 2, C.GOAL_W, 3);
+  g.restore();
+}
+
+// PASS TWO: the side of the net between the camera and anything standing in the goal. Drawn
+// after the bodies, which is the entire reason a ball in the net now reads as being in it.
+// `netOnly` leaves the white frame out. It is for the head layer: a head is a DOM node, so
+// this pass is the only thing that can cover one — and a crossbar stroked across the face of a
+// player STANDING AT THE POST reads as a head embedded in the bar, which is the exact illusion
+// the crossbar fix is chasing out. The mesh is honest there (the head really is behind the
+// near net at that depth); the frame is not, because those members sit on the near plane the
+// player is standing on, and the rest of the bar recedes BEHIND them into the screen.
+function drawGoalFront(g, left, netOnly = false) {
+  const { bar, nFT, nFB, nBT, nBB, fFT, mFT, mBT } = goalCorners(left);
+
+  g.save();
+  // 4. THE ROOF, near half — in front of a ball tucked up under the bar, behind one sitting
+  //    on the floor of the net only in the sense that it is nowhere near it.
+  wash(g, [nFT, nBT, mBT, mFT], '#0a1220', 0.20);
+  mesh(g, nFT, nBT, mBT, mFT, 9, 2, 0.62);
+
+  // 5. THE NEAR SIDE, the big one the ball is seen through. Lightest wash of the four so the
+  //    crowd still carries on behind it — a net you cannot see the stadium through reads as
+  //    a hole, which is what the opaque cavity this replaced always looked like. Its cords
+  //    are 2px on a ~9px grid, which is what lets a 24px ball behind it stay a ball.
+  //
+  //    There is no FLOOR face any more. Both frames stand on GROUND_Y now, so the floor is
+  //    edge on and has no area; the dark quad that used to be drawn there was a shadow doing
+  //    the job of feet that should never have been off the ground.
+  wash(g, [nFT, nBT, nBB, nFB], '#0a1220', 0.10);
+  mesh(g, nFT, nBT, nBB, nFB, 9, 20, 0.54);
+  g.restore();
+  if (netOnly) return;
+
+  g.save();
+  g.lineCap = 'round'; g.lineJoin = 'round';
+  g.strokeStyle = '#ffffff';
 
   // THE CROSSBAR: post to post across the mouth.
   g.lineWidth = bar * 0.78;
-  line(nFT, fFT);
+  line(g, nFT, fFT);
 
   g.lineWidth = bar * 0.8;
-  line(nBT, nBB);                         // near post, at the wall
-  line(nBB, nFB);                         // near ground rail
+  line(g, nBT, nBB);                      // near post, at the wall
+  line(g, nBB, nFB);                      // near ground rail
 
   // The near top rail is the bar the ball actually bounces off, and the near front post is
   // the goal line. Thickest, drawn last so nothing crosses in front of them.
   g.lineWidth = bar;
-  line(nFT, nBT);
-  line(nFT, nFB);
+  line(g, nFT, nBT);
+  line(g, nFT, nFB);
   g.fillStyle = '#ffffff';
   g.beginPath(); g.arc(nFT[0], nFT[1], bar * 0.6, 0, 6.2832); g.fill();
-
-  g.fillStyle = '#ffffff88';               // goal line on the grass
-  g.fillRect(left ? 0 : C.W - C.GOAL_W, C.GROUND_Y - 2, C.GOAL_W, 3);
   g.restore();
 }
+
 
 // ═══════════════════════════════════════════════════════════════════════════
 // SPECTACLE — meteors, moon phase, wind, robots
@@ -1551,14 +1661,18 @@ function drawCharge(g) {
   if (charging) {
     const t = 1 - charging.charge / C.POWER_CHARGE_TIME;
     const cy = C.GROUND_Y - C.powerHeight();
+    // Both holes follow whatever the projection did to the things they are holes for, or a
+    // wind-up inside a goal spotlights the empty air beside the player.
+    const hd = depthPoint(charging.x, headY(charging));
+    const bd = depthPoint(M.ball.x, M.ball.y);
     g.save();
     g.beginPath();
     g.rect(0, 0, C.W, C.H + 170);
     // the two holes: the player, and the ball above them
-    g.moveTo(charging.x + 76, headY(charging));
-    g.arc(charging.x, headY(charging), 76 - t * 16, 0, Math.PI * 2, true);
-    g.moveTo(M.ball.x + 40, M.ball.y);
-    g.arc(M.ball.x, M.ball.y, 40 - t * 8, 0, Math.PI * 2, true);
+    g.moveTo(hd.x + 76, hd.y);
+    g.arc(hd.x, hd.y, 76 - t * 16, 0, Math.PI * 2, true);
+    g.moveTo(bd.x + 40, bd.y);
+    g.arc(bd.x, bd.y, 40 - t * 8, 0, Math.PI * 2, true);
     g.fillStyle = `rgba(4, 6, 14, ${0.30 + t * 0.34})`;
     g.fill('evenodd');
     g.restore();
@@ -1569,14 +1683,17 @@ function drawCharge(g) {
     if (p.charge <= 0) continue;
     const t = 1 - p.charge / C.POWER_CHARGE_TIME;          // 0 at the press, 1 at the shot
     const col = p.shot.color;
-    const cx = p.x, cy = C.GROUND_Y - C.powerHeight();
+    const lift = depthPoint(p.x, C.GROUND_Y - C.powerHeight());
+    const foot = depthPoint(p.x, C.GROUND_Y);
+    const ball = depthPoint(M.ball.x, M.ball.y);
+    const cx = lift.x, cy = lift.y;
 
     // A ring on the ground under the charging player: this is where it is coming FROM.
     g.strokeStyle = col;
     g.lineWidth = 2 + t * 2;
     g.globalAlpha = 0.35 + t * 0.5;
     g.beginPath();
-    g.ellipse(p.x, C.GROUND_Y - 2, 34 - t * 14, 9 - t * 4, 0, 0, Math.PI * 2);
+    g.ellipse(foot.x, C.GROUND_Y - 2, 34 - t * 14, 9 - t * 4, 0, 0, Math.PI * 2);
     g.stroke();
 
     // The charge ring closing on the ball — the clock a defender reads.
@@ -1589,7 +1706,7 @@ function drawCharge(g) {
     // the colour reads as the ball charging rather than as a second object.
     const pulse = 0.55 + 0.45 * Math.sin(performance.now() / 40);
     g.globalAlpha = 0.35 + 0.65 * t * pulse;
-    R2(g, M.ball.x - C.BALL_R, M.ball.y - C.BALL_R, C.BALL_R * 2, C.BALL_R * 2, col);
+    R2(g, ball.x - C.BALL_R, ball.y - C.BALL_R, C.BALL_R * 2, C.BALL_R * 2, col);
     g.globalAlpha = 1;
     // A few sparks pulled toward it, so the half second reads as gathering rather than waiting.
     for (let i = 0; i < 3; i++) {
@@ -1796,8 +1913,9 @@ function drawPuBadges(g) {
     if (!list.length) continue;
     const p = M.players[i];
     const r = 13;
-    const y = headY(p) - headR(M, p) - r - 8;
-    const x0 = p.x - ((list.length - 1) * (r * 2 + 6)) / 2;
+    const h = depthPoint(p.x, headY(p));              // rides the head into the goal with it
+    const y = h.y - headR(M, p) - r - 8;
+    const x0 = h.x - ((list.length - 1) * (r * 2 + 6)) / 2;
     for (let k = 0; k < list.length; k++) {
       const b = list[k];
       const x = x0 + k * (r * 2 + 6);
@@ -1843,15 +1961,16 @@ function drawRobotBody(g, p) {
   const t = performance.now() / 1000;
   const steel = '#8f9bb3', dark = '#3d4658', lite = '#dfe7f5';
   const glow = p.index === 0 ? '#6cf0ff' : '#ffd24a';
+  const d = depthPoint(p.x, p.y);                     // in the net, one step in — see drawBody
 
   g.save();
   g.globalAlpha = .35;
   g.fillStyle = '#000';
-  g.fillRect(Math.round(p.x - bw * 0.7), C.GROUND_Y, Math.round(bw * 1.4), 3);
+  g.fillRect(Math.round(d.x - bw * 0.7), C.GROUND_Y, Math.round(bw * 1.4), 3);
   g.restore();
 
   g.save();
-  g.translate(Math.round(p.x), Math.round(p.y));
+  g.translate(Math.round(d.x), Math.round(d.y));
   if (p.knocked > 0) g.rotate(p.side * 1.15);
 
   // piston legs — two segments with a bright joint, so the walk reads as machinery
@@ -1901,23 +2020,23 @@ function drawRobotBody(g, p) {
 
   // antenna — drawn ABOVE the head window, which is a DOM circle, so it has to start high
   // enough to clear the element or it is simply hidden behind the card art.
-  const hy = headY(p);
-  const top = hy - C.HEAD_R - 4;
+  const hd = depthPoint(p.x, headY(p));               // follows the head, not the feet
+  const top = hd.y - C.HEAD_R - 4;
   g.save();
   g.fillStyle = OUTLINE;
-  g.fillRect(Math.round(p.x - 3), Math.round(top - 26), 6, 28);
+  g.fillRect(Math.round(hd.x - 3), Math.round(top - 26), 6, 28);
   g.fillStyle = steel;
-  g.fillRect(Math.round(p.x - 1), Math.round(top - 25), 3, 27);
+  g.fillRect(Math.round(hd.x - 1), Math.round(top - 25), 3, 27);
   g.globalAlpha = pulse * .45;
   g.fillStyle = glow;
-  g.beginPath(); g.arc(p.x, top - 28, 11, 0, 6.2832); g.fill();
+  g.beginPath(); g.arc(hd.x, top - 28, 11, 0, 6.2832); g.fill();
   g.globalAlpha = 1;
   g.fillStyle = OUTLINE;
-  g.beginPath(); g.arc(p.x, top - 28, 6, 0, 6.2832); g.fill();
+  g.beginPath(); g.arc(hd.x, top - 28, 6, 0, 6.2832); g.fill();
   g.fillStyle = glow;
-  g.beginPath(); g.arc(p.x, top - 28, 4.5, 0, 6.2832); g.fill();
+  g.beginPath(); g.arc(hd.x, top - 28, 4.5, 0, 6.2832); g.fill();
   g.fillStyle = '#ffffff';
-  g.beginPath(); g.arc(p.x, top - 28, 2, 0, 6.2832); g.fill();
+  g.beginPath(); g.arc(hd.x, top - 28, 2, 0, 6.2832); g.fill();
   g.restore();
 }
 
@@ -1926,16 +2045,20 @@ function drawBody(g, p) {
   const pal = GI[p.index];
   const knocked = p.knocked > 0;
   const bw = C.BODY_W, bh = C.BODY_H;
+  // Projected at the FEET, which is the anchor the whole sprite hangs off. A body is 79px
+  // tall against a 192px goal, so the step's vertical part varies by under 5px across it —
+  // far too little to be worth stretching a sprite for.
+  const d = depthPoint(p.x, p.y);
 
   // contact shadow
   g.save();
   g.globalAlpha = .35;
   g.fillStyle = '#000';
-  g.fillRect(Math.round(p.x - bw * 0.6), C.GROUND_Y, Math.round(bw * 1.2), 3);
+  g.fillRect(Math.round(d.x - bw * 0.6), C.GROUND_Y, Math.round(bw * 1.2), 3);
   g.restore();
 
   g.save();
-  g.translate(Math.round(p.x), Math.round(p.y));
+  g.translate(Math.round(d.x), Math.round(d.y));
   if (knocked) g.rotate(p.side * 1.15);
 
   // legs. The kick swings the front one out; otherwise they stride with the run.
@@ -1995,7 +2118,8 @@ function drawAura(g, p) {
   if (p.armed <= 0) return;
   const t = performance.now() / 1000;
   const col = p.shot.color;
-  const hy = headY(p);
+  const d = depthPoint(p.x, p.y);                     // on the body it wraps — see drawBody
+  const hy = depthPoint(p.x, headY(p)).y;
   g.save();
   for (let i = 0; i < 3; i++) {
     const ph = (t * 1.6 + i / 3) % 1;
@@ -2003,15 +2127,15 @@ function drawAura(g, p) {
     g.strokeStyle = col;
     g.lineWidth = 3;
     g.beginPath();
-    g.ellipse(p.x, (hy + p.y) / 2, headR(M, p) * (0.6 + ph * 1.5), C.BODY_H * 1.6 * (0.6 + ph * 1.2), 0, 0, 6.2832);
+    g.ellipse(d.x, (hy + d.y) / 2, headR(M, p) * (0.6 + ph * 1.5), C.BODY_H * 1.6 * (0.6 + ph * 1.2), 0, 0, 6.2832);
     g.stroke();
   }
   // sparks rising off the shoulders
   g.globalAlpha = 1;
   for (let i = 0; i < 6; i++) {
     const ph = (t * 2.4 + i / 6) % 1;
-    const sx = p.x + Math.sin(i * 2.1 + t * 3) * headR(M, p) * 0.9;
-    const sy = p.y - ph * (C.BODY_H + headR(M, p) * 2.2);
+    const sx = d.x + Math.sin(i * 2.1 + t * 3) * headR(M, p) * 0.9;
+    const sy = d.y - ph * (C.BODY_H + headR(M, p) * 2.2);
     g.fillStyle = i % 2 ? col : '#ffffff';
     g.fillRect(Math.round(sx), Math.round(sy), 3, 5);
   }
@@ -2019,16 +2143,20 @@ function drawAura(g, p) {
 }
 
 function drawBall(g, b) {
+  // Inside a net the ball is drawn one step along the goal's width axis, which is what puts
+  // it BETWEEN the two side nets rather than flat against the front of the box. Out on the
+  // pitch this is the identity — see shared/goalbox.js.
+  const d = depthPoint(b.x, b.y);
   g.save();
   g.globalAlpha = .3;
   g.fillStyle = '#000';
   g.beginPath();
-  g.ellipse(b.x, C.GROUND_Y + 3, b.r * .9, 5, 0, 0, 6.2832);
+  g.ellipse(d.x, C.GROUND_Y + 3, b.r * .9, 5, 0, 0, 6.2832);
   g.fill();
   g.restore();
 
   g.save();
-  g.translate(b.x, b.y);
+  g.translate(d.x, d.y);
   g.rotate((b.spin || 0) * .12 + b.x * .012);
   if (b.power) {
     g.shadowColor = b.power.glow;
@@ -2073,13 +2201,17 @@ function drawBall(g, b) {
 function drawParts(g, front) {
   for (const p of parts) {
     const k = 1 - p.t / p.life;
+    // A spark lives in the world like everything else, so one struck inside a net steps into
+    // the box with the ball that struck it. Without this, a ball bouncing in the goal throws
+    // its sparks 18px to one side of itself, onto the near plane it is no longer on.
+    const d = depthPoint(p.x, p.y);
     if (p.k === 'w') {
       if (front) continue;
       g.save();
       g.globalAlpha = k * .8;
       g.strokeStyle = p.color;
       g.lineWidth = 5 * k + 1;
-      g.beginPath(); g.arc(p.x, p.y, (1 - k) * 150 + 8, 0, 6.2832); g.stroke();
+      g.beginPath(); g.arc(d.x, d.y, (1 - k) * 150 + 8, 0, 6.2832); g.stroke();
       g.restore();
     } else if (p.k === 'k') {
       // scorch on the grass — flattened, so it sits ON the pitch rather than floating
@@ -2087,10 +2219,10 @@ function drawParts(g, front) {
       g.save();
       g.globalAlpha = k * .75;
       g.fillStyle = p.color;
-      g.beginPath(); g.ellipse(p.x, C.GROUND_Y + 3, 34 * (1.1 - k * .2), 8, 0, 0, 6.2832); g.fill();
+      g.beginPath(); g.ellipse(d.x, C.GROUND_Y + 3, 34 * (1.1 - k * .2), 8, 0, 0, 6.2832); g.fill();
       g.globalAlpha = k * .5;
       g.fillStyle = '#ff8a3c';
-      g.beginPath(); g.ellipse(p.x, C.GROUND_Y + 3, 16 * k, 4 * k, 0, 0, 6.2832); g.fill();
+      g.beginPath(); g.ellipse(d.x, C.GROUND_Y + 3, 16 * k, 4 * k, 0, 0, 6.2832); g.fill();
       g.restore();
     } else if (p.k === 'g') {
       if (front) continue;
@@ -2102,8 +2234,8 @@ function drawParts(g, front) {
       for (let i = 0; i < 6; i++) {
         const a = i / 6 * 6.2832 + p.t * 2;
         g.beginPath();
-        g.moveTo(p.x, C.GROUND_Y);
-        g.quadraticCurveTo(p.x + Math.cos(a) * 70, p.y + 20, p.x + Math.cos(a) * 34, p.y - 40 + Math.sin(a) * 20);
+        g.moveTo(d.x, C.GROUND_Y);
+        g.quadraticCurveTo(d.x + Math.cos(a) * 70, d.y + 20, d.x + Math.cos(a) * 34, d.y - 40 + Math.sin(a) * 20);
         g.stroke();
       }
       g.restore();
@@ -2111,7 +2243,7 @@ function drawParts(g, front) {
       g.save();
       g.globalAlpha = k;
       g.fillStyle = p.color;
-      g.beginPath(); g.arc(p.x, p.y, p.r * (p.k === 'c' ? 1 : k), 0, 6.2832); g.fill();
+      g.beginPath(); g.arc(d.x, d.y, p.r * (p.k === 'c' ? 1 : k), 0, 6.2832); g.fill();
       g.restore();
     }
   }
@@ -2176,7 +2308,10 @@ function drawHeads() {
       el.style.width = el.style.height = size + 'px';
       el.dataset.card = key;
     }
-    const x = OX + p.x * SC, y = OY + headY(p) * SC;
+    // Through the same projection as the body, or a player walking into the goal leaves their
+    // head behind on the goal line.
+    const d = depthPoint(p.x, headY(p));
+    const x = OX + d.x * SC, y = OY + d.y * SC;
     const tilt = Math.max(-.34, Math.min(.34, p.vx / 1100)) + (p.knocked > 0 ? p.side * 1.2 : 0);
     el.style.transform = `translate(${x - size / 2}px, ${y - size / 2}px) rotate(${tilt}rad)`;
     // The head is a DOM node over the canvas, so the robot treatment has to be CSS: the
@@ -2462,6 +2597,9 @@ $('#tunerCopy').onclick = async () => {
 // would copy the value at boot (null) and every probe would read stale.
 // SPEC/ACT are here so _spectacle-shots.mjs can force an event instead of waiting nine
 // seconds and hoping the dice pick the one it wants to photograph.
+// goalBox/depthPoint are here so a harness can ask the SAME geometry the renderer drew with
+// where a body in the net should have landed, instead of re-deriving it and drifting.
+Object.assign(window, { goalBox, goalAt, depthPoint, INSIDE_Z });
 Object.assign(window, { C, startMatch, pick, SHOTS, ACT, activeMeteors, isRobot,
                         PU, PU_NAME, PU_COLOR, PU_LABEL, PU_KINDS, activePickup, puBadges,
                         paintHand, paintHead, cardAt, cardKind });
