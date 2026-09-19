@@ -4,7 +4,7 @@
 
 import * as C from './constants.js';
 import { launchPowerShot, stepPowerShot, counterPowerShot, applyEffect, shotFor, statsFor, SHOTS } from './powershots.js';
-import { walkBounds, barY, barCeiling } from './goalbox.js';
+import { walkBounds, barY, barCeiling, goalBox } from './goalbox.js';
 
 // A player's geometry, derived (never stored) so nothing can drift out of sync.
 // `y` is the FEET line; the body box hangs above it and the head sits on the body.
@@ -516,28 +516,111 @@ function collideBounds(m, b, fx) {
     if (b.x > C.W - back) { b.x = C.W - back; b.vx = -Math.abs(b.vx) * 0.2; }
   }
 
-  // crossbars: a full bar over each net, plus the front post it hangs off
+  // crossbars: a full bar over each net, the ROOF EDGE where the drawn box overhangs that bar,
+  // and the front post all of it hangs off
   const barY = C.GROUND_Y - C.GOAL_H;
-  bounceOffCrossbar(b, 0, C.GOAL_W, barY, fx);
-  bounceOffCrossbar(b, C.W - C.GOAL_W, C.W, barY, fx);
+  bounceOffBar(b, 0, barY, C.GOAL_W, barY, fx);
+  bounceOffBar(b, C.W - C.GOAL_W, barY, C.W, barY, fx);
+  bounceOffRoofEdge(b, true, fx);
+  bounceOffRoofEdge(b, false, fx);
   bounceOffPost(b, C.GOAL_W, barY, fx);
   bounceOffPost(b, C.W - C.GOAL_W, barY, fx);
 }
 
-// The crossbar is a horizontal BAR across the goal's whole depth, not the single corner
-// point it used to be. Without it a ball could drop straight through the roof of the net,
-// and "score" meant "the centre got past the line at roughly bar height" — which is what
-// made shots that visibly clipped the top of the goal count.
-function bounceOffCrossbar(b, x0, x1, barY, fx) {
-  const nearestX = clamp(b.x, x0, x1);
-  const dx = b.x - nearestX, dy = b.y - barY;
+// THE ROOF EDGE — the half of the crossbar that was drawn and never existed.
+//
+// Reported, twice: "you can see the top right of the goal but the ball falls straight through
+// it like it's nothing." It was not the collider failing to fire. There was no collider there
+// at all, and there never had been.
+//
+// The renderer draws the goal as a BOX: a near frame on the plane the ball is played on, and a
+// far frame stepped `wx` toward the middle of the pitch and `wy` up the screen (shared/
+// goalbox.js — WIDTH_X 0.40, WIDTH_Y 0.13). The crossbar therefore leaves the near post at
+// (lineX, top) and RECEDES to (lineX + wx, top + wy), so the goal's roof reaches 27.6px further
+// out over the pitch than its near rail does, and stands 18.7px taller at the far side.
+//
+// That line is not an inference about the picture. public/game.js strokes it by name:
+//
+//     // THE CROSSBAR: post to post across the mouth.
+//     g.lineWidth = bar * 0.78;
+//     line(g, nFT, fFT);
+//
+// nFT → fFT, the same two points this function asks goalBox for. The renderer has been
+// drawing a crossbar there since the goal became a box; the sim just never had one.
+//
+// bounceOffBar only ever had the near rail: x from the wall to lineX, dead flat at y = top.
+// Every pixel of roof past lineX — 40% of the goal's own depth, an 18px-wide hole once the
+// ball's radius is taken off it — was painted frame with nothing behind it. A ball dropped
+// into that band fell through the picture of a crossbar. Measured before the fix: left goal
+// screen x 79..96, right goal 963..981.
+//
+// So the roof edge is a bar like any other, along the line the renderer already draws it on,
+// read out of the SAME goalBox() the renderer reads. That is the point of putting it here
+// rather than typing the numbers in: the two cannot drift apart again.
+//
+// AND IT IS SOLID FROM ABOVE ONLY, which is the whole difficulty of the thing.
+//
+// Two-sided, it wrecks the game. A shot driven flat along bar height meets this segment out on
+// the pitch — 20px before the post, because the segment leans out over the pitch — and the
+// face it meets is the UNDERSIDE, which slopes down toward the goal. So the bar it was
+// supposed to rattle off instead became a ramp that steered it in. Measured with it two-sided:
+// both "a shot at bar height hits the frame instead of scoring" (test-goal) and "a shot at
+// crossbar height does NOT score" (test-sim) flipped, and a level-5 bot stopped being able to
+// outscore a level-1 one at all — the goal had quietly grown a funnel.
+//
+// The projection says the same thing the tests do. The ball is played on the NEAR plane, and
+// this segment is the crossbar RECEDING away from that plane, so a ball level with it is not
+// under it — it is in FRONT of it, and it should sail past exactly as it always did and meet
+// the near post instead. What a ball cannot do is come down THROUGH it, because from above the
+// roof is the first solid thing in its way. Solid from above, open from below: both halves are
+// what the picture already shows, and each is fenced in test-goal section 7.
+//
+// It therefore cannot narrow the goal either. `wy` is negative — the far side steps UP — so
+// the whole segment lies above the crossbar, the mouth is everything below the crossbar, and
+// the one-sided test rules out even the corner case near the post.
+function bounceOffRoofEdge(b, left, fx) {
+  const box = goalBox(left);
+  bounceOffBar(b, box.lineX, box.top, box.lineX + box.wx, box.top + box.wy, fx, true);
+}
+
+// A BAR: any capsule of radius POST_R laid along a segment, and the ball bounces off it.
+//
+// This was `bounceOffCrossbar(b, x0, x1, barY)` — a horizontal span only, clamped on x — which
+// is all the near rail ever needed. It takes two endpoints now because the goal's roof edge
+// is the same bar at an ANGLE (see bounceOffRoofEdge), and a crossbar that only knows how to
+// be flat is a crossbar that stops existing wherever the drawn one tilts. For a flat segment
+// the closest-point solve below reduces exactly to the clamp it replaces, so the near rail
+// behaves to the pixel as it did.
+//
+// Without a bar here at all a ball could drop straight through the roof of the net, and
+// "score" meant "the centre got past the line at roughly bar height" — which is what made
+// shots that visibly clipped the top of the goal count.
+function bounceOffBar(b, ax, ay, bx, by, fx, fromAboveOnly = false) {
+  const ex = bx - ax, ey = by - ay;
+  const len2 = ex * ex + ey * ey;
+  // Where along the bar the ball is closest to, as a fraction, clamped to its ends so the
+  // caps are round — a ball past the end of a bar meets its corner, not a wall.
+  const t = len2 > 0 ? clamp(((b.x - ax) * ex + (b.y - ay) * ey) / len2, 0, 1) : 0;
+  const px = ax + ex * t, py = ay + ey * t;
+  const dx = b.x - px, dy = b.y - py;
   const d = Math.hypot(dx, dy);
   const min = b.r + C.POST_R;
   if (d >= min) return;
-  if (d < 0.0001) { b.y = barY - min; b.vy = -Math.abs(b.vy) * 0.7; return; }
+  // A ONE-SIDED bar is solid to land on and open to pass under — see bounceOffRoofEdge for
+  // why the goal's roof has to be both. The side is decided by position, not by which way the
+  // ball happens to be travelling: the ball is stepped in slices no longer than half its own
+  // radius, so it is always SEEN on the near side of a surface before it is through it, and a
+  // velocity test would instead let a ball that had already sunk into the bar be shoved back
+  // out of the wrong face.
+  if (fromAboveOnly) {
+    let upx = ey, upy = -ex;                      // a perpendicular…
+    if (upy > 0) { upx = -upx; upy = -upy; }      // …taken on the side the sky is on
+    if (dx * upx + dy * upy <= 0) return;         // ball is under the bar: it passes in front
+  }
+  if (d < 0.0001) { b.y = py - min; b.vy = -Math.abs(b.vy) * 0.7; return; }
   const nx = dx / d, ny = dy / d;
-  b.x = nearestX + nx * min;
-  b.y = barY + ny * min;
+  b.x = px + nx * min;
+  b.y = py + ny * min;
   const dot = b.vx * nx + b.vy * ny;
   if (dot < 0) {
     b.vx = (b.vx - 2 * dot * nx) * 0.72;
@@ -547,11 +630,21 @@ function bounceOffCrossbar(b, x0, x1, barY, fx) {
   // velocity to roll it off and the bar keeps pushing it back up, so it sits there — which
   // is exactly what happened at (939, 215) and hung a whole match. Anything slow enough to
   // settle gets nudged off toward the pitch.
-  if (b.y < barY && Math.hypot(b.vx, b.vy) < 90) {
-    const towardPitch = nearestX < C.W / 2 ? 1 : -1;
-    b.vx += towardPitch * 70;
+  //
+  // TOPPED UP, never ADDED. A ball settling into a weak bounce cycle here calls this on
+  // several consecutive ticks — vy crossing zero slower each time as the 0.72 restitution
+  // bleeds it out — and `+=` stacked a fresh 70 onto whatever was already there on every one
+  // of them, so the ball left the bar under a hundred-plus px/s it never earned. That is not
+  // what "passes through the crossbar" was (that was the missing roof edge, above), but it is
+  // its own bug: a collision that hands the ball free energy reads as the bar spitting it
+  // away. Topping up to 70 holds the nudge at exactly the speed the comment above asks for —
+  // enough to roll off — and calling it again next tick, still resting, does nothing further.
+  if (b.y < py && Math.hypot(b.vx, b.vy) < 90) {
+    const towardPitch = px < C.W / 2 ? 1 : -1;
+    const along = b.vx * towardPitch;               // how fast it's already headed that way
+    if (along < 70) b.vx += (70 - along) * towardPitch;
   }
-  fx.hit(nearestX, barY, '#ffe08a', 1);
+  fx.hit(px, py, '#ffe08a', 1);
 }
 
 function bounceOffPost(b, px, py, fx) {

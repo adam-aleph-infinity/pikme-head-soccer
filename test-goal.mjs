@@ -568,5 +568,187 @@ C.tune({ JUMP_V: SHIPPED_JUMP });
      `x=${b.x.toFixed(1)} line=${C.GOAL_W}`);
 }
 
+// ═══ 7. A SLOW BALL DOES NOT GET LAUNCHED OFF THE CROSSBAR ═════════════════
+//
+// Reported: a ball drifting down onto the roof of the net would, for a slow ball only,
+// eventually behave as if the crossbar were not there — a fast ball always bounced fine,
+// which is what points at the "settle" branch rather than the collision test itself.
+//
+// bounceOffCrossbar will not let a ball come to REST on the bar: anything slow enough to
+// settle gets a sideways nudge so it rolls off (the comment above it tells the story of the
+// match that hung on a ball parked at (939, 215)). That nudge fires on every tick the ball is
+// still touching the bar, and it used to ADD 70px/s each time rather than topping the ball up
+// to that speed. A ball weakly bouncing on the bar — restitution 0.72 bleeding a little energy
+// out of it on each contact — calls that nudge on every one of ten-odd consecutive ticks
+// before it finally clears bar height, and `+=` stacked all of them: a ball that should roll
+// off at a sedate 70px/s instead left carrying a hundred-plus, fast enough to cross the whole
+// depth of the goal and reach the post before its own capture radius (b.r + POST_R) could
+// still catch it. From the outside that reads exactly as reported: the ball was near the bar,
+// and then it was just gone, as if there were no collider — not a straight fall through the
+// roof (the ball is still above bar height when it escapes; PART 2 below is the direct check
+// for that), but a launch no real collision ever produces.
+//
+// This is independent of goal size — it reproduces identically against the goal's own current
+// GOAL_W/GOAL_H, because it was never about how wide the goal is, only about how many ticks a
+// settling ball spends touching the bar, which every goal size produces.
+{
+  // PART 1 — THE SYMPTOM. Measure the fastest sideways speed the ball is EVER carrying while
+  // still in contact with the bar. One nudge tops it up to 70px/s; anything meaningfully past
+  // that is the old bug's accumulation showing up again.
+  const contactSpeeds = (x, vy0, ticks = 80) => {
+    const m = noWhistle();
+    clearThePitch(m);
+    const b = m.ball;
+    b.x = x; b.y = barY() - 40; b.vx = 0; b.vy = vy0;
+    const min = C.BALL_R + C.POST_R;
+    let sawContact = false, worst = 0;
+    for (let i = 0; i < ticks; i++) {
+      m.hitStop = 0;
+      step(m, [{}, {}], C.TICK, NO_FX);
+      const nearestLeft = Math.max(0, Math.min(b.x, C.GOAL_W));
+      const nearestRight = Math.max(C.W - C.GOAL_W, Math.min(b.x, C.W));
+      const d = Math.min(Math.hypot(b.x - nearestLeft, b.y - barY()),
+                          Math.hypot(b.x - nearestRight, b.y - barY()));
+      if (d < min + 0.5) { sawContact = true; worst = Math.max(worst, Math.abs(b.vx)); }
+    }
+    return { sawContact, worst };
+  };
+  for (const [label, x, vy0] of [
+    ['centre of the left goal', C.GOAL_W / 2, 40],
+    ['barely reaching the bar at all', C.GOAL_W / 2, 5],
+    ['settling close to the post', C.GOAL_W - 10, 40],
+    ['the mirrored right goal', C.W - C.GOAL_W / 2, 40],
+  ]) {
+    const r = contactSpeeds(x, vy0);
+    ok(`(the ball actually touched the bar — ${label})`, r.sawContact);
+    ok(`a slow ball settling on the bar is never launched sideways — ${label}`, r.worst < 90,
+       `fastest sideways speed seen at the bar: ${r.worst.toFixed(1)}px/s`);
+  }
+  // The fast case is the control: it never had this problem (one hard bounce, gone), and it
+  // stays here so a future change that breaks it shows up in the same section as the fix.
+  const fastCase = contactSpeeds(C.GOAL_W / 2, 900, 20);
+  ok('a fast ball is unaffected, as it always was', fastCase.worst < 90,
+     `fastest sideways speed seen at the bar: ${fastCase.worst.toFixed(1)}px/s`);
+}
+{
+  // PART 2 — THE INVARIANT ITSELF, whatever ends up producing a fast ball near the bar: no
+  // ball may end up BELOW the roof while still squarely under the SPAN of the bar (clear of
+  // either post's own corner, which is a doorway and is supposed to be open — see sections
+  // 1-6). If this ever fails, a ball is going through solid roof rather than around a post.
+  const staysAboveTheRoof = (x, vy0, ticks = 500) => {
+    const m = noWhistle();
+    clearThePitch(m);
+    const b = m.ball;
+    b.x = x; b.y = barY() - 60; b.vx = 0; b.vy = vy0;
+    const min = C.BALL_R + C.POST_R;
+    let breached = false;
+    for (let i = 0; i < ticks; i++) {
+      m.hitStop = 0;
+      step(m, [{}, {}], C.TICK, NO_FX);
+      const underLeftSpan = b.x > C.POST_R + 1 && b.x < C.GOAL_W - C.POST_R - 1;
+      const underRightSpan = b.x > C.W - C.GOAL_W + C.POST_R + 1 && b.x < C.W - C.POST_R - 1;
+      if ((underLeftSpan || underRightSpan) && b.y > barY() + min + 2) breached = true;
+    }
+    return { breached, x: b.x, y: b.y };
+  };
+  for (const [label, x, vy0] of [
+    ['slow, centre of mouth', C.GOAL_W / 2, 40],
+    ['very slow, centre of mouth', C.GOAL_W / 2, 5],
+    ['slow, near the post', C.GOAL_W - 10, 40],
+    ['fast, centre of mouth', C.GOAL_W / 2, 900],
+  ]) {
+    const r = staysAboveTheRoof(x, vy0);
+    ok(`no ball ends up under the roof of the net — ${label}`, !r.breached,
+       `ended at x=${r.x.toFixed(1)} y=${r.y.toFixed(1)}`);
+  }
+}
+
+// ═══ 8. THE ROOF IS SOLID EVERYWHERE IT IS DRAWN ═══════════════════════════
+//
+// Reported, twice, and the second time after a fix that was not this one: "you can see the top
+// right of the goal but the ball falls down through it like it's nothing."
+//
+// The goal is DRAWN as a box. Its far frame steps `wx` toward the middle of the pitch and `wy`
+// up the screen, so the crossbar leaves the near post and recedes — the roof reaches 40% of the
+// goal's own depth further out over the pitch than the near rail does. The sim had only the
+// near rail: flat, ending dead on the goal line. Every pixel of roof past that line was a
+// picture with nothing behind it, an 18px-wide hole once the ball's radius is taken off, and a
+// ball dropped into it fell through the frame.
+//
+// These sweep the band the renderer actually draws, taken from the renderer's own goalBox, so
+// the fence moves if the projection ever does.
+const overhang = (left) => {
+  const box = goalBox(left);
+  return { box, from: box.lineX, to: box.lineX + box.wx, topY: box.top + box.wy };
+};
+// Straight down from well above the roof. Something has to turn it back before it is clear
+// under the bar line — that "something" is the only thing being asserted.
+const dropAt = (sx, fromY) => {
+  const m = noWhistle();
+  clearThePitch(m);
+  const b = m.ball;
+  b.x = sx; b.y = fromY; b.vx = 0; b.vy = 80;
+  for (let i = 0; i < 120; i++) {
+    m.hitStop = 0;
+    step(m, [{}, {}], C.TICK, NO_FX);
+    if (b.vy < 0) return true;                                   // turned back: the roof held
+    if (b.y - b.r > barY() + C.POST_R + 4) return false;         // clear under the bar: a hole
+  }
+  return false;
+};
+{
+  for (const left of [true, false]) {
+    const { from, to, topY } = overhang(left);
+    const lo = Math.min(from, to), hi = Math.max(from, to);
+    const holes = [];
+    for (let sx = lo; sx <= hi; sx += 1) if (!dropAt(sx, topY - 70)) holes.push(Math.round(sx));
+    ok(`${left ? 'left' : 'right'}: the ball cannot fall through the roof the renderer draws`,
+       holes.length === 0,
+       holes.length ? `falls through at screen x ${holes[0]}..${holes[holes.length - 1]} (${holes.length}px)` : `swept x ${Math.round(lo)}..${Math.round(hi)}`);
+  }
+}
+{
+  // …AND THE ROOF IS OPEN FROM UNDERNEATH, which is the half that is easy to get wrong. Made
+  // two-sided, this segment is a ramp leaning out over the pitch whose underside slopes down
+  // toward the goal: a shot driven flat along bar height met it ~20px BEFORE the post and was
+  // steered in. The ball is played on the near plane and the segment is the bar receding away
+  // from that plane, so a ball level with it passes in FRONT of it and goes on to meet the
+  // post, exactly as it did before any of this. Both goals, right through the overhang band.
+  for (const left of [true, false]) {
+    const { from, to } = overhang(left);
+    const m = fresh();
+    clearThePitch(m);
+    const b = m.ball;
+    const outside = left ? Math.max(from, to) + 60 : Math.min(from, to) - 60;
+    b.x = outside; b.y = barY(); b.vx = left ? -900 : 900; b.vy = 0;
+    run(m, 25);
+    ok(`${left ? 'left' : 'right'}: a flat shot at bar height is still turned away, not funnelled in`,
+       m.score[left ? 1 : 0] === 0, `score ${m.score}`);
+  }
+}
+{
+  // THE MOUTH IS EXACTLY AS BIG AS IT WAS. The roof edge lives entirely above the crossbar
+  // (wy is negative — the far side steps UP), and the mouth is everything below it, so adding
+  // it must not cost a single pixel of opening. Every height from the grass to the underside
+  // of the bar, both goals, has to still score.
+  const scoresAt = (left, y) => {
+    const m = fresh();
+    clearThePitch(m);
+    const b = m.ball;
+    b.x = left ? C.GOAL_W + 200 : C.W - C.GOAL_W - 200;
+    b.y = y; b.vx = left ? -700 : 700; b.vy = 0; b.spin = 0;
+    run(m, 200);
+    return m.score[0] + m.score[1] > 0;
+  };
+  for (const left of [true, false]) {
+    const missed = [];
+    for (let y = C.GROUND_Y - C.BALL_R; y >= barY() + C.BALL_R; y -= 3) {
+      if (!scoresAt(left, y)) missed.push(Math.round(y));
+    }
+    ok(`${left ? 'left' : 'right'}: every height under the bar still scores`, missed.length === 0,
+       missed.length ? `${missed.length} heights blocked: ${missed.slice(0, 8).join(', ')}` : 'nothing blocked');
+  }
+}
+
 console.log(`test-goal: ${pass} passed, ${fail} failed`);
 if (fail) process.exit(1);
