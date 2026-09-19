@@ -13,6 +13,7 @@ import { activeDart, activeDog, goalWallT, hasSuperKick } from '../shared/skills
 import { goalBox, goalAt, depthPoint, INSIDE_Z } from '../shared/goalbox.js';
 import { createEditor, applyLayout, applyOpacity, loadOpacity } from './padlayout.js';
 import { headCrop } from './head-crop.js';
+import { clockText } from './hud.js';
 import { createNet } from './net.js';
 import { playEvent, SFX, setAudioEnabled, audioEnabled } from './audio.js';
 import { STAGES, randomStage, stageById } from './stages.js';
@@ -302,43 +303,113 @@ let EDITOR = null;
 // Also tracked PER POINTER ID, so a second thumb landing on jump cannot release the direction
 // the first one is holding, and a pointer lost to the OS (a notification, a call) releases
 // exactly its own key.
-const heldBy = new Map();                       // pointerId -> input key
+const heldBy = new Map();                       // pointerId -> { k, touch }
+// The two buttons a thumb is allowed to slide BETWEEN. Everything else keeps the capture it
+// was pressed with, because sliding off jump onto kick is a miss, not a change of mind.
+const WALK = new Set(['left', 'right']);
 
-function releasePointer(id) {
-  const k = heldBy.get(id);
-  if (k === undefined) return;
-  heldBy.delete(id);
-  held[k] = false;
-  for (const b of document.querySelectorAll(`.pad .btn[data-k="${k}"]`)) b.classList.remove('on');
+function pressPointer(id, btn, touch) {
+  const k = btn.dataset.k;
+  heldBy.set(id, { k, touch });
+  held[k] = true;
+  btn.classList.add('on');
 }
 
+function releasePointer(id) {
+  const rec = heldBy.get(id);
+  if (!rec) return;
+  heldBy.delete(id);
+  // Only clear the key if no OTHER live pointer is still holding it — two thumbs on the same
+  // direction should take two lifts.
+  for (const r of heldBy.values()) if (r.k === rec.k) return;
+  held[rec.k] = false;
+  for (const b of document.querySelectorAll(`.pad .btn[data-k="${rec.k}"]`)) b.classList.remove('on');
+}
+
+// ── SLIDING BETWEEN THE ARROWS ──────────────────────────────────────────────
+// The capture above is what stops a drifting thumb from dropping a direction, and it is also
+// what stopped a thumb SLIDING from ▶ onto ◀ from ever reaching ◀: every move for that finger
+// is delivered to the button it started on. Correct for five separate buttons, wrong for the
+// one pair you walk with — nobody lifts their thumb to turn around.
+//
+// So the walk pointers, and only the walk pointers, re-ask on every move which arrow is under
+// the finger. The capture STAYS where it is: it is what guarantees the move events keep
+// arriving here at all once the finger is over the canvas, and the answer comes from
+// elementFromPoint instead. Sliding off both arrows releases the direction; sliding back on
+// takes it again.
+const walkAt = (x, y) => {
+  const el = document.elementFromPoint(x, y);
+  const btn = el && el.closest ? el.closest('.pad .btn') : null;
+  return btn && WALK.has(btn.dataset.k) ? btn : null;
+};
+
+// Which fingers are WALKING, kept apart from which ones are currently holding a direction.
+// They are not the same set and conflating them was the first version of this: a finger that
+// slides off both arrows lets go of its direction, and if that is also what stops it being
+// tracked then sliding back on can never pick anything up again. A walk pointer is tracked
+// from the press that started it until it lifts, whatever it happens to be over in between.
+const walking = new Set();                      // pointerIds that pressed a walk arrow
+
+function trackWalk(ev) {
+  if (!walking.has(ev.pointerId)) return;               // not a walking finger: leave it be
+  if (EDITOR && EDITOR.editing) return;
+  const btn = walkAt(ev.clientX, ev.clientY);
+  const cur = heldBy.get(ev.pointerId);
+  if (btn && cur && btn.dataset.k === cur.k) return;    // still on the same arrow
+  const touch = cur ? cur.touch : ev.pointerType === 'touch';
+  releasePointer(ev.pointerId);
+  if (btn) pressPointer(ev.pointerId, btn, touch);
+}
+// On the window, not on the button: with a capture the move is delivered to the capturing
+// element and bubbles from there, and without one (an engine where setPointerCapture threw)
+// it is delivered wherever the finger actually is. Both reach here — and so does the lift,
+// which the button would miss if the finger were over the pitch when it came off.
+addEventListener('pointermove', trackWalk, { passive: true });
+const endWalk = (ev) => { if (walking.delete(ev.pointerId)) releasePointer(ev.pointerId); };
+addEventListener('pointerup', endWalk);
+addEventListener('pointercancel', endWalk);
+
 for (const btn of document.querySelectorAll('.pad .btn')) {
-  const k = btn.dataset.k;
   btn.addEventListener('pointerdown', (ev) => {
     // While the layout is being edited a press MOVES the button instead of firing it.
     if (EDITOR && EDITOR.editing) return;
     ev.preventDefault();
-    heldBy.set(ev.pointerId, k);
-    held[k] = true;
-    btn.classList.add('on');
+    pressPointer(ev.pointerId, btn, ev.pointerType === 'touch');
+    if (WALK.has(btn.dataset.k)) walking.add(ev.pointerId);
     // Capture: every later event for this finger comes here even if it slides off the button,
     // which is the whole fix for the drift.
     try { btn.setPointerCapture(ev.pointerId); } catch { /* older engines: harmless */ }
   });
-  const up = (ev) => { ev.preventDefault(); releasePointer(ev.pointerId); };
+  const up = (ev) => { ev.preventDefault(); walking.delete(ev.pointerId); releasePointer(ev.pointerId); };
   btn.addEventListener('pointerup', up);
   btn.addEventListener('pointercancel', up);
   // The capture can be taken away (a system gesture, a rotation). Treat it as a lift rather
   // than leaving the key down forever.
-  btn.addEventListener('lostpointercapture', (ev) => releasePointer(ev.pointerId));
+  btn.addEventListener('lostpointercapture', (ev) => {
+    // The capture going away is only a lift for buttons that RELY on it. A walk arrow keeps
+    // following the finger by hit-test, so losing the capture there is not a release.
+    if (!walking.has(ev.pointerId)) releasePointer(ev.pointerId);
+  });
   btn.addEventListener('contextmenu', (ev) => ev.preventDefault());
 }
+const releaseAll = (touchOnly = false) => {
+  for (const [id, rec] of [...heldBy]) {
+    if (touchOnly && !rec.touch) continue;
+    walking.delete(id);
+    releasePointer(id);
+  }
+  if (!touchOnly) walking.clear();
+};
 // Anything that takes the page away — a notification, the app backgrounding, a phone call —
 // lifts every finger. Without this the last direction you were holding stays held.
-addEventListener('blur', () => { for (const id of [...heldBy.keys()]) releasePointer(id); });
-document.addEventListener('visibilitychange', () => {
-  if (document.hidden) for (const id of [...heldBy.keys()]) releasePointer(id);
-});
+addEventListener('blur', () => releaseAll());
+document.addEventListener('visibilitychange', () => { if (document.hidden) releaseAll(); });
+// Belt and braces for the platform that has swallowed a pointerup before: if the glass has no
+// touches left on it, nothing can still be held by a touch. Mouse pointers are left alone, or
+// a stray tap on a touchscreen laptop would drop the key the mouse is holding.
+const allTouchesGone = (ev) => { if (!ev.touches.length) releaseAll(true); };
+addEventListener('touchend', allTouchesGone, { passive: true });
+addEventListener('touchcancel', allTouchesGone, { passive: true });
 // The pad is on every device now, thumb or mouse — it holds the three cards, and an ability
 // you cannot see is an ability nobody presses. `no-touch` survives as a flag for the few
 // places that still want to know (cursor, the key caps printed on the cards); `?pad=1` is
@@ -365,6 +436,9 @@ const setEditing = (on, how = 'save') => {
   $('#editBar').classList.toggle('hidden', !on);
   $('#editOpacity').value = String(EDITOR.opacity);
   for (const k of Object.keys(held)) held[k] = false;
+  // The per-pointer books too, or a finger that was on an arrow when the editor opened stays
+  // in them and its lift releases a key nobody is holding.
+  heldBy.clear(); walking.clear();
   for (const b of document.querySelectorAll('.pad .btn')) b.classList.remove('on');
   if (M) paintHand();
 };
@@ -800,6 +874,11 @@ function resize() {
     el.style.height = h + 'px';
   }
   sizePad(sw, sh, vw, vh);
+  // The scoreboard portraits are sized by CSS (--face, off the smaller viewport axis), so
+  // this is the one place that asks how big the CSS made them and hands that to the crop.
+  const faceW = Math.round($('#face0').getBoundingClientRect().width);
+  if (faceW > 0 && faceW !== FACE_PX) { FACE_PX = faceW; $('#face0').dataset.card = $('#face1').dataset.card = ''; }
+  paintFaces();
   applyBars();                       // the gradient's cut is the ground line, which just moved
   // Saved offsets are fractions of the stage, so they have to be re-multiplied whenever the
   // stage changes — rotation, a resized window, the keyboard opening on a phone.
@@ -854,6 +933,16 @@ function sizePad(w, h, vw, vh) {
 // than derived from a button count that the next design change would invalidate.
 const ROW_MARGIN = 14;             // px of daylight kept on each side of the hand
 
+// The union of a thumb group's buttons, which is not the same as the group's own box once a
+// button is allowed to overhang it.
+function groupBox(group) {
+  const bs = [...group.querySelectorAll('.btn')].map((b) => b.getBoundingClientRect());
+  if (!bs.length) return group.getBoundingClientRect();
+  const left = Math.min(...bs.map((b) => b.left)), right = Math.max(...bs.map((b) => b.right));
+  const top = Math.min(...bs.map((b) => b.top)), bottom = Math.max(...bs.map((b) => b.bottom));
+  return { left, right, top, bottom, width: right - left, height: bottom - top };
+}
+
 function centreRow() {
   const row = document.getElementById('cardRow');
   const l = document.querySelector('.pad-l');
@@ -864,7 +953,11 @@ function centreRow() {
   // that and settled at a 3px overlap instead of the margin it was asked for.
   row.style.setProperty('--rowx', '0px');
   row.style.setProperty('--rows', '1');
-  const lb = l.getBoundingClientRect(), rb = r.getBoundingClientRect();
+  // The BUTTONS' boxes, not the group's. The walk arrows overhang their group on purpose —
+  // their hit target reaches past the artwork and is pulled back into the row with a negative
+  // margin — so the group box is the artwork's width and the thing the cards have to clear is
+  // wider than it by --hx.
+  const lb = groupBox(l), rb = groupBox(r);
   const rowb = row.getBoundingClientRect();
   if (!rowb.width) return;
 
@@ -2358,12 +2451,43 @@ function drawHeads() {
 }
 
 // ---- HUD -------------------------------------------------------------------
+// THE TWO FACES ON THE SCOREBOARD. Where a Head Soccer scoreboard flies two national flags,
+// this one shows the two cards actually being played — which is the same information and a
+// better answer, because the card is a thing the player chose.
+//
+// No new art path and no second copy of "who is player i": the portrait goes through the
+// SAME paintHead → head-crop pipeline as the head on the grass and the cards under the
+// pitch, reading p.char straight off the match. So a face that is centred in its circle
+// down there is centred up here, and a player who swaps card gets a new portrait for free
+// on the next frame.
+//
+// Repainting is keyed on card AND size, so calling this every frame costs one string
+// compare per player; the background only gets rewritten when the character or the screen
+// actually changed. The size comes from resize() rather than from a measurement here —
+// reading a box back mid-frame, after drawHeads has just written transforms, forces a
+// synchronous layout sixty times a second.
+let FACE_PX = 44;
+function paintFaces() {
+  if (!M) return;
+  for (let i = 0; i < 2; i++) {
+    const el = $('#face' + i);
+    const { rarity, number } = M.players[i].char;
+    const key = `${rarity}_${number}_${FACE_PX}`;
+    if (el.dataset.card === key) continue;
+    paintHead(el.firstElementChild, rarity, number, FACE_PX);
+    el.dataset.card = key;
+  }
+}
+
 function syncHud() {
   $('#s0').textContent = M.score[0];
   $('#s1').textContent = M.score[1];
   const clk = $('#clock');
-  clk.textContent = M.golden ? 'ג.ג' : Math.ceil(M.clock);
+  // M:SS rather than a bare count of seconds — see clockText. The board is a football
+  // scoreboard now and "59" on one is a shirt number.
+  clk.textContent = clockText(M.clock, M.golden);
   clk.classList.toggle('low', !M.golden && M.clock <= 10);
+  paintFaces();
   for (let i = 0; i < 2; i++) {
     const p = M.players[i];
     const gEl = $(`.gauge.g${i}`);
@@ -2602,7 +2726,7 @@ $('#tunerCopy').onclick = async () => {
 Object.assign(window, { goalBox, goalAt, depthPoint, INSIDE_Z });
 Object.assign(window, { C, startMatch, pick, SHOTS, ACT, activeMeteors, isRobot,
                         PU, PU_NAME, PU_COLOR, PU_LABEL, PU_KINDS, activePickup, puBadges,
-                        paintHand, paintHead, cardAt, cardKind });
+                        paintHand, paintHead, cardAt, cardKind, callout });
 // The measured head anchors, for the crop tools — see head-crop.js and test-heads.mjs.
 Object.defineProperty(window, '__ANCHORS', { get: () => ANCHORS });
 Object.assign(window, { headCrop });

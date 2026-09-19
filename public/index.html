@@ -100,13 +100,24 @@
          body behind the net and their face in front of it. See drawHeadNet in game.js. -->
     <canvas id="cvnet"></canvas>
 
+    <!-- THE SCOREBOARD. Three columns — each player's face over that player's own score,
+         the clock between them and a little above both. The old row put both scores and the
+         clock on one baseline inside a black box, which reads as a widget sitting on the
+         picture; stacked and unboxed, the pitch shows through and the two numbers you are
+         actually comparing sit one under its own face. The portraits are the same card crop
+         as the heads on the pitch (see paintFaces in game.js), so the face on the scoreboard
+         is literally the head you are kicking with. -->
     <div class="hud">
-      <div class="meter"><div class="gauge g0"><div class="fill"></div><span class="nm"></span></div></div>
+      <div class="meter m0"><div class="gauge g0"><div class="fill"></div><span class="nm"></span></div></div>
       <div class="scoreboard">
-        <b id="s0">0</b><i id="clock">60</i><b id="s1">0</b>
+        <span class="face f0" id="face0"><i></i></span>
+        <span class="face f1" id="face1"><i></i></span>
+        <i class="clock" id="clock">1:00</i>
+        <b class="score s0" id="s0">0</b>
+        <b class="score s1" id="s1">0</b>
         <em class="rtt" id="rtt"></em>
       </div>
-      <div class="meter"><div class="gauge g1"><div class="fill"></div><span class="nm"></span></div></div>
+      <div class="meter m1"><div class="gauge g1"><div class="fill"></div><span class="nm"></span></div></div>
     </div>
 
     <!-- Card call-outs: who played what, under the scoreboard, one lane per player. -->

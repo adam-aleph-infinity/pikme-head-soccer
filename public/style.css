@@ -142,32 +142,126 @@ body.safedemo { --safe-l: 44px; --safe-r: 44px; --safe-b: 21px; --safe-t: 12px; 
 @keyframes armed { from { box-shadow: 0 0 0 0 #ffb80000; } to { box-shadow: 0 0 22px 6px #ffb800cc; } }
 .head.knocked { filter: grayscale(.6) brightness(.7); }
 
-/* HUD — Street Fighter II. Yellow power bar in a black-bordered frame that drains from the
-   inside out, a name plate beneath it, and TIME as one big number in a box between them.
-   The old dark rounded pills were the most modern-looking thing on screen. */
+/* ── THE SCOREBOARD ───────────────────────────────────────────────────────────
+   Was three numbers on one baseline inside a black box, flanked by two more black boxes
+   with the power bars in them. Three panels across the top of the picture, and the picture
+   is the point — a stadium you never see because the furniture is parked in front of it.
+
+   So: no panels anywhere in here. Every number carries its own readability — a fat black
+   keyline with `paint-order: stroke fill` and one hard drop shadow, the same lettering the
+   goal banner uses — and the stage is visible between them.
+
+   THE SHAPE, and it is the whole reason this is a grid rather than a row:
+
+        [ FACE 0 ]                    [ FACE 1 ]
+                        [ 0:59 ]
+        [ SCORE 0 ]                   [ SCORE 1 ]
+
+   A score belongs UNDER its own face, not beside it, because the question a player asks the
+   scoreboard is "am I winning" and the answer is two numbers to compare — putting the clock
+   between them on the same line made you read past it to compare them. The clock spans both
+   rows and is pulled up toward the faces: high enough to be off the score baseline, low
+   enough to read as the middle of the board rather than a third thing at the top.
+
+   EVERY BOX IN HERE IS A FIXED SIZE. The board's width is clamped, the faces are --face
+   square, the clock is a fixed number of `ch` of tabular figures and so is each score. A
+   goal, a tick of the clock or a different card therefore repaints in place — nothing in
+   this grid can be resized by its own contents, which is what a scoreboard that jitters on
+   every goal looks like from the inside. */
 .hud {
-  position: absolute; top: 0; inset-inline: 0; padding: 6px 8px;
-  display: flex; align-items: flex-start; gap: 8px; pointer-events: none;
-  direction: ltr;
+  position: absolute; top: 0; inset-inline: 0;
+  /* A landscape phone puts the notch on one of these edges; the meters used to run under it. */
+  padding: 6px max(8px, var(--sa-r)) 0 max(8px, var(--sa-l));
+  /* 1fr auto 1fr, not a flex row: the meters cap at 300px, and under flex that left the
+     board sitting wherever the left meter stopped instead of in the middle of the screen.
+     Equal fr columns put the middle column in the middle at every width there is. */
+  display: grid; grid-template-columns: 1fr auto 1fr; align-items: start; gap: 0 10px;
+  pointer-events: none; direction: ltr;
 }
 .scoreboard {
-  /* Stays a ROW: stacking it put player 0's score above player 1's instead of left of it,
-     and the score has to read in the same direction as the pitch. */
-  display: flex; align-items: center; gap: 9px;
-  padding: 3px 12px 4px;
-  background: #101018; border: 3px solid #000;
-  box-shadow: 0 0 0 2px #d8d8e4, 3px 3px 0 #0009;
+  position: relative;                    /* only the ping badge hangs off it */
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  grid-template-areas: "f0 clock f1"
+                       "s0 clock s1";
+  row-gap: 2px;
+  width: clamp(180px, 34vw, 320px);
   font-variant-numeric: tabular-nums;
 }
-.scoreboard i {
-  font-style: normal; font-size: 26px; font-weight: 900; line-height: 1;
-  color: #ffd23c; -webkit-text-stroke: 1px #000; letter-spacing: 1px;
+/* The one piece of lettering shared by the clock and both scores: a keyline thick enough to
+   survive a bright sky behind it, and a shadow to lift it off a dark one. */
+.scoreboard .clock, .scoreboard .score {
+  font-style: normal; font-weight: 900; line-height: 1;
+  text-align: center; white-space: nowrap;
+  /* The keyline scales with the lettering: a flat 3px is a hairline on an iPad and half the
+     glyph on a 390px phone, and this is the only thing holding these numbers off the sky. */
+  -webkit-text-stroke: calc(var(--face) * .068) #05070d;
+  paint-order: stroke fill;
+  text-shadow: 0 3px 0 #00000073, 0 0 12px #00000059;
 }
-.scoreboard i.low { color: #ff4d4d; animation: gaugeFull .4s infinite alternate; }
-.scoreboard b { font-size: 22px; font-weight: 900; line-height: 1; -webkit-text-stroke: 1px #000; min-width: 18px; text-align: center; }
-.scoreboard #s0 { color: #6fa0ff; }
-.scoreboard #s1 { color: #ff7a6f; }
-.scoreboard .rtt { font-style: normal; font-size: 8px; color: #7a7a92; }
+.scoreboard .clock {
+  grid-area: clock; align-self: start; justify-self: center;
+  /* Pulled up to sit BETWEEN the two rows and nearer the faces — see the shape above. The
+     offset is a fraction of the face so the relationship survives every screen size. */
+  margin-top: calc(var(--face) * .40);
+  font-size: calc(var(--face) * .60);
+  width: 4.6ch;                          /* fixed: "0:59", "1:00" and ג.ג all land in it */
+  color: #ffd23c;
+}
+/* Ten seconds left. A scale pulse, not a box-shadow one — there is no box any more, and a
+   transform cannot move anything else on the board. */
+.scoreboard .clock.low { color: #ff5b48; animation: clockLow .45s infinite alternate; }
+@keyframes clockLow { from { transform: scale(1); } to { transform: scale(1.14); } }
+.scoreboard .score {
+  justify-self: center;
+  font-size: calc(var(--face) * .76);
+  /* FIXED, not min-width. Centred text in a min-width box still moves its own left edge when
+     the score goes from 9 to 10, and "the number jumped sideways when I scored" is the whole
+     complaint. Two tabular figures fit inside 2.2ch with room to spare. */
+  width: 2.2ch;
+  color: #fff;
+}
+.scoreboard .s0 { grid-area: s0; color: #7fb6ff; }
+.scoreboard .s1 { grid-area: s1; color: #ff8d80; }
+/* ── THE FACES ────────────────────────────────────────────────────────────────
+   They stand where a Head Soccer scoreboard puts the two national flags, and they say the
+   same thing that flag said — who this column is — except that here the answer is a card
+   you chose rather than a country you were assigned. Same crop pipeline as the heads on the
+   pitch and the cards under it (public/head-crop.js), so the face is centred in the circle.
+   The ring is the player's own colour, which is also the outline on their head down on the
+   grass: that is the whole association, and it is one glance. */
+.face {
+  position: relative; display: block;
+  width: var(--face); height: var(--face);
+  justify-self: center;
+  border-radius: 50%; overflow: hidden;
+  background: #0b1020;
+  box-shadow: 0 3px 10px #000000a6;
+}
+.face.f0 { grid-area: f0; --ring: var(--p0); }
+.face.f1 { grid-area: f1; --ring: var(--p1); }
+.face > i {
+  display: block; width: 100%; height: 100%;
+  background: #0b1020 no-repeat;         /* size/position set per card by paintHead */
+}
+/* The ring is drawn INSIDE the circle, as inset shadow rather than a border or an outline:
+   a border would shrink the crop window the JS measured, and an outline sits outside the
+   box and would be the one thing in this grid that its own contents can grow. */
+.face::after {
+  content: ''; position: absolute; inset: 0; border-radius: 50%; pointer-events: none;
+  box-shadow: inset 0 0 0 2px #05070dcc, inset 0 0 0 4px var(--ring, #fff);
+}
+/* The ping, online only. Absolute so a three-digit rtt cannot push the board around. */
+.scoreboard .rtt {
+  position: absolute; left: 50%; bottom: -11px; transform: translateX(-50%);
+  font-style: normal; font-size: 9px; color: #9fb0d0; text-shadow: 0 1px 2px #000;
+}
+
+/* A LANDSCAPE PHONE IS 390px TALL and a portrait one is 390px WIDE, so the board is sized
+   off whichever of the two is scarcer. Everything else on it — the clock, both scores, the
+   gap the clock is pulled up by — is a multiple of this one number. */
+#stage { --face: clamp(34px, min(6.4vw, 7.6vh), 52px); }
+
 /* ── THE POWER METER ──────────────────────────────────────────────────────────
    Was a plain rectangle that only grew. It is the one number a player watches all match,
    so it now says how full it is in COLOUR as well as in length — green, yellow, orange,
@@ -184,9 +278,11 @@ body.safedemo { --safe-l: 44px; --safe-r: 44px; --safe-b: 21px; --safe-t: 12px; 
    shadow now, but the wrapper stays: it is the arrangement that does not break the next time
    someone cuts a shape out of this. */
 .meter {
-  flex: 1; max-width: 300px; line-height: 0;
+  width: 100%; max-width: 300px; line-height: 0;
   filter: drop-shadow(0 2px 0 #0009);
 }
+.meter.m0 { justify-self: start; }
+.meter.m1 { justify-self: end; }
 .meter:has(.gauge.full)    { animation: gaugeReady .45s infinite alternate; }
 .meter:has(.gauge.powered) { animation: gaugeReady .30s infinite alternate; }
 .gauge {
@@ -194,18 +290,28 @@ body.safedemo { --safe-l: 44px; --safe-r: 44px; --safe-b: 21px; --safe-t: 12px; 
      what carries this meter is the colour ramp and the halo, not the outline. Keeping it
      square also gives the shot name the whole height back — every shape attempt here ended
      up fighting that label, because a clip shears a child rather than drawing over it. */
-  width: 100%; height: 24px; position: relative;
-  /* The element IS the frame: a pale rim the empty meter can still be seen by, with the dark
-     track as ::before inset inside it. Worth keeping even now the bar is square — an empty
-     meter against a night sky is invisible without it, which is how it was found at
-     667x375, where both bars start at zero. */
-  background: #dcdce8;
+  width: 100%; height: calc(var(--face) * .46); min-height: 15px; max-height: 24px;
+  position: relative;
+  /* The frame used to be a solid pale slab with a solid black tank inside it — two opaque
+     rectangles laid over the stadium, and the widest thing on the screen. Both are now
+     translucent, so the sky, the crowd and the hoardings run behind the bar. What kept the
+     empty meter visible was the rim, and the rim is what stayed: a white keyline at a third
+     opacity still draws the whole shape against a night sky, which is where this was found
+     at 667x375 with both bars sitting at zero. */
+  background: #ffffff1c;
+  box-shadow: inset 0 0 0 2px #ffffff59, 0 1px 0 #00000073;
   overflow: hidden;
 }
-/* the empty tank behind the fill */
+/* the empty tank behind the fill — a smoked pane now, not a black one */
 .gauge::before {
-  content: ''; position: absolute; inset: 3px; background: #0d0d18;
+  content: ''; position: absolute; inset: 3px; background: #05070d5c;
 }
+/* PLAYER 1'S BAR RUNS THE OTHER WAY. Both used to fill left-to-right, so at a glance the
+   right-hand bar read as the left-hand player's — the arcade convention, and the one this
+   HUD is copying, is that each meter drains toward its own outside edge. Mirroring the FILL
+   rather than the gauge keeps the shot name the right way round; the transform lands after
+   the clip, so one line mirrors the ramp and the clip together. */
+.g1 .fill, .g1::after { transform: scaleX(-1); }
 /* ONE ramp, across the FULL track, revealed by the clip — never a growing box. The colour
    therefore belongs to a position on the bar rather than to a tier, so the leading edge
    slides green -> lime -> yellow -> amber -> orange -> red with no step anywhere in it.
@@ -221,7 +327,7 @@ body.safedemo { --safe-l: 44px; --safe-r: 44px; --safe-b: 21px; --safe-t: 12px; 
 /* segment ticks, so the bar reads as an arcade meter rather than a progress bar */
 .gauge::after {
   content: ''; position: absolute; inset: 3px; pointer-events: none;
-  background: repeating-linear-gradient(104deg, #0000 0 11px, #00000055 11px 13px);
+  background: repeating-linear-gradient(104deg, #0000 0 11px, #0000003d 11px 13px);
 }
 .gauge .nm {
   position: absolute; inset: 0; display: grid; place-items: center;
@@ -229,7 +335,11 @@ body.safedemo { --safe-l: 44px; --safe-r: 44px; --safe-b: 21px; --safe-t: 12px; 
      pushed the whole centred label down past the bar and sheared its bottom off. Only at
      full, which is exactly when the label matters most. */
   font-size: 10px; font-weight: 900; letter-spacing: .3px; line-height: 1;
-  color: #fff; -webkit-text-stroke: 1px #000; text-shadow: 1px 1px 0 #000;
+  /* paint-order, since the tank behind this went translucent: a 1px keyline painted OVER a
+     10px glyph is most of the glyph, which read as black-on-grey the moment there was no
+     black tank under it to read the outline against. */
+  color: #fff; -webkit-text-stroke: 1.5px #000; paint-order: stroke fill;
+  text-shadow: 1px 1px 0 #000;
 }
 /* FULL. The bolt only appears when the move is actually available, so the icon is the
    signal rather than decoration — see it, press POWER. */
@@ -390,7 +500,9 @@ body[data-mode="duo"] #slotFoe { opacity: .45; pointer-events: none; }
    Deliberately not the shared #banner: that is one line for one event, and a card fired
    while a goal banner is up would have replaced it (or been replaced). These stack. */
 .callouts {
-  position: absolute; top: 74px; left: 50%; transform: translateX(-50%);
+  /* Below the scoreboard, and the scoreboard is now two rows of --face tall — a fixed 74px
+     put the first callout through the middle of the scores on anything bigger than a phone. */
+  position: absolute; top: calc(var(--face) * 2 + 18px); left: 50%; transform: translateX(-50%);
   width: min(560px, 92%); display: flex; flex-direction: column; gap: 5px;
   pointer-events: none; z-index: 6; direction: rtl;
 }
@@ -466,40 +578,79 @@ body[data-mode="duo"] #slotFoe { opacity: .45; pointer-events: none; }
    --s (the layout editor's per-button multiplier), and --xf still carries a dragged
    position, so the editor and _pad.mjs's thumb-size checks are untouched. */
 
-/* The walk arrows. The shape IS the button — clip-path cuts the arrow out of the box,
-   and the dark element showing through around the inset gold ::before is what draws
-   the outline, because a border does not follow a clipped edge. The hit area stays
-   the full rectangle, which is the point: a thumb aiming at a fat arrow should not
-   have to land inside the pointy bit. */
+/* ── THE WALK ARROWS ──────────────────────────────────────────────────────────
+   Two clipped layers inside a box that is bigger than either of them.
+
+   THE OUTLINE, and why it had holes. The shape used to BE the button — one clip-path cut
+   the brown arrow out of the element, and a gold ::before inset `i` px inside it carried
+   the SAME percentage polygon. A percentage polygon in a smaller box is a smaller arrow,
+   not an inset one: each vertex moves by i·(1 − 2·fraction), so the tip and the back of the
+   tail got the full i of brown while the two step edges either side of the head — at 46% —
+   got i·0.08, half a pixel. That is the outline that was missing from the back edges.
+
+   So the gold carries its OWN polygon now: the same shape offset inward by a true uniform
+   distance, vertices mitred, which is what a stroke does — a sharp corner pulls back further
+   than a flat edge. The box's aspect is pinned at 1.08 by min-width, so that offset is
+   expressible in percentages and costs nothing at runtime.
+
+   THE HIT AREA. The button is bigger than its artwork on three sides — outward, above and
+   below — and negative margins of the same size hand the extra back to the flex row, so the
+   arrow lands exactly where it always did and only the invisible target grew. The gap
+   between the two arrows is deliberately left alone: a thumb landing between them picks
+   NEITHER, because a wrong direction is worse than no direction. */
 .pad-l .btn {
   --arrow: polygon(0% 50%, 46% 0%, 46% 26%, 100% 26%, 100% 74%, 46% 74%, 46% 100%);
+  /* --arrow inset by 0.068 of the box height, uniformly. Recompute if --arrow changes. */
+  --gold: polygon(8.88% 50.00%, 39.70% 16.49%, 39.70% 32.80%, 93.70% 32.80%,
+                  93.70% 67.20%, 39.70% 67.20%, 39.70% 83.51%);
+  /* How far the target reaches past the gold. Deliberately NOT scaled by --s: --edge, the
+     strip of screen the pad is inset by, is not scaled either, so a hit margin that grew
+     with a resized button would hang its bottom off the phone. A button the player has
+     already made bigger needs less help anyway. */
+  --hx: calc(var(--u) * 0.12);
+  --hy: calc(var(--u) * 0.12);
   /* 1.12, not the 1.24 this started at. The hand of cards lives BETWEEN the two thumb
      groups, and centreRow() stacks it above the pad when the gap drops under ~172px at
      667x375. 1.24 ate that budget and pushed three cards over the pitch — measured, not
      guessed. Fat arrows are worth 12%; they are not worth the cards moving. */
-  min-width: calc(var(--u) * var(--s) * 1.08);
-  background: #4a2708; border: 0; border-radius: 0;
-  clip-path: var(--arrow);
+  min-width: calc(var(--u) * var(--s) * 1.08 + var(--hx));
+  height: calc(var(--u) * var(--s) + var(--hy) * 2);
+  margin-block: calc(var(--hy) * -1);
+  padding: 0;
+  background: none; border: 0; border-radius: 0;
   color: #5d3410; font-size: clamp(9px, calc(var(--u) * var(--s) * 0.19), 19px);
   backdrop-filter: none;
   filter: drop-shadow(0 calc(var(--u) * var(--s) * 0.045) 0 #2e1704cc);
   display: grid; place-items: center;
+  position: relative;
 }
+.pad-l .btn[data-k="left"]  { margin-inline-start: calc(var(--hx) * -1); }
+.pad-l .btn[data-k="right"] { margin-inline-end: calc(var(--hx) * -1); }
 .pad-l .btn[data-k="right"] {
   --arrow: polygon(100% 50%, 54% 0%, 54% 26%, 0% 26%, 0% 74%, 54% 74%, 54% 100%);
+  --gold: polygon(91.12% 50.00%, 60.30% 16.49%, 60.30% 32.80%, 6.30% 32.80%,
+                  6.30% 67.20%, 60.30% 67.20%, 60.30% 83.51%);
 }
-.pad-l .btn::before {
-  content: ''; position: absolute; inset: max(3px, calc(var(--u) * var(--s) * 0.075));
-  clip-path: var(--arrow);
+/* Both layers sit on the ARTWORK box — the button's box minus the hit margin — so the two
+   polygons share one coordinate system and the offset above stays true. */
+.pad-l .btn::before, .pad-l .btn::after {
+  content: ''; position: absolute; pointer-events: none;
+  top: var(--hy); bottom: var(--hy);
+}
+.pad-l .btn[data-k="left"]::before,  .pad-l .btn[data-k="left"]::after  { left: var(--hx); right: 0; }
+.pad-l .btn[data-k="right"]::before, .pad-l .btn[data-k="right"]::after { left: 0; right: var(--hx); }
+.pad-l .btn::before { background: #4a2708; clip-path: var(--arrow); }
+.pad-l .btn::after {
+  clip-path: var(--gold);
   background: linear-gradient(#ffe066 0%, #ffc021 46%, #e98f12 100%);
 }
-/* The glyph rides on top of the gold, like the L/R letters on the reference pad. */
-.pad-l .btn { position: relative; }
-.pad-l .btn > * , .pad-l .btn { z-index: 0; }
-.pad-l .btn:active, .pad-l .btn.on { background: #3a1d05; }
-.pad-l .btn:active::before, .pad-l .btn.on::before {
+.pad-l .btn > * { z-index: 0; }
+.pad-l .btn:active::before, .pad-l .btn.on::before { background: #3a1d05; }
+.pad-l .btn:active::after, .pad-l .btn.on::after {
   background: linear-gradient(#fff3a8 0%, #ffd047 46%, #f5a01a 100%);
 }
+/* The press tint on .pad .btn is a background, and this button no longer has one. */
+.pad-l .btn:active, .pad-l .btn.on { background: none; }
 
 /* The action plaques: jump, kick, power. Rounded stone rather than a circle, a heavy
    dark rim, and a top-lit face so they read as carved instead of printed. */

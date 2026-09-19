@@ -81,6 +81,42 @@ never show something that is not card. `node test-heads.mjs` runs it over all 18
 the list of anchors it had to fix — that list is the to-do for measuring them properly.
 `node _face-shots.mjs` photographs any card before and after.
 
+## The scoreboard
+
+```
+      [ FACE 0 ]                    [ FACE 1 ]
+                      [ 0:59 ]
+      [ SCORE 0 ]                   [ SCORE 1 ]
+```
+
+It was a row — score, clock, score — in a black box, with a black-tanked power bar either
+side of it. Three opaque panels across the top of a stadium you had paid for and could not
+see, and the two numbers you actually compare had the clock wedged between them.
+
+Now: **nothing in the HUD has a background.** Every number carries its own readability — a
+fat black keyline with `paint-order: stroke fill`, the same lettering the goal banner uses —
+and the sky, the crowd and the hoardings run behind all of it. `node _hudshots.mjs` proves
+that rather than asserting it: it shoots the band twice, once with the HUD hidden, and counts
+dark pixels. The board adds four points of dark to its own box; an opaque panel adds a
+hundred.
+
+**The flags became the cards.** Where Head Soccer flies two national flags this flies the two
+heads being played, through the same `paintHead` → `head-crop.js` pipeline as the head on the
+grass and the cards under the pitch — so the portrait is literally the head you are kicking
+with, ringed in that player's own colour. No second copy of "who is player *i*": `paintFaces`
+reads `p.char` off the match every frame and repaints only when the card or the screen
+changed.
+
+**Every box in it is a fixed size** — the board's width is clamped, the faces are `--face`
+square, the clock and both scores are a fixed number of `ch` of tabular figures. A goal, a
+tick or a swapped card repaints in place. `--face` is one number, derived from whichever
+viewport axis is scarcer, and everything else on the board is a multiple of it; that is what
+makes 390x844 and 1440x800 the same scoreboard.
+
+**The meters mirror.** Player 1's fills toward its own outside edge, which is the arcade
+convention and was the one thing about the old pair that read wrong at a glance — both filled
+left-to-right, so the right-hand bar looked like the left-hand player's.
+
 ## Two ways to play
 
 The pick screen asks which, rather than leaving it implicit: **🤖 נגד המחשב** (difficulty slider
@@ -524,6 +560,7 @@ shared/bot.js          the opponent. Emits the same input a human does.
 shared/rooms.js        private-room registry: codes, join, leave. Pure, no sockets.
 shared/net.js          wire format + the ordered input FIFO. Pure.
 public/                pick screen, lobby, renderer, input, tuner
+public/hud.js          the scoreboard's arithmetic — the clock's M:SS. Pure, runs in node.
 public/net.js          client socket, prediction, rollback reconciliation
 server.js              static host + ws host + one 60Hz loop over all rooms
 ```
@@ -578,6 +615,8 @@ the server — run `npm start` first or they fail on an empty page.
 | `node _duo.mjs` | two real Chrome clients playing each other through the real server |
 | `node _pace.mjs` | how slow can the match get before it stops being a game? |
 | `node _pad.mjs` | is the touch pad thumb-sized, on-pitch and non-overlapping on 5 devices? |
+| `node _hudshots.mjs` | is the scoreboard the shape it claims — face over score, clock between, no black panels — on 5 screens? |
+| `node _arrows.mjs` | can a thumb slide from ▶ to ◀ without lifting, is the target bigger than the arrow, and does the brown outline go all the way round? |
 
 Three real bugs came out of them, all invisible to the unit tests:
 
