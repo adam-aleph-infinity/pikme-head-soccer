@@ -112,12 +112,7 @@ check('card art loads over the network', artOk === '400x545', String(artOk));
 // that could score, freeze the match and reset both players between one await and the
 // next — which made a different check fail on each run. Bot behaviour has its own coverage
 // in test-bot.mjs and _duo.mjs; what THIS file tests is rendering and input.
-// …and switch the spectacle off for the same reason, one layer up. A meteor knocks the
-// player down for a third of a second, and a knocked player cannot press POWER — so
-// "POWER arms the shot" failed whenever a rock happened to land between two awaits. This
-// file tests RENDERING and INPUT; the spectacle has its own harness in
-// _spectacle-shots.mjs, which forces each event instead of waiting for one.
-await evalJs('C.tune({ SPECTACLE_ON: 0 }); window.BOT_OFF = true; startMatch();');
+await evalJs('window.BOT_OFF = true; startMatch();');
 await sleep(1600);                       // ride out the kickoff freeze
 await shot('02-kickoff');
 
@@ -186,39 +181,40 @@ await evalJs('MATCH.players[0].gauge = 1');
 await sleep(120);
 const gaugeUi = await evalJs(`document.querySelector('.gauge.g0').classList.contains('full')`);
 check('a full gauge lights the HUD', gaugeUi === true);
-// POWER is a committed WIND-UP now, not a mode: press it and the player is locked for half a
-// second while the ball is drawn up over their head, then it fires by itself. There is no
-// armed state to check and no kick to follow.
+// POWER only ARMS now. Press it and the player glows; nothing is spent, nothing is fired,
+// and the ball is not touched. The shot comes on the next contact between their body and
+// the ball — so this section checks the two halves separately, which is the point of it.
 await hold('KeyJ', 90);
 await sleep(90);
-// The wind-up is a second and a half now, so a regex looking for "0.x" seconds left stopped
-// matching the moment it got longer. Ask the question instead of pattern-matching the answer.
-const winding = await evalJs('JSON.stringify({ charge: +MATCH.players[0].charge.toFixed(2), ballUp: Math.round(C.GROUND_Y - MATCH.ball.y) })');
-check('POWER starts the wind-up', JSON.parse(winding).charge > 0, winding);
+const armedState = await evalJs('JSON.stringify({ armed: +MATCH.players[0].armed.toFixed(2), gauge: +MATCH.players[0].gauge.toFixed(2), power: !!MATCH.ball.power })');
+check('POWER arms the player', JSON.parse(armedState).armed > 0, armedState);
+check('and does not fire on the press', JSON.parse(armedState).power === false, armedState);
+check('and does not spend the meter', JSON.parse(armedState).gauge >= 1, armedState);
+const glowUi = await evalJs(`document.getElementById('head0').classList.contains('armed')`);
+check('the head glows while armed', glowUi === true);
 const btnUi = await evalJs(`document.getElementById('powerBtn').classList.contains('live')`);
-check('and the button shows it counting down', btnUi === true);
+check('and the button shows it is loaded', btnUi === true);
 
 await waitForPlay();
-// Fire it: put the ball on the boot. The boot is at facing * KICK_REACH, and after the
-// chase loop above `facing` is whichever way the last step went — placing the ball at a
-// hard-coded +55 missed it entirely and read as "power shots are broken".
+// Now the contact. Put the ball ON the body — not on the boot: the ultimate fires off the
+// silhouette (head circle or torso), which is what stops it going off at a distance.
 await evalJs(`(() => {
   const p = MATCH.players[0];
-  if (p.armed <= 0) { p.gauge = 1; p.armed = C.ARMED_TIME; }
-  MATCH.ball.x = p.x + p.facing * C.KICK_REACH;
-  MATCH.ball.y = p.y - C.BODY_H * 0.45;
+  if (p.armed <= 0) { p.gauge = 1; p.armed = 1; }
+  MATCH.ball.x = p.x;
+  MATCH.ball.y = p.y - C.BODY_H - C.HEAD_R + 8;
   MATCH.ball.vx = 0; MATCH.ball.vy = 0; MATCH.ball.power = null;
-  p.kickCd = 0;
+  MATCH.hitStop = 0;
   EVENTS.length = 0;
 })()`);
-// No kick: the wind-up fires it. Read the EVENT LOG rather than ball.power — a volley fired
-// near the opponent's goal scores within a fifth of a second, and the goal reset wipes
-// ball.power before any poll can see it.
-// …and it therefore takes longer to land: wait out the whole wind-up plus a margin. Read from
-// the constant rather than hardcoded, because this number has now changed three times.
-await sleep(await evalJs('C.POWER_CHARGE_TIME * 1000 + 900'));
+// Read the EVENT LOG rather than ball.power — an ultimate fired near the opponent's goal
+// scores within a fifth of a second, and the goal reset wipes ball.power before any poll
+// can see it.
+await sleep(600);
 const fired = await evalJs(`EVENTS.filter(e => e.type === 'powershot' && e.player === 0).map(e => e.shot)[0] || null`);
-check('the wind-up fires the volley', !!fired, String(fired));
+check('the touch fires the ultimate', !!fired, String(fired));
+const spent = await evalJs('+MATCH.players[0].gauge.toFixed(2)');
+check('and the meter is spent at activation', spent === 0, String(spent));
 await sleep(160);
 await shot('04-powershot');
 

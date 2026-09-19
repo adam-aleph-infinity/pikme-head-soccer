@@ -355,7 +355,7 @@ const BAR = barY();
   ok('a goal too short to stand in is not entered', fits || p.x >= C.GOAL_W + C.BODY_W / 2 - 0.01,
      `x=${p.x.toFixed(1)} mouth ${C.GOAL_H} vs body ${tall}`);
   ok('…and nobody ends up under the pitch', p.y <= C.GROUND_Y + 0.01, `y=${p.y.toFixed(1)}`);
-  C.tune({ GOAL_H: 192 });
+  C.tune({ GOAL_H: 144 });
 }
 
 // ═══ 6. THE CROSSBAR IS SOLID ══════════════════════════════════════════════
@@ -403,6 +403,23 @@ const jumpAt = (x, held = 90) => {
   }
   return { crown, worst, biggest, landed, x: p.x };
 };
+
+// EVERYTHING BELOW RUNS ON A TUNED-UP JUMP, AND THAT IS THE POINT OF THE LAST BLOCK.
+//
+// The shipped JUMP_V is derived from GOAL_H now (see shared/constants.js) and deliberately
+// stops a few pixels UNDER the bar, so a head never meets it in an ordinary match. Tested with
+// that jump, every assertion in this section would pass against a crossbar made of nothing —
+// which is exactly the bug the section exists to fence. So the bar is tested with a jump that
+// reaches it: the one that would carry the crown a clear head ABOVE the bar if the capsule did
+// not stop it. High enough for the bar to bite everywhere along its length, low enough that the
+// step at the END of the bar is still a step rather than a cliff.
+//
+// The tuner can do this live at any time, which is the other reason barCeiling still has to be
+// right: JUMP_V is a slider in public/game.js, range 400..1500.
+const freeCrownJump = (crown) =>
+  Math.sqrt(2 * C.PLAYER_GRAV * (C.GROUND_Y - crown - (C.BODY_H + C.HEAD_R * 2 - 8)));
+const SHIPPED_JUMP = C.JUMP_V;
+C.tune({ JUMP_V: freeCrownJump(BAR - C.HEAD_R) });
 {
   // THE BUMP, from directly underneath. Standing in the middle of the net, holding jump.
   const r = jumpAt(C.GOAL_W - 45);
@@ -446,10 +463,14 @@ const jumpAt = (x, held = 90) => {
 }
 {
   // The two sides of the boundary that was reported. They used to differ by 47px of reachable
-  // height across one pixel of ground; now they are neighbours.
-  const inside = jumpAt(107), outside = jumpAt(108);
+  // height across one pixel of ground; now they are neighbours. The boundary is the doorway —
+  // where the old clamp put the edge of a body — so it is DERIVED, not the 107/108 it happened
+  // to sit at while GOAL_W was 92. Typed in, it walked out onto open pitch the moment the goal
+  // was resized and tested nothing at all.
+  const DOORWAY = C.GOAL_W + C.BODY_W / 2;
+  const inside = jumpAt(DOORWAY - 1), outside = jumpAt(DOORWAY);
   ok('the doorway is no longer a cliff in the ceiling', Math.abs(inside.crown - outside.crown) < 2,
-     `x=107 reaches ${inside.crown.toFixed(1)}, x=108 reaches ${outside.crown.toFixed(1)}`);
+     `x=${DOORWAY - 1} reaches ${inside.crown.toFixed(1)}, x=${DOORWAY} reaches ${outside.crown.toFixed(1)}`);
   ok('…and neither of them is through the bar', inside.crown > BAR && outside.crown > BAR - CLEAR,
      `${inside.crown.toFixed(1)} / ${outside.crown.toFixed(1)}`);
 }
@@ -458,7 +479,10 @@ const jumpAt = (x, held = 90) => {
   // nerfing every jump on the pitch, and it is what keeps a defender able to meet a lob.
   const far = jumpAt(C.W / 2);
   const past = jumpAt(C.GOAL_W + CLEAR + 4);
-  ok('a jump out on the pitch is untouched', far.crown < BAR - 40, `crown ${far.crown.toFixed(1)}`);
+  // "Untouched" means the free jump is well clear of the bar's height, so a clamp would show.
+  // A clear head above it, in the game's own units — it used to be a bare 40px, which was a
+  // sixth of the old goal and a quarter of this one.
+  ok('a jump out on the pitch is untouched', far.crown < BAR - C.HEAD_R, `crown ${far.crown.toFixed(1)}`);
   ok('…and so is one a head clear of the post', Math.abs(past.crown - far.crown) < 0.51,
      `${past.crown.toFixed(1)} vs ${far.crown.toFixed(1)}`);
   ok('the bar reaches exactly a head past the post', barCeiling(C.GOAL_W + CLEAR + 0.01, C.HEAD_R) === -Infinity);
@@ -492,6 +516,20 @@ const jumpAt = (x, held = 90) => {
   ok('jumping against the bar never flings a player out of the net', out === 0, `${out} ticks outside`);
   ok('…and never teleports them sideways', biggest < C.PLAYER_SPEED * C.TICK * 2.6,
      `biggest step ${biggest.toFixed(1)}px`);
+}
+C.tune({ JUMP_V: SHIPPED_JUMP });
+{
+  // AND THE SHIPPED JUMP DOES NOT REACH THE BAR. This is the rule the goal was resized around:
+  // a defender can get their head nearly to the crossbar and never over it, so the mouth is
+  // never fully covered by standing in it and jumping. Both numbers are derived — JUMP_V from
+  // GOAL_H — so if either drifts this is where it shows, and everything above it turns back
+  // into a test of gameplay rather than of a guard rail.
+  const r = jumpAt(C.GOAL_W - 45);
+  ok('the shipped jump stops short of the bar', r.crown > UNDER,
+     `crown ${r.crown.toFixed(1)}, the underside is ${UNDER}`);
+  ok('…without ever touching it', r.worst <= 0.01, `${r.worst.toFixed(2)}px into the bar`);
+  ok('…but close enough to be worth doing', r.crown < BAR + C.HEAD_R,
+     `crown ${r.crown.toFixed(1)} vs a bar at ${BAR}`);
 }
 
 // ═══ 6. THE RULES STILL WORK WITH SOMEONE STANDING IN THE NET ══════════════

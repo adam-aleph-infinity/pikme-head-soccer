@@ -21,18 +21,24 @@ export const CEIL_Y = 30;             // invisible ceiling the ball bounces off
 export const TICK = 1 / 60;           // sim step (fixed)
 
 // ---- Goals -----------------------------------------------------------------
-export let GOAL_W = 92;              // depth:height 0.33 against GOAL_H 192, which is the
-                                     // ratio measured off the reference shot. It read 0.28
-                                     // while GOAL_W sat at 53 through the goal's +20% — the
-                                     // net got shallower than anyone asked for. 64 restores
-                                     // the measured ratio AND buys the net room: the canvas
-                                     // renders at half resolution (PIXEL 2), so a mesh drawn
-                                     // into 53px had cords thinner than a texel and turned
-                                     // to mush. Depth is not a scoring dimension — the line
-                                     // is at the front post — so this is paint, not balance.
-export let GOAL_H = 192;             // +20% on request (was 160). The volley's launch height
-                                    // rides this (0.9 of it), so a taller goal also raises the
-                                    // line a defender has to jump to — one number, both.             // 2.02x the 79px player — the measured ratio exactly.
+export let GOAL_W = 69;              // 0.75 x 92, the same three-quarters GOAL_H takes below.
+                                     // BOTH axes move by the same factor on purpose: depth:height
+                                     // stays 69/144 = 0.479, exactly what 92/192 was, so the box
+                                     // the renderer projects is the SAME SHAPE at a smaller size —
+                                     // no new proportions, no re-measuring the net, nothing in
+                                     // shared/goalbox.js to touch. Depth is not a scoring
+                                     // dimension — the line is at the front post — but it is the
+                                     // only thing keeping the mesh above a texel at PIXEL 2, and
+                                     // 69px still clears that.
+export let GOAL_H = 144;             // 0.75 x 192, on request: the 192 was oversized and the cut
+                                    // that followed it went too far, so this is the middle — three
+                                    // quarters of the big goal, still 1.8x the 79px player, still a
+                                    // room you can stand up in (the doorway rule in goalbox.js
+                                    // needs GOAL_H > 79 and this clears it by 65px).
+                                    //
+                                    // JUMP_V is derived FROM this number — see headReach() below.
+                                    // Retune the goal and the jump has to follow, or the "you can
+                                    // reach the bar but not clear it" rule silently stops holding.             // 2.02x the 79px player — the measured ratio exactly.
                                       // 160 -> 4.7 goals and 7:4, 180 -> 4.9 and 9:2, 200 -> 8.5 and 8:3.
                                       // 180 is both the closest to the reference AND the best gradient.
                                       // Swept against bot-vs-bot outcomes: at 146 the game gave
@@ -74,7 +80,21 @@ export let PLAYER_SPEED = 430;
 export let PLAYER_ACCEL = 3400;     // ground responsiveness
 export let PLAYER_AIR_ACCEL = 1150; // reduced air control, so jumps commit
 export const PLAYER_FRICTION = 0.80;  // per-tick ground damping when no input
-export let JUMP_V = 830;
+// DERIVED FROM GOAL_H, not chosen. The rule asked for is "a jump gets you close to the
+// crossbar and never over it", and that is an equation, so it is solved rather than guessed:
+//
+//   headReach() = JUMP_V^2 / (2 * PLAYER_GRAV) + BODY_H + HEAD_R*2 - 8   (see headReach below)
+//   want headReach() = GOAL_H - MARGIN = 144 - 10 = 134
+//   => JUMP_V = sqrt(2 * 2300 * (134 - 79)) = 503
+//
+// 505 is that, rounded off the bottom: the top of a jumping head reaches 134.4px against a bar
+// at 144, so there are 9.6px of daylight left under it — a margin you can see and cannot fit a
+// 24px ball through. It was 830, which put the head 37px ABOVE the old 192 bar; the bar has
+// never actually been a ceiling in this game until now.
+//
+// Ballistic, so PACE does not move it (velocity x k, gravity x k^2 — the apex is invariant),
+// which is why the arithmetic above uses the AUTHORED 2300 and still holds at PACE 0.68.
+export let JUMP_V = 505;
 export const JUMP_CUT = 0.45;         // release jump early → shorter hop
 export const MAX_JUMPS = 1;
 
@@ -212,54 +232,47 @@ export let GAUGE_FULL = 21;          // Cut with PACE 0.68. The match is still 6
                                       // Shorter fill keeps arming a moment that actually happens.         // s to fill an empty gauge. At 13s each player got ~7 power
                                       // shots a match and nearly all of them scored — matches ended 10-6.
                                       // ~2-3 per side is what makes arming feel like a moment.
-export const GAUGE_CONCEDE_BONUS = 0.22; // conceding a goal gifts this fraction back
-// POWER MODE. Pressing POWER with a full gauge buys a few seconds of being dangerous — it
-// fires nothing by itself. While it lasts, KICKING the ball launches a power shot and
-// kicking the OPPONENT lands your signature effect on them. Two buttons, two distinct jobs:
-// kick strikes, power decides what the strike is.
-// ── THE POWER MOVE ───────────────────────────────────────────────────────────
-// It used to be a MODE: press power, get 4.5 seconds in which your next kick was a special
-// shot. That made the gauge a thing you spent on an ordinary touch, and it never read as a
-// super move — the shot came off the same boot as everything else.
+// WHAT A GOAL PAYS THE PLAYER WHO CONCEDED IT. Twenty-five points ON TOP of whatever their
+// meter already held, clamped at full — an ADDITION, never an assignment and never a reset.
 //
-// Now it is a COMMITTED VOLLEY. Press power with a full gauge and the player winds up for
-// half a second while the ball is drawn up above their head and lights up; then it fires
-// dead flat at three times a normal power shot, at a height a standing player cannot reach.
-// The only answer is to jump into its line at the right moment.
-// How long a wind-up can be knocked out of. At a 0.5s wind-up "a tackle cancels it" was a
-// fair read; at 3 seconds it is a certainty — anyone can cross the pitch in three seconds, so
-// bots stopped landing volleys ENTIRELY (measured: 4.8 a match down to 0). So the punish is a
-// WINDOW: get to them in the first second and the shot is gone, miss it and the shot is
-// coming and you had better be on the line. Both players know which phase they are in, which
-// is what makes a three-second commitment playable rather than merely long.
-export let POWER_CANCEL_WINDOW = 1.0;
-export let POWER_CHARGE_TIME = 3;     // s of wind-up. Three seconds is a very long time to
-                                      // stand still in the open — it is a fifth of the match —
-                                      // which makes this the most committed thing either
-                                      // player can do, and gives the other one time to choose
-                                      // between running at you to cancel it and setting up on
-                                      // the line to jump.
-// The volley always leaves at the SAME height — 0.9 of the goal — so a defender learns one
-// height to jump for instead of guessing per shot. Derived from GOAL_H rather than typed, or
-// the two drift apart the first time the goal is retuned.
-export let POWER_CHARGE_GOAL_FRAC = 0.9;
+// The distinction is the whole of the bug this number was caught in. A goal used to wipe both
+// meters back to zero at the restart and then hand this to the conceder, so "conceding gifts
+// you a quarter of a meter" was true and "scoring costs you everything you had earned" was
+// true with it: an 80% meter came out of a goal at 25%, and the scorer's came out at 0. Both
+// players lost a match's worth of tackles every time anybody scored.
+//
+// The one place it is applied is awardConcedeMeter() in shared/sim.js, and that function is
+// the only thing in the sim a goal is allowed to do to a meter.
+export const GAUGE_CONCEDE_BONUS = 0.25;
+
+// ── THE ULTIMATE: ARM, THEN TOUCH THE BALL ───────────────────────────────────
+// Three shapes, and the third is the one that is in the game.
+//
+// It was a MODE: press power with a full gauge, get a few seconds in which your next kick
+// was a special shot. Then it was a COMMITTED VOLLEY: the press spent the gauge and started
+// a wind-up that SUCKED the ball up over your head and fired it. That second one is what
+// made "the rival used its ultimate on its own" possible at all — the press was the whole
+// move, so anything that produced a press produced a goal-bound shot, and a stale full gauge
+// at kickoff was enough.
+//
+// Now the press only ARMS you. Nothing is spent, nothing moves, the ball is not touched:
+// you glow, and the next time your body reaches the ball the ultimate goes off. So the move
+// has a cost the other player can see and answer (you have to get to the ball), the button
+// can never fire anything by itself, and the gauge is spent only when the shot really exists.
+//
+// AND THE ARM HAS NO CLOCK ON IT. There was a POWER_MODE_TIME here — 4.5s, after which an
+// unused arm lapsed — and it is gone, because "you must touch the ball" and "…or wait 4.5
+// seconds and you needn't" are not the same rule. An arm now ends exactly three ways: the
+// touch that spends it, full time, or a new match. Nothing else, and a goal least of all.
+//
+// `p.armed` is therefore a FLAG (0 or 1) rather than a countdown. It stays a number and it
+// stays in P_FIELDS so the wire and the renderer are unchanged — everything that reads it
+// asks `armed > 0`, which was true of the countdown too.
 
 // How high the top of a jumping head gets. Ballistic, so it is invariant under the PACE dial
 // (velocity x k, gravity x k^2 — the apex is the same), which is why it can be derived rather
 // than measured per tuning.
 export const headReach = () => (JUMP_V * JUMP_V) / (2 * PLAYER_GRAV) + BODY_H + HEAD_R * 2 - 8;
-
-// THE VOLLEY'S LINE. 0.9 of the goal, as asked — but never higher than a jump can meet.
-//
-// Those two requirements collided the moment the goal went up 20%: 0.9 of a 192px goal is
-// 173px and the top of a jumping head reaches 146px, so the shot became unblockable and the
-// rule it was built around ("the only way to stop it is to jump at the right time") stopped
-// being true. The clamp keeps the intent when the arithmetic cannot: high enough that standing
-// there is useless, low enough that a jump is not.
-export const powerHeight = () => Math.min(GOAL_H * POWER_CHARGE_GOAL_FRAC, headReach() - 14);
-export let POWER_VOLLEY_SPEED = 3;    // multiples of POWER_SHOT_SPEED. Powered balls are
-                                      // exempt from BALL_MAX_SPEED, so this actually lands.
-export let POWER_MODE_TIME = 4.5;
 export let POWER_SHOT_SPEED = 1000;   // Ball-only slowdown pass. NOTE the reference here had ALREADY
                                       // been cut 2100 -> 1250 by another session before I touched it;
                                       // I briefly raised it to 1750 while "slowing the ball down",
@@ -273,185 +286,12 @@ export let POWER_TACKLE_SCALE = 0.55;  // effect strength when you kick the PLAY
 export let POWER_STUN = 1.25;         // plain knockdown length (non-signature knockdowns)
 export let COUNTER_WINDOW = 130;    // px: kick within this of an incoming power ball to counter
 
-// ---- SPECTACLE -------------------------------------------------------------
-// Events that happen TO the match: meteors, moon gravity, wind, and a losing player turning
-// into a robot. The rules live in shared/spectacle.js; these are the dials.
-//
-// The single constraint every number here answers to: a match must never be decided by
-// something the player could not see coming. That is why the telegraph times are the first
-// four values, why there is a keep-out band in front of both goals, and why the whole system
-// switches itself off for the last SPECTACLE_QUIET_END seconds.
-export let SPECTACLE_ON = 1;         // 0 turns the entire system off, live, mid-match
-export let SPECTACLE_FIRST = 9;      // s of ordinary football before the first act
-export let SPECTACLE_GAP = 12;       // s between acts. One thing at a time; chaos with no
-                                      // gaps stops being an event and becomes the weather.
-export let SPECTACLE_QUIET_END = 8;  // s at the end of the match where nothing may fire and
-                                      // anything pending is cancelled. The finish is theirs.
-
-// ---- Meteors ---------------------------------------------------------------
-// A marker on the grass FIRST, the rock second. METEOR_WARN is the whole fairness budget:
-// test-spectacle asserts a player standing dead centre of the marker, at the slowest speed
-// the game can produce (common card, freshly tackled), still clears the blast in time.
-export let METEOR_WARN = 1.15;       // s of telegraph before impact
-export let METEOR_SHOWER_TIME = 5.4; // s the shower lasts
-export let METEOR_INTERVAL = 0.9;    // s between rocks
-export let METEOR_SPREAD = 260;      // px either side of the ball a rock may aim
-export let METEOR_KEEPOUT = 120;     // px in front of each goal where none may ever land
-export let METEOR_R = 64;            // blast radius on a player
-export let METEOR_BALL_R = 76;       // and on the ball
-export let METEOR_PUSH = 470;        // knockback
-export let METEOR_LIFT = 380;
-export let METEOR_KNOCK = 0.34;      // s on the floor — a lost beat, not a stun-lock
-export let METEOR_BALL_POP = 780;    // the ball goes UP…
-export let METEOR_BALL_PUSH = 210;   // …far more than sideways, so a rock cannot score
-export const METEOR_FALL = 40;       // px above the ceiling the rock starts its fall (art).
-                                      // Was 140 with a squared fall curve, which kept the rock
-                                      // off-screen for the first HALF of its own telegraph —
-                                      // the marker was doing all the work alone.
-export let HIT_STOP_METEOR = 0.07;
-
-// ---- Moon phase ------------------------------------------------------------
-// Gravity drops away for both players at once — symmetric, so it is fair by construction.
-// The ball is lightened much more than the players: a floating ball is spectacle, a
-// floating player is somebody who has lost control of their own jump.
-export let MOON_TIME = 6.5;
-export let MOON_GRAV_BALL = 0.42;
-export let MOON_GRAV_PLAYER = 0.72;
-
-// ---- Wind ------------------------------------------------------------------
-// Pushes the ball only, never a player, so it can never take the controls off you. The
-// direction ALTERNATES every time it fires, so nobody gets it twice running.
-export let WIND_TIME = 6;
-export let WIND_FORCE = 560;         // px/s² on a loose ball (a live power shot ignores it)
-
-// ---- Robot mode ------------------------------------------------------------
-// Triggered by being ROBOT_DEFICIT goals BEHIND — see the long note in spectacle.js for why
-// that trigger and not a pickup. A trade, not a buff: quicker and a much harder boot, but
-// heavier, so a robot wins races and loses headers.
-export let ROBOT_DEFICIT = 2;        // goals behind before it arms
-export let ROBOT_WARN = 1;           // s of windup, announced, before the stats change
-export let ROBOT_TIME = 9;           // s it lasts. It ALWAYS ends.
-export let ROBOT_COOLDOWN = 12;      // s before the same player can turn again
-export let ROBOT_SPEED = 1.22;
-export let ROBOT_KICK = 1.3;
-export let ROBOT_JUMP = 0.94;        // with ROBOT_GRAV that is a ~30% lower jump
-export let ROBOT_GRAV = 1.25;
-
-// ---- POWER-UPS -------------------------------------------------------------
-// Collectable pickups: a thing appears on the pitch, you go and get it, and for a few
-// seconds you can do something you could not do before. Rules in shared/powerups.js.
-//
-// The constraint every number here answers to is not the spectacle's ("could the player see
-// it coming") but the one a 1v1 adds to it: could BOTH players have got it? That is why a
-// pickup spawns at the exact midpoint between the two of them, why there is a keep-out band
-// so the midpoint is never inside a goalmouth, and why the mercy lead exists.
-export let PICKUPS_ON = 0;           // 0 turns the whole system off, live, mid-match. OFF by
-                                     // default since the cards landed: the powers come out of
-                                     // your hand now, and crates on top of them is two of the
-                                     // same system. `?pickups=1` brings them back to A/B.
-export let PICKUP_FIRST = 7;         // s of ordinary football before the first one
-export let PICKUP_GAP = 9;           // s from one leaving the pitch to the next attempt
-export let PICKUP_WARN = 1.1;        // s of telegraph before it can be collected
-export let PICKUP_LIFE = 5.5;        // s it stays collectable, then it expires on its own
-export let PICKUP_QUIET_END = 10;    // s at the end where none spawns and any live one is
-                                      // removed. Must stay ABOVE the longest effect below,
-                                      // so nothing collected at the last legal moment is
-                                      // still running at the whistle — test-powerups checks
-                                      // that relation against the LIVE (paced) values.
-export let PICKUP_KEEPOUT = 96;      // px in front of each goal where none may appear
-export let PICKUP_R = 22;            // collect radius, and the drawn size
-export let PICKUP_Y = 86;            // px above the ground line it floats at. Low enough
-                                      // that a STANDING head touches it (head centre sits
-                                      // 49px up, head radius 30, pickup radius 22) — making
-                                      // you jump for it would turn a footrace into a timing
-                                      // puzzle, and the footrace IS the mechanic.
-export let PICKUP_MERCY_LEAD = 2;    // goals: at or above this, the one item that takes
-                                      // something off the other player stops spawning.
-                                      // Same number as ROBOT_DEFICIT on purpose — the
-                                      // moment the loser gets a robot is the moment ICE
-                                      // leaves the hat.
-export let HIT_STOP_PICKUP = 0.045;  // a small punch on collect. Half a power shot.
-
-// Big head. A bigger thing to head the ball with — and a bigger thing to boot, since
-// tryTackle tests the same circle. 1.55 puts the bottom of the head at 442 against a
-// 445 ground line, so it grows to exactly as big as the pitch allows.
-export let PU_GROW_TIME = 6;
-export let PU_GROW_SCALE = 1.55;
-// Magnet. An acceleration on a LOOSE ball only, falling off linearly to nothing at the rim.
-// Deliberately below BALL_GRAV at point-blank (781*k^2 vs 1180*k^2) so it BENDS a ball
-// toward you rather than levitating it.
-export let PU_MAGNET_TIME = 5;
-export let PU_MAGNET_FORCE = 780;    // px/s² at zero distance
-export let PU_MAGNET_RANGE = 300;    // px — about a third of the pitch
-// Shield. Absorbs exactly one power shot (fired or booted) and is then gone.
-export let PU_SHIELD_TIME = 5.5;
-// Spring boots: a higher jump AND one extra jump in the air. Both end together.
-export let PU_SPRING_TIME = 6;
-export let PU_SPRING_JUMP = 1.22;
-export let PU_SPRING_JUMPS = 1;      // extra air jumps on top of MAX_JUMPS
-// Ice. The ONLY item that touches the other player, and it is a `slow`, never a root: you
-// keep every button, you are just heavy. Nothing here takes the controls off anybody.
-export let PU_ICE_TIME = 2.2;
-
-// ── CARDS — the hand of three ────────────────────────────────────────────────
-// You hold three cards; each is one of the six powers above, on its own cooldown. The
-// rarity of the card is the ladder: strength up, cooldown down, both geometric so the
-// ordering cannot invert wherever a slider is dragged. Rules in shared/cards.js.
-// ── THE FOUR SPECIALS ────────────────────────────────────────────────────────
-// Epic and legendary cards only. Rules in shared/skills.js; these are the numbers.
-export let SKILL_DART_SPEED = 780;   // px/s — fast enough to be a shot, slow enough to dodge
-export let SKILL_DART_LIFE = 2.2;    // s before it fizzles out
-export let SKILL_DART_R = 9;
-export let SKILL_SHRINK = 0.62;      // head multiplier on a hit
-export let SKILL_SHRINK_TIME = 5;    // s
-export let SKILL_GROW = 1.45;        // and what a dart in the NET pays its shooter instead
-export let SKILL_GROW_TIME = 5;
-
-export let SKILL_WALL_BOUNCE = 0.8;  // how hard the wall throws a saved ball back out
-export let SKILL_WALL_TIME = 1.6;    // s your own goal is shut. Under two on purpose: long
-                                     // enough to survive one attack, too short to defend with.
-export let SKILL_SUPER_ARM = 5;      // s the super kick stays armed waiting for a touch
-export let SKILL_SUPER_BALL = 1.9;   // ball speed multiplier on that touch
-export let SKILL_SUPER_PUSH = 620;   // and what it does to anyone standing by the ball
-export let SKILL_SUPER_LIFT = 260;
-export let SKILL_SUPER_RANGE = 120;  // px from the ball to catch the shove
-
-// px/s along the ground. Raised from 300 (204 after PACE) because at that speed a jump did
-// not clear it: a jump is airborne for about 0.47s and the dog covered only 96px in that
-// time, so you rose, the dog kept coming, and you landed on top of it. A hurdle you cannot
-// hurdle is just a delayed hit. At 480 it covers ~155px while you are in the air, which is
-// what makes "jump it" the answer rather than a suggestion.
-export let SKILL_DOG_SPEED = 480;
-export let SKILL_DOG_LIFE = 6;       // s before it gets bored and leaves
-export let SKILL_DOG_R = 32;         // was 24. The drawn dog got bigger, so its reach did too —
-                                     // an animal that looks like it can reach you and cannot is
-                                     // a lie the player pays for.
-export let SKILL_DOG_HOLD = 1.0;     // s it holds whoever it caught
-
-export let CARDS_ON = 1;             // 0 hides the row and takes the buttons out of the sim
-export let CARD_CD_BASE = 26;        // s — a COMMON card's cooldown, the slowest in the game.
-                                     // 18 first, and two bots then played 34 cards between
-                                     // them in a 60s match (measured): with three cards each
-                                     // on an 11s clock, somebody's power was live almost
-                                     // permanently and a card stopped being a moment. At 26
-                                     // a legendary comes round about three times a match.
-export let CARD_CD_STEP = 0.86;      // each rarity step multiplies it: 26 → 22.4 → 19.2 → 16.5
-// A card's effect is SHORTER than a crate's, and it has to be. The PU_*_TIME numbers were
-// authored for an object you race for and get maybe three times a match; a card is in your
-// hand and comes round on a clock. At full crate length a legendary hand kept a power live
-// for 81% of the playing time (measured, two level-5 bots) — which is not a power any more,
-// it is the baseline. At 0.55 a legendary card is live for about half its own cooldown.
-export let CARD_POWER_SCALE = 0.55;
-export let CARD_STR_BASE = 1;        // a common's effect is the authored PU_*_TIME × the scale
-export let CARD_STR_STEP = 1.18;     // and each step up stretches it: ×1 → 1.18 → 1.39 → 1.64
-
-// Two ways a card comes back, and the second one is the reason this is not just a timer.
-// A cooldown that only ticks rewards standing still; one that fills on CONTACT rewards
-// playing. So both: it ticks, and every touch knocks time off it — a little for kicking the
-// ball, a lot for landing a tackle on the opponent.
-export let CARD_CHARGE_KICK = 0.5;   // s off every card's cooldown when you kick the ball
-export let CARD_CHARGE_HIT = 2.5;    // s off when you tackle the opponent. Five kicks' worth.
-export let CARD_CHARGE_GOAL = 4;     // s off for scoring, so a goal restarts the exchange
+// ---- REMOVED: the random match modifiers -----------------------------------
+// Wind, low gravity, meteors, robot mode (the SPECTACLE scheduler), the crates that used
+// to spawn on the pitch, and the hand of three cards under it all lived here as dials.
+// They are gone from the live game — see archive/README.md for the modules and for how to
+// put the hand back. Nothing here spawns, activates or bends the ball any more; what is
+// left is football, the power meter and the ultimate.
 
 // ---- Anti-stall ------------------------------------------------------------
 // A ball nobody has touched for this long is returned to the centre spot. This exists
@@ -486,33 +326,10 @@ export let PACE = 0.68;
 // compound against the reference rather than against each other.
 const PACE_REF = {
   vel:  { BALL_MAX_SPEED, KICK_POWER, KICK_LIFT, PLAYER_SPEED, DASH_V, JUMP_V,
-          TACKLE_PUSH, TACKLE_LIFT, POWER_SHOT_SPEED,
-          // The specials are trajectories too: a dart and a dog that did not ride the pace
-          // dial would cross a slowed pitch in half the time everything else takes.
-          SKILL_DART_SPEED, SKILL_DOG_SPEED, SKILL_SUPER_PUSH, SKILL_SUPER_LIFT,
-          // The spectacle rides the pace dial too, or a meteor that throws you 470px/s
-          // reads as violent next to a 344px/s run and the two systems drift apart.
-          METEOR_PUSH, METEOR_LIFT, METEOR_BALL_POP, METEOR_BALL_PUSH },
-  acc:  { BALL_GRAV, PLAYER_GRAV, PLAYER_ACCEL, PLAYER_AIR_ACCEL, WIND_FORCE,
-          // The magnet is an acceleration on the ball, exactly like the wind.
-          PU_MAGNET_FORCE },
+          TACKLE_PUSH, TACKLE_LIFT, POWER_SHOT_SPEED },
+  acc:  { BALL_GRAV, PLAYER_GRAV, PLAYER_ACCEL, PLAYER_AIR_ACCEL },
   drag: { BALL_AIR, BALL_GROUND_FRICTION },
-  // METEOR_WARN is here for a reason worth spelling out: velocities scale by k and this
-  // scales by 1/k, so the distance a player can run inside the telegraph — the entire
-  // fairness budget — is INVARIANT under the pace dial. Slow the game down and the warning
-  // stretches with it. METEOR_KNOCK follows the same logic.
-  //
-  // Every pickup duration is here for that same reason: how far you can RUN inside a
-  // telegraph, how far you can run before a crate expires, and how much pitch you cover
-  // while a power-up is live are all things that must not move when the pace dial does.
-  // PICKUP_FIRST / PICKUP_GAP / PICKUP_QUIET_END are deliberately NOT here — they are match
-  // structure, like SPECTACLE_FIRST, not trajectories.
-  time: { KICK_TIME, DASH_TIME, COYOTE_TIME, JUMP_BUFFER, POWER_SHOT_LIFE,
-          METEOR_WARN, METEOR_KNOCK,
-          PICKUP_WARN, PICKUP_LIFE,
-          SKILL_DART_LIFE, SKILL_SHRINK_TIME, SKILL_GROW_TIME, SKILL_WALL_TIME,
-          SKILL_DOG_LIFE, SKILL_DOG_HOLD,
-          PU_GROW_TIME, PU_MAGNET_TIME, PU_SHIELD_TIME, PU_SPRING_TIME, PU_ICE_TIME },
+  time: { KICK_TIME, DASH_TIME, COYOTE_TIME, JUMP_BUFFER, POWER_SHOT_LIFE },
 };
 
 export function setPace(k) {
@@ -581,11 +398,6 @@ const SETTERS = {
   HEADER_POWER: (v) => { HEADER_POWER = v; },
   HEADER_LIFT: (v) => { HEADER_LIFT = v; },
   GAUGE_FULL: (v) => { GAUGE_FULL = v; },
-  POWER_MODE_TIME: (v) => { POWER_MODE_TIME = v; },
-  POWER_CHARGE_TIME: (v) => { POWER_CHARGE_TIME = v; },
-  POWER_CANCEL_WINDOW: (v) => { POWER_CANCEL_WINDOW = v; },
-  POWER_CHARGE_GOAL_FRAC: (v) => { POWER_CHARGE_GOAL_FRAC = v; },
-  POWER_VOLLEY_SPEED: (v) => { POWER_VOLLEY_SPEED = v; },
   GAUGE_PASSIVE: (v) => { GAUGE_PASSIVE = v; },
   POWER_SHOT_LIFE: (v) => { POWER_SHOT_LIFE = v; },
   POWER_SHOT_SAG: (v) => { POWER_SHOT_SAG = v; },
@@ -595,74 +407,6 @@ const SETTERS = {
   POWER_STUN: (v) => { POWER_STUN = v; },
   COUNTER_WINDOW: (v) => { COUNTER_WINDOW = v; },
   MATCH_DURATION: (v) => { MATCH_DURATION = v; },
-  // ---- spectacle ----
-  SPECTACLE_ON: (v) => { SPECTACLE_ON = v; },
-  SPECTACLE_FIRST: (v) => { SPECTACLE_FIRST = v; },
-  SPECTACLE_GAP: (v) => { SPECTACLE_GAP = v; },
-  SPECTACLE_QUIET_END: (v) => { SPECTACLE_QUIET_END = v; },
-  METEOR_WARN: (v) => { METEOR_WARN = v; },
-  METEOR_SHOWER_TIME: (v) => { METEOR_SHOWER_TIME = v; },
-  METEOR_INTERVAL: (v) => { METEOR_INTERVAL = v; },
-  METEOR_SPREAD: (v) => { METEOR_SPREAD = v; },
-  METEOR_KEEPOUT: (v) => { METEOR_KEEPOUT = v; },
-  METEOR_R: (v) => { METEOR_R = v; },
-  METEOR_BALL_R: (v) => { METEOR_BALL_R = v; },
-  METEOR_PUSH: (v) => { METEOR_PUSH = v; },
-  METEOR_LIFT: (v) => { METEOR_LIFT = v; },
-  METEOR_KNOCK: (v) => { METEOR_KNOCK = v; },
-  METEOR_BALL_POP: (v) => { METEOR_BALL_POP = v; },
-  METEOR_BALL_PUSH: (v) => { METEOR_BALL_PUSH = v; },
-  HIT_STOP_METEOR: (v) => { HIT_STOP_METEOR = v; },
-  MOON_TIME: (v) => { MOON_TIME = v; },
-  MOON_GRAV_BALL: (v) => { MOON_GRAV_BALL = v; },
-  MOON_GRAV_PLAYER: (v) => { MOON_GRAV_PLAYER = v; },
-  WIND_TIME: (v) => { WIND_TIME = v; },
-  WIND_FORCE: (v) => { WIND_FORCE = v; },
-  ROBOT_DEFICIT: (v) => { ROBOT_DEFICIT = v; },
-  ROBOT_WARN: (v) => { ROBOT_WARN = v; },
-  ROBOT_TIME: (v) => { ROBOT_TIME = v; },
-  ROBOT_COOLDOWN: (v) => { ROBOT_COOLDOWN = v; },
-  ROBOT_SPEED: (v) => { ROBOT_SPEED = v; },
-  ROBOT_KICK: (v) => { ROBOT_KICK = v; },
-  ROBOT_JUMP: (v) => { ROBOT_JUMP = v; },
-  ROBOT_GRAV: (v) => { ROBOT_GRAV = v; },
-  // ---- power-ups ----
-  PICKUPS_ON: (v) => { PICKUPS_ON = v; },
-  CARDS_ON: (v) => { CARDS_ON = v; },
-  SKILL_DART_SPEED: (v) => { SKILL_DART_SPEED = v; },
-  SKILL_SHRINK: (v) => { SKILL_SHRINK = v; },
-  SKILL_GROW: (v) => { SKILL_GROW = v; },
-  SKILL_WALL_TIME: (v) => { SKILL_WALL_TIME = v; },
-  SKILL_SUPER_BALL: (v) => { SKILL_SUPER_BALL = v; },
-  SKILL_SUPER_PUSH: (v) => { SKILL_SUPER_PUSH = v; },
-  SKILL_DOG_SPEED: (v) => { SKILL_DOG_SPEED = v; },
-  SKILL_DOG_HOLD: (v) => { SKILL_DOG_HOLD = v; },
-  CARD_CD_BASE: (v) => { CARD_CD_BASE = v; },
-  CARD_CD_STEP: (v) => { CARD_CD_STEP = v; },
-  CARD_POWER_SCALE: (v) => { CARD_POWER_SCALE = v; },
-  CARD_STR_STEP: (v) => { CARD_STR_STEP = v; },
-  CARD_CHARGE_KICK: (v) => { CARD_CHARGE_KICK = v; },
-  CARD_CHARGE_HIT: (v) => { CARD_CHARGE_HIT = v; },
-  PICKUP_FIRST: (v) => { PICKUP_FIRST = v; },
-  PICKUP_GAP: (v) => { PICKUP_GAP = v; },
-  PICKUP_WARN: (v) => { PICKUP_WARN = v; },
-  PICKUP_LIFE: (v) => { PICKUP_LIFE = v; },
-  PICKUP_QUIET_END: (v) => { PICKUP_QUIET_END = v; },
-  PICKUP_KEEPOUT: (v) => { PICKUP_KEEPOUT = v; },
-  PICKUP_R: (v) => { PICKUP_R = v; },
-  PICKUP_Y: (v) => { PICKUP_Y = v; },
-  PICKUP_MERCY_LEAD: (v) => { PICKUP_MERCY_LEAD = v; },
-  HIT_STOP_PICKUP: (v) => { HIT_STOP_PICKUP = v; },
-  PU_GROW_TIME: (v) => { PU_GROW_TIME = v; },
-  PU_GROW_SCALE: (v) => { PU_GROW_SCALE = v; },
-  PU_MAGNET_TIME: (v) => { PU_MAGNET_TIME = v; },
-  PU_MAGNET_FORCE: (v) => { PU_MAGNET_FORCE = v; },
-  PU_MAGNET_RANGE: (v) => { PU_MAGNET_RANGE = v; },
-  PU_SHIELD_TIME: (v) => { PU_SHIELD_TIME = v; },
-  PU_SPRING_TIME: (v) => { PU_SPRING_TIME = v; },
-  PU_SPRING_JUMP: (v) => { PU_SPRING_JUMP = v; },
-  PU_SPRING_JUMPS: (v) => { PU_SPRING_JUMPS = v; },
-  PU_ICE_TIME: (v) => { PU_ICE_TIME = v; },
   PACE: (v) => { setPace(v); },
 };
 
@@ -718,7 +462,6 @@ export function snapshot() {
     KICK_LIFT,
     HEAD_POWER,
     GAUGE_FULL,
-    POWER_MODE_TIME,
     POWER_SHOT_LIFE,
     POWER_SHOT_SAG,
     POWER_BLOCK_REBOUND,
@@ -727,57 +470,6 @@ export function snapshot() {
     POWER_STUN,
     COUNTER_WINDOW,
     MATCH_DURATION,
-    SPECTACLE_ON,
-    SPECTACLE_FIRST,
-    SPECTACLE_GAP,
-    SPECTACLE_QUIET_END,
-    METEOR_WARN,
-    METEOR_SHOWER_TIME,
-    METEOR_INTERVAL,
-    METEOR_SPREAD,
-    METEOR_KEEPOUT,
-    METEOR_R,
-    METEOR_BALL_R,
-    METEOR_PUSH,
-    METEOR_LIFT,
-    METEOR_KNOCK,
-    METEOR_BALL_POP,
-    METEOR_BALL_PUSH,
-    HIT_STOP_METEOR,
-    MOON_TIME,
-    MOON_GRAV_BALL,
-    MOON_GRAV_PLAYER,
-    WIND_TIME,
-    WIND_FORCE,
-    ROBOT_DEFICIT,
-    ROBOT_WARN,
-    ROBOT_TIME,
-    ROBOT_COOLDOWN,
-    ROBOT_SPEED,
-    ROBOT_KICK,
-    ROBOT_JUMP,
-    ROBOT_GRAV,
-    PICKUPS_ON,
-    PICKUP_FIRST,
-    PICKUP_GAP,
-    PICKUP_WARN,
-    PICKUP_LIFE,
-    PICKUP_QUIET_END,
-    PICKUP_KEEPOUT,
-    PICKUP_R,
-    PICKUP_Y,
-    PICKUP_MERCY_LEAD,
-    HIT_STOP_PICKUP,
-    PU_GROW_TIME,
-    PU_GROW_SCALE,
-    PU_MAGNET_TIME,
-    PU_MAGNET_FORCE,
-    PU_MAGNET_RANGE,
-    PU_SHIELD_TIME,
-    PU_SPRING_TIME,
-    PU_SPRING_JUMP,
-    PU_SPRING_JUMPS,
-    PU_ICE_TIME,
     PACE,
   };
 }

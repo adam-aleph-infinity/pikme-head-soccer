@@ -5,11 +5,6 @@ import * as C from '../shared/constants.js';
 import { createMatch, step, headY, headR, NO_FX } from '../shared/sim.js';
 import { createBot, botInput, DIFFICULTIES } from '../shared/bot.js';
 import { shotFor, SHOTS } from '../shared/powershots.js';
-import { activeMeteors, isRobot, robotCharging, actKind, ACT } from '../shared/spectacle.js';
-import { activePickup, puBadges, PU, PU_NAME, PU_COLOR, PU_LABEL, PU_TIP, PU_KINDS } from '../shared/powerups.js';
-import { cardAt, cardKind, cardFill, cardReady, cardCd, liveKind, cardCooldown,
-         CARD_SLOTS } from '../shared/cards.js';
-import { activeDart, activeDog, goalWallT, hasSuperKick } from '../shared/skills.js';
 import { goalBox, goalAt, depthPoint, INSIDE_Z } from '../shared/goalbox.js';
 import { createEditor, applyLayout, applyOpacity, loadOpacity } from './padlayout.js';
 import { headCrop } from './head-crop.js';
@@ -32,7 +27,6 @@ const findStage = (id) => POOL.find((x) => x.id === id) || null;
 
 const CARD_ART = 'https://pxsjmychuxwufcvqixgu.supabase.co/storage/v1/object/public/cards';
 const RARITIES = ['legendary', 'epic', 'rare', 'common'];
-const HEB_RARITY = { legendary: 'אגדי', epic: 'אדיר', rare: 'נדיר', common: 'רגיל' };
 const CARDS_PER_RARITY = 45;
 
 const $ = (s) => document.querySelector(s);
@@ -88,7 +82,7 @@ const owns = (r, n) => !OWNED || OWNED.has(`${r}_${n}`);
 // number, so a player with one legendary opens on it rather than on a common they forgot.
 const bestOwned = () => {
   if (!OWNED) return null;
-  // RARITIES here is RAREST FIRST — legendary, epic, rare, common. shared/cards.js orders its
+  // RARITIES here is RAREST FIRST — legendary, epic, rare, common. archive/shared/cards.js ordered its
   // own list the other way (common first, because the rarity ladder indexes off it), and
   // reversing this one to match cost a test: it opened the player on the worst card they own.
   for (const r of RARITIES) {
@@ -191,8 +185,7 @@ $('#playBtn').onclick = () => startMatch();
 // ═══════════════════════════════════════════════════════════════════════════
 // INPUT
 // ═══════════════════════════════════════════════════════════════════════════
-const held = { left: false, right: false, jump: false, kick: false, power: false,
-               card1: false, card2: false, card3: false };
+const held = { left: false, right: false, jump: false, kick: false, power: false };
 
 // Bindings are DATA, not a frozen map. Two slots per action so the arrow cluster and the
 // letter cluster can both live.
@@ -208,9 +201,6 @@ const ACTIONS = [
   { id: 'jump', label: 'קפיצה' },
   { id: 'kick', label: 'בעיטה' },
   { id: 'power', label: 'כוח' },
-  { id: 'card1', label: 'קלף 1' },
-  { id: 'card2', label: 'קלף 2' },
-  { id: 'card3', label: 'קלף 3' },
 ];
 const DEFAULT_BINDS = {
   left: ['ArrowLeft', 'KeyA'],
@@ -218,11 +208,6 @@ const DEFAULT_BINDS = {
   jump: ['ArrowUp', 'Space'],
   kick: ['ArrowDown', 'KeyS'],
   power: ['KeyJ', 'ShiftLeft'],
-  // The number row, where every game with an ability bar has put them, plus the ZXC cluster
-  // for a left hand that is already on WASD.
-  card1: ['Digit1', 'KeyZ'],
-  card2: ['Digit2', 'KeyX'],
-  card3: ['Digit3', 'KeyC'],
 };
 const BIND_STORE = 'hs-binds';
 
@@ -419,10 +404,6 @@ if (!matchMedia('(pointer: coarse)').matches) document.body.classList.add('no-to
 EDITOR = createEditor({
   pad: $('#pad'),
   stageOf: stageBox,
-  // A resize can change the button's box, and the card art is painted at a fixed pixel size
-  // to fill it — so a card that has just been made bigger has to be repainted or it comes
-  // back as a blurry upscale.
-  onChange: () => { if (M) paintHand(); },
 });
 applyOpacity($('#pad'), loadOpacity());
 $('#editOpacity').value = String(loadOpacity());
@@ -440,13 +421,12 @@ const setEditing = (on, how = 'save') => {
   // in them and its lift releases a key nobody is holding.
   heldBy.clear(); walking.clear();
   for (const b of document.querySelectorAll('.pad .btn')) b.classList.remove('on');
-  if (M) paintHand();
 };
 // Reached from settings, the way football's is — one entry point, not a button in the way.
 $('#editCtlBtn').onclick = () => { $('#tuner').classList.add('hidden'); setEditing(true); };
 $('#editDone').onclick = () => setEditing(false, 'save');
 $('#editCancel').onclick = () => setEditing(false, 'cancel');
-$('#editReset').onclick = () => { EDITOR.reset(); $('#editOpacity').value = String(EDITOR.opacity); if (M) paintHand(); };
+$('#editReset').onclick = () => { EDITOR.reset(); $('#editOpacity').value = String(EDITOR.opacity); };
 $('#editOpacity').oninput = (e) => EDITOR.setOpacity(+e.target.value);
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -469,9 +449,6 @@ const fx = {
         life: .26, t: 0, r: 3 + Math.random() * 4, color });
     }
   },
-  // A crater is drawn ON the grass and outlives the flash, so the pitch carries a memory
-  // of where the last rock landed.
-  crater(x) { parts.push({ k: 'k', x, y: C.GROUND_Y, life: 2.6, t: 0, color: '#2a1408' }); },
   goal(x, y, color) {
     parts.push({ k: 'w', x, y, life: .8, t: 0, color });
     for (let i = 0; i < 60; i++) {
@@ -590,7 +567,6 @@ function startOnlineMatch(msg) {
     $('#head' + i).dataset.card = '';
     $(`.gauge.g${i} .nm`).textContent = M.players[i].shot.name;
   }
-  paintHand();
   resize();
   cancelAnimationFrame(raf);
   raf = requestAnimationFrame(frame);
@@ -637,7 +613,6 @@ function startMatch() {
     const c = M.players[i].char;
     $(`.gauge.g${i} .nm`).textContent = M.players[i].shot.name;
   }
-  paintHand();
   resize();
   playEvent('whistle');
   cancelAnimationFrame(raf);
@@ -710,53 +685,19 @@ function drainEvents() {
     if (e.type === 'goal') banner(e.power ? 'גול פאוור!' : 'גול!', e.player === 0 ? '#4ea0ff' : '#ff5c7a');
     else if (e.type === 'counter') banner('קאונטר!', '#ffffff');
     else if (e.type === 'tackle') {
-      const col = e.powered ? SHOTS[e.shot].color : '#ffd166';
-      fx.shockwave(e.x, e.y, col);
-      if (e.powered) banner(SHOTS[e.shot].effect.note + '!', col);
-      else if (e.by === (ONLINE ? NET.you : 0)) banner('פגיעה! +כוח', '#ffd166');
+      fx.shockwave(e.x, e.y, '#ffd166');
+      if (e.by === (ONLINE ? NET.you : 0)) banner('פגיעה! +כוח', '#ffd166');
     }
     else if (e.type === 'blocked') {
       // A block is the defender's big moment — it deserves to read as one.
       banner('נחסם!', SHOTS[e.shot].color);
+      flash('#ffffff', 0.16);
     }
-    else if (e.type === 'charging') { banner(SHOTS[e.shot].name + '!', SHOTS[e.shot].color); flash(SHOTS[e.shot].glow, 0.12); }
-    else if (e.type === 'chargeLost') banner('נקטע!', '#8ea0be');
-    else if (e.type === 'armed') banner(SHOTS[e.shot].name, SHOTS[e.shot].color);
+    // ARMED. The banner says the move is loaded, not that it has gone off — the shot's own
+    // banner is `powershot`, below, and it only fires on a touch.
+    else if (e.type === 'armed') { banner(SHOTS[e.shot].name + ' מוכן!', '#ffc400'); flash('#ffe14a', 0.12); }
     else if (e.type === 'ballReset') banner('כדור חדש', '#8ea0be');
     else if (e.type === 'powershot') { banner(SHOTS[e.shot].name, SHOTS[e.shot].color); flash(SHOTS[e.shot].glow, 0.22); }
-    else if (e.type === 'blocked') flash('#ffffff', 0.16);
-    // ---- spectacle ----
-    // Only the ACT gets a banner. A line of Hebrew per falling rock would cover the pitch
-    // at exactly the moment the player needs to see the marker under it.
-    else if (e.type === 'meteorStart') { banner('מטאורים!', '#ff7a18'); flash('#ff9a3c', 0.16); }
-    else if (e.type === 'moonStart') { banner('כוח משיכה נמוך', '#7fd8ff'); flash('#7fd8ff', 0.14); }
-    else if (e.type === 'windStart') banner(e.dir > 0 ? 'רוח ←' : 'רוח →', '#dff0ff');
-    else if (e.type === 'robotCharge') banner('רובוט!', e.player === 0 ? '#6cf0ff' : '#ffd24a');
-    else if (e.type === 'robotOn') flash(e.player === 0 ? '#6cf0ff' : '#ffd24a', 0.2);
-    else if (e.type === 'meteorHit') { fx.crater(e.x); flash('#ffb070', 0.09); }
-    // ---- power-ups ----
-    // No banner for the telegraph, for the same reason the meteor has none per rock: a line
-    // of Hebrew over the pitch at the exact moment you need to see WHERE the thing is.
-    // The token, its ring and its sound are the announcement. The banner is for the payoff.
-    else if (e.type === 'dartHit') { fx.hit(e.x, e.y, '#ff4d6d', 4); flash('#ff4d6d', 0.12); banner('כיווץ!', '#ff4d6d'); }
-    else if (e.type === 'dartGoal') { fx.shockwave(e.x, e.y, '#ffd54a'); banner('ענק!', '#ffd54a'); }
-    else if (e.type === 'wallSave') { fx.shockwave(e.x, e.y, '#9ad0ff'); banner('נעצר!', '#9ad0ff'); }
-    else if (e.type === 'superKick') { fx.shockwave(e.x, e.y, '#ff2f00'); flash('#ff2f00', 0.2); banner('בעיטת על!', '#ff2f00'); }
-    else if (e.type === 'dogBite') { fx.hit(e.x, C.GROUND_Y - 20, '#c98b3a', 4); banner('נתפס!', '#c98b3a'); }
-    // A card fired: say who, and what, in the power's own colour.
-    else if (e.type === 'cardUse') {
-      callout({ player: e.player, name: e.name, label: PU_LABEL[e.kind], color: e.color });
-      playEvent('pu' + e.name[0].toUpperCase() + e.name.slice(1));
-      flash(e.color, 0.10);
-    }
-    else if (e.type === 'puTake') {
-      // The sim's event name is `puTake` for everything; the SOUND is per item, because
-      // knowing what you just grabbed without reading is most of what makes it feel good.
-      playEvent('pu' + e.name[0].toUpperCase() + e.name.slice(1));
-      banner(PU_LABEL[e.kind] + '!', PU_COLOR[e.kind]);
-      flash(PU_COLOR[e.kind], 0.12);
-    }
-    else if (e.type === 'puShieldBreak') banner('המגן ספג!', PU_COLOR[PU.SHIELD]);
     else if (e.type === 'golden') banner('מוות פתאומי', '#ffb800');
     else if (e.type === 'fulltime') { playEvent(e.winner === (ONLINE ? NET.you : 0) ? 'win' : 'lose'); endMatch(); }
     else if (e.type === 'ballReset') playEvent('reset');
@@ -1047,21 +988,13 @@ function draw() {
   // one. See drawGoalBack / drawGoalFront and shared/goalbox.js.
   drawGoalBack(g, true);
   drawGoalBack(g, false);
-  drawWind(g);                       // in the air, behind the players
-  drawMeteorMarks(g);                // on the grass, under the players
   for (const p of M.players) drawAura(g, p);
   for (const p of M.players) drawBody(g, p);
-  drawCharge(g);                     // the power wind-up, over the ball it is lifting
-  drawSkills(g);                     // darts, dogs and goal walls, in front of the bodies
-  drawPickup(g);                     // in front of the bodies — it must never be hidden
-  drawPuBadges(g);                   // and above the heads, clear of the DOM head layer
   drawParts(g, false);
   drawBall(g, M.ball);
   drawParts(g, true);
   drawGoalFront(g, true);            // the net you look through, over whatever is in the goal
   drawGoalFront(g, false);
-  drawMeteorRocks(g);                // falling in front of everything
-  drawMoon(g);                       // a wash over the whole pitch
   if (shake > 0) g.restore();
   if (flashT > 0) {
     g.save();
@@ -1432,600 +1365,6 @@ function drawGoalFront(g, left, netOnly = false) {
 }
 
 
-// ═══════════════════════════════════════════════════════════════════════════
-// SPECTACLE — meteors, moon phase, wind, robots
-// ═══════════════════════════════════════════════════════════════════════════
-// Everything here reads m.spec through shared/spectacle.js rather than off the event
-// stream, so it survives a rollback: a snapshot that rewinds the sim rewinds the meteors
-// with it, and the renderer simply draws whatever the current state says.
-//
-// The marker is the single most important thing this file draws. The whole fairness claim
-// rests on a player SEEING it, so it gets a beam from the sky, a closing ring, a chevron
-// pair and a flashing core — four separate cues for one event, which is three more than a
-// subtle designer would use and exactly right for an arcade game on a phone.
-function drawMeteorMarks(g) {
-  const met = activeMeteors(M);
-  if (!met.length) return;
-  const t = performance.now() / 1000;
-  g.save();
-  for (const r of met) {
-    const f = r.f;                                   // 0 at the warning, 1 at impact
-    const urgent = 0.35 + 0.65 * f;
-    const flash = 0.55 + 0.45 * Math.sin(t * (8 + 22 * f));
-
-    // The column of light it is coming down. Narrow, and only over the lower half of the
-    // frame: a full-height wide one hazed out the whole stage and read as weather.
-    const top = C.GROUND_Y * 0.55;
-    const grad = g.createLinearGradient(0, top, 0, C.GROUND_Y);
-    grad.addColorStop(0, 'rgba(255,120,40,0)');
-    grad.addColorStop(1, `rgba(255,150,60,${0.16 + 0.30 * f})`);
-    g.fillStyle = grad;
-    g.fillRect(Math.round(r.x - C.METEOR_R * 0.34), top, Math.round(C.METEOR_R * 0.68), C.GROUND_Y - top);
-
-    // The danger zone, drawn ON THE GRASS. Centred on the ground LINE it sat half on the
-    // perimeter wall, which made a rock look like it was going to land in the crowd.
-    const my = C.GROUND_Y + 16, ry = C.METEOR_R * 0.24;
-    g.globalAlpha = 0.22 + 0.34 * f;
-    g.fillStyle = '#ff5a1e';
-    g.beginPath(); g.ellipse(r.x, my, C.METEOR_R, ry, 0, 0, 6.2832); g.fill();
-
-    g.globalAlpha = 1;
-    g.strokeStyle = OUTLINE;
-    g.lineWidth = 5;
-    g.beginPath(); g.ellipse(r.x, my, C.METEOR_R, ry, 0, 0, 6.2832); g.stroke();
-    g.strokeStyle = '#ffd166';
-    g.lineWidth = 3;
-    g.beginPath(); g.ellipse(r.x, my, C.METEOR_R, ry, 0, 0, 6.2832); g.stroke();
-
-    // the ring closing onto the spot — the countdown you can read at a glance
-    g.strokeStyle = `rgba(255,255,255,${flash})`;
-    g.lineWidth = 4;
-    const rr = Math.max(4, C.METEOR_R * (1 - f));
-    g.beginPath(); g.ellipse(r.x, my, rr, Math.max(2, rr * 0.24), 0, 0, 6.2832); g.stroke();
-
-    // Chevrons over the marker, keylined so they survive a busy stage behind them.
-    for (let i = 0; i < 3; i++) {
-      const y = C.GROUND_Y - 16 - i * 15 - (1 - f) * 10;
-      const w = 20 - i * 5;
-      const tri = (pad) => {
-        g.beginPath();
-        g.moveTo(r.x - w - pad, y - pad); g.lineTo(r.x, y + 10 + pad); g.lineTo(r.x + w + pad, y - pad);
-        g.lineTo(r.x + w + pad, y - 7 - pad); g.lineTo(r.x, y + 3); g.lineTo(r.x - w - pad, y - 7 - pad);
-        g.closePath(); g.fill();
-      };
-      g.globalAlpha = urgent;
-      g.fillStyle = OUTLINE; tri(2);
-      g.fillStyle = flash > 0.6 ? '#fff2b0' : '#ff5a1e'; tri(0);
-    }
-    g.globalAlpha = 1;
-  }
-  g.restore();
-}
-
-// The rock itself: a blocky three-tone stone inside a black keyline, with a fire tail and a
-// white-hot leading edge — the same construction as the power-shot fireball, so it belongs
-// to the same world.
-function drawMeteorRocks(g) {
-  const met = activeMeteors(M);
-  if (!met.length) return;
-  for (const r of met) {
-    if (r.y < C.CEIL_Y - 40) continue;
-    const sz = 13 + r.f * 9;
-    g.save();
-    g.translate(Math.round(r.x), Math.round(r.y));
-
-    // tail — a tapering flame stretching back up the flight path
-    g.globalAlpha = .85;
-    for (let i = 1; i < 9; i++) {
-      const k = i / 9;
-      const w = sz * (1 - k) * 1.5;
-      if (w < 1) continue;
-      g.fillStyle = i < 3 ? '#fff3b0' : i < 6 ? '#ff9a3c' : '#e0451e';
-      g.fillRect(Math.round(-w / 2 + (Math.random() - .5) * 3), Math.round(-sz - i * 13),
-                 Math.round(w), 13);
-    }
-    g.globalAlpha = 1;
-
-    // stone
-    g.fillStyle = OUTLINE;
-    g.fillRect(-sz - 2, -sz - 2, sz * 2 + 4, sz * 2 + 4);
-    g.fillStyle = '#6b5a4c';
-    g.fillRect(-sz, -sz, sz * 2, sz * 2);
-    g.fillStyle = '#8d7a68';
-    g.fillRect(-sz, -sz, sz, sz);
-    g.fillStyle = '#42362c';
-    g.fillRect(0, 0, sz, sz);
-    // leading edge, burning
-    g.fillStyle = '#ffd166';
-    g.fillRect(-sz, sz - 4, sz * 2, 4);
-    g.fillStyle = '#ffffff';
-    g.fillRect(-sz + 4, sz - 2, sz * 2 - 8, 2);
-    g.restore();
-  }
-}
-
-// Moon phase: a cold wash over the pitch with dust drifting UP through it. The tint is what
-// tells you the rules changed; the motes are what make it read as low gravity rather than
-// as a colour filter.
-function drawMoon(g) {
-  if (actKind(M) !== ACT.MOON) return;
-  const t = performance.now() / 1000;
-  g.save();
-  g.globalAlpha = .21;
-  g.fillStyle = '#7fd8ff';
-  g.fillRect(0, 0, C.W, C.H);
-
-  // Dust rising, swaying as it goes. Bigger and slower than the first pass, which read as
-  // sensor noise rather than as "things are falling more slowly here".
-  g.globalAlpha = .62;
-  for (let i = 0; i < 64; i++) {
-    const sway = Math.sin(t * 0.7 + i) * 9;
-    const x = ((i * 137.5) % C.W) + sway;
-    const y = (C.H - ((t * 22 + i * 31) % (C.H + 80))) + 40;
-    const s = 3 + (i % 4);
-    g.fillStyle = i % 4 ? '#cdefff' : '#ffffff';
-    g.fillRect(Math.round(x), Math.round(y), s, s);
-  }
-
-  // A halo on the BALL. The one object whose physics visibly changed should be the one
-  // wearing the effect — the tint alone was a colour filter you stopped noticing.
-  const b = M.ball;
-  if (!b.power) {
-    g.globalAlpha = .35 + .2 * Math.sin(t * 3);
-    g.strokeStyle = '#cdefff';
-    g.lineWidth = 2;
-    g.beginPath(); g.arc(b.x, b.y, b.r + 7, 0, 6.2832); g.stroke();
-    g.globalAlpha = .2;
-    g.beginPath(); g.arc(b.x, b.y, b.r + 13, 0, 6.2832); g.stroke();
-  }
-  g.restore();
-}
-
-// Wind: streaks tearing across the pitch the way it is blowing. Drawn behind the players so
-// it never hides the thing you are trying to hit.
-function drawWind(g) {
-  const k = actKind(M);
-  if (k !== ACT.WIND) return;
-  const dir = M.spec.dir;
-  const t = performance.now() / 1000;
-  g.save();
-  g.globalAlpha = .5;
-  for (let i = 0; i < 26; i++) {
-    const speed = 260 + (i % 5) * 130;
-    const len = 26 + (i % 7) * 12;
-    const y = C.CEIL_Y + ((i * 73) % (C.GROUND_Y - C.CEIL_Y - 10));
-    let x = ((t * speed + i * 211) % (C.W + 200)) - 100;
-    if (dir < 0) x = C.W - x;
-    g.fillStyle = i % 3 ? '#dff0ff' : '#ffffff';
-    g.fillRect(Math.round(x), Math.round(y), Math.round(len), 2);
-  }
-  // an arrow banner on the grass, so the direction is never a guess
-  g.globalAlpha = .8;
-  g.fillStyle = '#dff0ff';
-  for (let i = 0; i < 5; i++) {
-    const x = C.W / 2 + (i - 2) * 34 + ((t * 90) % 34) * dir;
-    g.beginPath();
-    g.moveTo(x, C.GROUND_Y + 12);
-    g.lineTo(x + 16 * dir, C.GROUND_Y + 20);
-    g.lineTo(x, C.GROUND_Y + 28);
-    g.closePath(); g.fill();
-  }
-  g.restore();
-}
-
-// ═══ POWER-UPS ═════════════════════════════════════════════════════════════
-// A pickup has to be readable from a glance at a phone held at arm's length, at half
-// resolution, over eleven different backdrops. That budget buys three things and no more:
-// ONE saturated colour, ONE white glyph, and a black keyline thick enough to survive any
-// stage behind it. Everything else — the bob, the ring, the sparkle — is motion, which is
-// what makes you look at it in the first place but is never what tells you what it is.
-//
-// The glyphs are deliberately drawn from the crudest possible primitives (a circle, a bar,
-// a triangle) because at 22 texels across, detail is noise. Each one is a different
-// SILHOUETTE, not a different picture: bullseye, horseshoe, bolt, shield, arrow, asterisk.
-// Squint at them in greyscale and you can still tell them apart, which is the actual test.
-
-// `thick` fattens a polygon by stroking its own outline on top of the fill. At 22 texels a
-// diagonal ribbon two pixels wide antialiases into grey mush — the first lightning bolt read
-// as a four-pointed sparkle for exactly that reason. Every limb of a glyph has to be at
-// least three texels or it is not there.
-const puPoly = (g, pts, thick = 0) => {
-  g.beginPath();
-  g.moveTo(pts[0][0], pts[0][1]);
-  for (let i = 1; i < pts.length; i++) g.lineTo(pts[i][0], pts[i][1]);
-  g.closePath();
-  g.fill();
-  if (thick > 0) { g.lineJoin = 'round'; g.lineWidth = thick; g.stroke(); }
-};
-
-// The white mark inside the disc. `s` is the glyph half-box; everything scales off it, so
-// the same code draws the crate on the pitch and the little badge over a head.
-function drawPuGlyph(g, kind, s) {
-  g.fillStyle = '#ffffff';
-  g.strokeStyle = '#ffffff';
-  g.lineCap = 'butt';
-
-  if (kind === PU.GROW) {
-    // Bullseye: a head, and a ring growing off it.
-    g.beginPath(); g.arc(0, 0, s * 0.34, 0, 6.2832); g.fill();
-    g.lineWidth = Math.max(2, s * 0.24);
-    g.beginPath(); g.arc(0, 0, s * 0.86, 0, 6.2832); g.stroke();
-  } else if (kind === PU.MAGNET) {
-    // Horseshoe: a fat half-ring with two legs hanging off it, and BLACK POLE TIPS. Without
-    // the tips this read as an arch, or as the letter n — the painted poles are the whole
-    // reason a horseshoe says "magnet" rather than "doorway".
-    const lw = Math.max(3, s * 0.42);
-    g.lineWidth = lw;
-    g.beginPath(); g.arc(0, s * 0.06, s * 0.66, Math.PI, 0); g.stroke();
-    const legY = Math.round(s * 0.06), legH = Math.round(s * 0.80);
-    const tipH = Math.max(2, Math.round(legH * 0.42));
-    for (const sx of [-1, 1]) {
-      const x = Math.round(sx * s * 0.66 - lw / 2);
-      g.fillStyle = '#ffffff';
-      g.fillRect(x, legY, Math.round(lw), legH - tipH);
-      g.fillStyle = OUTLINE;
-      g.fillRect(x, legY + legH - tipH, Math.round(lw), tipH);
-    }
-    g.fillStyle = '#ffffff';
-  } else if (kind === PU.CHARGE) {
-    // Lightning bolt, stroked fat. The one glyph everybody on earth already knows — but
-    // only once its arms survive the downscale.
-    puPoly(g, [[s * 0.30, -s], [-s * 0.62, s * 0.14], [-s * 0.06, s * 0.14],
-               [-s * 0.34, s], [s * 0.62, -s * 0.18], [s * 0.04, -s * 0.18]], s * 0.26);
-  } else if (kind === PU.SHIELD) {
-    // Shield: square shoulders, a point at the bottom.
-    puPoly(g, [[-s * 0.72, -s * 0.78], [s * 0.72, -s * 0.78], [s * 0.72, s * 0.16],
-               [0, s * 0.92], [-s * 0.72, s * 0.16]]);
-  } else if (kind === PU.SPRING) {
-    // Double chevron — the universal "higher". This was an arrow standing on a launch pad,
-    // and the ink-distribution probe caught it: an arrow is a vertical stem with a bar
-    // across it, and so, at this size, is a snowflake. Only 30% of their ink landed in
-    // different places. Two chevrons have no stem and no horizontal, so the two items stop
-    // sharing a skeleton.
-    // WIDE and FLAT on purpose. A tall narrow chevron is an arch with legs, which is the
-    // magnet; a shallow one that runs the full width of the token is not.
-    g.lineWidth = Math.max(3, s * 0.30);
-    g.lineJoin = 'miter';
-    for (const dy of [-0.30, 0.54]) {
-      g.beginPath();
-      g.moveTo(-s * 0.94, s * dy);
-      g.lineTo(0, s * (dy - 0.50));
-      g.lineTo(s * 0.94, s * dy);
-      g.stroke();
-    }
-  } else if (kind === PU.ICE) {
-    // Snowflake — three bars through the centre. Degrades into an asterisk, which is still
-    // nothing else in this set.
-    g.lineWidth = Math.max(2, s * 0.26);
-    for (let i = 0; i < 3; i++) {
-      const a = i * Math.PI / 3;
-      g.beginPath();
-      g.moveTo(-Math.cos(a) * s * 0.95, -Math.sin(a) * s * 0.95);
-      g.lineTo(Math.cos(a) * s * 0.95, Math.sin(a) * s * 0.95);
-      g.stroke();
-    }
-  }
-}
-
-// The whole token: keyline, colour disc, a hard shadow across the bottom (no gradients
-// anywhere — SF2 shades with a second flat tone), a specular chip, then the glyph.
-function drawPuToken(g, kind, cx, cy, r, alpha = 1) {
-  const col = PU_COLOR[kind];
-  g.save();
-  g.globalAlpha = alpha;
-  g.translate(Math.round(cx), Math.round(cy));
-
-  g.fillStyle = OUTLINE;
-  g.beginPath(); g.arc(0, 0, r + 3, 0, 6.2832); g.fill();
-  g.fillStyle = col;
-  g.beginPath(); g.arc(0, 0, r, 0, 6.2832); g.fill();
-  // lower-right shading, clipped to the disc
-  g.save();
-  g.beginPath(); g.arc(0, 0, r, 0, 6.2832); g.clip();
-  g.globalAlpha = alpha * 0.28;
-  g.fillStyle = OUTLINE;
-  g.fillRect(-r, Math.round(r * 0.34), r * 2, r);
-  g.restore();
-  // specular chip, top left
-  g.globalAlpha = alpha * 0.75;
-  g.fillStyle = '#ffffff';
-  g.fillRect(Math.round(-r * 0.62), Math.round(-r * 0.72), Math.round(r * 0.3), Math.round(r * 0.16));
-  g.globalAlpha = alpha;
-
-  drawPuGlyph(g, kind, r * 0.60);
-  g.restore();
-}
-
-// The crate on the pitch. Two states, and they have to be unmistakably different: a GHOST
-// with a ring closing onto it (you cannot have this yet) and a SOLID one that bobs (go).
-// THE FOUR SPECIALS. Every one of them has to be legible in the half second you have to
-// react to it, so each is one silhouette in one colour: a pink dart at head height, a brown
-// dog on the ground line, a pale barrier across a goal mouth, and a furnace-red ring on the
-// player whose next boot is a super kick.
-// THE WIND-UP. Half a second in which the ball is drawn up over a player's head and lights
-// up, and the whole point is that the OTHER player can read it: the ring tightens, the ball
-// cycles through the shooter's own shot colour, and both of them know exactly when it goes.
-function drawCharge(g) {
-  // THE FOCUS. A second and a half is a long time for the game to be waiting on one player,
-  // so the frame says so: everything except the striker and the ball goes dark, and the light
-  // closes in as the clock runs down. Drawn as one dim pass with two holes rather than as a
-  // spotlight sprite, so it works on every stage without art.
-  const charging = M.players.find((p) => p.charge > 0);
-  if (charging) {
-    const t = 1 - charging.charge / C.POWER_CHARGE_TIME;
-    const cy = C.GROUND_Y - C.powerHeight();
-    // Both holes follow whatever the projection did to the things they are holes for, or a
-    // wind-up inside a goal spotlights the empty air beside the player.
-    const hd = depthPoint(charging.x, headY(charging));
-    const bd = depthPoint(M.ball.x, M.ball.y);
-    g.save();
-    g.beginPath();
-    g.rect(0, 0, C.W, C.H + 170);
-    // the two holes: the player, and the ball above them
-    g.moveTo(hd.x + 76, hd.y);
-    g.arc(hd.x, hd.y, 76 - t * 16, 0, Math.PI * 2, true);
-    g.moveTo(bd.x + 40, bd.y);
-    g.arc(bd.x, bd.y, 40 - t * 8, 0, Math.PI * 2, true);
-    g.fillStyle = `rgba(4, 6, 14, ${0.30 + t * 0.34})`;
-    g.fill('evenodd');
-    g.restore();
-    void cy;
-  }
-
-  for (const p of M.players) {
-    if (p.charge <= 0) continue;
-    const t = 1 - p.charge / C.POWER_CHARGE_TIME;          // 0 at the press, 1 at the shot
-    const col = p.shot.color;
-    const lift = depthPoint(p.x, C.GROUND_Y - C.powerHeight());
-    const foot = depthPoint(p.x, C.GROUND_Y);
-    const ball = depthPoint(M.ball.x, M.ball.y);
-    const cx = lift.x, cy = lift.y;
-
-    // A ring on the ground under the charging player: this is where it is coming FROM.
-    g.strokeStyle = col;
-    g.lineWidth = 2 + t * 2;
-    g.globalAlpha = 0.35 + t * 0.5;
-    g.beginPath();
-    g.ellipse(foot.x, C.GROUND_Y - 2, 34 - t * 14, 9 - t * 4, 0, 0, Math.PI * 2);
-    g.stroke();
-
-    // The charge ring closing on the ball — the clock a defender reads.
-    g.beginPath();
-    g.arc(cx, cy, 34 - t * 18, -Math.PI / 2, -Math.PI / 2 + t * Math.PI * 2);
-    g.stroke();
-    g.globalAlpha = 1;
-
-    // …and the ball itself, cycling hot. Drawn OVER the ball the renderer already drew, so
-    // the colour reads as the ball charging rather than as a second object.
-    const pulse = 0.55 + 0.45 * Math.sin(performance.now() / 40);
-    g.globalAlpha = 0.35 + 0.65 * t * pulse;
-    R2(g, ball.x - C.BALL_R, ball.y - C.BALL_R, C.BALL_R * 2, C.BALL_R * 2, col);
-    g.globalAlpha = 1;
-    // A few sparks pulled toward it, so the half second reads as gathering rather than waiting.
-    for (let i = 0; i < 3; i++) {
-      const a = (performance.now() / 200 + i * 2.1) % (Math.PI * 2);
-      const r = 46 * (1 - t) + 10;
-      R2(g, cx + Math.cos(a) * r - 2, cy + Math.sin(a) * r * 0.6 - 2, 4, 4, col);
-    }
-  }
-}
-
-function drawSkills(g) {
-  // GOAL WALLS — a lattice across the mouth of a goal that is briefly shut.
-  for (let i = 0; i < 2; i++) {
-    const t = goalWallT(M, i);
-    if (t <= 0) continue;
-    const left = M.players[i].side > 0 ? true : false;
-    const x = left ? 0 : C.W - C.GOAL_W;
-    const top = C.GROUND_Y - C.GOAL_H;
-    // It fades as it runs out, so "about to fail" is something you can see rather than time.
-    g.globalAlpha = Math.min(1, t / 0.5) * 0.85;
-    R2(g, x, top, C.GOAL_W, C.GOAL_H, '#9ad0ff33');
-    for (let y = top; y < C.GROUND_Y; y += 14) R2(g, x, y, C.GOAL_W, 3, '#9ad0ff');
-    R2(g, left ? C.GOAL_W - 3 : C.W - C.GOAL_W, top, 3, C.GOAL_H, '#dff2ff');
-    g.globalAlpha = 1;
-  }
-
-  // THE DART — a bolt with a tail, so its direction reads without watching it move.
-  const d = activeDart(M);
-  if (d) {
-    const dir = Math.sign(d.vx) || 1;
-    R2(g, d.x - dir * 16, d.y - 2, 16, 4, '#ff4d6d66');
-    R2(g, d.x - 5, d.y - 4, 10, 8, '#ff4d6d');
-    R2(g, d.x + dir * 5, d.y - 2, 6, 4, '#fff0f3');
-  }
-
-  // THE DOG. Bigger than it was and drawn in the same grammar as the fighters: flat colour,
-  // a black keyline round every mass, one highlight tone. It has two poses, because it does
-  // two things — it RUNS, and then it hangs off your leg with its teeth in your shin.
-  const dog = activeDog(M);
-  if (dog) drawDog(g, dog);
-
-  // THE ARMED SUPER KICK — a ring on the boot that is about to do it.
-  for (let i = 0; i < 2; i++) {
-    if (!hasSuperKick(M, i)) continue;
-    const p = M.players[i];
-    g.strokeStyle = '#ff2f00';
-    g.lineWidth = 3;
-    g.beginPath();
-    g.arc(p.x, p.y - 6, 20 + Math.sin(performance.now() / 90) * 3, 0, Math.PI * 2);
-    g.stroke();
-  }
-}
-
-// One dog, two poses. `biting` is the sim's own latch flag (skills.js `on === 2`), so what is
-// drawn and what is happening cannot disagree.
-const DOG = { fur: '#c98b3a', dark: '#a97128', line: '#160e04', snout: '#3a2a12',
-              eye: '#0c0a06', tooth: '#fffaf0', gum: '#d34a63', tongue: '#e8657f' };
-
-function drawDog(g, dog) {
-  const t = performance.now();
-  const biting = dog.on === 2;
-  const dir = biting ? -(Math.sign(dog.vx) || 1) : (Math.sign(dog.vx) || 1);
-  // 2.0, not the 1.45 it started at. At 1.45 the teeth came out a single texel wide — the
-  // canvas renders at half resolution on purpose (PIXEL = 2), so anything under about 3 world
-  // px simply is not drawable. A mouth you cannot see is not a mouth.
-  const S = 2.0;
-  const x = dog.x;
-  // Biting, it drops to the shins and hangs; running, it lopes with a bob.
-  const bob = biting ? Math.sin(t / 45) * 1.5 : Math.sin(t / 70) * 2.5;
-  // Latched, it sits LOW — the jaw has to close round a shin, not a hip. 14px up from the
-  // grass puts the open mouth across the bottom third of a player's leg.
-  const y = C.GROUND_Y - (biting ? 15 : 30) + bob;
-  const px = (v) => Math.round(v * S);
-  // Every mass gets a keyline: draw the black box first, the colour inset by one.
-  const K = (bx, by, bw, bh, col) => {
-    R2(g, x + px(bx) - 1, y + px(by) - 1, px(bw) + 2, px(bh) + 2, DOG.line);
-    R2(g, x + px(bx), y + px(by), px(bw), px(bh), col);
-  };
-
-  // shadow first, so it always reads as standing ON the grass
-  R2(g, x - px(13), C.GROUND_Y - 3, px(26), 3, '#00000055');
-
-  // ---- body, haunch, chest ----
-  K(-12, 0, 22, 11, DOG.fur);
-  K(-14 * dir, -1, 8, 10, DOG.dark);                // haunch, at the back
-  K(2 * dir, -2, 9, 12, DOG.fur);                   // chest, at the front
-
-  // ---- tail: up and wagging when it runs, stiff when it has hold of something ----
-  const wag = biting ? 0 : Math.sin(t / 60) * 3;
-  K(-16 * dir, -6 + wag * 0.3, 5, 9, DOG.dark);
-
-  // ---- legs ----
-  for (let l = 0; l < 4; l++) {
-    const lx = -9 + l * 6.5;
-    const swing = biting ? (l < 2 ? 2 : 0) : Math.sin(t / 55 + l * 1.7) * 2.5;
-    K(lx, 10, 4, 8 + swing, DOG.dark);
-    K(lx - 0.5, 17 + swing, 5, 3, DOG.fur);         // paw
-  }
-
-  // ---- head ----
-  const hx = 9 * dir;
-  K(hx - 4, -12, 12, 12, DOG.fur);                  // skull
-  K(hx + (dir > 0 ? 5 : -5), -15, 5, 6, DOG.dark);  // ear, flopping forward
-  K(hx - 4, -14, 4, 5, DOG.dark);                   // the other ear
-  R2(g, x + px(hx + dir * 2) - 1, y + px(-8) - 1, px(3) + 2, px(3) + 2, DOG.line);
-  R2(g, x + px(hx + dir * 2), y + px(-8), px(3), px(3), DOG.eye);     // eye
-  R2(g, x + px(hx + dir * 2.2), y + px(-8), px(1), px(1), '#ffffff'); // and its glint
-
-  if (!biting) {
-    // Muzzle closed: a snout and a nose, and that is all a running dog needs to read.
-    K(hx + dir * 5, -6, 7, 5, DOG.snout);
-    R2(g, x + px(hx + dir * 10), y + px(-5), px(3), px(3), DOG.eye);  // nose
-    return;
-  }
-
-  // ---- THE BITE: an open jaw round the shin, gums and teeth showing ----
-  // Drawn as two jaws hinged at the back of the muzzle so the mouth reads as CLAMPED on
-  // something rather than merely open. The gum is the loud part — teeth alone on a small
-  // sprite just read as a white smudge.
-  const gape = 5 + Math.sin(t / 40) * 1.2;          // it worries at the leg while it holds
-  const jx = hx + dir * 4;
-  // upper jaw
-  K(jx, -6, 9, 4, DOG.snout);
-  R2(g, x + px(jx), y + px(-3), px(9), px(1.6), DOG.gum);
-  for (let i = 0; i < 4; i++) {
-    R2(g, x + px(jx + 0.5 + i * 2.2), y + px(-2), px(2.2), px(2.6), DOG.tooth);
-  }
-  // lower jaw, swung open by `gape`
-  K(jx, -2 + gape * 0.5, 8, 4, DOG.snout);
-  R2(g, x + px(jx), y + px(-2 + gape * 0.5), px(8), px(1.4), DOG.gum);
-  for (let i = 0; i < 3; i++) {
-    R2(g, x + px(jx + 1.1 + i * 2.4), y + px(-3.6 + gape * 0.5), px(2.2), px(2.4), DOG.tooth);
-  }
-  R2(g, x + px(jx + 1), y + px(-1 + gape * 0.5), px(4), px(1.4), DOG.tongue);
-  // nose on top of the upper jaw
-  R2(g, x + px(jx + 7), y + px(-7), px(3), px(3), DOG.eye);
-}
-
-function drawPickup(g) {
-  const pk = activePickup(M);
-  if (!pk) return;
-  const t = performance.now() / 1000;
-  const r = C.PICKUP_R;
-
-  // The spot on the grass it belongs to, so its x is never a guess — the same job the
-  // meteor's marker does, at a third of the volume, because this one is an invitation.
-  g.save();
-  g.globalAlpha = pk.live ? 0.5 : 0.28 + 0.4 * pk.f;
-  g.strokeStyle = pk.color;
-  g.lineWidth = 3;
-  g.beginPath(); g.ellipse(pk.x, C.GROUND_Y + 12, r * 0.9, r * 0.24, 0, 0, 6.2832); g.stroke();
-  g.globalAlpha = 0.3;
-  g.fillStyle = '#000';
-  g.beginPath(); g.ellipse(pk.x, C.GROUND_Y + 12, r * 0.62, r * 0.17, 0, 0, 6.2832); g.fill();
-  g.restore();
-
-  if (!pk.live) {
-    // TELEGRAPH. Faded, undersized, with a ring shrinking onto it — the countdown you can
-    // read without reading anything.
-    const grow = 0.62 + 0.38 * pk.f;
-    drawPuToken(g, pk.kind, pk.x, pk.y, r * grow, 0.30 + 0.45 * pk.f);
-    g.save();
-    g.globalAlpha = 0.5 + 0.5 * Math.sin(t * 12);
-    g.strokeStyle = '#ffffff';
-    g.lineWidth = 3;
-    const rr = r * (1 + 1.7 * (1 - pk.f));
-    g.beginPath(); g.arc(pk.x, pk.y, rr, 0, 6.2832); g.stroke();
-    g.restore();
-    return;
-  }
-
-  // LIVE. Bobbing, haloed, and flashing once it is nearly gone — an item about to expire
-  // has to say so, or it just vanishes and the race you were running was for nothing.
-  const bob = Math.sin(t * 3.4) * 4;
-  const dying = pk.lifeFrac < 0.34;
-  const blink = dying ? (Math.sin(t * (10 + (1 - pk.lifeFrac) * 26)) > -0.2 ? 1 : 0.28) : 1;
-
-  g.save();
-  g.globalAlpha = 0.22 * blink;
-  g.fillStyle = pk.color;
-  g.beginPath(); g.arc(pk.x, pk.y + bob, r + 10 + Math.sin(t * 3.4) * 3, 0, 6.2832); g.fill();
-  g.restore();
-
-  drawPuToken(g, pk.kind, pk.x, pk.y + bob, r, blink);
-
-  // Four sparks orbiting it. Motion is what pulls the eye across a busy pitch.
-  g.save();
-  g.globalAlpha = blink;
-  for (let i = 0; i < 4; i++) {
-    const a = t * 2.2 + i * 1.5708;
-    g.fillStyle = i % 2 ? '#ffffff' : pk.color;
-    g.fillRect(Math.round(pk.x + Math.cos(a) * (r + 9) - 1.5),
-               Math.round(pk.y + bob + Math.sin(a) * (r * 0.5 + 5) - 1.5), 3, 3);
-  }
-  g.restore();
-}
-
-// What you are currently carrying, over your own head: one token per effect with the time
-// left drawn as an arc around it. Small, because it is a reminder and not an event — you
-// already got the banner, the sound and the flash when you picked it up.
-function drawPuBadges(g) {
-  for (let i = 0; i < 2; i++) {
-    const list = puBadges(M, i);
-    if (!list.length) continue;
-    const p = M.players[i];
-    const r = 13;
-    const h = depthPoint(p.x, headY(p));              // rides the head into the goal with it
-    const y = h.y - headR(M, p) - r - 8;
-    const x0 = h.x - ((list.length - 1) * (r * 2 + 6)) / 2;
-    for (let k = 0; k < list.length; k++) {
-      const b = list[k];
-      const x = x0 + k * (r * 2 + 6);
-      // The countdown arc first, so the token sits on top of it.
-      g.save();
-      g.strokeStyle = OUTLINE;
-      g.lineWidth = 6;
-      g.beginPath(); g.arc(x, y, r + 4, -1.5708, -1.5708 + 6.2832); g.stroke();
-      g.strokeStyle = b.color;
-      g.lineWidth = 4;
-      g.beginPath(); g.arc(x, y, r + 4, -1.5708, -1.5708 + 6.2832 * b.frac); g.stroke();
-      g.restore();
-      drawPuToken(g, b.kind, x, y, r, b.left < 1.2 && Math.sin(performance.now() / 60) < 0 ? 0.4 : 1);
-    }
-  }
-}
-
 // SF2 palettes: hard 3-tone ramps, no gradients, everything sitting inside a black
 // outline. Player 1 is a blue gi, player 2 a red one, both with the yellow belt.
 const GI = [
@@ -2043,98 +1382,7 @@ function px(g, x, y, w, h, fill) {
   g.fillRect(Math.round(x), Math.round(y), Math.round(w), Math.round(h));
 }
 
-// A robot is a REBUILD of the silhouette, not a recolour. Same proportions — it has to
-// occupy the same space or the game stops being readable — but square shoulders, a lit
-// reactor in the chest, piston legs and an antenna that pokes out above the head window.
-// The player's own colour survives as the accent, because "which one am I" outranks
-// "look, a robot".
-function drawRobotBody(g, p) {
-  const pal = GI[p.index];
-  const bw = C.BODY_W, bh = C.BODY_H;
-  const t = performance.now() / 1000;
-  const steel = '#8f9bb3', dark = '#3d4658', lite = '#dfe7f5';
-  const glow = p.index === 0 ? '#6cf0ff' : '#ffd24a';
-  const d = depthPoint(p.x, p.y);                     // in the net, one step in — see drawBody
-
-  g.save();
-  g.globalAlpha = .35;
-  g.fillStyle = '#000';
-  g.fillRect(Math.round(d.x - bw * 0.7), C.GROUND_Y, Math.round(bw * 1.4), 3);
-  g.restore();
-
-  g.save();
-  g.translate(Math.round(d.x), Math.round(d.y));
-  if (p.knocked > 0) g.rotate(p.side * 1.15);
-
-  // piston legs — two segments with a bright joint, so the walk reads as machinery
-  const kickP = p.kickT > 0 ? 1 - p.kickT / C.KICK_TIME : 0;
-  const swing = p.kickT > 0 ? Math.sin(kickP * Math.PI) : 0;
-  const stride = p.onGround ? Math.sin(performance.now() / 80) * Math.min(1, Math.abs(p.vx) / 260) * 6 : 3;
-  const legW = Math.max(5, Math.round(bw * 0.30));
-  const legH = Math.round(bh * 0.42);
-  const kickX = p.facing * swing * C.KICK_REACH * 0.7;
-  px(g, -bw * 0.34 - stride, -legH, legW, legH, dark);
-  px(g, -bw * 0.34 - stride, -legH * 0.45, legW, 3, glow);
-  px(g, bw * 0.04 + kickX + stride, -legH - swing * 8, legW, legH, steel);
-  px(g, bw * 0.04 + kickX + stride, -legH * 0.45 - swing * 8, legW, 3, glow);
-  const footL = Math.round((legW + 5) * C.FOOT_LEN);
-  const footX = (base) => (p.facing > 0 ? base : base - footL + legW + 5);
-  px(g, footX(-bw * 0.40 - stride), -3, footL, 4, lite);
-  px(g, footX(bw * 0.00 + kickX + stride), -4 - swing * 8, footL, 4, lite);
-
-  // chassis: square pauldrons over a plated torso
-  const tH = Math.round(bh * 0.66);
-  px(g, -bw / 2 - 3, -bh - 3, bw + 6, 6, steel);          // shoulder bar
-  px(g, -bw / 2, -bh, bw, tH, steel);
-  g.fillStyle = dark;
-  g.fillRect(Math.round(bw / 2 - bw * 0.30), Math.round(-bh), Math.round(bw * 0.30), tH);
-  g.fillStyle = lite;
-  g.fillRect(Math.round(-bw / 2), Math.round(-bh), 2, tH);
-  // reactor core, pulsing
-  const pulse = 0.55 + 0.45 * Math.sin(t * 9);
-  g.globalAlpha = pulse;
-  g.fillStyle = glow;
-  g.fillRect(Math.round(-4), Math.round(-bh + tH * 0.32), 8, 8);
-  g.globalAlpha = 1;
-  g.fillStyle = '#ffffff';
-  g.fillRect(Math.round(-2), Math.round(-bh + tH * 0.32 + 2), 4, 4);
-  // hazard stripe where the belt was
-  g.fillStyle = pal.base;
-  g.fillRect(Math.round(-bw / 2), Math.round(-bh + tH - 4), bw, 4);
-
-  // hydraulic arms
-  const armW = Math.max(4, Math.round(bw * 0.24));
-  const armH = Math.round(bh * 0.36);
-  const guard = p.onGround ? 0 : -armH * 0.7;
-  px(g, -bw / 2 - armW - 2, -bh + 2 + guard, armW, armH, dark);
-  px(g, bw / 2 + 2, -bh + 2 + guard - swing * 5, armW, armH, dark);
-
-  g.restore();
-
-  // antenna — drawn ABOVE the head window, which is a DOM circle, so it has to start high
-  // enough to clear the element or it is simply hidden behind the card art.
-  const hd = depthPoint(p.x, headY(p));               // follows the head, not the feet
-  const top = hd.y - C.HEAD_R - 4;
-  g.save();
-  g.fillStyle = OUTLINE;
-  g.fillRect(Math.round(hd.x - 3), Math.round(top - 26), 6, 28);
-  g.fillStyle = steel;
-  g.fillRect(Math.round(hd.x - 1), Math.round(top - 25), 3, 27);
-  g.globalAlpha = pulse * .45;
-  g.fillStyle = glow;
-  g.beginPath(); g.arc(hd.x, top - 28, 11, 0, 6.2832); g.fill();
-  g.globalAlpha = 1;
-  g.fillStyle = OUTLINE;
-  g.beginPath(); g.arc(hd.x, top - 28, 6, 0, 6.2832); g.fill();
-  g.fillStyle = glow;
-  g.beginPath(); g.arc(hd.x, top - 28, 4.5, 0, 6.2832); g.fill();
-  g.fillStyle = '#ffffff';
-  g.beginPath(); g.arc(hd.x, top - 28, 2, 0, 6.2832); g.fill();
-  g.restore();
-}
-
 function drawBody(g, p) {
-  if (isRobot(M, p.index)) { drawRobotBody(g, p); return; }
   const pal = GI[p.index];
   const knocked = p.knocked > 0;
   const bw = C.BODY_W, bh = C.BODY_H;
@@ -2204,13 +1452,17 @@ function roundRect(g, x, y, w, h, r) {
   g.closePath();
 }
 
-// Charging aura. SF2 tells you a special is coming before it lands — the character flashes
-// and the air around them moves. Without that tell, POWER MODE is invisible to the opponent
-// and there is nothing to react to.
+// THE ARMED AURA. SF2 tells you a special is coming before it lands — the character flashes
+// and the air around them moves. That tell matters more than it ever has here: an armed
+// player is going to turn their next touch of the ball into a power shot, and the only
+// defence is to see it and get to the ball first.
+//
+// In the FULL BAR's gold, matching the head's glow and the meter, not in the character's
+// shot colour — one state, one colour, wherever it is drawn.
 function drawAura(g, p) {
   if (p.armed <= 0) return;
   const t = performance.now() / 1000;
-  const col = p.shot.color;
+  const col = '#ffc400';
   const d = depthPoint(p.x, p.y);                     // on the body it wraps — see drawBody
   const hy = depthPoint(p.x, headY(p)).y;
   g.save();
@@ -2306,17 +1558,6 @@ function drawParts(g, front) {
       g.lineWidth = 5 * k + 1;
       g.beginPath(); g.arc(d.x, d.y, (1 - k) * 150 + 8, 0, 6.2832); g.stroke();
       g.restore();
-    } else if (p.k === 'k') {
-      // scorch on the grass — flattened, so it sits ON the pitch rather than floating
-      if (front) continue;
-      g.save();
-      g.globalAlpha = k * .75;
-      g.fillStyle = p.color;
-      g.beginPath(); g.ellipse(d.x, C.GROUND_Y + 3, 34 * (1.1 - k * .2), 8, 0, 0, 6.2832); g.fill();
-      g.globalAlpha = k * .5;
-      g.fillStyle = '#ff8a3c';
-      g.beginPath(); g.ellipse(d.x, C.GROUND_Y + 3, 16 * k, 4 * k, 0, 0, 6.2832); g.fill();
-      g.restore();
     } else if (p.k === 'g') {
       if (front) continue;
       g.save();
@@ -2407,43 +1648,14 @@ function drawHeads() {
     const x = OX + d.x * SC, y = OY + d.y * SC;
     const tilt = Math.max(-.34, Math.min(.34, p.vx / 1100)) + (p.knocked > 0 ? p.side * 1.2 : 0);
     el.style.transform = `translate(${x - size / 2}px, ${y - size / 2}px) rotate(${tilt}rad)`;
-    // The head is a DOM node over the canvas, so the robot treatment has to be CSS: the
-    // card face goes chrome, and the outline switches to the machine's own colour. Cleared
-    // explicitly on the way out, or the class-based .slowed/.hexed filters stay overridden.
-    const robot = isRobot(M, i), charging = robotCharging(M, i);
-    // A visor across the card face. The body is a 19px sliver under a 60px head in this
-    // game, so armour plating alone cannot say "robot" — the change has to happen on the
-    // biggest thing on screen. It is a DOM child of the head, clipped by the same
-    // border-radius, because the head is DOM and the canvas can never draw over it.
-    let visor = el.lastElementChild;
-    if (!visor || visor.tagName !== 'B') {
-      visor = document.createElement('b');
-      el.appendChild(visor);
-    }
-    if (robot) {
-      const gl = i === 0 ? '#6cf0ff' : '#ffd24a';
-      visor.style.cssText = 'position:absolute;left:-4%;right:-4%;top:43%;height:19%;display:block;'
-        + `background:linear-gradient(180deg,#07131c 0%,${gl} 30%,#ffffff 50%,${gl} 70%,#07131c 100%);`
-        + `box-shadow:0 0 14px ${gl};opacity:.94;`;
-    } else if (visor.style.display !== 'none') {
-      visor.style.cssText = 'display:none';
-    }
-    if (robot) {
-      el.style.filter = 'grayscale(1) contrast(1.55) brightness(1.12) sepia(.5) hue-rotate('
-                      + (i === 0 ? '150deg' : '-25deg') + ') saturate(2.6)';
-      el.style.outlineColor = i === 0 ? '#6cf0ff' : '#ffd24a';
-    } else if (charging) {
-      // The windup: the face strobes between human and machine, so the transformation is
-      // visible a full second before the stats change.
-      const k = Math.sin(performance.now() / 55) > 0 ? 1 : 0;
-      el.style.filter = k ? 'grayscale(1) contrast(2) brightness(1.6)' : '';
-      el.style.outlineColor = k ? '#ffffff' : '';
-    } else if (el.style.filter || el.style.outlineColor) {
-      el.style.filter = '';
-      el.style.outlineColor = '';
-    }
+    // ARMED: THE PLAYER GLOWS LIKE A FULL POWER BAR.
+    //
+    // Deliberately the BAR's gold and not the character's shot colour, which is what this
+    // used to be. Armed means "the meter is full and spent the moment I reach the ball", so
+    // the head and the meter are saying one thing and they should say it in one colour — see
+    // the gaugeReady keyframes in style.css, which this is the head's half of.
     el.classList.toggle('armed', p.armed > 0);
-    if (p.armed > 0) el.style.setProperty('--glow', p.shot.color);
+    if (p.armed > 0) el.style.setProperty('--glow', '#ffc400');
     el.classList.toggle('hexed', !!p.effectId);
     el.classList.toggle('knocked', p.knocked > 0 || p.rooted > 0);
     el.classList.toggle('slowed', p.slow > 0 && p.knocked <= 0);
@@ -2491,82 +1703,33 @@ function syncHud() {
   for (let i = 0; i < 2; i++) {
     const p = M.players[i];
     const gEl = $(`.gauge.g${i}`);
-    const powered = p.armed > 0;
-    // While POWER MODE is live the bar counts DOWN — the gauge stops being "how close am I"
-    // and becomes "how long have I got", which is the only number that matters then.
+    const armed = p.armed > 0;
+    // ARMED KEEPS THE BAR FULL. It used to count DOWN while the move was live, because the
+    // move WAS the countdown. Now the meter is not spent until the ball is touched, so a
+    // draining bar would be lying about what you still have: the bar stays at 100% and the
+    // `armed` class is what says "loaded, go and touch the ball".
+    //
     // The fill is ONE continuous ramp painted across the whole track and revealed by a
     // clip, rather than a growing box. Growing a box squeezes the gradient into whatever
     // is filled, so the colour under the tip never changes and you get a shorter rainbow
     // instead of a climbing one. Revealing a fixed ramp is what makes the leading edge
     // travel green -> yellow -> orange -> red with nothing to step over.
-    const pct = (powered ? (p.armed / C.POWER_MODE_TIME) : p.gauge) * 100;
-    gEl.style.setProperty('--p', pct.toFixed(2) + '%');
-    gEl.classList.toggle('full', p.gauge >= 1 && !powered);
-    gEl.classList.toggle('powered', powered);
-    gEl.querySelector('.nm').textContent = powered
-      ? `${p.shot.name} ${p.armed.toFixed(1)}s`
+    gEl.style.setProperty('--p', (p.gauge * 100).toFixed(2) + '%');
+    gEl.classList.toggle('full', p.gauge >= 1);
+    gEl.classList.toggle('powered', armed);
+    gEl.querySelector('.nm').textContent = armed
+      ? `${p.shot.name} ⚡`
       : p.shot.name;
   }
   const me = ONLINE ? NET.you : 0;
   const mine = M.players[me];
-  updateHand(me);
   const pb = $('#powerBtn');
-  // The button follows the move it now buys: lit when a full gauge means you can commit,
-  // and counting the wind-up down while you are committed to it.
-  pb.classList.toggle('ready', mine.gauge >= 1 && mine.charge <= 0);
-  pb.classList.toggle('live', mine.charge > 0);
-  pb.textContent = mine.charge > 0 ? mine.charge.toFixed(1) : 'POWER';
+  // Lit when a full meter means you can arm, and held lit while you ARE armed — the button
+  // is the same thing the head's glow is saying, and it has nothing left to count down.
+  pb.classList.toggle('ready', mine.gauge >= 1 && mine.armed <= 0);
+  pb.classList.toggle('live', mine.armed > 0);
+  pb.textContent = mine.armed > 0 ? '⚡' : 'POWER';
   $('#rtt').textContent = ONLINE ? `${NET.rtt}ms` : '';
-}
-
-// ═══════════════════════════════════════════════════════════════════════════
-// THE HAND — three cards under the pitch
-// ═══════════════════════════════════════════════════════════════════════════
-// Two jobs, deliberately split by how often they run. The ART is painted ONCE per match,
-// because a hand is dealt at kickoff and never changes; the STATE — cooling, ready, already
-// running — is written every frame. Repainting card art 60 times a second was the first
-// version and it cost more than the whole renderer.
-//
-// The art goes through paintHead, which is a CSS background-image. NOT a canvas blit: card
-// art drawn into a canvas comes out blank inside a WKWebView, and this game is aimed at one.
-const cardBtns = () => [...document.querySelectorAll('#cardRow .card')];
-
-function paintHand() {
-  const me = ONLINE ? NET.you : 0;
-  for (const btn of cardBtns()) {
-    const s = +btn.dataset.slot;
-    const c = cardAt(M, me, s);
-    if (!c) { btn.style.display = 'none'; continue; }
-    btn.style.display = '';
-    const kind = cardKind(M, me, s);
-    btn.style.setProperty('--pc', PU_COLOR[kind]);
-    btn.title = `${PU_LABEL[kind]} · ${HEB_RARITY[c.rarity]} ${c.number}`;
-    btn.querySelector('.card-tip').textContent = PU_TIP[kind] || PU_LABEL[kind];
-    // Sized off the button's own box so the face fills the card at any edited size.
-    const px = Math.max(28, Math.round(btn.getBoundingClientRect().width || 62));
-    paintHead(btn.querySelector('.card-art'), c.rarity, c.number, px);
-    btn.dataset.painted = `${c.rarity}_${c.number}_${px}`;
-  }
-  $('#cardRow').style.display = C.CARDS_ON ? '' : 'none';
-}
-
-function updateHand(me) {
-  for (const btn of cardBtns()) {
-    const s = +btn.dataset.slot;
-    if (!cardAt(M, me, s)) continue;
-    const f = cardFill(M, me, s);
-    const kind = cardKind(M, me, s);
-    const live = liveKind(M, me, kind);
-    const ready = cardReady(M, me, s) && !live;
-    btn.style.setProperty('--f', f.toFixed(3));
-    btn.classList.toggle('ready', ready);
-    btn.classList.toggle('spent', !ready);
-    btn.classList.toggle('live', live);
-    // The seconds left, only while it means something. A full card shows its key instead.
-    const key = btn.querySelector('.card-key');
-    const left = cardCd(M, me, s);
-    key.textContent = left > 0.05 ? Math.ceil(left) : String(s + 1);
-  }
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -2580,7 +1743,7 @@ const RANGES = {
   BALL_GRAV: [300, 3000], BALL_BOUNCE: [.2, 1], BALL_AIR: [.97, 1], BALL_GROUND_FRICTION: [.9, 1],
   BALL_MAX_SPEED: [500, 2600],
   GOAL_H: [90, 300], GOAL_W: [40, 160], HEAD_R: [24, 80], GROUND_Y: [360, 500],
-  GAUGE_FULL: [3, 60], POWER_MODE_TIME: [1, 12], POWER_SHOT_SPEED: [800, 3600],
+  GAUGE_FULL: [3, 60], POWER_SHOT_SPEED: [800, 3600],
   POWER_SHOT_LIFE: [.4, 4], POWER_SHOT_SAG: [0, 1], POWER_BLOCK_REBOUND: [0, 1],
   POWER_TACKLE_SCALE: [0, 1.5], BODY_DEADEN: [0, 1],
   POWER_STUN: [.2, 3], COUNTER_WINDOW: [40, 320], MATCH_DURATION: [15, 180],
@@ -2594,24 +1757,6 @@ const RANGES = {
   // impact
   HIT_STOP_KICK: [0, .2], HIT_STOP_POWER: [0, .3], HIT_STOP_TACKLE: [0, .2],
   BALL_IDLE_RESET: [2, 20],
-  // spectacle
-  SPECTACLE_ON: [0, 1], SPECTACLE_FIRST: [2, 40], SPECTACLE_GAP: [3, 45], SPECTACLE_QUIET_END: [0, 30],
-  METEOR_WARN: [.3, 4], METEOR_SHOWER_TIME: [1, 20], METEOR_INTERVAL: [.2, 4],
-  METEOR_SPREAD: [0, 460], METEOR_KEEPOUT: [60, 380], METEOR_R: [20, 160], METEOR_BALL_R: [20, 200],
-  METEOR_PUSH: [0, 1200], METEOR_LIFT: [0, 900], METEOR_KNOCK: [0, 1.5],
-  METEOR_BALL_POP: [0, 1400], METEOR_BALL_PUSH: [0, 600], HIT_STOP_METEOR: [0, .3],
-  MOON_TIME: [1, 20], MOON_GRAV_BALL: [.1, 1], MOON_GRAV_PLAYER: [.1, 1],
-  WIND_TIME: [1, 20], WIND_FORCE: [0, 1400],
-  ROBOT_DEFICIT: [1, 6], ROBOT_WARN: [.2, 4], ROBOT_TIME: [1, 30], ROBOT_COOLDOWN: [0, 40],
-  ROBOT_SPEED: [.8, 1.8], ROBOT_KICK: [.8, 2], ROBOT_JUMP: [.6, 1.4], ROBOT_GRAV: [.6, 2],
-  // power-ups
-  PICKUPS_ON: [0, 1], PICKUP_FIRST: [1, 40], PICKUP_GAP: [1, 40], PICKUP_WARN: [.2, 5],
-  PICKUP_LIFE: [1, 20], PICKUP_QUIET_END: [0, 30], PICKUP_KEEPOUT: [60, 380],
-  PICKUP_R: [10, 60], PICKUP_Y: [30, 200], PICKUP_MERCY_LEAD: [1, 6], HIT_STOP_PICKUP: [0, .2],
-  PU_GROW_TIME: [1, 20], PU_GROW_SCALE: [1, 2.2],
-  PU_MAGNET_TIME: [1, 20], PU_MAGNET_FORCE: [0, 2400], PU_MAGNET_RANGE: [60, 700],
-  PU_SHIELD_TIME: [1, 20], PU_SPRING_TIME: [1, 20], PU_SPRING_JUMP: [1, 2], PU_SPRING_JUMPS: [0, 3],
-  PU_ICE_TIME: [0, 6],
   // One dial over all of them: PACE rescales speeds, gravities, drags and durations together
   // so the match slows down without any trajectory changing shape. 1 = the old pace.
   PACE: [0.5, 1.3],
@@ -2688,10 +1833,9 @@ $('#tunerCopy').onclick = async () => {
     if (who === 'me' && !owns(r, +n)) continue;
     pick[who] = { rarity: r, number: +n };
   }
-  // ?pickups=1 brings the old crates back, ?cards=0 takes the hand away — the two power
-  // systems, switchable from a URL so the comparison is one link rather than a rebuild.
-  if (q.has('pickups')) C.tune({ PICKUPS_ON: +q.get('pickups') ? 1 : 0 });
-  if (q.has('cards')) C.tune({ CARDS_ON: +q.get('cards') ? 1 : 0 });
+  // (?pickups and ?cards used to switch the two power systems on and off from a URL. Both
+  // systems are gone — see archive/README.md — so the flags are gone with them rather than
+  // left as links that quietly do nothing.)
   // ?pace=0.7 — the whole match in slow motion, for arguing about speed on the phone
   // without a rebuild. Same scale as the PACE row in the tuner.
   if (q.has('pace')) C.setPace(+q.get('pace'));
@@ -2719,14 +1863,10 @@ $('#tunerCopy').onclick = async () => {
 
 // Handy from the console / screenshot harness. MATCH must be a live getter — Object.assign
 // would copy the value at boot (null) and every probe would read stale.
-// SPEC/ACT are here so _spectacle-shots.mjs can force an event instead of waiting nine
-// seconds and hoping the dice pick the one it wants to photograph.
 // goalBox/depthPoint are here so a harness can ask the SAME geometry the renderer drew with
 // where a body in the net should have landed, instead of re-deriving it and drifting.
 Object.assign(window, { goalBox, goalAt, depthPoint, INSIDE_Z });
-Object.assign(window, { C, startMatch, pick, SHOTS, ACT, activeMeteors, isRobot,
-                        PU, PU_NAME, PU_COLOR, PU_LABEL, PU_KINDS, activePickup, puBadges,
-                        paintHand, paintHead, cardAt, cardKind, callout });
+Object.assign(window, { C, startMatch, pick, SHOTS, paintHead, callout });
 // The measured head anchors, for the crop tools — see head-crop.js and test-heads.mjs.
 Object.defineProperty(window, '__ANCHORS', { get: () => ANCHORS });
 Object.assign(window, { headCrop });

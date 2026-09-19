@@ -351,7 +351,11 @@ body.safedemo { --safe-l: 44px; --safe-r: 44px; --safe-b: 21px; --safe-t: 12px; 
    asked to stop. What marks ready is the bolt, the glow, and a white-hot sheen over the
    top of the ramp rather than instead of it. */
 .gauge.full .fill { filter: saturate(1.25) brightness(1.12); }
-.gauge.powered .fill { background: linear-gradient(180deg, #fff 0 30%, #ff4d4d 30% 65%, #7a0000 65% 100%) !important; }
+/* ARMED keeps the RAMP. It used to be repainted red because the bar was counting the move
+   down; the meter is not spent until the ball is touched now, so recolouring it would be
+   the bar contradicting itself. What armed changes is the PULSE — see .meter:has(.powered)
+   above — and a white-hot sheen over the top of the ramp. */
+.gauge.powered .fill { filter: saturate(1.3) brightness(1.2); }
 /* The ready halo. Stacked drop-shadows rather than one: each is applied to the result of
    the last, so a tight white core, a yellow body and a wide amber bloom build a glow with
    falloff instead of a flat ring. It never drops to nothing — at full the bar is ALWAYS
@@ -703,72 +707,14 @@ body[data-mode="duo"] #slotFoe { opacity: .45; pointer-events: none; }
    the keyboard keeps working alongside it. */
 body.no-touch .pad .btn { cursor: pointer; }
 
-/* ── THE HAND ─────────────────────────────────────────────────────────────────
-   Three cards, centred under the pitch between the two thumbs. Square rather than
-   round, because a card is a card: the art has to read as the thing in your album. */
-.pad-c {
-  position: absolute; bottom: calc(var(--edge) + var(--pb));
-  left: 50%; transform: translate(calc(-50% + var(--rowx, 0px)), var(--rowy, 0px)) scale(var(--rows, 1));
-  transform-origin: bottom center;
-  display: flex; gap: var(--gap); pointer-events: none;
-}
-.pad .card {
-  position: relative; overflow: hidden;
-  width: calc(var(--u) * var(--s)); min-width: 0; padding: 0;
-  border-radius: calc(var(--u) * var(--s) * 0.22);
-  background: #0b1428d9;
-  border-color: var(--pc, #ffffff26);
-}
-/* The card art. An <img>-style CSS background, never a canvas blit: canvas-drawn card art
-   comes out BLANK inside a WKWebView, which is where this game is headed. */
-.pad .card .card-art {
-  position: absolute; inset: 0; display: block;
-  background-repeat: no-repeat; background-color: #0b1428;
-}
-/* The cooldown. A dark sweep that unwinds anticlockwise off the card as it recharges —
-   readable at a glance in peripheral vision, which a number never is. */
-.pad .card::after {
-  content: ''; position: absolute; inset: 0; pointer-events: none;
-  background: conic-gradient(#04060cc2 calc((1 - var(--f, 1)) * 360deg), #0000 0);
-}
-.pad .card::before {
-  content: ''; position: absolute; inset: 0; pointer-events: none;
-  box-shadow: inset 0 0 0 max(2px, calc(var(--u) * var(--s) * 0.045)) var(--pc, #ffffff26);
-  border-radius: inherit; opacity: .9;
-}
-/* WHAT THE CARD DOES, on the card. Three faces and three colours tell you the cards are
-   different; they do not tell you that the orange one is the one that lets you jump twice.
-   A strip across the bottom of the art says it in two or three words — small, but a player
-   only has to read it once per card. */
-.pad .card .card-tip {
-  position: absolute; inset-inline: 0; bottom: 0; padding: 1px 2px;
-  background: #050810d8; color: #eef3ff; text-decoration: none;
-  font-size: calc(var(--u) * var(--s) * 0.15); line-height: 1.15; font-weight: 700;
-  text-align: center; white-space: nowrap; overflow: hidden; text-overflow: clip;
-  border-top: 1px solid var(--pc, #ffffff33);
-}
-.pad .card .card-key {
-  position: absolute; right: 4px; bottom: 2px; font-size: calc(var(--u) * var(--s) * 0.2);
-  color: #ffffffc2; text-shadow: 0 1px 2px #000; font-weight: 800; pointer-events: none;
-}
-body.no-touch .pad .card .card-key { display: block; }
-.pad .card.ready { pointer-events: auto; opacity: 1; }
-.pad .card.ready::before { opacity: 1; animation: cardReady 1.1s infinite alternate; }
-.pad .card:not(.ready) { pointer-events: none; }
-.pad .card.spent { filter: grayscale(.55) brightness(.72); }
-/* Already running: the power is live on you, so the button is not a thing to press. */
-.pad .card.live::before { box-shadow: inset 0 0 0 max(2px, calc(var(--u) * var(--s) * 0.06)) #fff; }
-@keyframes cardReady { from { filter: none; } to { filter: brightness(1.25); } }
+/* (The three-card hand that used to sit between the two thumbs is archived — see
+   archive/README.md. Its styles went with it rather than being left to style nothing.) */
 
 /* ── EDIT MODE ────────────────────────────────────────────────────────────── */
 /* Edit mode makes every button grabbable — but it must NOT force them opaque. The opacity
    slider lives in the edit bar, so overriding opacity here meant setting a preference whose
    effect you could not see until you closed the editor. */
 body.editing .pad .btn { pointer-events: auto !important; touch-action: none; }
-/* A card clips its art to its rounded box. The grip hangs OUTSIDE that box, so while the
-   layout is being edited the clip has to come off or the corner cannot be grabbed at all —
-   it is drawn, it is just not there. */
-body.editing .pad .card { overflow: visible; }
 body.editing .pad .btn::after { content: none; }
 body.editing .pad .btn {
   outline: 2px dashed #ffd54a; outline-offset: 2px; cursor: grab;
@@ -895,16 +841,16 @@ body.editing .pad .btn .grip {
 }
 @keyframes slowSpin { to { transform: rotate(360deg); } }
 
-/* POWER MODE is a timed state, not a one-shot. The bar counts down, the button shows the
-   seconds left, and the head glows in that character's colour. */
-.gauge.powered .fill { background: linear-gradient(90deg, #ff4d4d, #ffb800) !important; }
+/* ARMED is a loaded state, not a countdown: the bar stays full, the button stays lit, and
+   the head glows in the bar's own gold. */
 /* The glow lives on .meter (see there); this rule used to re-point the animation at the bar
    itself, where a clip-path eats it. */
 .pad .power.live { opacity: 1; pointer-events: auto; background: #b23a12d0; animation: gaugeFull .3s infinite alternate; }
+/* ARMED: the full power bar's gold, on the head. --glow is set by drawHeads. */
 .head.armed { animation: armedGlow .5s infinite alternate; }
 @keyframes armedGlow {
   from { box-shadow: 0 0 0 0 transparent; }
-  to   { box-shadow: 0 0 26px 8px var(--glow, #ffb800); }
+  to   { box-shadow: 0 0 26px 8px var(--glow, #ffc400); }
 }
 .head.hexed { filter: hue-rotate(35deg) contrast(1.15); }
 

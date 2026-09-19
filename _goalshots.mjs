@@ -95,8 +95,7 @@ for (let i = 0; i < 60; i++) {
 // page's own projection — the point is to check what the renderer drew, not to re-derive it
 // here and compare two guesses.
 await evalJs(`
-  C.tune({ SPECTACLE_ON: 0, PICKUPS_ON: 0 });
-  window.BOT_OFF = true;
+    window.BOT_OFF = true;
   // Luma stats over a world-space box on either canvas. 'cv' is the pitch; 'cvnet' is the
   // strip of near net that is stroked back over the DOM heads.
   window.__probe = (which, cx, cy, r) => {

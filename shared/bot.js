@@ -6,9 +6,6 @@
 
 import * as C from './constants.js';
 import { headY } from './sim.js';
-import { activeMeteors } from './spectacle.js';
-import { activePickup, PU } from './powerups.js';
-import { cardKind, cardReady, liveKind, CARD_SLOTS, CARD_KEYS } from './cards.js';
 
 // `aggression` runs BACKWARDS on purpose. Measured over 10 headless matches per setting,
 // it is the single dominant term in the scoreline — 0.00 → 0.0 goals a match, 0.15 → 8.3,
@@ -41,26 +38,9 @@ export function createBot(level = 2, rng = Math.random) {
     aim: C.W / 2,          // the x it is currently walking to (re-picked on each think)
     wantJump: false, wantKick: false,
     counterArmed: false, powerPlan: null,
-    dodge: null,           // null = not dodging this rock; a number = ticking down to the step
-    puGo: false,           // am I currently running at the crate?
-    puFor: null, puWant: false,   // the crate I have already made my mind up about
     holdJump: 0,           // frames of jump still held — jump height is variable here
-    cardWait: 0,           // s until it will consider its hand again — the reaction dial, again
-    out: { left: false, right: false, jump: false, kick: false, power: false,
-           card1: false, card2: false, card3: false },
+    out: { left: false, right: false, jump: false, kick: false, power: false },
   };
-}
-
-// The meteor about to land closest to me, if one is close enough to be my problem. The
-// margin is the blast radius plus a body — standing on the rim still hurts.
-function nearestMeteor(m, p) {
-  const met = activeMeteors(m);
-  let best = null;
-  for (const r of met) {
-    if (Math.abs(r.x - p.x) > C.METEOR_R + C.BODY_W) continue;
-    if (!best || r.left < best.left) best = r;
-  }
-  return best;
 }
 
 // Where the ball will be when it next crosses this height, ignoring collisions.
@@ -88,75 +68,31 @@ export function botInput(bot, m, index, dt) {
     return out;
   }
 
-  // ---- get out from under a meteor -----------------------------------------
-  // A telegraph nobody answers is not a telegraph. The bot has to prove the marker is
-  // readable, or "fair" is only true for a human who happens to be watching for it.
+  // ---- the opponent is ARMED: the glow is the telegraph ----------------------
   //
-  // Skill-scaled like everything else here: `aim` is how reliably it spots the marker at
-  // all, and `react` delays the step, so a very-easy bot wanders into rocks and the
-  // legendary one is never under one. Runs BEFORE the power-shot branch and outside the
-  // think cadence — nothing else matters while something is falling on your head.
-  const rock = nearestMeteor(m, p);
-  if (rock) {
-    if (bot.dodge == null) bot.dodge = bot.rng() < 0.35 + d.aim * 0.65 ? d.react * 0.8 : null;
-    if (bot.dodge != null) {
-      bot.dodge -= dt;
-      if (bot.dodge <= 0) {
-        // Step away from the impact, but never into the back of my own net.
-        const myGoalX = p.side > 0 ? C.GOAL_W : C.W - C.GOAL_W;
-        let away = Math.sign(p.x - rock.x) || -p.side;
-        if ((p.x + away * 120 - myGoalX) * p.side < 30) away = -away;
-        out.left = away < 0; out.right = away > 0;
-        out.jump = false; out.kick = false; out.power = false;
-        return out;
-      }
-    }
-  } else if (bot.dodge !== undefined) {
-    bot.dodge = null;
-  }
-
-  // ---- facing a power shot: counter it, or get in its way --------------------
-  // Power shots fly flat and fast and are BLOCKED by a body in the path, so the right
-  // answer is to step into the line — not to dodge. The old code ran away from them, which
-  // under the new model just gifts a goal.
-  // THE WIND-UP IS A TELEGRAPH. The opponent charging their power move is half a second of
-  // warning, and the whole point of the move being readable is that a defender can use it.
-  // Get onto the goal line and wait — the jump itself is timed below, once the ball is real.
-  if (foe.charge > 0) {
-    // Two answers, and choosing between them is the skill. If I can REACH them inside the
-    // wind-up, go and hit them: a tackle cancels the whole move and the gauge is already
-    // spent. If I cannot, get on the goal line and wait to jump.
-    // The wind-up has two phases and they want opposite things. Inside the CANCEL WINDOW a
-    // tackle kills the shot, so go and get them. Once that window shuts the shot is coming
-    // whatever you do, and every frame spent running at the charger is a frame not spent
-    // getting onto the line — which is how two bots ended up conceding ten volleys a match.
-    const elapsed = C.POWER_CHARGE_TIME - foe.charge;
-    const windowLeft = C.POWER_CANCEL_WINDOW - elapsed;
-    const reach = Math.abs(foe.x - p.x);
-    const canGetThere = windowLeft > 0 &&
-                        reach < C.PLAYER_SPEED * windowLeft * 0.9 + C.KICK_REACH;
-    if (canGetThere && bot.rng() < d.aim) {
-      out.left = foe.x < p.x - 6;
-      out.right = foe.x > p.x + 6;
-      out.kick = reach < C.KICK_REACH + C.KICK_R && p.kickCd <= 0;
-      out.jump = false;
-      out.power = false;
-      return out;
-    }
+  // Under the old wind-up this branch keyed off `foe.charge`, and the answer was "go and
+  // tackle them to cancel it, or get on the line". The ultimate does not wind up any more:
+  // an armed opponent is glowing and waiting for a touch on the BALL, so a tackle cannot
+  // cancel it and there is nothing to interrupt.
+  //
+  // What CAN be done is the thing the new rule creates — deny the touch. Get between them and
+  // the ball, and the arm is stuck: it has no clock on it, so it waits, and denying the touch
+  // denies the shot for exactly as long as you can keep it up. Whether the bot spots the glow
+  // at all is `aim`, same ladder as everything else here, so the easy tiers still walk into it.
+  if (foe.armed > 0 && !b.power && bot.rng() < d.aim) {
+    // Stand goal-side of the ball: in the line the shot would take if they do reach it, and
+    // in their way while they try to.
     const myGoalX = p.side > 0 ? C.GOAL_W : C.W - C.GOAL_W;
-    const post = Math.max(C.GOAL_W + 24, Math.min(C.W - C.GOAL_W - 24, myGoalX + p.side * 60));
-    out.left = p.x > post + 8;
-    out.right = p.x < post - 8;
-    // Time the jump off the WIND-UP, not off the ball: the volley crosses the pitch in half a
-    // second and the shot leaves at 0.9 of the goal, so a defender who waits to see it leave
-    // is already too late. Jump so the head is up there as it arrives — and HOLD it, because a
-    // tapped jump cannot reach that height at all.
-    const flight = Math.abs(post - foe.x) / (C.POWER_SHOT_SPEED * C.POWER_VOLLEY_SPEED);
-    if (foe.charge <= flight + 0.22 && Math.abs(p.x - post) < 90) bot.holdJump = 16;
-    out.jump = bot.holdJump > 0;
-    if (bot.holdJump > 0) bot.holdJump--;
-    out.kick = false;
+    const block = Math.max(C.GOAL_W + 24, Math.min(C.W - C.GOAL_W - 24, b.x - p.side * 26));
+    out.left = p.x > block + 8;
+    out.right = p.x < block - 8;
+    // Close enough to contest the ball: boot it away from them. A ball that leaves is a ball
+    // they cannot touch, which is the whole defence against this now.
+    const adx = Math.abs(b.x - p.x);
+    out.kick = adx < C.KICK_REACH + C.KICK_R && p.kickCd <= 0;
+    out.jump = false;
     out.power = false;
+    void myGoalX;
     return out;
   }
 
@@ -190,9 +126,9 @@ export function botInput(bot, m, index, dt) {
       // against a ball moving at 2000px/s is a miss. The first version had this backwards and
       // the strong bot blocked nine to the weak bot's twenty-four.
       const lead = 0.18 + d.aim * 0.16;
-      // HOLD the jump, do not tap it. Jump height is variable here — a tap tops out at 146px
-      // and a held jump reaches 239 — and the volley flies at 0.9 of the goal, so a tapping
-      // bot cannot reach it at all. Measured: one block across sixteen matches before this.
+      // HOLD the jump, do not tap it. Jump height is variable here — JUMP_CUT takes a tap to
+      // 45% of a held jump's rise — and with the jump now set just under the crossbar there is
+      // no headroom left to throw away. Measured: one block across sixteen matches before this.
       if (p.onGround && b.y < headY(p) - C.HEAD_R * 0.4 && eta < lead) bot.holdJump = 14;
       out.jump = bot.holdJump > 0;
       if (bot.holdJump > 0) bot.holdJump--;
@@ -253,39 +189,11 @@ export function botInput(bot, m, index, dt) {
       bot.aim = myGoalX + p.side * 150;            // hold a defensive slot
     }
 
-    // ---- the crate ----------------------------------------------------------
-    // A pickup no opponent contests is not a mechanic, it is a free gift to the human. So
-    // the bot races for it — and it races for the TELEGRAPH, not for the live item, because
-    // reacting only once a thing is collectable is a second late and loses every race a
-    // human is also in.
-    //
-    // Skill-scaled like everything else on this ladder: `aim` is how reliably it wants the
-    // crate at all AND how far off its football job it is willing to wander. The very-easy
-    // bot walks past most of them; the legendary one is standing on the spot when it lights.
-    const pk = activePickup(m);
-    bot.puGo = false;
-    if (!pk) {
-      bot.puFor = null;
-    } else {
-      // Decide ONCE per crate, exactly like powerPlan. Rolling it every think would tie the
-      // dial to `react` and let the legendary bot (thinking 25x/s) re-roll its mind eight
-      // times for every roll the easy one gets — the bug that made `aggression` do the
-      // opposite of what its name said.
-      const id = pk.x * 8 + pk.kind;
-      if (bot.puFor !== id) {
-        bot.puFor = id;
-        bot.puWant = bot.rng() < 0.22 + d.aim * 0.78;
-      }
-      // Never enter a race that is already lost, and never take a detour so long that the
-      // net is open when the ball comes back. Those two are the whole safety here; the
-      // goal-side caps below then get the last word anyway.
-      const winnable = Math.abs(pk.x - p.x) <= Math.abs(pk.x - foe.x) + 40;
-      const detour = Math.abs(pk.x - bot.aim);
-      if (bot.puWant && winnable && !incoming && detour < C.W * (0.16 + d.aim * 0.34)) {
-        bot.aim = pk.x;
-        bot.puGo = true;
-      }
-    }
+    // ARMED MYSELF: go and get the ball. The ultimate is spent by TOUCHING it now, so being
+    // armed is a reason to close on the ball rather than to wait for a moment — and this is
+    // the whole of the bot's "use the ultimate". It walks into the ball like a player does;
+    // there is no path here that reaches the shot any other way.
+    if (p.armed > 0) bot.aim = b.x;
 
     // Never chase past the ball toward their goal while it's mine to defend, and never
     // abandon my half entirely — the two ways a chasing bot gifts an open net.
@@ -360,7 +268,13 @@ export function botInput(bot, m, index, dt) {
   const dxb = b.x - p.x;
   const adxb = Math.abs(dxb);
   const bh = b.y - headY(p);
-  out.jump = bot.wantJump || (p.onGround && adxb < C.HEAD_R * 2 && bh < -30 && bh > -170);
+  // How much higher a jump actually puts the head, derived rather than typed: the apex of the
+  // rise, plus the head's own radius, because the crown meets the ball. This was a flat -170,
+  // authored against a jump that rose 150px; the jump is now tied to GOAL_H and rises 55, and a
+  // bot leaping at a ball 170px over its head is a bot jumping at nothing. Ratio of two paced
+  // values, so PACE leaves it alone.
+  const jumpGain = (C.JUMP_V * C.JUMP_V) / (2 * C.PLAYER_GRAV) + C.HEAD_R;
+  out.jump = bot.wantJump || (p.onGround && adxb < C.HEAD_R * 2 && bh < -30 && bh > -jumpGain);
   if (out.jump) bot.wantJump = false;
 
   const kickable = adxb < C.KICK_REACH + C.KICK_R &&
@@ -385,89 +299,37 @@ export function botInput(bot, m, index, dt) {
     out.left = want < 0; out.right = want > 0;
   }
 
-  // ---- power: arm it when the ball is reachable, don't waste it mid-pitch ----
-  // The power button buys a committed wind-up now, so the bot should press it when the volley
-  // has somewhere to go — not when the ball is at its feet, because the wind-up takes the
-  // ball wherever it is.
-  const wantPower = p.gauge >= 1 && p.charge <= 0 && b.power == null &&
+  // ---- power: ARM, on exactly the player's terms ----------------------------
+  //
+  // THIS IS THE FIX FOR "the rival used its ultimate the moment the match started".
+  //
+  // The bot writes a LEVEL into `out.power` and the sim reads an EDGE, so whatever is here
+  // fires on the first tick it is true — and on the first tick of a match `prev` is empty, so
+  // "true at kickoff" means "armed at kickoff". The old condition could be true immediately:
+  // `bot.t > d.powerHold` is satisfied by a REUSED bot object (bot.t is never reset by a new
+  // match), and a full gauge could arrive in the first second from a card. Both halves are
+  // gone — the cards with them — and what is left is four conditions that cannot hold at
+  // kickoff no matter what state came before:
+  //
+  //   m.phase === 'play' — never during the kickoff freeze or a goal restart.
+  //   p.gauge >= 1       — and the meter is now zeroed at every kickoff (clearUltimate), so
+  //                        it can only be full again after tackles THIS passage of play.
+  //   p.armed <= 0       — no re-pressing something already armed.
+  //   armDelay           — a beat of ordinary football after kickoff before the bot will even
+  //                        consider it, measured on the MATCH clock rather than on bot.t, so a
+  //                        bot object that outlives its match cannot carry the clock over.
+  //
+  // And arming is no longer the move: the bot still has to walk the ball down afterwards,
+  // through the same contact test a human faces. There is no shortcut here that the player
+  // does not have.
+  const played = C.MATCH_DURATION - m.clock;         // s of football actually played
+  const armDelay = 1.5;
+  const wantPower = m.phase === 'play' &&
+                    played > armDelay &&
+                    p.gauge >= 1 && p.armed <= 0 && b.power == null &&
                     bot.t > d.powerHold &&
-                    (foe.x - p.x) * p.side > -80;      // the goal I am shooting at is ahead
+                    (foe.x - p.x) * p.side > -80;     // the goal I am shooting at is ahead
   out.power = wantPower;
 
-  playCards(bot, m, p, foe, b, dt, adxb);
-
   return out;
-}
-
-// ---------------------------------------------------------------------------
-// THE BOT'S HAND
-//
-// A hand only the human can press is not a mechanic, it is a handicap — so the bot holds
-// the same three cards and plays them by the same rules. What separates the tiers is the
-// same thing that separates everything else about this bot: WHEN. A legendary bot spends a
-// card at the moment it does something (the ball is live and near, the opponent is on it);
-// the easiest one presses on a slow timer whether or not the moment is right.
-//
-// Deliberately NOT modelled: holding a card back for a better moment later. A bot that
-// hoards is a bot that never uses its hand, and an opponent whose abilities never appear
-// teaches a player that the mechanic does not matter.
-// The x of the goal a player defends — the one on their own side.
-const goalX = (p) => (p.side > 0 ? 0 : C.W);
-
-function playCards(bot, m, p, foe, b, dt, adxb) {
-  const out = bot.out;
-  out.card1 = out.card2 = out.card3 = false;
-  if (!m.cards || C.CARDS_ON < 0.5) return;
-
-  bot.cardWait = Math.max(0, bot.cardWait - dt);
-  if (bot.cardWait > 0 || m.phase !== 'play') return;
-
-  const d = bot.d;
-  const i = p.index;
-  const ballNear = adxb < 260;
-  const foeOnBall = Math.abs(foe.x - b.x) < 90;
-
-  // Worth it right now? A weak bot barely asks the question — that IS the difficulty.
-  let best = -1, bestScore = 0;
-  for (let s = 0; s < CARD_SLOTS; s++) {
-    if (!cardReady(m, i, s)) continue;
-    const kind = cardKind(m, i, s);
-    if (liveKind(m, i, kind)) continue;              // already running: pressing wastes it
-
-    let score = 0.35;                                 // a card in hand is worth playing
-    if (kind === PU.MAGNET) score += ballNear ? 0.5 : -0.2;
-    if (kind === PU.ICE) score += foeOnBall ? 0.5 : -0.1;
-    if (kind === PU.CHARGE) score += p.gauge < 0.6 ? 0.45 : -0.3;
-    if (kind === PU.SHIELD) score += (foe.armed > 0 || foe.gauge >= 1) ? 0.5 : -0.05;
-    if (kind === PU.GROW) score += ballNear ? 0.35 : 0;
-    if (kind === PU.SPRING) score += b.y < C.GROUND_Y - 120 ? 0.4 : 0;
-    // The four specials. Each is worth pressing at a different moment, and a bot that fires
-    // them at random is a bot that teaches the player they do not matter.
-    if (kind === PU.DART) {
-      // Worth a shot when they are in front of you and far enough away to be worth a dart
-      // rather than a boot — and it pays either way, so an empty net is also a reason.
-      const ahead = (foe.x - p.x) * p.facing > 0;
-      score += ahead && Math.abs(foe.x - p.x) > 120 ? 0.55 : -0.15;
-    }
-    if (kind === PU.GOALWALL) {
-      // Only when the ball is actually coming at my goal. A wall up at the other end is a
-      // wasted cooldown, which is exactly how a special stops feeling special.
-      const danger = (b.x - p.x) * p.side < 0 && Math.abs(b.x - goalX(p)) < 300;
-      score += danger ? 0.75 : -0.4;
-    }
-    if (kind === PU.SUPERKICK) score += adxb < 200 ? 0.6 : -0.25;
-    if (kind === PU.DOG) score += foe.onGround && Math.abs(foe.x - p.x) > 180 ? 0.5 : -0.1;
-    // The read itself is a skill: a weak bot's judgement is mostly noise, a strong one's is
-    // mostly the situation. Same shape as `aim` for the boot.
-    score = score * d.aim + bot.rng() * (1 - d.aim);
-    if (score > bestScore) { bestScore = score; best = s; }
-  }
-
-  if (best < 0) return;
-  // Even a good read is not instant, and nothing here should look like a machine.
-  if (bestScore < 0.45 && bot.rng() > 0.02) return;
-  out[CARD_KEYS[best]] = true;
-  // One press, then a pause scaled to the tier: the easiest bot goes quiet for four seconds
-  // after a card, the legendary one is thinking again inside one.
-  bot.cardWait = 0.8 + d.react * 12;
 }

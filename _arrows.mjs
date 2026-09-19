@@ -92,7 +92,7 @@ for (let i = 0; i < 60; i++) {
   await sleep(200);
   if (await evalJs('typeof MATCH === "object" && MATCH && MATCH.ball ? 1 : 0')) break;
 }
-await evalJs('C.tune({ SPECTACLE_ON: 0, PICKUPS_ON: 0 }); window.BOT_OFF = true;');
+await evalJs('window.BOT_OFF = true;');
 await sleep(300);
 await shot('01-pad');
 

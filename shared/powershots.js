@@ -1,10 +1,15 @@
 // Power shots.
 //
-// The loop, as Adam specified it 2026-08-21:
-//   the gauge fills  →  press POWER to enter POWER MODE for a few seconds  →  while powered,
-//   KICKING the ball fires a shot that travels in a straight line at the goal, much faster
-//   than a normal strike  →  the defender has to physically get in the way (usually by
-//   jumping) to block it.
+// The loop:
+//   the meter fills  →  press POWER to ARM (you glow, nothing else happens)  →  the next
+//   time your BODY reaches the ball, the touch launches a shot that travels in a straight
+//   line at the goal, much faster than a normal strike  →  the defender has to physically
+//   get in the way to block it.
+//
+// The middle step is the one that has changed twice. It was a MODE (armed, then any kick
+// fired it) and then a committed WIND-UP (the press spent the meter and pulled the ball in
+// by itself). Both let the press BE the move, which is how a rival with a stale full meter
+// could let one off at kickoff. Now the press is a promise and the ball has to be reached.
 //
 // Every shot flies the SAME way on purpose. If trajectories differed per character, "get in
 // the way" would mean something different every time and blocking would be a guess rather

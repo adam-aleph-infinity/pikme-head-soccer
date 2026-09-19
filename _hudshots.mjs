@@ -141,7 +141,7 @@ for (const [name, w, h, dpr] of DEVICES) {
     await sleep(200);
     if (await evalJs('typeof MATCH === "object" && MATCH && MATCH.ball ? 1 : 0')) break;
   }
-  await evalJs(`C.tune({ SPECTACLE_ON: 0, PICKUPS_ON: 0 }); window.BOT_OFF = true; ${PROBE}`);
+  await evalJs(`window.BOT_OFF = true; ${PROBE}`);
   // A settled clock: 0:47 rather than whatever the kickoff freeze left on it.
   await evalJs('MATCH.clock = 47.4; MATCH.score = [2, 1];');
   await sleep(260);
@@ -295,7 +295,7 @@ for (let i = 0; i < 60; i++) {
   await sleep(200);
   if (await evalJs('typeof MATCH === "object" && MATCH && MATCH.ball ? 1 : 0')) break;
 }
-await evalJs(`C.tune({ SPECTACLE_ON: 0, PICKUPS_ON: 0 }); window.BOT_OFF = true; ${PROBE}
+await evalJs(`window.BOT_OFF = true; ${PROBE}
   window.__darkIn = (url, x, y, w, h) => new Promise((res) => {
     const img = new Image();
     img.onload = () => {

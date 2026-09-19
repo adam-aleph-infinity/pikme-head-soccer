@@ -4,14 +4,6 @@
 
 import * as C from './constants.js';
 import { launchPowerShot, stepPowerShot, counterPowerShot, applyEffect, shotFor, statsFor, SHOTS } from './powershots.js';
-import { createSpectacle, stepSpectacle, packSpectacle, unpackSpectacle,
-         spSpeed, spKick, spJump, ballGrav, playerGrav, windAccel } from './spectacle.js';
-import { createCards, stepCards, useCard, chargeCards, packCards, unpackCards,
-         CARD_KEYS, CARD_SLOTS } from './cards.js';
-import { createSkills, stepSkills, wipeSkills, wallUp, spendSuperKick, headScale,
-         packSkills, unpackSkills } from './skills.js';
-import { createPickups, stepPickups, collectPickups, wipePickups, applyMagnet, spendShield,
-         packPickups, unpackPickups, puHeadScale, puJump, puMaxJumps } from './powerups.js';
 import { walkBounds, barY, barCeiling } from './goalbox.js';
 
 // A player's geometry, derived (never stored) so nothing can drift out of sync.
@@ -23,10 +15,11 @@ const headYAt = (y) => y - C.BODY_H - C.HEAD_R + 8;
 const bodyTopAt = (y) => y - C.BODY_H;
 export const headY = (p) => headYAt(p.y);
 export const bodyTop = (p) => bodyTopAt(p.y);
-// The head's RADIUS is not constant any more: the big-head pickup grows it. It grows around
-// the existing centre — headY above is deliberately untouched — so a player who collects one
-// gets bigger without moving. Everything that collides with a head goes through this.
-export const headR = (m, p) => C.HEAD_R * puHeadScale(m, p.index) * headScale(m, p.index);
+// One head size for everybody. It used to be scaled by the big-head pickup and by the dart's
+// shrink; both of those systems are gone (see archive/README.md), so this is a constant again
+// — but it stays a function of (m, p) because every collision in this file asks through it,
+// and that is the seam anything that ever resizes a head should come back through.
+export const headR = (m, p) => C.HEAD_R;
 
 const clamp = (v, lo, hi) => (v < lo ? lo : v > hi ? hi : v);
 
@@ -47,7 +40,14 @@ function makePlayer(index, char) {
     kickT: 0, kickCd: 0, kickLob: false, kickDir: 0,
     dashT: 0, dashCd: 0, dashDir: 0,
     tapDir: 0, tapT: 0,
-    gauge: 0, armed: 0, charge: 0,     // `charge` is the power move's wind-up
+    // THE ULTIMATE, in two numbers and nothing else.
+    //   gauge — the power meter, 0..1, earned off the opponent (see TACKLE_GAUGE).
+    //   armed — seconds of ARMED left. > 0 means "glowing, waiting for a touch on the ball".
+    // There is deliberately no third field for "pending", "activating" or "charging": every
+    // one of those was somewhere a previous match's state could hide. Arming writes `armed`,
+    // activating clears it and the gauge in the same statement, and clearUltimate() below
+    // zeroes both. See clearUltimate.
+    gauge: 0, armed: 0,
     knocked: 0, rooted: 0, shoved: 0,
     coyote: 0, jumpBuf: 0,          // jump forgiveness (see COYOTE_TIME / JUMP_BUFFER)
     slow: 0, tackleImmune: 0,       // set by a tackle; slow scales speed, immune blocks re-tackles
@@ -70,22 +70,72 @@ export function createMatch(charA, charB, opts = {}) {
     idle: 0,                 // seconds since a player last touched the ball
     players: [makePlayer(0, charA), makePlayer(1, charB)],
     ball: { x: C.BALL_SPAWN.x, y: C.BALL_SPAWN.y, vx: 0, vy: 0, r: C.BALL_R, spin: 0, power: null },
-    // Meteors, moon gravity, wind and robot mode. Every field of it travels in serialize().
-    spec: createSpectacle(charA, charB),
-    // Collectable power-ups: what is on the pitch and what is running on each player.
-    // Every field of it travels in serialize() too.
-    pu: createPickups(charA, charB),
-    // The hand of three. Dealt from the two cards, so it never travels; only the six
-    // cooldown clocks inside it do.
-    cards: createCards(charA, charB),
-    // Darts, dogs, goal walls, armed super kicks — everything the four special powers put on
-    // the pitch. Every field of it travels in serialize() too.
-    sk: createSkills(),
     events: [],              // drained by the renderer each frame
   };
+  // BOTH PLAYERS START WITH THE ULTIMATE OFF, and it is asserted here rather than assumed
+  // from makePlayer. A match object can also be built by restoring into an existing one (see
+  // restore), and "the fields happen to be zero because the constructor wrote zero" is
+  // exactly the assumption that let a previous match's full gauge survive into a new one and
+  // fire on the rival's first tick.
+  for (const p of m.players) clearUltimate(m, p);
   return m;
 }
 
+// THE ONE PLACE THE ULTIMATE IS TORN DOWN — AND THE LIST OF CALLERS IS THE POINT.
+//
+// It clears ARMED, which is also the glow (the renderer draws the glow off `armed` and
+// nothing else), the meter, and any signature effect still sitting on this player.
+//
+// Exactly three things call it, and they are all "this match, or this player, is over":
+//   • createMatch       — a new match inherits nothing.
+//   • full time         — the whistle, both branches of it.
+// …and that is the whole list.
+//
+// WHAT DOES NOT CALL IT, deliberately: a goal. A goal is not the end of anything — both
+// players are still in the same match with the same earned power — and having resetPositions
+// call this was the bug. It meant scoring WIPED both meters: the scorer's to zero and the
+// conceder's to zero-plus-the-bonus, so an 80% meter came out of somebody else's goal at 25%.
+// It also cancelled an arm that had been paid for and was still waiting for its touch.
+//
+// So: a goal moves bodies and the ball (resetPositions), and adds to one meter
+// (awardConcedeMeter). It does not come through here.
+function clearUltimate(m, p) {
+  const wasArmed = p.armed > 0;
+  p.armed = 0;
+  p.gauge = 0;
+  p.effectId = null; p.effectT = 0;
+  if (wasArmed && m) m.events.push({ type: 'ultimateCleared', player: p.index });
+  return p;
+}
+export { clearUltimate };
+
+// WHAT A GOAL DOES TO THE METERS. One function, one direction, called once per goal.
+//
+// The player who CONCEDED gains GAUGE_CONCEDE_BONUS on top of what they already had; the
+// player who SCORED is not touched at all. Clamped at a full meter. Nothing here assigns and
+// nothing here zeroes — `+=` and a clamp is the entire body, which is the property the whole
+// fix rests on.
+//
+// `scorer` is the index that just scored, so the recipient is `1 - scorer`. Getting that
+// inversion backwards turns the comeback mechanic into a runaway one and looks completely
+// normal from the outside — the meters still fill, just for the wrong player — so it is
+// written once, here, and test-ultimate asserts both directions separately rather than
+// assuming one implies the other.
+function awardConcedeMeter(m, scorer) {
+  const conceded = m.players[1 - scorer];
+  conceded.gauge = Math.min(1, conceded.gauge + C.GAUGE_CONCEDE_BONUS);
+  return conceded.gauge;
+}
+export { awardConcedeMeter };
+
+// Bodies and ball back to the spot. Called by a goal, and by nothing else.
+//
+// Read the list of what is NOT here as carefully as the list of what is: `gauge`, `armed`
+// and `prev` are all deliberately untouched. The meters carry (they were earned in this
+// match and the match is still going), the arm carries (it was paid for and is still owed a
+// touch — a goal is not ball contact), and `prev` carries because it is the EDGE latch:
+// clearing it would hand a rising edge to anyone still holding a button through the restart,
+// which is the opposite of the safety it looks like.
 function resetPositions(m, towards) {
   m.idle = 0;
   for (const p of m.players) {
@@ -94,8 +144,11 @@ function resetPositions(m, towards) {
     p.kickT = 0; p.kickCd = 0; p.dashT = 0; p.dashCd = 0;
     p.knocked = 0; p.rooted = 0; p.shoved = 0;
     p.slow = 0; p.tackleImmune = 0; p.coyote = 0; p.jumpBuf = 0;
-    p.effectId = null; p.effectT = 0; p.charge = 0;
     p.jumps = C.MAX_JUMPS;
+    // The signature effect a shot left on its victim goes, alongside the knockdown and the
+    // slow it came with — it is a hit landed in the passage of play that just ended, not
+    // power anybody banked. The ARM is the opposite of that, and stays.
+    p.effectId = null; p.effectT = 0;
   }
   const b = m.ball;
   b.x = C.BALL_SPAWN.x; b.y = C.BALL_SPAWN.y;
@@ -103,15 +156,6 @@ function resetPositions(m, towards) {
   b.vx = towards ? towards * 90 : 0;
   b.vy = 0; b.spin = 0; b.power = null;
   m.idle = 0;
-  // Any rock still in the air belongs to the passage of play that just ended. Landing one
-  // on a player who has just been teleported back to the spawn spot is the definition of
-  // an unavoidable hit, so a goal cancels the shower's pending drops.
-  if (m.spec) m.spec.met.length = 0;
-  // Same argument for pickups, one step further. A crate sitting at x=700 was equidistant
-  // from two players who are no longer there, and every live effect belongs to the passage
-  // of play that just ended — so a goal wipes the pitch AND every running power-up.
-  wipePickups(m, 'goal');
-  wipeSkills(m);
 }
 
 // ---------------------------------------------------------------------------
@@ -145,21 +189,15 @@ export function step(m, inputs, dt = C.TICK, fx = NO_FX) {
       } else {
         m.phase = 'over';
         m.events.push({ type: 'fulltime', winner: m.score[0] > m.score[1] ? 0 : 1 });
+        // The whistle clears the ultimate on both players. `over` is a terminal phase that
+        // step() returns out of immediately, so an arm left standing here is an arm that sits
+        // on the match object for as long as the results screen is up — and this object is
+        // what an "again" button is most tempted to reuse.
+        for (const p of m.players) clearUltimate(m, p);
         return m;
       }
     }
   }
-
-  // Before the players move, so a blast lands in the same tick it is drawn in. Everything
-  // it can change lives in m.spec and travels in serialize().
-  stepSpectacle(m, fx);
-  // Spawning and the effect clocks run here for the same reason: the spawn decision reads
-  // the positions the telegraph will be drawn against. Collection is the other half and has
-  // to wait until after the players have moved — see below.
-  stepCharge(m, fx);                 // the wind-up owns the ball while it runs
-  stepCards(m);
-  stepSkills(m, fx);
-  stepPickups(m, fx);
 
   // Where each player STARTED this tick. The players move once, in full, before the ball
   // moves at all, so a contact tested only against where they ENDED is a contact tested
@@ -171,9 +209,6 @@ export function step(m, inputs, dt = C.TICK, fx = NO_FX) {
   for (const p of m.players) { p.x0 = p.x; p.y0 = p.y; }
   for (let i = 0; i < 2; i++) stepPlayer(m, m.players[i], inputs[i] || {}, dt, fx);
   separatePlayers(m);
-  // After the move and after separation, so the frame you touch a pickup is the frame you
-  // get it, and so a player shoved onto one by the separator still collects it.
-  collectPickups(m, fx);
   // SUB-STEP THE BALL when it is moving faster than the things it can hit. The power volley
   // travels 34px in a tick and a head is 30px across, so at one step per frame the ball
   // simply skipped PAST defenders between frames — measured: only one reaction distance in
@@ -212,7 +247,10 @@ function chargeGauge(m, p, dt) {
 function stepPlayer(m, p, input, dt, fx) {
   chargeGauge(m, p, dt);
 
-  if (p.armed > 0) p.armed = Math.max(0, p.armed - dt);   // `armed` IS power mode
+  // NOTE there is no `p.armed -= dt` here. The arm used to be a 4.5s countdown that lapsed
+  // on its own; it is a flag now and it waits. "You must touch the ball" is only a rule if
+  // waiting is not also an answer — and an arm that expires on a clock is an arm a goal's
+  // two-second restart can eat the rest of, which is the complaint this came from.
   if (p.kickT > 0) p.kickT -= dt;
   if (p.kickCd > 0) p.kickCd -= dt;
   if (p.dashCd > 0) p.dashCd -= dt;
@@ -224,7 +262,7 @@ function stepPlayer(m, p, input, dt, fx) {
   if (p.knocked > 0) {
     p.knocked -= dt;
     p.vx *= 0.86;
-    integrate(p, dt, playerGrav(m, p.index), puMaxJumps(m, p.index), headR(m, p));
+    integrate(p, dt, 1, C.MAX_JUMPS, headR(m, p));
     p.prev = { ...input };
     return;                             // knocked down = no input at all
   }
@@ -251,9 +289,9 @@ function stepPlayer(m, p, input, dt, fx) {
 
   if (p.dashT > 0) {
     p.dashT -= dt;
-    p.vx = p.dashDir * C.DASH_V * p.stats.speed * spSpeed(m, p.index) * (p.slow > 0 ? C.TACKLE_SLOW : 1);
+    p.vx = p.dashDir * C.DASH_V * p.stats.speed * (p.slow > 0 ? C.TACKLE_SLOW : 1);
   } else {
-    const target = dir * C.PLAYER_SPEED * p.stats.speed * spSpeed(m, p.index) * (p.slow > 0 ? C.TACKLE_SLOW : 1);
+    const target = dir * C.PLAYER_SPEED * p.stats.speed * (p.slow > 0 ? C.TACKLE_SLOW : 1);
     const accel = (p.onGround ? C.PLAYER_ACCEL : C.PLAYER_AIR_ACCEL) * dt;
     if (dir !== 0) {
       p.vx += clamp(target - p.vx, -accel, accel);
@@ -270,9 +308,7 @@ function stepPlayer(m, p, input, dt, fx) {
   p.jumpBuf = (canAct && input.jump && !prev.jump) ? C.JUMP_BUFFER : Math.max(0, p.jumpBuf - dt);
 
   if (canAct && p.jumpBuf > 0 && (p.onGround || p.coyote > 0) && p.jumps > 0) {
-    // Spring boots multiply the launch AND hand out an extra air jump (see puMaxJumps in
-    // integrate). Both end together, and endEffect claws the spare jump back.
-    p.vy = -C.JUMP_V * p.stats.jump * spJump(m, p.index) * puJump(m, p.index);
+    p.vy = -C.JUMP_V * p.stats.jump;
     p.onGround = false;
     p.coyote = 0;
     p.jumpBuf = 0;
@@ -309,34 +345,29 @@ function stepPlayer(m, p, input, dt, fx) {
     tryTackle(m, p, fx);
   }
 
-  // ---- POWER MODE ----
-  // Its own button and its own job: it does not touch the ball, it changes what your next
-  // kick means. Kick the ball -> power shot. Kick the opponent -> your signature effect.
-  // THE POWER MOVE. A full gauge buys a WIND-UP, not a mode: half a second in which the ball
-  // is drawn up over this player's head and lights up, and then it goes. Pressing it again
-  // mid-wind-up does nothing — it is a commitment, and that is what makes it readable by the
-  // player who has to jump.
-  if (canAct && input.power && !prev.power && p.gauge >= 1 && p.charge <= 0) {
-    p.gauge = 0;
-    p.charge = C.POWER_CHARGE_TIME;
-    m.events.push({ type: 'charging', player: p.index, shot: p.shot.id });
+  // ---- THE ULTIMATE: THE BUTTON ONLY ARMS ----
+  //
+  // Four gates, and every one of them is the answer to a way the ultimate used to go off on
+  // its own:
+  //
+  //   canAct        — you are not rooted. A locked-out player cannot arm.
+  //   RISING EDGE   — `input.power && !prev.power`. Read as a LEVEL this fires on every tick
+  //                   the button is down, and on a rollback client on every replayed tick
+  //                   too. `prev` is {} on the first tick of a match, so a controller (or a
+  //                   bot) holding power at kickoff gets exactly one arm out of it, not sixty.
+  //   gauge >= 1    — a full meter, and nothing less.
+  //   armed <= 0    — already armed is already armed. Pressing again is not a second arm and
+  //                   is certainly not an activation.
+  //
+  // What it does NOT do is as important: it does not touch the gauge, it does not touch the
+  // ball, it creates no attraction and fires no shot. The press is a promise; the ball is
+  // what collects on it. See fireUltimateOnContact.
+  if (canAct && input.power && !prev.power && p.gauge >= 1 && p.armed <= 0) {
+    p.armed = 1;                       // a flag, not a clock — see the note in constants.js
+    m.events.push({ type: 'armed', player: p.index, shot: p.shot.id });
   }
 
-  // ---- THE THREE CARDS ----
-  // Rising edge ONLY, and this latch is the whole reason the block exists as its own loop
-  // rather than three lines inside the input reader: a card read as LEVEL rather than EDGE
-  // fires every tick the button is down, which on a rollback client means the ability
-  // machine-guns during every replayed frame. That is the football "shoots the wrong
-  // direction" bug wearing a different hat, and test-cards asserts both halves of it —
-  // held-does-not-refire, and still-held-after-a-restore-does-not-refire.
-  if (C.CARDS_ON) {
-    for (let s = 0; s < CARD_SLOTS; s++) {
-      const key = CARD_KEYS[s];
-      if (canAct && input[key] && !prev[key]) useCard(m, p, s, fx);
-    }
-  }
-
-  integrate(p, dt, playerGrav(m, p.index), puMaxJumps(m, p.index), headR(m, p));
+  integrate(p, dt, 1, C.MAX_JUMPS, headR(m, p));
   p.prev = { ...input };
 }
 
@@ -416,69 +447,6 @@ function separatePlayers(m) {
   }
 }
 
-// ---------------------------------------------------------------------------
-// THE WIND-UP. For half a second the ball belongs to the player charging: it is swept up over
-// their head, held there, and lit up (the renderer reads `charge` for the colour). Then it
-// goes, dead flat, at three times a normal power shot and at a height only a jump reaches.
-//
-// The ball is TAKEN wherever it is, deliberately. Requiring you to be standing on it would
-// make the move fail silently half the time — "I pressed power and nothing happened" — and
-// the gauge that buys it already costs three tackles.
-function stepCharge(m, fx) {
-  for (const p of m.players) {
-    if (p.charge <= 0) continue;
-    const b = m.ball;
-
-    // A WIND-UP CAN BE PUNISHED. Half a second rooted in the open is the price of the move,
-    // and reading it should be worth something: a tackle that lands on a charging player
-    // cancels the whole thing, and the gauge is already spent. Without this the volley was
-    // strictly better the more often you could charge, which inverted the skill ladder —
-    // measured over twenty matches, a level-2 bot beat a level-5 bot by charging nine times
-    // as often.
-    // …but only inside the CANCEL WINDOW. The elapsed time is the charge counting down, so
-    // "still in the first second" is charge > total - window.
-    const elapsed = C.POWER_CHARGE_TIME - p.charge;
-    if ((p.knocked > 0 || p.rooted > 0) && elapsed <= C.POWER_CANCEL_WINDOW) {
-      p.charge = 0;
-      m.events.push({ type: 'chargeLost', player: p.index });
-      continue;
-    }
-
-    const wasCharging = p.charge;
-    p.charge = Math.max(0, p.charge - C.TICK);
-
-    const top = C.GROUND_Y - C.powerHeight();
-    if (p.charge > 0) {
-      // Swept up over the head at a rate that gets it there before the wind-up ends, so the
-      // shot always leaves from the same place no matter where the ball started.
-      const k = Math.min(1, C.TICK / Math.max(C.TICK, p.charge));
-      b.x += (p.x - b.x) * k;
-      b.y += (top - b.y) * k;
-      b.vx = 0; b.vy = 0; b.spin = 0;
-      b.power = null;
-      // Rooted while winding up: it is a commitment, and a player who can run during it is a
-      // player the defender cannot read.
-      p.vx = 0;
-      continue;
-    }
-
-    // ---- FIRE ----
-    b.x = p.x + p.side * (C.BODY_W * 0.6);
-    b.y = top;
-    launchPowerShot(b, p, p.shot, p.side);
-    // The multiplier lives ON the shot, because the flight re-drives the ball every tick —
-    // setting vx here alone was undone on the very next one.
-    b.power.mult = C.POWER_VOLLEY_SPEED;
-    b.vx = p.side * C.POWER_SHOT_SPEED * (p.shot.speed || 1) * C.POWER_VOLLEY_SPEED;
-    b.vy = 0;
-    m.idle = 0;
-    m.hitStop = Math.max(m.hitStop, C.HIT_STOP_POWER);
-    m.events.push({ type: 'powershot', player: p.index, shot: p.shot.id, volley: true });
-    fx.shockwave(b.x, b.y, p.shot.color);
-    void wasCharging;
-  }
-}
-
 // `a0`/`aSpan` are this call's slice of the tick, as a fraction: the swept player pose in
 // resolveBallPlayers is read at a0 + aSpan * (progress through the sub-steps).
 function stepBall(m, dt, fx, a0 = 0, aSpan = 1) {
@@ -486,13 +454,11 @@ function stepBall(m, dt, fx, a0 = 0, aSpan = 1) {
 
   const powered = stepPowerShot(b, m.players, dt, fx);
   if (!powered) {
-    b.vy += C.BALL_GRAV * ballGrav(m) * dt;
+    // ONE gravity, and nothing else bends a loose ball. The wind used to add an acceleration
+    // here and the magnet another; both are gone (archive/README.md), which is what makes the
+    // flight of a kicked ball a thing a player can learn once.
+    b.vy += C.BALL_GRAV * dt;
     b.vx *= C.BALL_AIR;
-    // Wind. Only ever on a LOOSE ball — a power shot flies the same dead-flat line every
-    // time on purpose, and bending it would turn "get in the way" back into a guess.
-    b.vx += windAccel(m) * dt;
-    // The magnet pickup, under exactly the same rule and for exactly the same reason.
-    applyMagnet(m, b, dt);
   }
   b.spin *= C.BALL_SPIN_DECAY;
 
@@ -624,15 +590,15 @@ function tryCounter(m, p, fx) {
 function tryHeader(m, p, fx) {
   const b = m.ball;
   if (b.power) return false;                       // a live power shot is not headable
-  // ARMED means the next contact is the power shot, and this game has always fired that off
-  // the BOOT only (see the note in stepBall). A header that swallowed the press would eat the
-  // shot you spent a full gauge on.
+  // ARMED means the next time this player's body reaches the ball the ULTIMATE goes off, and
+  // a header that swallowed that contact would quietly eat a full meter. Stand down: the
+  // contact is a tick away in resolveBallPlayers, and it is worth more than a header.
   if (p.armed > 0) return false;
   const hy = headY(p);
   const d = Math.hypot(b.x - p.x, b.y - hy);
   if (d > headR(m, p) + b.r + C.HEADER_R) return false;
 
-  const mult = p.stats.kick * spKick(m, p.index);
+  const mult = p.stats.kick;
   const dir = p.facing;
   b.vx = dir * C.KICK_POWER * C.HEADER_POWER * mult + p.vx * 0.3;
   b.vy = -C.KICK_LIFT * C.HEADER_LIFT * mult + p.vy * 0.3;
@@ -656,9 +622,6 @@ function tryTackle(m, p, fx) {
   const kx = p.x + p.facing * C.KICK_REACH;
   const ky = p.y - C.BODY_H * 0.45;
   // Their whole silhouette counts: head circle or body box.
-  // Their whole silhouette, at whatever size it currently is: a big-head pickup makes you a
-  // bigger thing to head the ball with AND a bigger thing to boot, which is the drawback
-  // that keeps it from being a free buff.
   const hitHead = Math.hypot(kx - foe.x, ky - headY(foe)) < C.KICK_R + headR(m, foe);
   const nx = clamp(kx, foe.x - C.BODY_W / 2, foe.x + C.BODY_W / 2);
   const ny = clamp(ky, bodyTop(foe), foe.y);
@@ -666,43 +629,29 @@ function tryTackle(m, p, fx) {
   if (!hitHead && !hitBody) return false;
 
   const dir = Math.sign(foe.x - p.x) || p.facing;
-  const powered = p.armed > 0;
 
-  if (powered) {
-    // Kicking the OPPONENT while powered spends the mode on them instead of the ball and
-    // lands your character's signature effect — Adam's "freeze them for half a second".
-    // A SHIELD pickup eats it: the item's promise is "blocks one power shot", and a powered
-    // boot IS the power shot, just delivered by hand. The mode is still spent either way.
-    if (!spendShield(m, foe.index)) applyEffect(p.shot, foe, dir, C.POWER_TACKLE_SCALE);
-    p.armed = 0;
-  } else {
-    // FRONT or BACK, and it is the same button either way — which one you get is decided by
-    // where you are standing when you swing. A hit to the chest shoves them off the ball; a
-    // hit to the back, the one thing they could not read, stops them dead instead. The freeze
-    // deliberately comes with LESS shove: a stun that also slides you across the pitch is
-    // just a knockback with extra steps.
-    const behind = foe.facing === dir;
-    foe.slow = C.TACKLE_SLOW_TIME;
-    foe.rooted = Math.max(foe.rooted, behind ? C.TACKLE_STUN_BACK : C.TACKLE_STUN);
-    foe.vx = dir * C.TACKLE_PUSH * (behind ? C.TACKLE_PUSH_BACK : 1);
-    foe.vy = Math.min(foe.vy, -C.TACKLE_LIFT * (behind ? C.TACKLE_PUSH_BACK : 1));
-    foe.onGround = false;
-    foe.dashT = 0;
-    p.gauge = Math.min(1, p.gauge + C.TACKLE_GAUGE);
-  }
+  // A TACKLE IS A TACKLE, ARMED OR NOT.
+  //
+  // Booting the opponent while armed used to spend the ultimate on them — signature effect,
+  // arm gone, meter gone, no shot. Under "the ultimate activates on contact with the BALL"
+  // that is an activation from an unrelated collision, and it is the one that costs you a
+  // full meter without ever producing the shot you armed for. So the arm now survives a
+  // tackle untouched: you keep glowing, and the ball is still the only thing that spends it.
+  const behind = foe.facing === dir;
+  foe.slow = C.TACKLE_SLOW_TIME;
+  foe.rooted = Math.max(foe.rooted, behind ? C.TACKLE_STUN_BACK : C.TACKLE_STUN);
+  foe.vx = dir * C.TACKLE_PUSH * (behind ? C.TACKLE_PUSH_BACK : 1);
+  foe.vy = Math.min(foe.vy, -C.TACKLE_LIFT * (behind ? C.TACKLE_PUSH_BACK : 1));
+  foe.onGround = false;
+  foe.dashT = 0;
+  p.gauge = Math.min(1, p.gauge + C.TACKLE_GAUGE);
   foe.tackleImmune = C.TACKLE_IMMUNE;
 
-  // A landed tackle is the biggest thing you can do to someone without the ball, so it is
-  // the biggest payment into your hand — five kicks' worth. This is what makes the cards a
-  // reward for going at your opponent rather than a clock you wait out.
-  chargeCards(m, p.index, C.CARD_CHARGE_HIT);
-
   p.kickT = 0;                                   // the boot is spent on them, not the ball
-  m.hitStop = Math.max(m.hitStop, powered ? C.HIT_STOP_POWER : C.HIT_STOP_TACKLE);
+  m.hitStop = Math.max(m.hitStop, C.HIT_STOP_TACKLE);
   m.events.push({ type: 'tackle', by: p.index, on: foe.index, x: kx, y: ky,
-                 powered, behind: !powered && foe.facing === dir,
-                 shot: powered ? p.shot.id : null });
-  fx.hit(kx, ky, powered ? p.shot.color : '#ffd166', powered ? 2.4 : 1.6);
+                 powered: false, behind, shot: null });
+  fx.hit(kx, ky, '#ffd166', 1.6);
   return true;
 }
 
@@ -765,23 +714,17 @@ function resolveBallPlayers(m, fx, alpha = 1) {
     const hy = headYAt(py);
 
     // ---- kick hitbox (only while the leg is out) ----
+    // NOTE the boot does NOT fire the ultimate any more. This circle hangs KICK_REACH px out
+    // in front of the body, so firing off it is firing at a distance — the ball is struck by
+    // a phantom sphere beside the player rather than by the player. The ultimate wants a real
+    // touch, so it lives on the head and torso below, where the silhouette actually is.
     if (p.kickT > 0) {
       const dir = p.kickDir || p.facing;            // the aim, as latched at the swing
       const kx = px + dir * C.KICK_REACH;
       const ky = py - C.BODY_H * 0.45;
       if (Math.hypot(b.x - kx, b.y - ky) < C.KICK_R + b.r) {
-        if (firePowerIfArmed(m, p, b, fx)) return;
         if (!b.power) {
-          // An armed SUPER KICK spends itself here, on the ordinary boot: the ball goes twice
-          // as far and anyone standing near it goes with it. Same contact, bigger consequence.
-          if (spendSuperKick(m, p.index, b, dir)) {
-            p.kickT = 0;
-            m.idle = 0;
-            m.events.push({ type: 'strike', player: p.index, x: b.x, y: b.y, power: true });
-            fx.hit(b.x, b.y, '#ff2f00', 3);
-            return;
-          }
-          const mult = p.stats.kick * spKick(m, p.index);
+          const mult = p.stats.kick;
           const drive = p.kickLob ? C.LOB_DRIVE : 1;
           const lift = p.kickLob ? C.LOB_LIFT : 1;
           // THE BOW. A kick used to fly dead flat along your facing, so scoring meant already
@@ -802,11 +745,6 @@ function resolveBallPlayers(m, fx, alpha = 1) {
           p.kickT = 0;
           m.hitStop = Math.max(m.hitStop, C.HIT_STOP_KICK);
           m.idle = 0;
-          // A TOUCH pays into the hand, a swing at air does not. The first version paid for
-          // the swing, and a bot that swings on a hair trigger recharged its whole hand
-          // three times a match on thin air — 37 card uses a match between two of them,
-          // measured, which is not a moment any more, it is weather.
-          chargeCards(m, p.index, C.CARD_CHARGE_KICK);
           m.events.push({ type: 'strike', player: p.index, x: b.x, y: b.y, power: false });
           fx.hit(b.x, b.y, '#ffffff', 1);
           return;
@@ -819,10 +757,12 @@ function resolveBallPlayers(m, fx, alpha = 1) {
     const d = Math.hypot(dx, dy);
     const min = headR(m, p) + b.r;
     if (d < min) {
-      // No firing from the head: the power shot comes off the BOOT only. Firing on any
-      // touch is what made the POWER button feel dead — the shot went off on a stray
-      // header seconds after you pressed it.
       if (b.power && b.power.owner !== p.index) { hitByPowerShot(m, p, b, fx); return; }
+      // THE ULTIMATE FIRES HERE. Head-to-ball is a real touch of the silhouette, so an armed
+      // player who runs or jumps into the ball spends the arm on it. Checked before the
+      // deaden below, or the touch that should have launched a power shot would first be
+      // scrubbed into a dead one.
+      if (fireUltimateOnContact(m, p, b, fx)) return;
       // A ball sitting exactly ON the head's centre has no direction to be pushed in. Send
       // it back the way it came, or straight up if it is not moving either — anything but
       // the old answer, which was to skip the contact and let it fall through the player.
@@ -933,6 +873,9 @@ function resolveBallPlayers(m, fx, alpha = 1) {
       nx = side; ny = 0; sx = px + side * halfW; sy = b.y;
     }
     if (b.power && b.power.owner !== p.index) { hitByPowerShot(m, p, b, fx); return; }
+    // …and the torso is the other half of the silhouette, so it is the other half of the
+    // trigger. Barging into the ball while armed fires it exactly as heading it does.
+    if (fireUltimateOnContact(m, p, b, fx)) return;
     m.idle = 0;
     // HEAD BOUNCES, BODY DEADENS (Adam, 2026-08-21). Running into the ball used to
     // pinball it away, so most touches were accidents rather than decisions. Now your
@@ -943,13 +886,37 @@ function resolveBallPlayers(m, fx, alpha = 1) {
   }
 }
 
-function firePowerIfArmed(m, p, b, fx) {
-  if (p.armed <= 0 || b.power) return false;
+// ---------------------------------------------------------------------------
+// THE ULTIMATE GOING OFF. The only place in the sim that does.
+//
+// Called from the two branches of resolveBallPlayers that represent a genuine touch between
+// this player's silhouette and the ball: the head circle and the torso box. Both callers
+// have already established the overlap — this function does not measure distance, and that
+// is the point. There is no radius here to be widened into "near enough", so the ultimate
+// cannot go off from proximity: if the bodies are not overlapping, this is never reached.
+//
+// EXACTLY ONCE PER ARM. The ball is sub-stepped up to 48 times a tick and this runs inside
+// that loop, so the guard has to be state, not timing: `armed` is zeroed on the first line
+// of the activation, so every later sub-step of the same tick sees an unarmed player and
+// walks straight past. The caller then returns, which ends this player's contact resolution
+// for the sub-step as well.
+//
+// AND IT IS THE ONLY PLACE THE METER IS SPENT. Arming does not spend it, lapsing does not
+// spend it, tackling does not spend it. A gauge that went down means a power shot exists.
+function fireUltimateOnContact(m, p, b, fx) {
+  if (p.armed <= 0) return false;
+  if (b.power) return false;          // already a live power shot: nothing to convert
+  if (p.knocked > 0 || p.rooted > 0) return false;   // not a touch you made
+
   p.armed = 0;
+  p.gauge = 0;
   m.idle = 0;
+  // Toward the opponent's goal, which is what `side` is: +1 attacks the right net. Same
+  // launch the armed boot always used, so this is the existing ultimate, moved to a new
+  // trigger rather than a second implementation of one.
   launchPowerShot(b, p, p.shot, p.side);
   m.hitStop = Math.max(m.hitStop, C.HIT_STOP_POWER);
-  m.events.push({ type: 'powershot', player: p.index, shot: p.shot.id });
+  m.events.push({ type: 'powershot', player: p.index, shot: p.shot.id, ultimate: true });
   fx.shockwave(b.x, b.y, p.shot.color);
   return true;
 }
@@ -964,9 +931,7 @@ function hitByPowerShot(m, p, b, fx) {
   const shot = pw.shot;
   m.hitStop = Math.max(m.hitStop, C.HIT_STOP_POWER);
 
-  // …unless you are carrying a SHIELD, in which case the block is free this once and the
-  // shield is gone. That is the whole item: it does not stop shots, it pays for one.
-  if (!spendShield(m, p.index)) applyEffect(shot, p, pw.dir);
+  applyEffect(shot, p, pw.dir);
 
   // The ball comes off the block, back toward the pitch.
   b.vx = -pw.dir * Math.abs(b.vx) * C.POWER_BLOCK_REBOUND;
@@ -992,39 +957,27 @@ function checkGoal(m, fx) {
   else if (b.x - b.r > C.W - C.GOAL_W) scorer = 0;
   if (scorer === null) return false;
 
-  // A GOAL WALL over that net turns the ball away instead. Checked here rather than in the
-  // ball step so there is exactly one place that decides whether a ball in the net is a goal.
-  // Whoever is about to concede is the one whose wall could stop it.
-  const defender = 1 - scorer;
-  if (wallUp(m, defender)) {
-    const left = b.x < C.W / 2;
-    b.x = left ? C.GOAL_W + b.r + 2 : C.W - C.GOAL_W - b.r - 2;
-    b.vx = Math.abs(b.vx) * C.SKILL_WALL_BOUNCE * (left ? 1 : -1);
-    b.vy *= 0.7;
-    m.events.push({ type: 'wallSave', player: defender, x: b.x, y: b.y });
-    fx.shockwave(b.x, b.y, '#9ad0ff');
-    m.hitStop = Math.max(m.hitStop, C.HIT_STOP_KICK);
-    return false;
-  }
-
   m.score[scorer]++;
   m.lastScorer = scorer;
-  // A goal restarts the exchange, and the scorer walks back to the spot with their hand
-  // part-refilled. The player who conceded gets nothing: this pays for what you DID.
-  chargeCards(m, scorer, C.CARD_CHARGE_GOAL);
   m.events.push({ type: 'goal', player: scorer, power: !!b.power, shot: b.power?.id || null });
   fx.goal(b.x, b.y, b.power?.color || '#ffffff');
 
-  const conceded = m.players[1 - scorer];
-  conceded.gauge = Math.min(1, conceded.gauge + C.GAUGE_CONCEDE_BONUS);
+  // The only thing a goal does to a meter, and it is an addition to the player who conceded.
+  // Ahead of the golden-goal branch so the rule reads the same either way.
+  awardConcedeMeter(m, scorer);
 
   if (m.golden) {
     m.phase = 'over';
     m.events.push({ type: 'fulltime', winner: scorer, golden: true });
+    // Full time is the one reset that really is one: nobody is left glowing on the results
+    // screen, and nothing survives into whatever match is started next.
+    for (const q of m.players) clearUltimate(m, q);
     return true;
   }
   m.phase = 'goal';
   m.freeze = C.KICKOFF_FREEZE + 0.9;
+  // Bodies and ball only. Both meters and both arms come through this untouched — see the
+  // note on resetPositions for why that is the fix and not an oversight.
   resetPositions(m, m.players[1 - scorer].side);
   return true;
 }
@@ -1040,14 +993,17 @@ export { resetPositions };
 // Deliberately lossless: no rounding. `test-net.mjs` asserts a restored sim stays in
 // lockstep, and that property is what makes rollback sound. A few extra bytes on the wire
 // is a trivial price for it at 1v1 scale.
-// Every button whose EDGE the sim reads has to be here, cards included: this array is how a
-// restored client remembers that a button was already down. Leave a card out and a
-// reconciling client re-fires it on every replayed tick.
-const PREV_KEYS = ['left', 'right', 'jump', 'kick', 'power', ...CARD_KEYS];
+// Every button whose EDGE the sim reads has to be here: this array is how a restored client
+// remembers that a button was already down. Leave POWER out and a reconciling client re-arms
+// on every replayed tick — which, before the arm stopped being the whole move, meant a
+// reconnect could fire an ultimate nobody pressed for.
+const PREV_KEYS = ['left', 'right', 'jump', 'kick', 'power'];
 const P_FIELDS = [
   'x', 'y', 'vx', 'vy', 'onGround', 'facing', 'jumps',
   'kickT', 'kickCd', 'dashT', 'dashCd', 'dashDir', 'tapDir', 'tapT',
-  'gauge', 'armed', 'charge', 'knocked', 'rooted', 'shoved', 'kickLob', 'kickDir',
+  // `armed` is the ultimate AND the glow, so a client that restores without it either glows
+  // at nothing or misses the touch that should have fired.
+  'gauge', 'armed', 'knocked', 'rooted', 'shoved', 'kickLob', 'kickDir',
   // Added with the tackle + jump-feel pass. Anything that can change a future step has to
   // travel, or a reconciling client re-runs the last 30 ticks with the wrong state.
   'slow', 'tackleImmune', 'coyote', 'jumpBuf',
@@ -1071,26 +1027,12 @@ export function serialize(m) {
       o.push(PREV_KEYS.map((k) => (p.prev && p.prev[k] ? 1 : 0)));
       return o;
     }),
-    // The spectacle: meteors in flight, the act clock, robot mode. All integers, trailing
-    // zeros trimmed — about a dozen bytes when nothing is happening (see spectacle.js).
-    sp: packSpectacle(m.spec),
-    // The pickups: what is on the pitch, and the effect clocks on both players. Same
-    // packing discipline — all integers, trailing zeros trimmed, about eleven bytes idle.
-    // If this were left out, a reconciling client would replay the last 30 ticks with a
-    // crate the server never spawned and a big head the server has never seen.
-    pk: packPickups(m.pu),
-    // Six cooldown clocks. The hands themselves are dealt from the two cards at both ends
-    // and never travel.
-    cd: packCards(m.cards),
-    sk: packSkills(m.sk),
     b: {
       x: m.ball.x, y: m.ball.y, vx: m.ball.vx, vy: m.ball.vy, spin: m.ball.spin,
       // The shot itself is static data; only its live flight state travels.
       pw: m.ball.power ? {
         id: m.ball.power.id, kind: m.ball.power.kind, owner: m.ball.power.owner,
         dir: m.ball.power.dir, t: m.ball.power.t, life: m.ball.power.life, phase: m.ball.power.phase,
-        // The volley multiplier drives the ball every tick, so a client without it watches a
-        // three-speed shot travel at one.
         mult: m.ball.power.mult,
       } : null,
     },
@@ -1110,10 +1052,6 @@ export function restore(m, s) {
     p.prev = {};
     PREV_KEYS.forEach((k, j) => { p.prev[k] = !!pv[j]; });
   }
-  if (m.spec) unpackSpectacle(m.spec, s.sp || []);
-  if (m.pu) unpackPickups(m.pu, s.pk || []);
-  if (m.cards) unpackCards(m.cards, s.cd || []);
-  if (m.sk) unpackSkills(m.sk, s.sk || []);
   const b = m.ball, o = s.b;
   b.x = o.x; b.y = o.y; b.vx = o.vx; b.vy = o.vy; b.spin = o.spin;
   if (!o.pw) b.power = null;

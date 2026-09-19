@@ -149,42 +149,65 @@ the pad is allowed to hide. **שמירה / ביטול / איפוס** — a draft
 first thing anyone does in a layout editor is drag something somewhere worse. Saved per
 device as fractions of the stage, so a layout dragged in landscape survives the rotation.
 
-**POWER is a committed volley, and you earn it by kicking people.** The gauge fills off the
-OPPONENT and nothing else — five tackles buy one — so it is something you go and take rather
-than something the clock hands you.
+**POWER arms the ultimate. Touching the ball fires it.** The meter fills off the OPPONENT and
+nothing else — five tackles buy one — so it is something you go and take rather than
+something the clock hands you.
 
-Press it with a full gauge and the game **focuses on the striker for three seconds** —
-the pitch dims to two pools of light, one on them and one on the ball as it is drawn up and
-lights up in their shot's colour, with a ring closing as a clock. Then it fires **dead flat at
-three times a normal power shot**, always from **0.9 of the goal height** (capped at what a
-jump can actually reach), so a defender learns one height to jump for. **The only way to stop it is to jump into its line, early — and to HOLD the jump**: jump
-height is variable here, a tap tops out at 146px and a held jump reaches 239, and the shot
-flies above the tap.
+Press it with a full meter and **nothing happens yet**: you start glowing in the power bar's
+own gold, and the meter stays full. The shot goes off the next time **your body reaches the
+ball** — head or torso, a real touch of the silhouette, not the boot's reach and not merely
+being near it. Then it flies dead flat at the opponent's goal, and the only answer is to get
+a body in its way.
 
-The wind-up is the price. You are rooted for that half second in the open, and **a tackle
-landed on you during it cancels the whole thing** — the gauge is already spent. That is what
-keeps the move honest: reading it is worth as much as throwing it.
+Three things follow from that, and they are the whole reason it is shaped this way:
 
-**Why there is a clamp on the launch height.** "0.9 of the goal height" and "a 20% taller
-goal" are two requests that collide: 0.9 × 192 = **173px**, and a *tapped* jump does not get
-a head near that. The move's entire rule — *the only way to stop it is to jump* — would have
-quietly become false. It did not, because jump height here is variable: a held jump puts the
-top of the head at **237px**, well over the shot.
+- **The button can never fire anything.** A press is a promise, not a move. That is what
+  makes "the rival used its ultimate the moment the match started" impossible rather than
+  unlikely — there is no state, stale or otherwise, from which a press produces a shot.
+- **The glow is the telegraph, and it waits.** There is no clock on an arm. Your opponent
+  gets warning for as long as you are carrying it, and their answer is football: get to the
+  ball first, or kick it away from you. Denying the touch really does deny the shot.
+- **The meter is spent at activation and nowhere else.** Not by arming, not by waiting, not
+  by tackling someone while armed, and — this is the one that was wrong — **not by a goal**.
+  A meter that went down means a shot exists.
 
-So `powerHeight()` is `min(0.9 × GOAL_H, headReach() − 14)`, derived from `JUMP_V` and
-`PLAYER_GRAV` rather than typed:
+**A goal does not touch the ultimate.** Scoring used to run both players through
+`clearUltimate`, which wiped every point of power either of them had earned and cancelled an
+arm that had already been paid for: an 80% meter came out of somebody else's goal at 25%,
+and the scorer's came out at 0. Now a goal moves the bodies and the ball, and adds to exactly
+one meter:
 
-- Today it honours the 0.9 — 173 is under the 215 ceiling, so **the clamp is not binding**.
-- It starts binding above `GOAL_H` ≈ **239**. That is the guard rail: no future goal retune
-  can make the volley unanswerable without someone noticing.
-- Because apex is ballistic (`v²/2a`), it is **invariant under `PACE`** — the dial cannot
-  move a defender out of reach of a shot. `_pace.mjs` measures 1.9% apex drift across the
-  whole sweep, which is that claim being checked rather than asserted.
+| | scorer | conceder |
+|---|---|---|
+| meter | untouched | **+25 points**, clamped at 100% |
+| armed / glow | kept | kept |
 
-**Known and not fixed:** bots only block 1–3 volleys per sixteen matches. They mostly take the
-other answer — running at the charger to cancel the wind-up — which is legitimate and the
-skill ladder is healthy, but a defending bot that jumped more often would make solo play read
-better. Filed rather than fudged.
+So 80% + a conceded goal is 100%, 100% stays 100%, and 40% becomes 65%. The one place that
+arithmetic lives is `awardConcedeMeter()` in `shared/sim.js` — one direction, written once,
+because a reversed scorer/recipient turns the comeback mechanic into a runaway one and still
+looks perfectly normal from the outside.
+
+An arm survives the goal, the restart and the kickoff freeze, and still fires on the first
+touch afterwards. **Only** full time and a new match clear it (`clearUltimate`, and those are
+its only two callers).
+
+**Measured:** bot-vs-bot the ultimate fires about **2.8 times a match** with the meter
+carrying properly, against 0.5 while goals were wiping it.
+
+<details><summary>The committed volley (superseded)</summary>
+
+Press with a full gauge and the game focused on the striker for three seconds — the pitch
+dimmed to two pools of light, one on them and one on the ball as it was drawn up over their
+head. Then it fired dead flat at three times a normal power shot, always from 0.9 of the goal
+height, so a defender learned one height to jump for. The wind-up was the price: rooted in the
+open, and a tackle landed inside the cancel window killed the whole thing.
+
+It was replaced because the press WAS the move. Everything the gauge bought was spent by the
+button, so any path that produced a press produced a goal-bound shot — a stale full meter at
+kickoff, a bot writing a level into a button the sim reads as an edge, a rollback replaying
+the press. Making the ball the trigger removes the whole class.
+
+</details>
 
 <details><summary>The old power mode (superseded)</summary>
 
@@ -227,7 +250,15 @@ pressed at head height.
 and drops it at your feet — only a kick sends it anywhere, so every meaningful touch is a
 decision. Heading is still the aerial tool.
 
-## Your hand of three
+## Your hand of three — REMOVED 2026-09-19
+
+**This is no longer in the game.** The hand, the crates it grew out of, and the whole
+spectacle system (wind, low gravity, meteors, robot mode) were taken out together: they were
+the randomly spawned match modifiers, and the brief was football, the power meter and the
+ultimate. The modules, their tests and their screenshot harnesses are in **`archive/`**, and
+`archive/README.md` has a step-by-step recipe for putting the hand back.
+
+What it said while it existed:
 
 **The powers come out of your Saltiz cards.** You hold three of them under the pitch; press
 one and you get that card's power for a few seconds.
@@ -267,8 +298,9 @@ legendary — and **contact pays it off**: a touch on the ball takes a little of
 your cards, a tackle takes five times as much, a goal more again. A hand you never use is a
 hand that recharges slowly.
 
-Crates on the pitch (the older power-up system) are off by default — `?pickups=1` brings
-them back to compare. `?cards=0` turns the hand off.
+Crates on the pitch (the older power-up system) were off by default; `?pickups=1` brought
+them back to compare and `?cards=0` turned the hand off. Both flags are gone with the systems
+they switched — see `archive/README.md`.
 
 </details>
 

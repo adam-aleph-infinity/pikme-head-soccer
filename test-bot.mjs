@@ -55,7 +55,17 @@ function playMatch(levelA, levelB, seed, duration = C.MATCH_DURATION) {
   ok('the match reaches full time', m.phase === 'over' && ticks < limit, `phase=${m.phase} ticks=${ticks}/${limit}`);
   ok('both bots move around', stats.moved[0] > 120 && stats.moved[1] > 120, stats.moved.map((v) => v.toFixed(0)).join('/'));
   ok('the ball gets struck a lot', stats.touches > 30, `touches=${stats.touches}`);
-  ok('bots fire power shots', stats.powershots >= 2, `powershots=${stats.powershots}`);
+  // ACROSS SEEDS, not on one. The ultimate fires when an ARMED bot happens to reach the ball,
+  // which is the least deterministic thing either of them does: a match is chaotic, and one
+  // seed's count swings between 1 and 5 without anything in the bot changing. Measured over a
+  // dozen seeds it sits at 2.7 a match, and it sat at exactly 2.7 before the goal was resized
+  // too — so the mean is the thing that means something and 12345 alone was a coin toss that
+  // had been landing the right way up. What is being fenced is "the bots use it, regularly",
+  // and a single match cannot say "regularly".
+  const SEEDS = [12345, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11];
+  const fired = SEEDS.map((s) => playMatch(3, 3, s).stats.powershots);
+  const mean = fired.reduce((a, b) => a + b, 0) / fired.length;
+  ok('bots fire power shots', mean >= 2 && Math.min(...fired) >= 1, `mean=${mean.toFixed(2)} of ${fired.join(',')}`);
   ok('somebody scores', m.score[0] + m.score[1] > 0, m.score.join('-'));
   // This guards against runaway physics, not against taste: it is what caught the ball
   // tunnelling through a defender (matches finished 15-12) and the inverted aggression

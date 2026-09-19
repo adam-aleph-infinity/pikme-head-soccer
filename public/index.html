@@ -125,18 +125,13 @@
 
     <div class="banner" id="banner"></div>
 
-    <!-- The controls. Left = walk, right = act, middle = your three cards.
-         Always on screen now, mouse or thumb: they are the ability UI, not a phone
-         fallback, and a power you cannot see is a power nobody presses. -->
+    <!-- The controls. Left = walk, right = act. The middle used to hold a hand of three
+         cards; that system is archived (see archive/README.md) and the row is gone with it,
+         markup included — a hidden row is still a row the layout editor can drag about. -->
     <div class="pad" id="pad">
       <div class="pad-l">
         <button class="btn" data-k="left">◀</button>
         <button class="btn" data-k="right">▶</button>
-      </div>
-      <div class="pad-c" id="cardRow">
-        <button class="btn card" data-k="card1" data-slot="0"><i class="card-art"></i><b class="card-key">1</b><u class="card-tip"></u></button>
-        <button class="btn card" data-k="card2" data-slot="1"><i class="card-art"></i><b class="card-key">2</b><u class="card-tip"></u></button>
-        <button class="btn card" data-k="card3" data-slot="2"><i class="card-art"></i><b class="card-key">3</b><u class="card-tip"></u></button>
       </div>
       <div class="pad-r">
         <button class="btn jump" data-k="jump">קפיצה</button>
