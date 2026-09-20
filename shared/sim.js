@@ -3,8 +3,8 @@
 // football-mock's shared/sim.js, so wiring this to a server later is a lift-and-shift.
 
 import * as C from './constants.js';
-import { launchPowerShot, stepPowerShot, counterPowerShot, applyEffect, shotFor, statsFor, SHOTS } from './powershots.js';
-import { walkBounds, barY, barCeiling, goalBox } from './goalbox.js';
+import { launchPowerShot, stepPowerShot, counterPowerShot, shotFor, statsFor, SHOTS } from './powershots.js';
+import { walkBounds, barY, barCeiling, goalBox, ballInGoal, keepOutOfGoal } from './goalbox.js';
 
 // A player's geometry, derived (never stored) so nothing can drift out of sync.
 // `y` is the FEET line; the body box hangs above it and the head sits on the body.
@@ -48,10 +48,13 @@ function makePlayer(index, char) {
     // activating clears it and the gauge in the same statement, and clearUltimate() below
     // zeroes both. See clearUltimate.
     gauge: 0, armed: 0,
-    knocked: 0, rooted: 0, shoved: 0,
+    shoved: 0,
     coyote: 0, jumpBuf: 0,          // jump forgiveness (see COYOTE_TIME / JUMP_BUFFER)
-    slow: 0, tackleImmune: 0,       // set by a tackle; slow scales speed, immune blocks re-tackles
-    effectId: null, effectT: 0,     // which signature effect is on me, and for how long
+    tackleImmune: 0,                // s before the same player can be tackled again
+    // CONDITION, in two numbers. `hp` is 1 at full and never shown as a number or a bar —
+    // the character's own face is the readout (hurtTier). `stunned` is the one and only way
+    // the controls are ever taken off a player, and it only ever happens at hp 0.
+    hp: 1, stunned: 0,
     prev: {},
     stats_: null,
   };
@@ -103,11 +106,78 @@ function clearUltimate(m, p) {
   const wasArmed = p.armed > 0;
   p.armed = 0;
   p.gauge = 0;
-  p.effectId = null; p.effectT = 0;
   if (wasArmed && m) m.events.push({ type: 'ultimateCleared', player: p.index });
   return p;
 }
 export { clearUltimate };
+
+// ---------------------------------------------------------------------------
+// EVERY HIT IN THE GAME COMES THROUGH HERE, and nothing else writes `hp`.
+//
+// Returns how much was actually taken off, so the caller can put it in its own event without
+// re-deriving it. Two rules, and they are the whole of the anti-stun-lock design:
+//
+//   · a player who is already stunned takes NO damage and cannot be re-stunned. Without this
+//     the two hits that land inside one stun would each queue another, and a pair of bots
+//     trading boots could hold somebody at 0% for the rest of the match.
+//   · hp floors at 0 and the stun is set exactly once, on the transition to 0. It is never
+//     topped up, so its length is always HP_STUN_TIME and never a sum of them.
+//
+// The stun is the ONLY thing in the game that takes a player's controls away. See stepPlayer.
+function damage(m, p, amount) {
+  if (p.stunned > 0 || amount <= 0) return 0;
+  const before = p.hp;
+  p.hp = Math.max(0, p.hp - amount);
+  const dealt = before - p.hp;
+  m.events.push({ type: 'damage', player: p.index, amount: dealt, hp: p.hp });
+  if (p.hp <= 0) {
+    p.stunned = C.HP_STUN_TIME;
+    m.events.push({ type: 'stunned', player: p.index, time: p.stunned });
+  }
+  return dealt;
+}
+export { damage };
+
+// THE STUN CLOCK, and it runs on WALL TIME.
+//
+// Pulled out of stepPlayer because stepPlayer is not the only place it has to tick. step()
+// returns early for the length of a hit-stop, before any player is stepped, so a stun that
+// spanned a few hit-stops used to run long in real seconds — measured at 1.98s against an
+// authored 1.75s, and every hit landed anywhere on the pitch made it longer. The brief asks
+// for 1.5-2 seconds, so the countdown has to be independent of how eventful the pause is.
+//
+// Returns true while the player is still down.
+function tickStun(m, p, dt) {
+  if (p.stunned <= 0) return false;
+  p.stunned -= dt;
+  if (p.stunned > 0) return true;
+  p.stunned = 0;
+  p.hp = C.HP_AFTER_STUN;
+  // A MOMENT TO GET UP. Without this, coming back at 40% meant the very next couple of boots
+  // — under 1.2s of real time — put you straight back down, which is a stun-lock rather than
+  // a knockdown. This does not touch how long the FIRST stun takes (nothing sets it outside a
+  // revive), only how long the same player can be chain-stunned afterwards.
+  p.tackleImmune = Math.max(p.tackleImmune, C.HP_REVIVE_GRACE);
+  m.events.push({ type: 'revive', player: p.index, hp: p.hp });
+  return false;
+}
+
+// HOW HURT A CHARACTER LOOKS, 0 (untouched) to 4 (bottomed out).
+//
+// The one place the thresholds are written down, because the renderer and the tests both have
+// to agree about them and there is no health bar for either of them to read instead. The
+// renderer turns this straight into a class — .head.hurt1..4 in public/style.css — so the
+// damage is legible on the CHARACTER and nowhere else on screen.
+//
+// Deliberately a function of hp ALONE, not of `stunned`: the critical look belongs to being at
+// zero, and a player is at zero for exactly as long as they are stunned.
+export function hurtTier(hp) {
+  if (hp <= 0) return 4;                 // critical
+  if (hp <= C.HP_HURT3) return 3;        // red, and bruising blue
+  if (hp <= C.HP_HURT2) return 2;        // properly red
+  if (hp <= C.HP_HURT1) return 1;        // a flush of red
+  return 0;                              // untouched
+}
 
 // WHAT A GOAL DOES TO THE METERS. One function, one direction, called once per goal.
 //
@@ -142,13 +212,13 @@ function resetPositions(m, towards) {
     p.x = C.SPAWN_X[p.index]; p.y = C.GROUND_Y;
     p.vx = 0; p.vy = 0; p.onGround = true; p.facing = p.side;
     p.kickT = 0; p.kickCd = 0; p.dashT = 0; p.dashCd = 0;
-    p.knocked = 0; p.rooted = 0; p.shoved = 0;
-    p.slow = 0; p.tackleImmune = 0; p.coyote = 0; p.jumpBuf = 0;
+    p.shoved = 0;
+    p.tackleImmune = 0; p.coyote = 0; p.jumpBuf = 0;
     p.jumps = C.MAX_JUMPS;
-    // The signature effect a shot left on its victim goes, alongside the knockdown and the
-    // slow it came with — it is a hit landed in the passage of play that just ended, not
-    // power anybody banked. The ARM is the opposite of that, and stays.
-    p.effectId = null; p.effectT = 0;
+    // HEALTH CARRIES THROUGH A GOAL — on request: a beating is meant to matter for the whole
+    // match, not just until the next restart. Only the STUN clears, because a kickoff nobody
+    // can move for is a bug regardless of whose fault the hp is.
+    p.stunned = 0;
   }
   const b = m.ball;
   b.x = C.BALL_SPAWN.x; b.y = C.BALL_SPAWN.y;
@@ -169,6 +239,12 @@ export function step(m, inputs, dt = C.TICK, fx = NO_FX) {
   // an impact rather than a teleport. Timers still tick so nothing can wedge here.
   if (m.hitStop > 0) {
     m.hitStop -= dt;
+    latchReleases(m, inputs);
+    // The stun is the one timer that keeps running through a pause. Everything else here is
+    // frozen on purpose — that is what hit-stop is — but a player's 1.75 seconds on the floor
+    // has to be 1.75 seconds of the match clock, not 1.75 seconds plus however many heavy
+    // connects happened to land while they were down. See tickStun.
+    for (const p of m.players) tickStun(m, p, dt);
     return m;
   }
 
@@ -177,6 +253,7 @@ export function step(m, inputs, dt = C.TICK, fx = NO_FX) {
     if (m.freeze <= 0 && (m.phase === 'kickoff' || m.phase === 'goal')) m.phase = 'play';
     // Frozen: no physics, no clock, but gauges still tick so a restart isn't dead time.
     for (const p of m.players) chargeGauge(m, p, dt);
+    latchReleases(m, inputs);
     return m;
   }
 
@@ -233,6 +310,40 @@ export function step(m, inputs, dt = C.TICK, fx = NO_FX) {
   return m;
 }
 
+// A PAUSE STILL HAS TO WATCH THE BUTTONS.
+//
+// hitStop and freeze both return out of step() before stepPlayer runs, so for the length of
+// the pause nothing updated `p.prev` — the latch the sim reads edges against. It therefore
+// still held whatever was true when the pause STARTED, and a release that happened during the
+// pause was never seen. Two ways that came out, both measured:
+//
+//   • Score while holding JUMP (which is how most headers are scored), let go during the
+//     two-second restart, press again as play resumes: input.jump is true and the stale
+//     prev.jump is also true, so there is no rising edge and the jump is swallowed. It takes
+//     another release-and-press to get moving — one dead press, exactly the "stuck input"
+//     complaint.
+//   • Press JUMP during a hit-stop and keep holding: the press lands entirely inside the
+//     pause, and when the pause lifts prev has not moved, so it never becomes an edge at all.
+//
+// So a pause watches for RELEASES and only releases. Clearing a key that is up records "the
+// button came back up", which is what makes the next press an edge; NOT setting a key that is
+// down is what stops the pause from eating that press. The two halves together give:
+//
+//   held right through   prev stays true  -> no free jump on the restart  (the old worry, kept)
+//   released during it   prev goes false  -> the next press fires          (the bug, fixed)
+//   pressed during it    prev stays false -> it fires the moment play resumes (buffered)
+//
+// Deterministic from the inputs alone, so a rollback client replaying the same ticks lands on
+// the same latch — `prev` already travels in the snapshot (see PREV_KEYS).
+function latchReleases(m, inputs) {
+  for (let i = 0; i < m.players.length; i++) {
+    const p = m.players[i];
+    const input = inputs[i] || {};
+    if (!p.prev) { p.prev = {}; continue; }
+    for (const k of PREV_KEYS) if (!input[k]) p.prev[k] = false;
+  }
+}
+
 // ---------------------------------------------------------------------------
 function chargeGauge(m, p, dt) {
   // Sudden death freezes the gauges — the wiki's rule, and it stops overtime becoming
@@ -255,26 +366,31 @@ function stepPlayer(m, p, input, dt, fx) {
   if (p.kickCd > 0) p.kickCd -= dt;
   if (p.dashCd > 0) p.dashCd -= dt;
   if (p.shoved > 0) p.shoved -= dt;
-  if (p.rooted > 0) p.rooted -= dt;
-  if (p.slow > 0) p.slow -= dt;
   if (p.tackleImmune > 0) p.tackleImmune -= dt;
-  if (p.effectT > 0) { p.effectT -= dt; if (p.effectT <= 0) p.effectId = null; }
-  if (p.knocked > 0) {
-    p.knocked -= dt;
+
+  // BOTTOMED OUT. The only place in the sim that takes a player's controls away, and it is
+  // always the same length and always ends: `stunned` counts down in real seconds and the
+  // player is handed back at HP_AFTER_STUN, hurt but playable. Nothing can extend it — damage()
+  // refuses to touch a player who is already down — so there is no stun-lock to walk into.
+  if (p.stunned > 0) {
+    tickStun(m, p, dt);
     p.vx *= 0.86;
     integrate(p, dt, 1, C.MAX_JUMPS, headR(m, p));
     p.prev = { ...input };
-    return;                             // knocked down = no input at all
+    return;                             // out on your feet = no input at all
   }
 
+  // …and otherwise you are always mending. Gradual and unconditional: there is no "out of
+  // combat" timer to game, so the only way to keep somebody down is to keep hitting them.
+  if (p.hp < 1) p.hp = Math.min(1, p.hp + C.HP_REGEN * dt);
+
   const prev = p.prev || {};
-  const canAct = p.rooted <= 0;
-  const dir = canAct ? (input.right ? 1 : 0) - (input.left ? 1 : 0) : 0;
+  const dir = (input.right ? 1 : 0) - (input.left ? 1 : 0);
 
   // ---- dash: two taps of the same direction inside DASH_WINDOW ----
   if (p.tapT > 0) p.tapT -= dt;
   for (const [key, d] of [['left', -1], ['right', 1]]) {
-    if (canAct && input[key] && !prev[key]) {
+    if (input[key] && !prev[key]) {
       if (p.tapDir === d && p.tapT > 0 && p.dashCd <= 0) {
         p.dashT = C.DASH_TIME; p.dashDir = d; p.dashCd = C.DASH_COOLDOWN;
         p.tapT = 0; p.tapDir = 0;
@@ -289,9 +405,9 @@ function stepPlayer(m, p, input, dt, fx) {
 
   if (p.dashT > 0) {
     p.dashT -= dt;
-    p.vx = p.dashDir * C.DASH_V * p.stats.speed * (p.slow > 0 ? C.TACKLE_SLOW : 1);
+    p.vx = p.dashDir * C.DASH_V * p.stats.speed;
   } else {
-    const target = dir * C.PLAYER_SPEED * p.stats.speed * (p.slow > 0 ? C.TACKLE_SLOW : 1);
+    const target = dir * C.PLAYER_SPEED * p.stats.speed;
     const accel = (p.onGround ? C.PLAYER_ACCEL : C.PLAYER_AIR_ACCEL) * dt;
     if (dir !== 0) {
       p.vx += clamp(target - p.vx, -accel, accel);
@@ -305,9 +421,9 @@ function stepPlayer(m, p, input, dt, fx) {
   // it is technically correct: COYOTE lets you jump just after leaving the ground, BUFFER
   // lets a press just before landing fire on touchdown.
   p.coyote = p.onGround ? C.COYOTE_TIME : Math.max(0, p.coyote - dt);
-  p.jumpBuf = (canAct && input.jump && !prev.jump) ? C.JUMP_BUFFER : Math.max(0, p.jumpBuf - dt);
+  p.jumpBuf = (input.jump && !prev.jump) ? C.JUMP_BUFFER : Math.max(0, p.jumpBuf - dt);
 
-  if (canAct && p.jumpBuf > 0 && (p.onGround || p.coyote > 0) && p.jumps > 0) {
+  if (p.jumpBuf > 0 && (p.onGround || p.coyote > 0) && p.jumps > 0) {
     p.vy = -C.JUMP_V * p.stats.jump;
     p.onGround = false;
     p.coyote = 0;
@@ -318,7 +434,7 @@ function stepPlayer(m, p, input, dt, fx) {
   if (!input.jump && p.vy < 0) p.vy *= 1 - (1 - C.JUMP_CUT) * dt * 12;   // variable height
 
   // ---- kick ----
-  if (canAct && input.kick && !prev.kick && p.kickCd <= 0) {
+  if (input.kick && !prev.kick && p.kickCd <= 0) {
     // THE HEADER, first. The boot's hitbox is at hip height, so a ball at head height used to
     // mean pressing kick and watching the leg swing under it. Now the same button heads it:
     // less power than a boot, more loft, and the only way to hit a ball your foot cannot
@@ -334,12 +450,18 @@ function stepPlayer(m, p, input, dt, fx) {
     // defender parked on the line. Latched at the swing, not read at contact, so the shot
     // you committed to is the shot you get.
     p.kickLob = !!input.jump;
-    // AND THE DIRECTION. The leg is out for a sixth of a second and the ball is often struck
-    // several ticks after the press, so reading `facing` at CONTACT meant turning during the
-    // swing sent the ball backwards — "sometimes it kicks the other way". Football shipped
-    // this exact bug as "shoots wrong direction"; the fix is the same, latch the aim to the
-    // fire edge and use the latch for everything the swing does.
-    p.kickDir = p.facing;
+    // AND THE DIRECTION, WHICH IS NOT THE FACING ANY MORE.
+    //
+    // This was `p.facing`, latched at the swing so that turning mid-kick could not steal the
+    // aim. The latch fixed the mid-swing turn and left the other half standing: walk BACKWARDS
+    // — away from the goal you are attacking — and the boot swung backwards with you, so a
+    // retreating player who pressed kick drove the ball at his OWN net. That is never the shot
+    // anybody meant, and the leg you could see was pointing the wrong way while it happened.
+    //
+    // The boot now always swings toward the goal this player attacks, which is what `side` is,
+    // whatever the body is doing. The sprite is drawn off the same rule (drawBody), so the leg
+    // you see out in front is the leg that can touch the ball. Facing is the walk, not the aim.
+    p.kickDir = p.side;
     m.events.push({ type: 'kick', player: p.index, lob: p.kickLob });
     tryCounter(m, p, fx);
     tryTackle(m, p, fx);
@@ -347,10 +469,11 @@ function stepPlayer(m, p, input, dt, fx) {
 
   // ---- THE ULTIMATE: THE BUTTON ONLY ARMS ----
   //
-  // Four gates, and every one of them is the answer to a way the ultimate used to go off on
-  // its own:
+  // Three gates, and every one of them is the answer to a way the ultimate used to go off on
+  // its own. (There used to be a fourth — "you are not rooted" — from the days when a hit
+  // could lock you out of acting. Nothing roots anybody now, and a stunned player has already
+  // returned out of this function long before here.)
   //
-  //   canAct        — you are not rooted. A locked-out player cannot arm.
   //   RISING EDGE   — `input.power && !prev.power`. Read as a LEVEL this fires on every tick
   //                   the button is down, and on a rollback client on every replayed tick
   //                   too. `prev` is {} on the first tick of a match, so a controller (or a
@@ -362,7 +485,7 @@ function stepPlayer(m, p, input, dt, fx) {
   // What it does NOT do is as important: it does not touch the gauge, it does not touch the
   // ball, it creates no attraction and fires no shot. The press is a promise; the ball is
   // what collects on it. See fireUltimateOnContact.
-  if (canAct && input.power && !prev.power && p.gauge >= 1 && p.armed <= 0) {
+  if (input.power && !prev.power && p.gauge >= 1 && p.armed <= 0) {
     p.armed = 1;                       // a flag, not a clock — see the note in constants.js
     m.events.push({ type: 'armed', player: p.index, shot: p.shot.id });
   }
@@ -476,12 +599,40 @@ function stepBall(m, dt, fx, a0 = 0, aSpan = 1) {
   const sub = Math.max(1, Math.min(8, Math.ceil(travel / (C.BALL_R * 0.5))));
   const sdt = dt / sub;
   for (let i = 0; i < sub; i++) {
+    // Where the ball starts this slice of its own travel. A goal is measured from here to
+    // where the travel ENDS — see enteredGoal — so that the entry is something the ball did
+    // and never something that was done to it.
+    const fromX = b.x, fromY = b.y;
     b.x += b.vx * sdt;
     b.y += b.vy * sdt;
     collideBounds(m, b, fx);
+    // DECIDED BEFORE THE PLAYERS ARE ASKED, and on the ball's own motion. resolveBallPlayers
+    // moves the ball — that is what a push-out is — and a ball that is in the net only because
+    // a body put it there has not scored. It gets to take a goal AWAY (checkGoal re-tests the
+    // final position, so a defender who hooks it back out has still saved it); it does not get
+    // to award one.
+    const scorer = enteredGoal(fromX, fromY, b);
     resolveBallPlayers(m, fx, a0 + aSpan * ((i + 1) / sub));
-    if (checkGoal(m, fx)) return;
+    if (scorer !== null && checkGoal(m, fx, scorer)) return;
   }
+}
+
+// A GOAL IS A CROSSING, NOT A PLACE.
+//
+// Returns the player who scored, or null. The ball must have been outside the opening at
+// `from`, be inside it now, and have travelled INTO that net to get there — position, plane
+// and direction, all three. Being near a goal, resting in one, or being carried into one are
+// all "not a crossing", which is the whole point: the only thing that counts is the ball's own
+// passage through the mouth of the correct net.
+function enteredGoal(fromX, fromY, b) {
+  const into = ballInGoal(b.x, b.y, b.r);
+  if (!into) return null;                            // not inside an opening
+  if (ballInGoal(fromX, fromY, b.r)) return null;    // already behind the line: nothing crossed
+  // …and it went IN. `inward` on the box points towards the middle of the PITCH, so a step
+  // along it is a step back out of the net; a goal is the other way (or straight down, which
+  // is a ball dropping in under the bar — hence the sign test and not a strict one).
+  if ((b.x - fromX) * into.inward > 0) return null;
+  return into.left ? 1 : 0;                          // the left net is player 1's goal
 }
 
 function collideBounds(m, b, fx) {
@@ -688,19 +839,51 @@ function tryHeader(m, p, fx) {
   // contact is a tick away in resolveBallPlayers, and it is worth more than a header.
   if (p.armed > 0) return false;
   const hy = headY(p);
-  const d = Math.hypot(b.x - p.x, b.y - hy);
+  const dx = b.x - p.x, dy = b.y - hy;
+  const d = Math.hypot(dx, dy);
   if (d > headR(m, p) + b.r + C.HEADER_R) return false;
+  // GRASS BALLS AREN'T HEADERS. HEADER_R is slack around the head circle for a near-miss on a
+  // real header — a ball roughly level with the head, whichever way the body happens to be
+  // facing (a retreating player still heads it forward; see the test for that). It was never
+  // meant to reach all the way down to a ball resting at the player's feet, and extended that
+  // far it let a grounded ball sitting close BEHIND the player count as headable too — a ball
+  // that gets nodded is a ball that teleports to in front of the head, so a low one clipping
+  // through your own back is the one shape of that bug that actually showed up. Below the
+  // head's own circle, only take the ball if it is out in front of the way the body is facing.
+  if (dy > headR(m, p) && dx * p.facing < 0) return false;
 
   const mult = p.stats.kick;
-  const dir = p.facing;
-  b.vx = dir * C.KICK_POWER * C.HEADER_POWER * mult + p.vx * 0.3;
-  b.vy = -C.KICK_LIFT * C.HEADER_LIFT * mult + p.vy * 0.3;
+  // Forward, like the boot — see the note on the kickDir latch. The kick button is one aim
+  // whichever part of the body answers it: a header that flew off along `facing` would put
+  // the ball behind you on exactly the retreat where the boot no longer does.
+  const dir = p.side;
+  // THE SAME COLLISION THE BOOT MAKES, on the other end of the body. A header used to be one
+  // number whatever arrived: a ball driven at your face and a ball rolled gently onto your
+  // forehead left at identical speed, which is the least physical thing the sim did.
+  //
+  //   meet  the pace the ball brings INTO the header, returned
+  //   drop  a ball falling onto the crown, turned back upward
+  //   rise  the jump itself, and this is the timing the move now has. Meet it on the way UP
+  //         and the whole rise is behind the contact; at the apex `p.vy` is zero and it is
+  //         just a header; on the way down you are heading it into the ground.
+  const meet = Math.max(0, -b.vx * dir);
+  const drop = Math.max(0, b.vy);
+  b.vx = dir * (C.KICK_POWER * C.HEADER_POWER * mult + meet * C.HEAD_MEET) + p.vx * 0.3;
+  b.vy = -(C.KICK_LIFT * C.HEADER_LIFT * mult + drop * C.HEAD_MEET) + p.vy * C.HEAD_RISE;
   b.spin = dir * 10;
   // Push the ball clear of the head, the way a block does. Without this the ball is still
   // inside the head circle on the same tick, the PASSIVE head branch in stepBall runs, and it
   // deadens the header it was supposed to be — measured as a 188px/s "shot" instead of 570.
+  //
+  // It is the biggest re-placement in the sim — the ball can be in front of the head and end
+  // up behind it, a hundred pixels away — which is why it is also the one that most needed
+  // keepOutOfGoal. Heading at a net you are standing in front of used to put the ball IN the
+  // net, through the post, and score it on the spot. Now the snap stops on the line and the
+  // shot this function just set is what carries it over.
+  const fromX = b.x, fromY = b.y;
   b.x = p.x + dir * (headR(m, p) + b.r + 2);
   b.y = hy - (headR(m, p) + b.r) * 0.35;
+  b.x = keepOutOfGoal(fromX, fromY, b.x, b.y, b.r);
   m.idle = 0;
   m.hitStop = Math.max(m.hitStop, C.HIT_STOP_KICK);
   m.events.push({ type: 'strike', player: p.index, x: b.x, y: b.y, power: false, head: true, aimed: true });
@@ -710,15 +893,30 @@ function tryHeader(m, p, fx) {
 
 function tryTackle(m, p, fx) {
   const foe = m.players[1 - p.index];
-  if (foe.tackleImmune > 0 || foe.knocked > 0) return false;
+  // Nothing to tackle: they are already down. This is the guard that used to read
+  // `foe.knocked > 0`, kept pointed at the state that replaced it — without it, booting a
+  // stunned player pays the tackler gauge for free and, worse, each boot's hit-stop stretches
+  // the time they spend on the floor.
+  if (foe.tackleImmune > 0 || foe.stunned > 0) return false;
 
-  const kx = p.x + p.facing * C.KICK_REACH;
+  // Where the boot IS, which is now always out in front of the attacking side — the same
+  // place the swing is drawn and the same place the ball can be struck from. A tackle box on
+  // `facing` would be a hit landed by a leg that is not there.
+  const kx = p.x + p.side * C.KICK_REACH;
   const ky = p.y - C.BODY_H * 0.45;
+  // THE WHOLE LEG, NOT JUST THE TOE. This used to test one circle sitting at the tip of the
+  // reach, which is exactly wrong for an opponent standing RIGHT ON TOP of you — closer than
+  // the tip, so the circle at the tip missed them entirely and the swing reached past their
+  // body to hit the ball behind it. A kick that goes through a player standing an inch away to
+  // strike a ball beyond them is the one shape of this bug that actually got reported, so the
+  // hit test now runs against the nearest point on the swing itself (body to tip), the way a
+  // leg that is actually attached to you would.
+  const legX = clamp(foe.x, Math.min(p.x, kx), Math.max(p.x, kx));
   // Their whole silhouette counts: head circle or body box.
-  const hitHead = Math.hypot(kx - foe.x, ky - headY(foe)) < C.KICK_R + headR(m, foe);
-  const nx = clamp(kx, foe.x - C.BODY_W / 2, foe.x + C.BODY_W / 2);
+  const hitHead = Math.hypot(legX - foe.x, ky - headY(foe)) < C.KICK_R + headR(m, foe);
+  const nx = clamp(legX, foe.x - C.BODY_W / 2, foe.x + C.BODY_W / 2);
   const ny = clamp(ky, bodyTop(foe), foe.y);
-  const hitBody = Math.hypot(kx - nx, ky - ny) < C.KICK_R;
+  const hitBody = Math.hypot(legX - nx, ky - ny) < C.KICK_R;
   if (!hitHead && !hitBody) return false;
 
   const dir = Math.sign(foe.x - p.x) || p.facing;
@@ -730,20 +928,31 @@ function tryTackle(m, p, fx) {
   // that is an activation from an unrelated collision, and it is the one that costs you a
   // full meter without ever producing the shot you armed for. So the arm now survives a
   // tackle untouched: you keep glowing, and the ball is still the only thing that spends it.
+  // A HIT COSTS CONDITION, NOT CONTROL.
+  //
+  // This used to set `slow` and `rooted`: the victim went grey, walked at 55% for 1.7s and
+  // could not act at all for a fifth of a second — three quarters of a second if it landed
+  // from behind. That is the hit the brief calls "grey, slow, stuck", and the trouble with it
+  // is that the punishment for being hit was not being allowed to play. Now the boot takes
+  // health, which the player can see on their own face and can play around, and the shove is
+  // all that happens to their movement.
+  //
+  // The front/back distinction survives, moved from the lockout to the damage: a hit you
+  // never saw hurts half again as much and shoves you less, so walking round behind somebody
+  // is still worth doing.
   const behind = foe.facing === dir;
-  foe.slow = C.TACKLE_SLOW_TIME;
-  foe.rooted = Math.max(foe.rooted, behind ? C.TACKLE_STUN_BACK : C.TACKLE_STUN);
   foe.vx = dir * C.TACKLE_PUSH * (behind ? C.TACKLE_PUSH_BACK : 1);
   foe.vy = Math.min(foe.vy, -C.TACKLE_LIFT * (behind ? C.TACKLE_PUSH_BACK : 1));
   foe.onGround = false;
   foe.dashT = 0;
   p.gauge = Math.min(1, p.gauge + C.TACKLE_GAUGE);
   foe.tackleImmune = C.TACKLE_IMMUNE;
+  const dealt = damage(m, foe, C.KICK_DAMAGE * (behind ? C.KICK_DAMAGE_BACK : 1));
 
   p.kickT = 0;                                   // the boot is spent on them, not the ball
   m.hitStop = Math.max(m.hitStop, C.HIT_STOP_TACKLE);
   m.events.push({ type: 'tackle', by: p.index, on: foe.index, x: kx, y: ky,
-                 powered: false, behind, shot: null });
+                 powered: false, behind, shot: null, damage: dealt, hp: foe.hp });
   fx.hit(kx, ky, '#ffd166', 1.6);
   return true;
 }
@@ -792,12 +1001,10 @@ function contactResponse(b, p, nx, ny, keep, carry, spinKeep) {
 function resolveBallPlayers(m, fx, alpha = 1) {
   const b = m.ball;
   for (const p of m.players) {
-    // A knocked-down player is on the floor: nothing collides with them. That IS the payoff
-    // of landing a power shot — the goal is briefly undefended.
-    if (p.knocked > 0) continue;
-    // Rooted (tentacles) still blocks normal play, but never the shot that rooted them —
-    // otherwise a trapping shot would trap the defender and then bounce off their face.
-    if (b.power && b.power.owner !== p.index && p.rooted > 0) continue;
+    // A STUNNED PLAYER IS STILL A BODY. They are out on their feet, not on the floor, so
+    // the ball goes on bouncing off them — there is no window here where a player becomes
+    // scenery. (There used to be: a knocked-down defender was pass-through, which is how a
+    // power shot bought itself an undefended goal. Power shots cost health now, not presence.)
 
     // The pose this sub-step collides against: swept from where the player started the tick
     // to where they finished it. Without it every test runs against the end pose and a
@@ -812,7 +1019,7 @@ function resolveBallPlayers(m, fx, alpha = 1) {
     // a phantom sphere beside the player rather than by the player. The ultimate wants a real
     // touch, so it lives on the head and torso below, where the silhouette actually is.
     if (p.kickT > 0) {
-      const dir = p.kickDir || p.facing;            // the aim, as latched at the swing
+      const dir = p.kickDir || p.side;              // the aim, as latched at the swing
       const kx = px + dir * C.KICK_REACH;
       const ky = py - C.BODY_H * 0.45;
       if (Math.hypot(b.x - kx, b.y - ky) < C.KICK_R + b.r) {
@@ -832,8 +1039,41 @@ function resolveBallPlayers(m, fx, alpha = 1) {
           const bow = towardsGoal
             ? Math.max(0, Math.min(1, (range - C.KICK_BOW_MIN) / (C.W - C.KICK_BOW_MIN))) * C.KICK_AIM
             : 0;
-          b.vx = dir * C.KICK_POWER * mult * drive + p.vx * 0.4;
-          b.vy = -C.KICK_LIFT * mult * lift * (1 + C.KICK_BOW * bow) + p.vy * 0.3;
+          // WHICH PART OF THE BOOT GOT THERE. Until now the kick circle was a switch: touch it
+          // anywhere and you got the one shot. The ball's position INSIDE the circle is the
+          // whole of the aiming that a kick has, so read it — see KICK_TOE_LOFT for the shape.
+          //
+          //   along  -1 at the ankle end … +1 at the toe cap
+          //   under   how far the boot is beneath the ball's centre. About 0 for a ball rolling
+          //           on the grass (the circle sits at that height), positive for one dropping
+          //           onto the foot, which is the chip.
+          const along = clamp(((b.x - kx) * dir) / C.KICK_R, -1, 1);
+          const toe = (along + 1) / 2;                     // 0 = the whole foot, 1 = the toe cap
+          const under = clamp((ky - b.y) / (C.KICK_R + b.r), -1, 1);
+          let loft = clamp(1 + (0.5 - toe) * C.KICK_TOE_LOFT + under * C.KICK_UNDER_LOFT,
+                           C.KICK_LOFT_MIN, C.KICK_LOFT_MAX);
+          // THE LOB IS STILL AN AIM, NOT AN ACCIDENT. Holding jump means you got your foot
+          // under it on purpose, so a toe-end contact may not flatten the one shot whose whole
+          // job is to go over a defender's head.
+          if (p.kickLob) loft = Math.max(loft, 1);
+          // Energy is not created here: the loft a toe-poke gives up comes back as pace, so the
+          // flat shot is the hard one and the scoop is the soft one. And the flat one is faster
+          // again for a reason that is not in this line at all — BALL_MAX_SPEED is a budget on
+          // the whole velocity, and a shot that climbs spends most of it climbing.
+          const punch = 1 + (toe - 0.5) * C.KICK_TOE_DRIVE;
+
+          // MEETING IT. The pace the ball brings INTO the boot comes back out of it: that is
+          // the difference between a volley and a tap, and it used to not exist — the strike
+          // assigned a velocity and the ball's own was simply discarded. Only what is coming AT
+          // the swing counts (a ball running away is caught up with, not struck), and the
+          // vertical half rides the LOFT, so a ball dropped onto a toe-poke still goes flat
+          // rather than being launched by its own fall.
+          const meet = Math.max(0, -b.vx * dir);
+          const drop = Math.max(0, b.vy);
+
+          b.vx = dir * (C.KICK_POWER * mult * drive * punch + meet * C.KICK_MEET) + p.vx * 0.4;
+          b.vy = -(C.KICK_LIFT * mult * lift * loft * (1 + C.KICK_BOW * bow)
+                   + drop * C.KICK_MEET * loft) + p.vy * 0.3;
           b.spin = dir * 14;
           p.kickT = 0;
           m.hitStop = Math.max(m.hitStop, C.HIT_STOP_KICK);
@@ -850,7 +1090,14 @@ function resolveBallPlayers(m, fx, alpha = 1) {
     const d = Math.hypot(dx, dy);
     const min = headR(m, p) + b.r;
     if (d < min) {
-      if (b.power && b.power.owner !== p.index) { hitByPowerShot(m, p, b, fx); return; }
+      if (b.power && b.power.owner !== p.index) {
+        // ARMED BEATS INCOMING. A touch that would otherwise be a block is instead the trigger
+        // for your OWN ultimate when you are already armed for it — their shot is cancelled,
+        // not absorbed, and yours goes out from the same spot. See the note above
+        // fireUltimateOnContact for why this has to run before hitByPowerShot rather than after.
+        if (p.armed > 0 && fireUltimateOnContact(m, p, b, fx)) return;
+        hitByPowerShot(m, p, b, fx); return;
+      }
       // THE ULTIMATE FIRES HERE. Head-to-ball is a real touch of the silhouette, so an armed
       // player who runs or jumps into the ball spends the arm on it. Checked before the
       // deaden below, or the touch that should have launched a power shot would first be
@@ -872,8 +1119,16 @@ function resolveBallPlayers(m, fx, alpha = 1) {
       // boots: pushing a low ball out along it drives the ball into the pitch, and
       // collideBounds shoves it straight back — a 5px buzz rather than a resolution. Stop at
       // the grass; the torso below is what ejects it sideways, on the fall-through.
+      // And stop at the GOAL LINE too, for the same reason: this push-out is 42px long from
+      // the head's centre, so a player standing in their own mouth can put the ball down
+      // behind the line rather than in front of it. enteredGoal already refuses to score that
+      // — it is read before this runs — but refusing is only half an answer: an unscored ball
+      // sitting in the net is a match waiting on the idle reset. Measured over 120 bot matches,
+      // this is the difference between one such ball (6.9s of nothing) and none.
+      const fromX = b.x, fromY = b.y;
       b.x = px + nx * min;
       b.y = Math.min(hy + ny * min, C.GROUND_Y - b.r);
+      b.x = keepOutOfGoal(fromX, fromY, b.x, b.y, b.r);
 
       // "Head bounces, body deadens" has to be a rule about HEIGHT, not about which collider
       // you clipped. At real Head Soccer proportions the character is ~80% head, so the torso
@@ -965,7 +1220,11 @@ function resolveBallPlayers(m, fx, alpha = 1) {
       const side = Math.abs(p.vx) > 40 ? Math.sign(p.vx) : (Math.sign(b.x - px) || 1);
       nx = side; ny = 0; sx = px + side * halfW; sy = b.y;
     }
-    if (b.power && b.power.owner !== p.index) { hitByPowerShot(m, p, b, fx); return; }
+    if (b.power && b.power.owner !== p.index) {
+      // Same override as the head branch: armed beats incoming, body touch included.
+      if (p.armed > 0 && fireUltimateOnContact(m, p, b, fx)) return;
+      hitByPowerShot(m, p, b, fx); return;
+    }
     // …and the torso is the other half of the silhouette, so it is the other half of the
     // trigger. Barging into the ball while armed fires it exactly as heading it does.
     if (fireUltimateOnContact(m, p, b, fx)) return;
@@ -973,7 +1232,15 @@ function resolveBallPlayers(m, fx, alpha = 1) {
     // HEAD BOUNCES, BODY DEADENS (Adam, 2026-08-21). Running into the ball used to
     // pinball it away, so most touches were accidents rather than decisions. Now your
     // torso kills it and drops it at your feet, and only a kick sends it anywhere.
+    // Clamped at the goal line for the same reason the head is: a defender standing ON their
+    // own line has a torso that straddles it, and squeezing the ball out of the back face puts
+    // it down behind the line. That was the commonest shape of the reported bug — 526 of the
+    // scripted near-goal scenarios in this pass scored off it, from balls that were at rest or
+    // moving AWAY from the net — and without the clamp the ball is merely left sitting in a
+    // goal it did not score in.
+    const fromX = b.x, fromY = b.y;
     b.x = sx + nx * b.r; b.y = sy + ny * b.r;
+    b.x = keepOutOfGoal(fromX, fromY, b.x, b.y, b.r);
     contactResponse(b, p, nx, ny, C.BODY_DEADEN, 0.22, 0.5);
     fx.hit(b.x, b.y, '#cfd8ea', 0.4);
   }
@@ -996,11 +1263,18 @@ function resolveBallPlayers(m, fx, alpha = 1) {
 //
 // AND IT IS THE ONLY PLACE THE METER IS SPENT. Arming does not spend it, lapsing does not
 // spend it, tackling does not spend it. A gauge that went down means a power shot exists.
+//
+// A live ball can already be someone ELSE's power shot when this runs — the two call sites in
+// resolveBallPlayers try this before hitByPowerShot whenever the toucher is armed. Converting
+// it is fine: it is still a real touch of the silhouette, the same touch that would otherwise
+// have cost this player a block's worth of health. Only a shot already flying under this
+// player's OWN name is off-limits, since there is nothing left there to spend the arm on.
 function fireUltimateOnContact(m, p, b, fx) {
   if (p.armed <= 0) return false;
-  if (b.power) return false;          // already a live power shot: nothing to convert
-  if (p.knocked > 0 || p.rooted > 0) return false;   // not a touch you made
+  if (b.power && b.power.owner === p.index) return false;
+  if (p.stunned > 0) return false;                   // not a touch you made
 
+  const countered = !!b.power;
   p.armed = 0;
   p.gauge = 0;
   m.idle = 0;
@@ -1009,7 +1283,7 @@ function fireUltimateOnContact(m, p, b, fx) {
   // trigger rather than a second implementation of one.
   launchPowerShot(b, p, p.shot, p.side);
   m.hitStop = Math.max(m.hitStop, C.HIT_STOP_POWER);
-  m.events.push({ type: 'powershot', player: p.index, shot: p.shot.id, ultimate: true });
+  m.events.push({ type: 'powershot', player: p.index, shot: p.shot.id, ultimate: true, countered });
   fx.shockwave(b.x, b.y, p.shot.color);
   return true;
 }
@@ -1017,38 +1291,49 @@ function fireUltimateOnContact(m, p, b, fx) {
 // A power shot that reaches a defender is BLOCKED, not a battering ram. It used to punch
 // straight through and knock them down, which made every power shot an automatic goal and
 // left the defender nothing to do. Now getting in the way — usually by jumping into its
-// path — actually saves it. The block still costs you: you eat the shooter's signature
-// effect, so you save the goal and pay for it.
+// path — actually saves it. The block still costs you: you take the shot on the body, which
+// is the heaviest hit in the game, so you save the goal and pay for it.
+//
+// What you pay is HEALTH. This used to call applyEffect and hand you the shooter's signature
+// consequence — burned, rooted, slowed, shoved — which meant the reward for the best defensive
+// act in the game was a second of not being allowed to play. POWER_DAMAGE is more than twice a
+// boot, so three blocks still bottom a defender out; they just spend that time playing.
 function hitByPowerShot(m, p, b, fx) {
   const pw = b.power;
   const shot = pw.shot;
   m.hitStop = Math.max(m.hitStop, C.HIT_STOP_POWER);
 
-  applyEffect(shot, p, pw.dir);
+  const dealt = damage(m, p, C.POWER_DAMAGE);
 
   // The ball comes off the block, back toward the pitch.
   b.vx = -pw.dir * Math.abs(b.vx) * C.POWER_BLOCK_REBOUND;
   b.vy = -Math.abs(b.vy) * 0.4 - 180;
   b.power = null;
-  b.x = p.x - pw.dir * (headR(m, p) + b.r + 4);
+  b.x = keepOutOfGoal(b.x, b.y, p.x - pw.dir * (headR(m, p) + b.r + 4), b.y, b.r);
   m.idle = 0;
 
-  m.events.push({ type: 'blocked', player: p.index, by: pw.owner, shot: shot.id, effect: shot.effect.kind });
+  m.events.push({ type: 'blocked', player: p.index, by: pw.owner, shot: shot.id,
+                 damage: dealt, hp: p.hp });
   fx.shockwave(p.x, headY(p), shot.color);
 }
 
 // ---------------------------------------------------------------------------
-// Returns true when a goal was scored this sub-step, so the ball loop stops moving.
-function checkGoal(m, fx) {
+// Awards the goal `enteredGoal` has already established, and returns true so the ball loop
+// stops moving. `scorer` came from a CROSSING; this is the last look at the ball before the
+// scoreboard moves.
+//
+// The phase guard is also what stops one entry being counted twice: the first sub-step through
+// the mouth leaves the match in 'goal', and every later one — this tick's remaining slices
+// included — walks straight past.
+function checkGoal(m, fx, scorer) {
   if (m.phase !== 'play') return false;
   const b = m.ball;
-  // The WHOLE ball has to be in the net — past the line AND under the bar. Testing the
-  // centre meant a ball sitting half-on-top of the crossbar scored.
-  if (b.y - b.r <= C.GROUND_Y - C.GOAL_H) return false;    // any part still above the bar
-  let scorer = null;
-  if (b.x + b.r < C.GOAL_W) scorer = 1;                    // fully into the LEFT net
-  else if (b.x - b.r > C.W - C.GOAL_W) scorer = 0;
-  if (scorer === null) return false;
+  // STILL IN, after the contacts for this sub-step have had their say. The crossing was the
+  // ball's; this is the defender's answer to it — a keeper whose push-out pulled the ball back
+  // out of his own net has made a save, not conceded. The WHOLE ball has to be in the opening:
+  // testing the centre meant a ball sitting half-on-top of the crossbar scored.
+  const into = ballInGoal(b.x, b.y, b.r);
+  if (!into || (into.left ? 1 : 0) !== scorer) return false;
 
   m.score[scorer]++;
   m.lastScorer = scorer;
@@ -1096,10 +1381,17 @@ const P_FIELDS = [
   'kickT', 'kickCd', 'dashT', 'dashCd', 'dashDir', 'tapDir', 'tapT',
   // `armed` is the ultimate AND the glow, so a client that restores without it either glows
   // at nothing or misses the touch that should have fired.
-  'gauge', 'armed', 'knocked', 'rooted', 'shoved', 'kickLob', 'kickDir',
+  'gauge', 'armed', 'shoved', 'kickLob', 'kickDir',
   // Added with the tackle + jump-feel pass. Anything that can change a future step has to
   // travel, or a reconciling client re-runs the last 30 ticks with the wrong state.
-  'slow', 'tackleImmune', 'coyote', 'jumpBuf',
+  'tackleImmune', 'coyote', 'jumpBuf',
+  // CONDITION. `stunned` obviously has to travel — it decides whether input is read at all —
+  // and `hp` does too for two separate reasons: it is what the next hit is subtracted from,
+  // so a stale one changes whether that hit stuns, and it is the only thing the character's
+  // damaged look is derived from. This is the seat the old `effectId`/`effectT` pair sat in,
+  // and it is here for the same reason they were: leave a field the PICTURE reads out of this
+  // list and every reconcile flickers it back to healthy a few times a second.
+  'hp', 'stunned',
 ];
 
 export function serialize(m) {
