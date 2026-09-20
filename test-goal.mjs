@@ -19,7 +19,7 @@
 import * as C from './shared/constants.js';
 import { createMatch, step, headY, NO_FX } from './shared/sim.js';
 import { goalBox, goalAt, depthPoint, depthZ, project, walkBounds, barY, barCeiling,
-         NEAR_Z, FAR_Z, INSIDE_Z } from './shared/goalbox.js';
+         ballInGoal, keepOutOfGoal, NEAR_Z, FAR_Z, INSIDE_Z } from './shared/goalbox.js';
 
 let pass = 0, fail = 0;
 const ok = (name, cond, extra = '') => {
@@ -747,6 +747,293 @@ const dropAt = (sx, fromY) => {
     }
     ok(`${left ? 'left' : 'right'}: every height under the bar still scores`, missed.length === 0,
        missed.length ? `${missed.length} heights blocked: ${missed.slice(0, 8).join(', ')}` : 'nothing blocked');
+  }
+}
+
+// ═══ 9. A GOAL IS A CROSSING, NOT A PLACE ══════════════════════════════════
+//
+// Reported: "sometimes when the ball hits a player near the goal it sticks to them for a
+// moment and it counts as a goal, even though the ball never went in."
+//
+// It did not go in. It was PUT in. Every ball-versus-player response in the sim re-places the
+// ball, and the biggest of them is the header's: tryHeader snaps the ball to a fixed offset on
+// the side of the head the header is aimed at, so a ball 50px in FRONT of a player can be set
+// down 44px BEHIND them — a hundred-pixel jump, through the player and through whatever else
+// is in the way. Stand a yard off the goal line and head at it and "whatever else" is the post.
+//
+// (The scenario used to be built the other way round: a defender FACING his own net, heading
+// backwards into it. The boot and the header both go toward the goal you attack now, whatever
+// direction you are facing, so the geometry is the same picture reflected — an attacker on the
+// line heading in — and it fences the same snap.)
+// checkGoal only ever asked WHERE the ball was, so the frame after the snap it found a ball
+// behind the line and moved the scoreboard. Measured over 120 bot-vs-bot matches before the
+// fix: 28 of 453 goals — one in sixteen — arrived that way, some from balls headed UP and away
+// from the goal, one of them from a ball set down at x = −19, behind the back of the pitch.
+//
+// Two halves to the fix, and this section fences both:
+//   · enteredGoal (shared/sim.js) makes the goal a CROSSING — outside the opening, then inside
+//     it, moving into that net — measured on the ball's own travel and read BEFORE the players
+//     are asked, so no contact can award a goal.
+//   · keepOutOfGoal (shared/goalbox.js) stops the big re-placements at the line, so a ball
+//     cannot be left sitting in a net it is not allowed to have scored in.
+//
+// Everything here runs on BOTH goals. The two nets are one piece of code reflected, and a rule
+// that only holds at one end is a rule that does not hold.
+{
+  const LINE = (left) => (left ? C.GOAL_W : C.W - C.GOAL_W);
+  const OUT = (left) => (left ? 1 : -1);          // from the goal line towards the pitch
+  const CONCEDER = (left) => (left ? 0 : 1);      // whose net this is
+  const SCORER = (left) => (left ? 1 : 0);        // …and who therefore scores in it
+  const side = (left) => (left ? 'left' : 'right');
+
+  // Hold a player at a spot for the whole experiment. Standing still is not the same as being
+  // parked: gravity, the ground clamp and separatePlayers all still run, and a player who
+  // drifts a pixel a tick is not the player the test placed.
+  const pin = (p, x) => { p.x = x; p.y = C.GROUND_Y; p.vx = 0; p.vy = 0; p.onGround = true; };
+
+  // ---- the bug itself: a header from right on top of the goal line --------
+  for (const left of [true, false]) {
+    // Held at kickoff so the scorer is switched off and the PLACEMENT can be read directly —
+    // this asks where the snap put the ball, not what the scoreboard did about it.
+    const m = noWhistle();
+    const d = m.players[SCORER(left)], other = m.players[CONCEDER(left)];
+    pin(other, C.W / 2);
+    // 25px out: close enough that the raw snap (headR + BALL_R + 2 = 44px the other way) lands
+    // the WHOLE ball behind the line. That is the geometry the bug needed, and it is the
+    // geometry a defender clearing their line is actually in.
+    pin(d, LINE(left) + OUT(left) * 25);          // on the pitch, a yard off the line
+    // No facing is set: it no longer decides anything here. The header goes at the goal this
+    // player attacks, which is the one they are standing on top of. The ball sits IN FRONT of
+    // that attack, 20px closer to the line than the player — the shape a real turning header
+    // near the mouth is actually in — never behind (see the "no teleport" block below for what
+    // happens then).
+    d.prev = {};
+    const b = m.ball;
+    b.x = d.x - OUT(left) * 20; b.y = headY(d); b.vx = 0; b.vy = 0;   // at their head
+    const raw = d.x - OUT(left) * (C.HEAD_R + b.r + 2);
+    ok(`${side(left)}: (the unclamped snap really would have been in the net)`,
+       !!ballInGoal(raw, headY(d) - (C.HEAD_R + b.r) * 0.35, b.r), `raw snap x=${raw.toFixed(1)}`);
+    // Stepped with a dt of nothing, so the tick is all stepPlayer and no ball travel: what is
+    // read below is the SNAP, on its own, before the header's own velocity has moved the ball
+    // a pixel. (A full tick cannot answer this. The snap leaves the ball on the line and the
+    // shot then carries it over inside the same tick — correctly, because that is a goal the
+    // player chose to head — so a full tick shows a ball in the net either way. What the fix
+    // changes is whether it got there by crossing the line or by being put behind it.)
+    const input = [{}, {}]; input[d.index] = { kick: true };
+    m.hitStop = 0;
+    step(m, input, 1e-6, NO_FX);
+    ok(`${side(left)}: the header fired`, m.events.some((e) => e.type === 'strike' && e.aimed),
+       JSON.stringify(m.events));
+    ok(`${side(left)}: a header does not snap the ball through the post`,
+       !ballInGoal(b.x, b.y, b.r), `ball at ${b.x.toFixed(1)}, line ${LINE(left)}`);
+    ok(`${side(left)}: …it is set down exactly on the line`,
+       Math.abs((b.x + OUT(left) * b.r) - LINE(left)) < 0.05 && !ballInGoal(b.x, b.y, b.r),
+       `ball at ${b.x.toFixed(3)}`);
+  }
+
+  // ---- no header ever crosses the body: a ball BEHIND the attack does not fire one ---------
+  //
+  // Reported: the ball teleporting from behind a player to in front of them, fast, at head
+  // height. That was this exact header: it always launches toward `dir` and always re-places
+  // the ball out in front of the head on that side, whichever side the ball actually struck
+  // from. A ball 20px behind `dir` has nowhere to go but through the player's own silhouette to
+  // land there, and that crossing is what read as a teleport. A header may no longer fire on a
+  // ball that starts behind the attack at all — the passive head touch two branches down still
+  // answers the press with a normal bounce, just without the forward launch or the reach-around.
+  for (const left of [true, false]) {
+    const m = noWhistle();
+    const d = m.players[SCORER(left)], other = m.players[CONCEDER(left)];
+    pin(other, C.W / 2);
+    pin(d, C.W / 2);
+    d.prev = {};
+    const b = m.ball;
+    // 20px BEHIND the attack direction — the same magnitude the section above puts in front.
+    b.x = d.x + OUT(left) * 20; b.y = headY(d); b.vx = 0; b.vy = 0;
+    const beforeX = b.x;
+    const input = [{}, {}]; input[d.index] = { kick: true };
+    m.hitStop = 0;
+    step(m, input, 1e-6, NO_FX);
+    ok(`${side(left)}: no aimed header fires on a ball behind the attack`,
+       !m.events.some((e) => e.type === 'strike' && e.aimed), JSON.stringify(m.events));
+    // The passive head touch still answers the contact — a normal bounce off the surface it
+    // actually hit, not the header's forward launch — and that alone may move the ball a few
+    // px. What it may never do is put the ball down on the OTHER side of the player: that flip
+    // is the teleport, whatever pushed it.
+    ok(`${side(left)}: …and the ball is not snapped across the player`,
+       Math.sign(b.x - d.x) === Math.sign(beforeX - d.x),
+       `moved from ${beforeX.toFixed(1)} to ${b.x.toFixed(1)}, player at ${d.x.toFixed(1)}`);
+  }
+  {
+    // keepOutOfGoal itself, at the two ends and in the three cases it distinguishes.
+    const y = C.GROUND_Y - 40, r = C.BALL_R;
+    const stopL = keepOutOfGoal(C.GOAL_W + 50, y, C.GOAL_W - 50, y, r);
+    const stopR = keepOutOfGoal(C.W - C.GOAL_W - 50, y, C.W - C.GOAL_W + 50, y, r);
+    ok('a jump into the left net is stopped with the ball ON the line',
+       Math.abs((stopL + r) - C.GOAL_W) < 0.05 && !ballInGoal(stopL, y, r), `x=${stopL}`);
+    ok('a jump into the right net is stopped with the ball ON the line',
+       Math.abs((stopR - r) - (C.W - C.GOAL_W)) < 0.05 && !ballInGoal(stopR, y, r), `x=${stopR}`);
+    ok('a jump that stays on the pitch is left alone',
+       keepOutOfGoal(400, y, 300, y, r) === 300);
+    ok('and a contact INSIDE the net is left alone — a keeper may clear his own line',
+       keepOutOfGoal(30, y, 20, y, r) === 20);
+    ok('nothing is clamped above the bar, where there is no mouth',
+       keepOutOfGoal(C.GOAL_W + 50, barY() - 50, 20, barY() - 50, r) === 20);
+  }
+  for (const left of [true, false]) {
+    // The same header, with the whistle on. It is still a goal — the shot tryHeader just set
+    // carries the ball over the line under its own steam — so the fix must not have cost the
+    // goal, only the teleport.
+    const m = fresh();
+    const d = m.players[SCORER(left)];
+    pin(m.players[CONCEDER(left)], C.W / 2);
+    pin(d, LINE(left) + OUT(left) * 25);
+    d.prev = {};
+    const b = m.ball;
+    b.x = d.x - OUT(left) * 20; b.y = headY(d); b.vx = 0; b.vy = 0;
+    run(m, 30, (i) => { const inp = [{}, {}]; if (i === 0) inp[d.index] = { kick: true }; return inp; });
+    ok(`${side(left)}: a header from on top of the line still scores`,
+       m.score[SCORER(left)] === 1, `score ${m.score}`);
+  }
+
+  // ---- 1. touching the ball beside the goal is not scoring ----------------
+  for (const left of [true, false]) {
+    // A player stood beside the post with the ball driven onto them. The ball is level with
+    // the mouth and a body-width from the line: every frame of this is a contact, and not one
+    // of them is a goal.
+    const m = fresh();
+    const keeper = m.players[CONCEDER(left)];
+    pin(m.players[SCORER(left)], C.W / 2);
+    const at = LINE(left) + OUT(left) * (C.BODY_W / 2 + 6);
+    const b = m.ball;
+    b.x = at + OUT(left) * 120; b.y = C.GROUND_Y - 40; b.vx = -OUT(left) * 420; b.vy = 0;
+    run(m, 90, () => { pin(keeper, at); return NONE; });
+    ok(`${side(left)}: a player touching the ball beside the goal does not score`,
+       m.score[0] + m.score[1] === 0, `score ${m.score} ball x=${b.x.toFixed(1)}`);
+  }
+
+  // ---- 2. a ball that sticks to a player beside the goal is not scoring ---
+  for (const left of [true, false]) {
+    // The torso DEADENS: a ball run into it drops at the player's feet and stays with them,
+    // which is the "sticks to the player" in the report. Three seconds of it, right beside the
+    // post, has to leave the scoreboard where it was.
+    const m = fresh();
+    const keeper = m.players[CONCEDER(left)];
+    pin(m.players[SCORER(left)], C.W / 2);
+    const at = LINE(left) + OUT(left) * (C.BODY_W / 2 + 2);
+    const b = m.ball;
+    b.x = at - OUT(left) * (C.BODY_W / 2 + b.r - 3);       // already half inside the torso
+    b.y = C.GROUND_Y - b.r; b.vx = 0; b.vy = 0;
+    let touching = 0;
+    run(m, ticks(3), () => { pin(keeper, at); return NONE; });
+    for (let i = 0; i < ticks(3); i++) {
+      pin(keeper, at);
+      m.hitStop = 0;
+      step(m, NONE, C.TICK, NO_FX);
+      if (Math.abs(b.x - keeper.x) < C.BODY_W / 2 + b.r + 1) touching++;
+      m.events.length = 0;
+    }
+    ok(`${side(left)}: a ball stuck to a player beside the goal does not score`,
+       m.score[0] + m.score[1] === 0, `score ${m.score} ball x=${b.x.toFixed(1)}`);
+    ok(`${side(left)}: (and it really was stuck to them)`, touching > ticks(2),
+       `${touching} of ${ticks(3)} ticks in contact`);
+  }
+
+  // ---- 3. a ball through the mouth scores, exactly once -------------------
+  for (const left of [true, false]) {
+    const m = fresh();
+    clearThePitch(m);
+    const b = m.ball;
+    b.x = LINE(left) + OUT(left) * 150; b.y = C.GROUND_Y - 50;
+    b.vx = -OUT(left) * 700; b.vy = 0;
+    const seen = run(m, 120);
+    const goals = seen.filter((e) => e.type === 'goal');
+    ok(`${side(left)}: a ball through the mouth scores`, m.score[SCORER(left)] === 1, `score ${m.score}`);
+    ok(`${side(left)}: …and scores ONCE`, goals.length === 1 && m.score[0] + m.score[1] === 1,
+       `${goals.length} goal events, score ${m.score}`);
+  }
+
+  // ---- 4. near the goal but outside the opening is not scoring ------------
+  for (const left of [true, false]) {
+    // Rolled along the ground straight at the post, at a height that is under the bar but on
+    // the wrong side of the line. It rattles, it sits there, it is not a goal.
+    const m = fresh();
+    clearThePitch(m);
+    const b = m.ball;
+    b.x = LINE(left) + OUT(left) * (b.r + 1); b.y = C.GROUND_Y - b.r;
+    b.vx = OUT(left) * 40; b.vy = 0;                      // drifting AWAY from the net
+    run(m, 120);
+    ok(`${side(left)}: a ball beside the goal, never in it, does not score`,
+       m.score[0] + m.score[1] === 0, `score ${m.score} ball x=${b.x.toFixed(1)}`);
+  }
+  for (const left of [true, false]) {
+    // Over the bar: past the line in x, but above the opening. The arena wall is what it meets.
+    const m = fresh();
+    clearThePitch(m);
+    const b = m.ball;
+    b.x = LINE(left) + OUT(left) * 150; b.y = barY() - b.r - 20;
+    b.vx = -OUT(left) * 700; b.vy = 0;
+    run(m, 60);
+    ok(`${side(left)}: a ball over the bar does not score`, m.score[0] + m.score[1] === 0, `score ${m.score}`);
+  }
+
+  // ---- 5. the frame is not a way in --------------------------------------
+  for (const left of [true, false]) {
+    // Driven flat AT bar height: it meets the frame, and the frame is not a doorway. Same
+    // geometry test-sim fences at the left goal; here it is both ends.
+    const m = fresh();
+    clearThePitch(m);
+    const b = m.ball;
+    b.x = LINE(left) + OUT(left) * 90; b.y = barY();
+    b.vx = -OUT(left) * 700; b.vy = 0;
+    run(m, 60);
+    ok(`${side(left)}: a shot onto the post/bar does not score`, m.score[0] + m.score[1] === 0, `score ${m.score}`);
+  }
+  for (const left of [true, false]) {
+    // Dropped onto the roof of the net, between the post and the back.
+    const m = fresh();
+    clearThePitch(m);
+    const b = m.ball;
+    b.x = LINE(left) - OUT(left) * (C.GOAL_W / 2); b.y = barY() - b.r - C.POST_R - 4;
+    b.vx = 0; b.vy = 700;
+    run(m, 90);
+    ok(`${side(left)}: a ball dropped on the crossbar does not score`,
+       m.score[0] + m.score[1] === 0, `score ${m.score}`);
+  }
+
+  // ---- 6. symmetry -------------------------------------------------------
+  {
+    // The same shot at each net, mirrored, has to give the same answer at the same moment.
+    const when = (left) => {
+      const m = fresh();
+      clearThePitch(m);
+      const b = m.ball;
+      b.x = LINE(left) + OUT(left) * 150; b.y = C.GROUND_Y - 50;
+      b.vx = -OUT(left) * 700; b.vy = 0;
+      const seen = run(m, 120);
+      const g = seen.find((e) => e.type === 'goal');
+      return g ? { tick: g.i, player: g.player } : null;
+    };
+    const L = when(true), R = when(false);
+    ok('both goals score on the same tick from the mirrored shot',
+       L && R && L.tick === R.tick, `left ${JSON.stringify(L)} right ${JSON.stringify(R)}`);
+    ok('…and each credits the player attacking that net', L?.player === 1 && R?.player === 0,
+       `left ${L?.player} right ${R?.player}`);
+  }
+
+  // ---- 7. a goal still restarts the match --------------------------------
+  for (const left of [true, false]) {
+    const m = fresh();
+    clearThePitch(m);
+    const b = m.ball;
+    b.x = LINE(left) + OUT(left) * 150; b.y = C.GROUND_Y - 50;
+    b.vx = -OUT(left) * 700; b.vy = 0;
+    run(m, 120);
+    ok(`${side(left)}: the goal freezes play`, m.phase === 'goal' && m.freeze > 0, `phase ${m.phase}`);
+    ok(`${side(left)}: both players go back to the spot`,
+       Math.abs(m.players[0].x - C.SPAWN_X[0]) < 1 && Math.abs(m.players[1].x - C.SPAWN_X[1]) < 1);
+    ok(`${side(left)}: and the ball goes back to the middle`,
+       Math.abs(b.x - C.BALL_SPAWN.x) < 1 && Math.abs(b.y - C.BALL_SPAWN.y) < 1,
+       `ball at ${b.x.toFixed(1)},${b.y.toFixed(1)}`);
   }
 }
 

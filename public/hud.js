@@ -7,9 +7,9 @@
 // The match clock, the way a football scoreboard writes it: M:SS, seconds always two digits,
 // counting the second you are IN rather than the one you have finished — so a 60-second match
 // opens on 1:00 and the last whole second on the board is 0:01, not 0:00 held for two ticks.
-// Golden goal has no number to show, so it keeps the two Hebrew letters it always had.
+// Golden goal has no number to show, so it names the rule instead.
 export function clockText(clock, golden = false) {
-  if (golden) return 'ג.ג';
+  if (golden) return 'גול מכריע';
   const s = Math.max(0, Math.ceil(Number.isFinite(clock) ? clock : 0));
   return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
 }

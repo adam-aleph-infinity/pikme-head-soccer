@@ -456,6 +456,11 @@ function arm(m, i) {
   for (let i = 0; i < 4000 && m.phase !== 'over'; i++) {
     const before = [m.players[0].gauge, m.players[1].gauge];
     step(m, [botInput(bots[0], m, 0, C.TICK), botInput(bots[1], m, 1, C.TICK)]);
+    // FULL TIME clears both meters on purpose (clearUltimate), so nobody is left glowing on the
+    // results screen. That is an explained drop, and it only shows up here when the match
+    // actually finishes inside the 4000 ticks — which it does now that there are fewer goals
+    // and so fewer goal freezes to push it past the whistle.
+    if (m.events.some((e) => e.type === 'fulltime')) { m.events.length = 0; break; }
     const fired = new Set(m.events.filter((e) => e.type === 'powershot').map((e) => e.player));
     for (let k = 0; k < 2; k++) {
       if (m.players[k].gauge < before[k] - 1e-9 && !fired.has(k)) unexplained++;

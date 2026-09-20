@@ -140,7 +140,6 @@ body.safedemo { --safe-l: 44px; --safe-r: 44px; --safe-b: 21px; --safe-t: 12px; 
 .head.p1 { outline: 3px solid var(--p1); }
 .head.armed { animation: armed .55s infinite alternate; }
 @keyframes armed { from { box-shadow: 0 0 0 0 #ffb80000; } to { box-shadow: 0 0 22px 6px #ffb800cc; } }
-.head.knocked { filter: grayscale(.6) brightness(.7); }
 
 /* ── THE SCOREBOARD ───────────────────────────────────────────────────────────
    Was three numbers on one baseline inside a black box, flanked by two more black boxes
@@ -611,12 +610,17 @@ body[data-mode="duo"] #slotFoe { opacity: .45; pointer-events: none; }
      strip of screen the pad is inset by, is not scaled either, so a hit margin that grew
      with a resized button would hang its bottom off the phone. A button the player has
      already made bigger needs less help anyway. */
-  --hx: calc(var(--u) * 0.12);
-  --hy: calc(var(--u) * 0.12);
-  /* 1.12, not the 1.24 this started at. The hand of cards lives BETWEEN the two thumb
-     groups, and centreRow() stacks it above the pad when the gap drops under ~172px at
-     667x375. 1.24 ate that budget and pushed three cards over the pitch — measured, not
-     guessed. Fat arrows are worth 12%; they are not worth the cards moving. */
+  --hx: calc(var(--u) * 0.14);
+  --hy: calc(var(--u) * 0.15);
+  /* hx nudged from 0.12 to 0.14, not the 0.24 this once tried. The hand of cards lives
+     BETWEEN the two thumb groups, and centreRow() stacks it above the pad when the gap drops
+     under ~172px at 667x375 — 0.24 ate that budget and pushed three cards over the pitch,
+     measured, not guessed. Sideways growth is capped by that budget.
+     hy has its own ceiling: --edge (0.17u) is how far the pad sits off the bottom of the
+     screen, and margin-block pulls the button's box down by hy past that — go past 0.17 and
+     the bottom of the hit box runs off the bottom of a short landscape phone (measured: 0.20
+     put it 2px past a 667x375 screen, dead space no finger can be in). 0.15 stays under that
+     with a real margin. */
   min-width: calc(var(--u) * var(--s) * 1.08 + var(--hx));
   height: calc(var(--u) * var(--s) + var(--hy) * 2);
   margin-block: calc(var(--hy) * -1);
@@ -833,13 +837,59 @@ body.editing .pad .btn .grip {
 .play[disabled] { opacity: .4; box-shadow: none; }
 .scoreboard .rtt { font-style: normal; font-size: 10px; color: var(--dim); min-width: 34px; }
 
-/* A slowed head is visibly heavier — the tackle has to be legible from across the pitch. */
-.head.slowed { filter: saturate(.45) brightness(.82); }
-.head.slowed::after {
-  content: ''; position: absolute; inset: -4px; border-radius: 50%;
-  border: 3px dashed #ffd166; opacity: .85; animation: slowSpin 1.4s linear infinite;
+/* ── DAMAGE, ON THE CHARACTER ─────────────────────────────────────────────────
+   There is no health bar in this game and there is not going to be one. A player's condition
+   is read off their own face, which is a Saltiz card — the same thing the whole hook is built
+   on — so the damage has to be legible without covering the card up or recolouring it into
+   somebody else. Hence: a FILTER for the state of the player, warming and darkening the card
+   as they are worn down, plus a soft overlay for the marks. The card stays recognisable at
+   every tier, which is the constraint that rules out tinting it flat red.
+
+   Four tiers, set by hurtTier() in shared/sim.js and applied by drawHeads(). They replace the
+   three markers that used to live here — .knocked (grey), .slowed (washed out with a spinning
+   ring) and .hexed (green cast) — each of which marked a player who had been switched off
+   rather than one who had been hurt.
+
+   The overlay is a ::after on a circular, overflow:hidden .head, so it clips to the face. It
+   sits UNDER the filter (filters apply to the whole element, children included), which is what
+   keeps the bruise reading as part of the picture rather than a sticker on top of it. */
+.head.hurt1 { filter: saturate(1.25) sepia(.22) hue-rotate(-18deg) brightness(1.02); }
+.head.hurt2 { filter: saturate(1.42) sepia(.42) hue-rotate(-24deg) brightness(.96) contrast(1.06); }
+.head.hurt3 { filter: saturate(1.48) sepia(.54) hue-rotate(-26deg) brightness(.9) contrast(1.1); }
+.head.hurt4 { filter: saturate(1.3) sepia(.66) hue-rotate(-28deg) brightness(.72) contrast(1.22); }
+
+/* The marks themselves. Red from the first tier, and from hurt3 a blue bruise comes up on the
+   opposite cheek — "blue marks if compatible with the character", done as a multiply blend so
+   it takes the card's own shading instead of painting over it. Pushed stronger than the first
+   pass on request — these have to read at a glance, not on close inspection. */
+.head.hurt1::after, .head.hurt2::after, .head.hurt3::after, .head.hurt4::after {
+  content: ''; position: absolute; inset: 0; border-radius: 50%;
+  pointer-events: none; mix-blend-mode: multiply; z-index: 1;
 }
-@keyframes slowSpin { to { transform: rotate(360deg); } }
+.head.hurt1::after {
+  background: radial-gradient(circle at 72% 62%, #ff5a4a80 0 19%, #ff5a4a00 52%);
+}
+.head.hurt2::after {
+  background:
+    radial-gradient(circle at 72% 62%, #ff3b2eb0 0 22%, #ff3b2e00 56%),
+    radial-gradient(circle at 30% 45%, #ff3b2e80 0 16%, #ff3b2e00 48%);
+}
+.head.hurt3::after {
+  background:
+    radial-gradient(circle at 72% 62%, #ff2a1fc8 0 24%, #ff2a1f00 58%),
+    radial-gradient(circle at 28% 44%, #4a7bffc8 0 21%, #4a7bff00 54%),
+    radial-gradient(circle at 50% 84%, #4a7bff90 0 17%, #4a7bff00 46%);
+}
+.head.hurt4::after {
+  background:
+    radial-gradient(circle at 72% 60%, #e01020e8 0 28%, #e0102000 64%),
+    radial-gradient(circle at 27% 43%, #2f5cffe8 0 26%, #2f5cff00 60%),
+    radial-gradient(circle at 52% 85%, #2f5cffc8 0 22%, #2f5cff00 52%);
+}
+/* Bottomed out: the head lolls (drawHeads tilts it) and the card is barely holding on. A slow
+   pulse rather than a flash — this lasts HP_STUN_TIME and a strobe for two seconds is nasty. */
+.head.hurt4 { animation: hurtPulse .7s infinite alternate; }
+@keyframes hurtPulse { from { box-shadow: 0 0 0 0 #e0102000; } to { box-shadow: 0 0 18px 5px #e0102088; } }
 
 /* ARMED is a loaded state, not a countdown: the bar stays full, the button stays lit, and
    the head glows in the bar's own gold. */
@@ -852,7 +902,6 @@ body.editing .pad .btn .grip {
   from { box-shadow: 0 0 0 0 transparent; }
   to   { box-shadow: 0 0 26px 8px var(--glow, #ffc400); }
 }
-.head.hexed { filter: hue-rotate(35deg) contrast(1.15); }
 
 /* ─── KEYS ─────────────────────────────────────────────────────────────── */
 

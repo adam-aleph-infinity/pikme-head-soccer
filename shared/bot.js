@@ -55,6 +55,8 @@ function predictX(ball, targetY) {
   return ball.x + ball.vx * Math.min(t, 1.6);
 }
 
+const TOE_BIAS = 0.8;
+
 export function botInput(bot, m, index, dt) {
   const p = m.players[index];
   const foe = m.players[1 - index];
@@ -63,7 +65,11 @@ export function botInput(bot, m, index, dt) {
   const d = bot.d;
   bot.t += dt;
 
-  if (p.knocked > 0 || m.phase === 'over') {
+  // Stunned is the only state that takes the controls away now — `knocked` is gone with the
+  // rest of the signature effects. Pressing buttons at a stunned player does nothing anyway;
+  // letting go of them keeps the bot's edge-triggered moves from all firing on the frame it
+  // gets back up.
+  if (p.stunned > 0 || m.phase === 'over') {
     out.left = out.right = out.jump = out.kick = out.power = false;
     return out;
   }
@@ -174,17 +180,39 @@ export function botInput(bot, m, index, dt) {
     // because both of them were mid-pitch every time the ball came back.
     const iAmNearer = Math.abs(b.x - p.x) < Math.abs(b.x - foe.x);
 
+    // STAND A BOOT'S LENGTH OFF THE BALL, and this is where the ladder lives now.
+    //
+    // These offsets were 34 and 20 — a shoulder's width, enough to stay goal-side of the ball
+    // and no more. That was fine while a kick went wherever you were facing: stand on top of
+    // the ball, turn, swing, connect. The boot only swings toward the goal you attack now, so
+    // the ball has to be on your ATTACKING side to be playable at all, and the kick circle
+    // does not even begin until KICK_REACH px out — a bot hugging the ball at 34 has it behind
+    // the swing and can do nothing with it but shin it.
+    //
+    // So the offset IS the skill: a good bot parks itself a boot's length from where the ball
+    // is going, a weak one stands on top of it and can only shin it. Measured over sixteen
+    // matches, with everything else already forward-only: at the flat 34 this used to be, the
+    // legendary bot lost to the very-easy one by nine.
+    //
+    // And it parks a little FURTHER out than that, because the contact point is a choice now
+    // and the best shot in the game is made on the toe: dead flat, straight at the goal, half
+    // again the pace of the lofted kick off the middle of the foot (see KICK_TOE_LOFT). So the
+    // bot that can aim stands where the ball will arrive on its TOE CAP — KICK_REACH plus most
+    // of the circle's radius — and the one that cannot just crowds it.
+    const wantAlong = d.aim * TOE_BIAS;             // -1 ankle … +1 toe cap
+    const standOff = 10 + d.aim * (C.KICK_REACH + wantAlong * C.KICK_R - 10);
+
     if (depth < C.W * 0.42 || incoming) {
       // My half, or a ball heading home: intercept, and always stand GOAL-SIDE of it
       // so a whiff still leaves my body between the ball and the net.
-      bot.aim = landing - p.side * 34;
+      bot.aim = landing - p.side * standOff;
     } else if (iAmNearer) {
       // Nearer to a loose ball in their half: go and get it. This is not aggression,
       // it is just playing — gating it behind the dial made the legendary bot a passive
       // keeper that lost 6-3 to the reckless one because it never attacked.
-      bot.aim = landing - p.side * 20;
+      bot.aim = landing - p.side * standOff;
     } else if (bot.press) {
-      bot.aim = landing - p.side * 20;             // chasing a ball I am NOT nearer to
+      bot.aim = landing - p.side * standOff;       // chasing a ball I am NOT nearer to
     } else {                                        // is the over-commit `aggression` buys
       bot.aim = myGoalX + p.side * 150;            // hold a defensive slot
     }
@@ -277,25 +305,63 @@ export function botInput(bot, m, index, dt) {
   out.jump = bot.wantJump || (p.onGround && adxb < C.HEAD_R * 2 && bh < -30 && bh > -jumpGain);
   if (out.jump) bot.wantJump = false;
 
+  // IS THE BALL EVEN IN FRONT OF ME? The single biggest thing that separates the tiers now,
+  // and it used to be free: every bot got the check, so no bot ever swung at a ball sitting on
+  // its own goal side. That cost nothing while the boot followed the facing — a swing with the
+  // ball behind you simply turned round and connected — but forward-only it is a swing at
+  // fresh air, and getting ROUND the ball before playing it is most of what the new rule asks
+  // of anybody. So it is skill now: the legendary bot always checks, the weakest one usually
+  // does not and hits nothing while the cooldown runs. That one line is worth ten goals over
+  // sixteen matches, and without it the ladder sits inverted.
   const kickable = adxb < C.KICK_REACH + C.KICK_R &&
                    b.y > p.y - C.BODY_H - 10 &&
-                   dxb * p.side > -20;               // ball is in front of me, goalward
+                   (dxb * p.side > -20 || bot.rng() > d.aim);
+
   // Timing is the skill the ladder was missing. A strong bot swings when the ball is on its
   // boot; a weak one also swings at nothing, burning KICK_COOLDOWN and arriving late for the
   // touch that mattered. Without this, every tier kicked identically and only the aim of the
   // shot differed — not enough to separate them over a 60-second match.
   const whiff = (1 - d.aim) * 0.06;                   // per-frame chance of a pointless swing
   const swingAtNothing = !kickable && !bot.wantTackle && bot.rng() < whiff;
-  out.kick = (kickable || bot.wantTackle || swingAtNothing) && p.kickCd <= 0 && bot.rng() < 0.85;
+
+  // WHERE ON THE BOOT. Which part of the foot reaches the ball IS the shot now (see
+  // KICK_TOE_LOFT), so WHEN to swing is a decision and not just "am I in range": 0 here is the
+  // middle of the boot and ±1 its two ends. A good bot waits for the ball to arrive on the part
+  // of the foot it wants; a weak one swings the moment anything enters the circle and takes
+  // whatever contact it is handed, which is usually a toe-end scuff.
+  //
+  // Except in your own third, where there is no time to be picky and anything that moves the
+  // ball away is the right answer. Without that exception the good bot stood over the ball
+  // choosing a shot while the other one bundled it in.
+  // The window is around the contact this bot was aiming for (the toe, for one that can aim),
+  // not around the middle of the boot — a legendary bot standing where the toe cap meets the
+  // ball would otherwise refuse the very swing it walked there to take.
+  const along = (dxb * p.side - C.KICK_REACH) / C.KICK_R;
+  const dangerous = (b.x - (p.side > 0 ? C.GOAL_W : C.W - C.GOAL_W)) * p.side < C.W * 0.35;
+  const onTheBoot = dangerous || Math.abs(along - d.aim * TOE_BIAS) < 0.5 + (1 - d.aim) * 2;
+
+  out.kick = ((kickable && onTheBoot) || bot.wantTackle || swingAtNothing) &&
+             p.kickCd <= 0 && bot.rng() < 0.55 + d.aim * 0.45;
   if (out.kick && bot.wantTackle) bot.wantTackle = false;
 
-  // Facing comes from the movement keys, so "aim" is literally which way I'm holding when
-  // the boot connects. A weak bot swings whichever way it happened to be running.
+  // DRIVING THROUGH THE BALL, which is what this block turns out to have been about all along.
+  //
+  // It was written as AIM — the boot went wherever you were facing, so holding goalward as the
+  // swing landed pointed the shot at the goal and a weak bot was made to hold the other way.
+  // The boot goes toward the attacking side now whatever the body does, so none of that aims
+  // anything any more. What it still does is decide which way the bot is RUNNING at the moment
+  // of contact, and a kick takes 40% of the striker's own pace (see the strike in
+  // resolveBallPlayers) — so a bot that runs onto the ball hits it appreciably harder than one
+  // that swings while backing away. That was always the larger half of this.
+  //
+  // Which is why it stays, unchanged, rather than being deleted with the aim it was named
+  // after: pulled out, the ladder inverts — the level-1 bot beat the level-5 one by 14 goals
+  // over sixteen matches, because the good bot was the one who lost its run-up.
   if (out.kick && bot.dashPulse == null) {
-    // A tackle needs the boot pointed at the OPPONENT; a shot needs it pointed at the goal.
+    // A tackle wants the run pointed at the OPPONENT; a shot wants it pointed at the goal.
     const atFoe = Math.abs(foe.x - p.x) < C.KICK_REACH + C.KICK_R && !kickable;
-    const aimed = bot.rng() < d.aim;
-    const want = atFoe ? (Math.sign(foe.x - p.x) || p.facing) : (aimed ? p.side : -p.side);
+    const driven = bot.rng() < d.aim;
+    const want = atFoe ? (Math.sign(foe.x - p.x) || p.facing) : (driven ? p.side : -p.side);
     out.left = want < 0; out.right = want > 0;
   }
 

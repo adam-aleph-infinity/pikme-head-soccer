@@ -253,7 +253,7 @@ for (let i = 0; i < 30; i++) {
   if (gg.golden) break;
 }
 check('a draw goes to sudden death instead of ending', gg.golden === true && gg.phase !== 'over', JSON.stringify(gg));
-check('the clock shows sudden death', gg.clockUi === 'ג.ג', gg.clockUi);
+check('the clock shows sudden death', gg.clockUi === 'גול מכריע', gg.clockUi);
 
 // ---- 6. phone shape --------------------------------------------------------
 await send('Emulation.setDeviceMetricsOverride', { width: 844, height: 390, deviceScaleFactor: 3, mobile: true });

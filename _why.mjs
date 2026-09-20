@@ -11,12 +11,12 @@ for(let s=0;s<N;s++){
   const bots=[createBot(L[0],rng),createBot(L[1],rng)];
   let t=0,prev=null;
   while(m.phase!=='over'&&t<12000){
-    prev={by:m.ball.y,vx:m.ball.vx,px:[m.players[0].x,m.players[1].x],kn:[m.players[0].knocked,m.players[1].knocked]};
+    prev={by:m.ball.y,vx:m.ball.vx,px:[m.players[0].x,m.players[1].x],kn:[m.players[0].stunned,m.players[1].stunned]};
     step(m,[botInput(bots[0],m,0,C.TICK),botInput(bots[1],m,1,C.TICK)]);
     for(const e of m.events) if(e.type==='goal'){
       const c=1-e.player, goalX=c===0?C.GOAL_W:C.W-C.GOAL_W;
       const headTop=C.GROUND_Y-C.BODY_H-2*C.HEAD_R+8;
-      rows.push({pw:!!e.power, dist:Math.abs(prev.px[c]-goalX), lob:prev.by<headTop, knocked:prev.kn[c]>0, spd:Math.abs(prev.vx)});
+      rows.push({pw:!!e.power, dist:Math.abs(prev.px[c]-goalX), lob:prev.by<headTop, stunned:prev.kn[c]>0, spd:Math.abs(prev.vx)});
     }
     m.events.length=0;t++;
   }
@@ -25,7 +25,7 @@ const n=rows.length, pct=(f)=>`${(100*rows.filter(f).length/n).toFixed(0)}%`;
 const med=(f)=>{const a=rows.map(f).sort((x,y)=>x-y);return a[Math.floor(a.length/2)].toFixed(0);};
 console.log(`levels ${L.join('v')} — ${n} goals in ${N} matches (${(n/N).toFixed(1)}/match)`);
 console.log(`  power shot .......... ${pct(r=>r.pw)}`);
-console.log(`  defender knocked .... ${pct(r=>r.knocked)}`);
+console.log(`  defender stunned .... ${pct(r=>r.stunned)}`);
 console.log(`  lobbed over the head. ${pct(r=>r.lob)}`);
 console.log(`  defender AT the line  ${pct(r=>r.dist<45)}   |  out of position (>200px): ${pct(r=>r.dist>200)}`);
 console.log(`  median conceder dist  ${med(r=>r.dist)}px   |  median ball speed ${med(r=>r.spd)}px/s`);

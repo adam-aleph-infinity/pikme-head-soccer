@@ -763,7 +763,16 @@ function bounceOffBar(b, ax, ay, bx, by, fx, fromAboveOnly = false) {
   // radius, so it is always SEEN on the near side of a surface before it is through it, and a
   // velocity test would instead let a ball that had already sunk into the bar be shoved back
   // out of the wrong face.
-  if (fromAboveOnly) {
+  //
+  // EXCEPT a ball climbing STRAIGHT THROUGH it. "Open from below" was only ever meant to let a
+  // shot driven roughly LEVEL at bar height sail past the receding roof edge and meet the near
+  // rail instead — that ball's vy is near zero, gravity if anything pulling it down, never the
+  // reason it is under the segment. A ball on a strongly rising path (vy < 0, i.e. still going
+  // UP, not just arriving from below on its way down) is not sailing past anything: it is a
+  // ball headed straight through the net's roof from underneath, and this was the hole it went
+  // through. Reported: the ball could not fall through the roof from above, but shot straight
+  // up through it from inside the mouth as if there were nothing there.
+  if (fromAboveOnly && b.vy >= 0) {
     let upx = ey, upy = -ex;                      // a perpendicular…
     if (upy > 0) { upx = -upx; upy = -upy; }      // …taken on the side the sky is on
     if (dx * upx + dy * upy <= 0) return;         // ball is under the bar: it passes in front
@@ -842,21 +851,27 @@ function tryHeader(m, p, fx) {
   const dx = b.x - p.x, dy = b.y - hy;
   const d = Math.hypot(dx, dy);
   if (d > headR(m, p) + b.r + C.HEADER_R) return false;
-  // GRASS BALLS AREN'T HEADERS. HEADER_R is slack around the head circle for a near-miss on a
-  // real header — a ball roughly level with the head, whichever way the body happens to be
-  // facing (a retreating player still heads it forward; see the test for that). It was never
-  // meant to reach all the way down to a ball resting at the player's feet, and extended that
-  // far it let a grounded ball sitting close BEHIND the player count as headable too — a ball
-  // that gets nodded is a ball that teleports to in front of the head, so a low one clipping
-  // through your own back is the one shape of that bug that actually showed up. Below the
-  // head's own circle, only take the ball if it is out in front of the way the body is facing.
-  if (dy > headR(m, p) && dx * p.facing < 0) return false;
+  const dir = p.side;
+  // NO HEADER MAY SEND THE BALL THROUGH YOUR OWN BODY. A header always launches toward `dir`
+  // — the goal this player attacks, whatever way they are facing — and re-places the ball out
+  // in front of the head on that same side (below). A ball that was BEHIND `dir` when the
+  // button was pressed has nowhere to go but through the player to get there, and that is
+  // exactly what used to happen: a full-speed cross-body snap that read as the ball
+  // teleporting from behind the player to in front of them, every time a header was thrown at
+  // a ball that had drifted onto the wrong side. Reported as happening "really fast" at head
+  // height, which is this move and no other — the boot below can never reach that far behind a
+  // player (KICK_REACH starts past the body) so this was the only door it went through.
+  //
+  // This used to only fence the ball's HEIGHT (`dy > headR(m, p) && dx * p.facing < 0`), on the
+  // theory that a ball inside the head's own circle is always a real touch, direction be
+  // damned. It is a real touch — but heading it still has to leave the ball on the side it
+  // came in on, not warp it to the other one, so the fence is now on which side the ball is on,
+  // not how far down. A header off a ball that is behind `dir` no longer fires here at all; the
+  // passive head bounce two branches down still answers the touch, just without the forward
+  // launch or the reach-around re-placement.
+  if (dx * dir < 0) return false;
 
   const mult = p.stats.kick;
-  // Forward, like the boot — see the note on the kickDir latch. The kick button is one aim
-  // whichever part of the body answers it: a header that flew off along `facing` would put
-  // the ball behind you on exactly the retreat where the boot no longer does.
-  const dir = p.side;
   // THE SAME COLLISION THE BOOT MAKES, on the other end of the body. A header used to be one
   // number whatever arrived: a ball driven at your face and a ball rolled gently onto your
   // forehead left at identical speed, which is the least physical thing the sim did.

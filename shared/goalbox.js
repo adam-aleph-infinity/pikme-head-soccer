@@ -59,12 +59,41 @@ export const ENTRY_RAMP = 0.5;
 // The crossbar's height. Everything asks for it and everything used to spell it out.
 export const barY = () => C.GROUND_Y - C.GOAL_H;
 
-// One goal's corners, in world units. Recomputed per call and never cached: every constant in
-// here is live-tuned from the tuner panel mid-match, and a cached box is a goal that stops
-// following its own GOAL_H.
+// One goal's corners, in world units.
+//
+// CACHED, AND KEYED ON THE GEOMETRY ITSELF. The note that used to sit here said the box was
+// "recomputed per call and never cached: every constant in here is live-tuned from the tuner
+// panel mid-match, and a cached box is a goal that stops following its own GOAL_H." The worry
+// is right and the conclusion was too strong — a cache keyed on the five numbers the box is
+// built FROM cannot go stale, because the tick after a slider moves one of them the key misses
+// and both boxes are rebuilt. Live tuning still lands on the very next tick.
+//
+// It is worth caching because this is on the PHYSICS hot path, not just the renderer's.
+// collideBounds asks for both boxes on every ball sub-step (see bounceOffRoofEdge in
+// shared/sim.js) and the ball is sub-stepped up to 48 times a tick, so building a fresh box
+// per call meant ~96 short-lived objects a tick — 5,760 a second — plus a dozen more a frame
+// from the renderer, none of which ever differed from the last. Colliders are not supposed to
+// be rebuilt every frame, and the goal's were.
+//
+// Frozen because the boxes are shared now: every caller reads them (verified — nothing in the
+// sim, the renderer or the harnesses writes to a box), and a freeze turns any future accidental
+// write into an error here rather than a goal that silently moves for everyone holding it.
+let keyGW = NaN, keyGH = NaN, keyGY = NaN, keyW = NaN, keyPR = NaN;
+let boxL = null, boxR = null;
+
 export function goalBox(left) {
+  if (C.GOAL_W !== keyGW || C.GOAL_H !== keyGH || C.GROUND_Y !== keyGY
+      || C.W !== keyW || C.POST_R !== keyPR) {
+    keyGW = C.GOAL_W; keyGH = C.GOAL_H; keyGY = C.GROUND_Y; keyW = C.W; keyPR = C.POST_R;
+    boxL = buildBox(true);
+    boxR = buildBox(false);
+  }
+  return left ? boxL : boxR;
+}
+
+function buildBox(left) {
   const inward = left ? 1 : -1;                      // towards the middle of the pitch
-  return {
+  return Object.freeze({
     left,
     inward,
     lineX: left ? C.GOAL_W : C.W - C.GOAL_W,         // the goal line — the near post stands on it
@@ -73,7 +102,7 @@ export function goalBox(left) {
     ground: C.GROUND_Y,
     wx: inward * C.GOAL_W * WIDTH_X,                 // one step along the width axis, across
     wy: -C.GOAL_H * WIDTH_Y,                         // …and up
-  };
+  });
 }
 
 // Which net a point is inside, or null for the 99% of the pitch that is not in one. Above the
@@ -117,6 +146,59 @@ export function depthPoint(x, y) {
   const box = goalAt(x, y);
   if (!box) return { x, y, z: NEAR_Z };
   return project(x, y, INSIDE_Z * depthT(x, box), box);
+}
+
+// IS THE WHOLE BALL INSIDE ONE OF THE OPENINGS?
+//
+// The one containment test, written once, because two things ask it and they must not be able
+// to disagree: the scorer (shared/sim.js, checkGoal) and the frame's no-teleport rule below.
+//
+// The opening is what the frame leaves open — past the goal LINE and under the CROSSBAR — and
+// it is the whole ball that has to be in it, not its centre. Half a ball resting on top of the
+// bar is a ball on the roof.
+export function ballInGoal(x, y, r) {
+  if (y - r <= barY()) return null;                  // any part still above the bar: not in
+  if (x + r < C.GOAL_W) return goalBox(true);        // fully into the LEFT net
+  if (x - r > C.W - C.GOAL_W) return goalBox(false);
+  return null;
+}
+
+// A hundredth of a pixel of daylight, and it is load-bearing. Stopping the ball at EXACTLY the
+// value where ballInGoal flips puts it on a knife edge: the next sub-step's travel, however
+// small, reads as "already in the net", and keepOutOfGoal's first line then waves through every
+// push-out that follows — so a defender standing on the line could walk the ball into the goal
+// a couple of pixels at a time, one contact per sub-step. On the outside of the edge instead,
+// each of those contacts is clamped in its turn, and the only thing that can still carry the
+// ball over is the ball's own velocity. Too small to see, too big for a rounding error to eat.
+const EDGE = 0.01;
+
+// A CONTACT MAY NOT PUNCH THE BALL THROUGH THE FRAME.
+//
+// Every ball-versus-player response in the sim RE-PLACES the ball: the header snaps it clear
+// of the head, the head and torso push-outs put it back on their surface, a blocked power shot
+// drops it beside the blocker. Each of those is a jump, not a journey — the header's is the
+// biggest at headR + BALL_R + 2 from the player's centre, so a ball 50px in FRONT of a player
+// can be re-placed 44px BEHIND them, a hundred pixels away, having passed through the player
+// and through anything else in between.
+//
+// Anything else including a goalpost. Measured over 120 bot-vs-bot matches before this
+// existed: 28 of 453 goals — one in sixteen — were scored by a ball that was picked up outside
+// the frame and put down inside the net, some of them from balls headed UP and away from the
+// goal, one of them landing at x = −19, behind the back of the pitch. The ball had not crossed
+// the line, and the picture showed it: it vanished off a player's head and the scoreboard moved.
+//
+// So a re-placement that starts outside a net may not finish inside one. It stops ON the line
+// instead — touching the plane, not through it — and the ball's own velocity, which the strike
+// has just set, decides whether it goes in. A point-blank header at the mouth still scores; it
+// scores a frame later, by actually crossing the line, which is also when it LOOKS like a goal.
+//
+// It only ever clamps INTO a net. A contact inside the net (a keeper clearing his own line) is
+// left alone, and nothing here stops the ball coming back out.
+export function keepOutOfGoal(fromX, fromY, toX, toY, r) {
+  if (ballInGoal(fromX, fromY, r)) return toX;       // already in: not a crossing
+  const into = ballInGoal(toX, toY, r);
+  if (!into) return toX;
+  return into.left ? C.GOAL_W - r + EDGE : C.W - C.GOAL_W + r - EDGE;
 }
 
 // THE SIM'S HALF OF THE SAME BOX: how far a body of width w may walk.

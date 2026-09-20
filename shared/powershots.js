@@ -13,42 +13,37 @@
 //
 // Every shot flies the SAME way on purpose. If trajectories differed per character, "get in
 // the way" would mean something different every time and blocking would be a guess rather
-// than a read. What differs is the EFFECT — what the shot does to whoever it hits, and what
-// your tackle does while you are powered up. Same threat, different consequence.
+// than a read. What differs is the SPEED, and the colour it is drawn in.
+//
+// It used to be the EFFECT: each character's shot left its own consequence on whoever blocked
+// it — burned, drowned, rooted, swept away — implemented as knocked/rooted/slow plus a grey
+// head. That is gone. It read as "you defended well, now sit out the next second and a half",
+// and a consequence you cannot play through is not a consequence, it is a pause. A blocked
+// shot costs the defender HEALTH now (C.POWER_DAMAGE, applied in hitByPowerShot), which shows
+// on the character's face and can be played around and mended.
 
 import * as C from './constants.js';
 
-// Effects map onto state the sim already has:
-//   knock  — full knockdown, no input, gets up after `time`
-//   root   — planted; cannot move OR act (the total lockout, so it is always the shortest)
-//   slow   — still playing, just heavy
-//   shove  — launched a long way, briefly
 export const SHOTS = {
   blaze: {
     id: 'blaze', name: 'מנגל בוער', en: 'Blaze', color: '#ff7a18', glow: '#ffd166',
     speed: 1.0,
-    effect: { kind: 'knock', time: 0.75, push: 420, note: 'נשרף' },
   },
   coins: {
     id: 'coins', name: 'גשם מטבעות', en: 'Coin Rain', color: '#ffc400', glow: '#fff3b0',
     speed: 0.92,
-    effect: { kind: 'slow', time: 2.6, push: 160, note: 'מוצף' },
   },
   tentacles: {
     id: 'tentacles', name: 'תולעים', en: 'Tentacles', color: '#5ce15c', glow: '#c8ffb0',
     speed: 0.88,
-    effect: { kind: 'root', time: 1.2, push: 0, note: 'נתפס' },
   },
   wave: {
     id: 'wave', name: 'גל אדום', en: 'Red Wave', color: '#e01e4f', glow: '#ff9ab5',
     speed: 1.05,
-    effect: { kind: 'shove', time: 1.0, push: 900, note: 'נסחף' },
   },
   strike: {
     id: 'strike', name: 'סטרייק', en: 'Strike', color: '#7b5cff', glow: '#d9c9ff',
-    speed: 1.12,
-    // Adam's example. The hardest lockout in the game, so it is also the briefest.
-    effect: { kind: 'root', time: 0.5, push: 120, note: 'קפוא' },
+    speed: 1.12,                 // Adam's example, and the fastest shot in the game
   },
 };
 
@@ -125,40 +120,6 @@ export function stepPowerShot(ball, players, dt, fx) {
   ball.vy += C.BALL_GRAV * C.POWER_SHOT_SAG * dt;
   fx.trail(ball.x, ball.y, p.color, 3);
   return true;
-}
-
-// ---------------------------------------------------------------------------
-// The signature effect. Applied when a shot connects with a defender, and again — at
-// `scale` strength — when a powered-up player kicks the opponent instead of the ball.
-export function applyEffect(shot, victim, dirX, scale = 1) {
-  const e = shot.effect;
-  victim.effectId = shot.id;
-  victim.effectT = e.time * scale;
-
-  switch (e.kind) {
-    case 'knock':
-      victim.knocked = Math.max(victim.knocked, e.time * scale);
-      victim.vx = dirX * e.push * scale;
-      victim.vy = Math.min(victim.vy, -280);
-      victim.onGround = false;
-      break;
-    case 'root':
-      victim.rooted = Math.max(victim.rooted, e.time * scale);
-      victim.vx = dirX * e.push * scale;
-      break;
-    case 'slow':
-      victim.slow = Math.max(victim.slow, e.time * scale);
-      victim.vx += dirX * e.push * scale;
-      break;
-    case 'shove':
-      victim.vx = dirX * e.push * scale;
-      victim.vy = Math.min(victim.vy, -240);
-      victim.onGround = false;
-      victim.slow = Math.max(victim.slow, e.time * scale * 0.6);
-      break;
-  }
-  victim.dashT = 0;
-  return e;
 }
 
 // Counter: kicking a live power ball at the right moment reverses it AND hands the

@@ -1,6 +1,6 @@
 // Physics + rules tests. Run: node test-sim.mjs
 import * as C from './shared/constants.js';
-import { createMatch, step, headY, headR } from './shared/sim.js';
+import { createMatch, step, headY, headR, hurtTier, serialize, restore } from './shared/sim.js';
 import { shotFor, SHOTS } from './shared/powershots.js';
 
 let pass = 0, fail = 0;
@@ -85,19 +85,29 @@ const run = (m, ticks, inputs = NONE) => {
 }
 
 // --- goals ------------------------------------------------------------------
+//
+// A GOAL IS SHOT, NOT PLACED. These used to drop the ball at x = 40 — already behind the line
+// — and step once, because scoring was a test on the ball's POSITION. It is a test on the ball's
+// CROSSING now (see enteredGoal in shared/sim.js), so a ball that materialises in the net has
+// not scored and never will: there is no entry to see. Every goal in this file is driven in
+// from the pitch, which is also the only way a goal happens in the game.
+const scoreOn = (m, left, y = C.GROUND_Y - 60, speed = 600) => {
+  const b = m.ball;
+  b.x = left ? C.GOAL_W + b.r + 2 : C.W - C.GOAL_W - b.r - 2;
+  b.y = y; b.vx = left ? -speed : speed; b.vy = 0;
+  return run(m, 8);
+};
 {
   const m = fresh();
-  m.ball.x = 40; m.ball.y = C.GROUND_Y - 60; m.ball.vx = -200; m.ball.vy = 0;
-  step(m, NONE);
-  ok('ball in the left net scores for player 1', m.score[1] === 1, JSON.stringify(m.score));
+  scoreOn(m, true);
+  ok('ball driven into the left net scores for player 1', m.score[1] === 1, JSON.stringify(m.score));
   ok('a goal freezes play', m.phase === 'goal');
   ok('positions reset after a goal', Math.abs(m.players[0].x - C.SPAWN_X[0]) < 1);
 }
 {
   const m = fresh();
-  m.ball.x = C.W - 40; m.ball.y = C.GROUND_Y - 60; m.ball.vx = 200;
-  step(m, NONE);
-  ok('ball in the right net scores for player 0', m.score[0] === 1, JSON.stringify(m.score));
+  scoreOn(m, false);
+  ok('ball driven into the right net scores for player 0', m.score[0] === 1, JSON.stringify(m.score));
 }
 {
   const m = fresh();
@@ -150,8 +160,7 @@ const run = (m, ticks, inputs = NONE) => {
   // wipe both meters and then gift the conceder, which passed a `>= BONUS` check while
   // destroying everything either player had earned.
   conceded.gauge = 0.4; scorer.gauge = 0.7;
-  m.ball.x = 40; m.ball.y = C.GROUND_Y - 60; m.ball.vx = -200;
-  step(m, NONE);
+  scoreOn(m, true);
   ok('(the goal went in)', m.score[1] === 1, `score ${m.score.join('-')}`);
   ok('conceding ADDS the gift to what was there',
      Math.abs(conceded.gauge - (0.4 + C.GAUGE_CONCEDE_BONUS)) < 1e-9, `gauge=${conceded.gauge}`);
@@ -294,7 +303,12 @@ const run = (m, ticks, inputs = NONE) => {
   ok('straight power shot holds its line', Math.abs(m.ball.y - y0) < 30, `dy=${(m.ball.y - y0).toFixed(1)}`);
 }
 {
-  // defender eats a power shot → knocked down, cannot act
+  // A POWER SHOT HURTS YOU. IT DOES NOT SWITCH YOU OFF.
+  //
+  // This block used to assert the opposite: `b.knocked > 0`, and then that the defender's
+  // input was ignored for the length of it. That was the old signature effect — grey head, no
+  // controls — and it is what the damage system replaces. Taking a power shot on the body is
+  // still the heaviest hit in the game; it is just paid in health now.
   const m = fresh();
   const a = m.players[0], b = m.players[1];
   a.shot = SHOTS.blaze;
@@ -306,14 +320,13 @@ const run = (m, ticks, inputs = NONE) => {
   // as it passes — standing is safe from this shot, which is the entire point of the move.
   inLine(m, b);
   run(m, 30);
-  ok('the defender is knocked down', b.knocked > 0, `knocked=${b.knocked}`);
-  // Test the PROPERTY, not a magnitude. Any threshold here is really measuring the
-  // knockback impulse — which is not what "ignores input" means, and broke the moment the
-  // push got bigger than a walking speed. Run the same knocked player with and without
-  // input and assert the two are identical.
-  const withInput = { ...b };
-  // The control match has to be set up the SAME way, volley and all, or the two are not
-  // comparable — one knocked-down player and one merely standing there always differ.
+  ok('a power shot costs the defender health', b.hp < 1, `hp=${b.hp.toFixed(2)}`);
+  ok('and it is the heaviest hit there is', 1 - b.hp >= C.POWER_DAMAGE - 0.05,
+     `took ${(1 - b.hp).toFixed(2)} of ${C.POWER_DAMAGE}`);
+  ok('one power shot is not enough to stun anybody', b.stunned === 0 && b.hp > 0,
+     `stunned=${b.stunned}`);
+  // The old test proved the defender was frozen by comparing them against a control that was
+  // given no input. Same comparison, opposite expectation: a hit player still plays.
   const ctrl = fresh();
   const ca = ctrl.players[0], cb = ctrl.players[1];
   ca.shot = SHOTS.blaze;
@@ -323,25 +336,28 @@ const run = (m, ticks, inputs = NONE) => {
   run(ctrl, 30);
   run(m, 5, [{}, { right: true }]);      // held right
   run(ctrl, 5, [{}, {}]);                // held nothing
-  ok('a knocked defender ignores input',
-     Math.abs(b.vx - cb.vx) < 0.001 && Math.abs(b.x - cb.x) < 0.001,
-     `input ${b.vx.toFixed(1)} vs control ${cb.vx.toFixed(1)}`);
+  ok('a damaged defender still answers the controls', Math.abs(b.vx - cb.vx) > 20,
+     `input ${b.vx.toFixed(1)} vs no input ${cb.vx.toFixed(1)}`);
 }
 {
-  // tentacles root the defender in place
+  // …and nothing about which character fired it locks the defender down. `tentacles` used to
+  // ROOT whoever blocked it — the total lockout, the one the old comments called the hardest
+  // in the game. Every shot lands the same consequence now, and it is a number off their
+  // health, so this asserts what it must never do again: take a player's legs away.
   const m = fresh();
   const a = m.players[0], b = m.players[1];
   a.shot = SHOTS.tentacles;
   firePower(m, 0);
   // Wait for the shot to actually ARRIVE rather than for a fixed 40 ticks — at a slower
-  // PACE the ball had not reached the defender yet and the test read as "roots nothing".
-  // And hold the defender on the volley's line every tick: it flies above a standing head by
-  // design, and gravity pulls a defender out of its path in a handful of frames.
-  for (let i = 0; i < 240 && b.rooted <= 0; i++) { inLine(m, b); step(m, NONE); }
-  ok('tentacles root the defender', b.rooted > 0, `rooted=${b.rooted}`);
+  // PACE the ball had not reached the defender yet. And hold the defender on the volley's
+  // line every tick: it flies above a standing head by design, and gravity pulls a defender
+  // out of its path in a handful of frames.
+  for (let i = 0; i < 240 && b.hp >= 1; i++) { inLine(m, b); step(m, NONE); }
+  ok('tentacles damage the defender like anything else', b.hp < 1, `hp=${b.hp.toFixed(2)}`);
   const x0 = b.x;
   run(m, 20, [{}, { left: true }]);
-  ok('a rooted defender cannot walk', Math.abs(b.x - x0) < 2, `moved ${Math.abs(b.x - x0).toFixed(1)}`);
+  ok('and the defender can still walk away', Math.abs(b.x - x0) > 10,
+     `moved ${Math.abs(b.x - x0).toFixed(1)}px`);
 }
 {
   // counter: kicking a live enemy power ball flips ownership and direction
@@ -398,18 +414,53 @@ const run = (m, ticks, inputs = NONE) => {
   ok('a defender in the path blocks it', m.events.some((e) => e.type === 'blocked') || !m.ball.power,
      'shot went through');
   ok('a blocked shot comes back out', m.ball.vx <= 0 || !m.ball.power, `vx=${m.ball.vx.toFixed(0)}`);
-  ok('but the blocker pays for it', b.knocked > 0 || b.rooted > 0 || b.slow > 0 || b.effectId !== null,
-     'blocking was free');
+  ok('but the blocker pays for it', b.hp < 1, `blocking was free (hp ${b.hp.toFixed(2)})`);
 }
 {
-  // Every character's power has to land a DIFFERENT consequence.
-  const kinds = new Set();
+  // ARMED BEATS INCOMING: a defender who is ALSO armed and gets hit by the incoming shot does
+  // not just block it and take the damage — the touch fires their own ultimate instead, same
+  // as any other touch on the ball while armed. Their shot replaces the incoming one entirely.
+  const m = fresh();
+  const a = m.players[0], b = m.players[1];
+  a.shot = SHOTS.blaze; b.shot = SHOTS.wave;
+  firePower(m, 0, 1);                 // a's shot, flying toward b
+  ok('the incoming shot is a\'s', m.ball.power && m.ball.power.owner === 0);
+  ok('b starts unarmed', b.armed === 0);
+  armPower(m, 1);                     // b arms while a's shot is already live
+  ok('b is armed with a live enemy shot on the pitch', b.armed > 0 && !!m.ball.power);
+  m.hitStop = 0;
+  m.ball.x = b.x; m.ball.y = headY(b); m.ball.vx = 0; m.ball.vy = 0;
+  m.events.length = 0;
+  step(m, [{}, {}]);
+  ok('b took no damage', b.hp === 1, `hp=${b.hp.toFixed(2)}`);
+  ok('the touch fired b\'s own shot, not a\'s', m.ball.power && m.ball.power.shot.id === 'wave',
+     `shot=${m.ball.power?.shot.id}`);
+  ok('ownership moved to b', m.ball.power && m.ball.power.owner === 1);
+  ok('b\'s arm and gauge are spent', b.armed === 0 && b.gauge === 0);
+  ok('the event says it was a counter', m.events.some((e) => e.type === 'powershot' && e.countered),
+     JSON.stringify(m.events));
+}
+{
+  // EVERY CHARACTER'S POWER LANDS THE SAME CONSEQUENCE, and that is the change. This used to
+  // assert the opposite — that the five shots produced at least three DIFFERENT effects — back
+  // when each one left its own lockout on whoever blocked it. The lockouts are gone, so what
+  // is left to differ is speed and colour, and the consequence is one number for all of them.
   for (const id of Object.keys(SHOTS)) {
     const shot = SHOTS[id];
-    ok(`${id} has an effect`, !!shot.effect && shot.effect.time > 0);
-    kinds.add(shot.effect.kind);
+    ok(`${id} no longer carries a signature effect`, shot.effect === undefined);
+    ok(`${id} still has its own speed and colour`, shot.speed > 0 && /^#/.test(shot.color));
   }
-  ok('the effects are not all the same', kinds.size >= 3, [...kinds].join(','));
+  const dmg = Object.keys(SHOTS).map((id) => {
+    const m = fresh();
+    const a = m.players[0], d = m.players[1];
+    a.shot = SHOTS[id];
+    d.x = a.x + 300;
+    firePower(m, 0);
+    inLine(m, d);
+    run(m, 30);
+    return +(1 - d.hp).toFixed(4);
+  });
+  ok('and every one of them costs the same health', new Set(dmg).size === 1, dmg.join(','));
 }
 
 // --- the head deadens too, just less -----------------------------------------
@@ -467,7 +518,14 @@ const run = (m, ticks, inputs = NONE) => {
   // Not exactly TACKLE_GAUGE: the ordinary per-tick charge lands in the same step.
   ok('the tackler gains gauge', a.gauge >= C.TACKLE_GAUGE && a.gauge < C.TACKLE_GAUGE + 0.01,
      `gauge=${a.gauge.toFixed(4)}`);
-  ok('the victim is slowed', b.slow > 0);
+  ok('the victim takes damage', b.hp < 1 && b.hp >= 1 - C.KICK_DAMAGE * C.KICK_DAMAGE_BACK - 1e-9,
+     `hp=${b.hp.toFixed(3)}`);
+  // Within a tick of regen of the live value, not equal to it: the victim's own stepPlayer
+  // runs after the tackler's in the same tick and mends HP_REGEN * dt of it straight away.
+  ok('the tackle event reports what it took off',
+     m.events.some((e) => e.type === 'tackle' && e.damage > 0
+                       && Math.abs(e.hp - b.hp) <= C.HP_REGEN * C.TICK + 1e-9),
+     JSON.stringify(m.events.filter((e) => e.type === 'tackle')));
   ok('the victim is knocked back', Math.abs(b.vx) > 100, `vx=${b.vx.toFixed(0)}`);
   ok('a tackle grants immunity', b.tackleImmune > 0);
   ok('a tackle causes hit-stop', m.hitStop > 0);
@@ -487,18 +545,22 @@ const run = (m, ticks, inputs = NONE) => {
      `immune=${b.tackleImmune.toFixed(2)}`);
 }
 {
+  // A TACKLED PLAYER RUNS AT FULL SPEED. The exact inverse of what this used to assert, which
+  // was that a tackle left them at TACKLE_SLOW (55%) for 1.7 seconds. The comparison is kept
+  // — same reference run, same 40 ticks — so that if a slow ever creeps back in, this catches
+  // it the way the old one caught its absence.
   const m = fresh();
   const a = m.players[0], b = m.players[1];
   m.ball.x = C.W / 2; m.ball.y = 100;
   b.x = a.x + C.KICK_REACH;
   step(m, [{ kick: true }, {}]);
   m.hitStop = 0;
-  const slowRun = fresh();
-  run(slowRun, 40, [{ right: true }, {}]);              // unslowed reference
+  const ref = fresh();
+  run(ref, 40, [{ right: true }, {}]);                  // untouched reference
   run(m, 40, [{}, { right: true }]);
-  ok('a slowed player really is slower',
-     Math.abs(b.vx) < Math.abs(slowRun.players[0].vx) - 20,
-     `slowed=${Math.abs(b.vx).toFixed(0)} normal=${Math.abs(slowRun.players[0].vx).toFixed(0)}`);
+  ok('a tackled player is not slowed at all',
+     Math.abs(Math.abs(b.vx) - Math.abs(ref.players[0].vx)) < 1,
+     `tackled=${Math.abs(b.vx).toFixed(0)} untouched=${Math.abs(ref.players[0].vx).toFixed(0)}`);
 }
 {
   const m = fresh();
@@ -614,8 +676,7 @@ const run = (m, ticks, inputs = NONE) => {
   const g0 = m.players[0].gauge;
   run(m, 60);
   ok('gauges freeze in golden goal', Math.abs(m.players[0].gauge - g0) < 1e-9, `${g0} → ${m.players[0].gauge}`);
-  m.ball.x = 40; m.ball.y = C.GROUND_Y - 60; m.ball.vx = -200;
-  step(m, NONE);
+  scoreOn(m, true);
   ok('a golden goal ends it', m.phase === 'over' && m.score[1] === 1);
 }
 
@@ -625,7 +686,7 @@ const run = (m, ticks, inputs = NONE) => {
   for (const r of ['common', 'rare', 'epic', 'legendary']) {
     for (let n = 1; n <= 45; n++) {
       const s = shotFor(r, n);
-      ok(`every card has a shot (${r}_${n})`, !!s && !!s.effect && !!s.effect.kind);
+      ok(`every card has a shot (${r}_${n})`, !!s && !!s.id && s.speed > 0);
       seen.add(s.id);
     }
   }
@@ -716,16 +777,20 @@ const run = (m, ticks, inputs = NONE) => {
     a.kickCd = 0; a.prev = {}; m.hitStop = 0;
     step(m, [{ kick: true }, {}]);
     const ev = m.events.find((e) => e.type === 'tackle');
-    return { rooted: b.rooted, vx: Math.abs(b.vx), behind: ev && ev.behind };
+    return { hurt: 1 - b.hp, vx: Math.abs(b.vx), behind: ev && ev.behind, stunned: b.stunned };
   };
   const front = hit(false), back = hit(true);
   // Against the LIVE constant, not the authored one: TACKLE_PUSH rides the PACE dial, so a
   // literal here would fail every time someone slowed the game down.
-  ok('a tackle from the front is a shove',
-     front.vx > C.TACKLE_PUSH * 0.9 && front.rooted <= C.TACKLE_STUN + 1e-6,
-     `push ${front.vx.toFixed(0)} of ${C.TACKLE_PUSH.toFixed(0)}, freeze ${front.rooted.toFixed(2)}s`);
-  ok('a tackle from behind is a freeze', back.rooted > front.rooted * 2,
-     `${front.rooted.toFixed(2)}s front vs ${back.rooted.toFixed(2)}s behind`);
+  ok('a tackle from the front is a shove', front.vx > C.TACKLE_PUSH * 0.9,
+     `push ${front.vx.toFixed(0)} of ${C.TACKLE_PUSH.toFixed(0)}`);
+  // THE DISTINCTION MOVED, from the lockout to the damage. A back hit used to FREEZE you for
+  // three times as long; it now HURTS you half again as much, and neither hit stops you
+  // playing at all. Same read for the player — get behind them, it is worth more — bought
+  // without taking anybody's controls away.
+  ok('a tackle from behind hurts more', back.hurt > front.hurt * 1.4,
+     `${front.hurt.toFixed(3)} front vs ${back.hurt.toFixed(3)} behind`);
+  ok('and neither one freezes anybody', front.stunned === 0 && back.stunned === 0);
   ok('and it shoves them less, not more', back.vx < front.vx,
      `${front.vx.toFixed(0)} front vs ${back.vx.toFixed(0)} behind`);
   ok('the event says which it was', back.behind === true && front.behind === false,
@@ -809,7 +874,7 @@ const run = (m, ticks, inputs = NONE) => {
   let landed = 0;
   for (let i = 0; i < 9 && a.gauge < 1; i++) {
     a.x = 500; b.x = 500 + 34; b.y = a.y; a.facing = 1; b.facing = -1;
-    a.kickCd = 0; a.prev = {}; b.tackleImmune = 0; b.knocked = 0; b.rooted = 0; m.hitStop = 0;
+    a.kickCd = 0; a.prev = {}; b.tackleImmune = 0; b.hp = 1; b.stunned = 0; m.hitStop = 0;
     step(m, [{ kick: true }, {}]);
     if (m.events.some((e) => e.type === 'tackle')) landed++;
     m.events.length = 0;
@@ -886,8 +951,7 @@ const run = (m, ticks, inputs = NONE) => {
     if (m.score[0] > 0) break;
   }
   ok('a body in its path blocks it', blocked, `score ${m.score[0]}`);
-  ok('and the blocker pays the signature effect',
-     d.knocked > 0 || d.rooted > 0 || d.slow > 0 || d.effectId !== null, 'blocking was free');
+  ok('and the blocker pays for it in health', d.hp < 1, `blocking was free (hp ${d.hp.toFixed(2)})`);
 }
 {
   // 6. YOU CANNOT ARM WITHOUT THE METER, OR TWICE OFF ONE PRESS.
@@ -939,24 +1003,217 @@ const run = (m, ticks, inputs = NONE) => {
   ok('a kick aimed right goes right even if you turn during it', m.ball.vx > 0,
      `vx ${m.ball.vx.toFixed(0)} (turned left mid-swing)`);
 
-  // And the mirror, so this is about the latch and not about a sign.
+  // And the mirror, so this is about the rule and not about a sign: player two attacks LEFT,
+  // so player two's boot goes left, under exactly the same provocation.
   const m2 = fresh();
-  const q = m2.players[0];
-  q.x = 500; q.facing = -1; q.kickCd = 0; q.prev = {};
-  m2.players[1].x = 100;
+  const q = m2.players[1];
+  q.x = 500; q.facing = 1; q.kickCd = 0; q.prev = {};
+  m2.players[0].x = 100;
   m2.ball.x = q.x - C.KICK_REACH - 46; m2.ball.y = q.y - C.BODY_H * 0.45;
   m2.ball.vx = 260; m2.ball.vy = 0;
   m2.hitStop = 0;
-  step(m2, [{ kick: true }, {}]);
+  step(m2, [{}, { kick: true }]);
   m2.events.length = 0;
   let struck2 = false;
   for (let i = 0; i < 10 && !struck2; i++) {
     m2.hitStop = 0;
-    step(m2, [{ right: true }, {}]);
+    step(m2, [{}, { right: true }]);
     struck2 = m2.events.some((e) => e.type === 'strike');
     m2.events.length = 0;
   }
-  ok('and a kick aimed left goes left', struck2 && m2.ball.vx < 0, `vx ${m2.ball.vx.toFixed(0)}`);
+  ok('and player two\'s boot goes the other way for the same reason',
+     struck2 && m2.ball.vx < 0, `vx ${m2.ball.vx.toFixed(0)}`);
+}
+
+// ── THE BOOT ONLY SWINGS FORWARD ──────────────────────────────────────────────
+// "When you walk backwards the kick kicks backwards." The aim was the FACING, so retreating
+// turned the boot round and the kick went at your own net — the leg you could see was pointing
+// the wrong way while it happened. The aim is the attacking SIDE now, whatever the body does.
+{
+  const kickWhileWalking = (dirKey) => {
+    const m = fresh();
+    const p = m.players[0];
+    p.x = 500; p.kickCd = 0; p.prev = {};
+    m.players[1].x = 900;
+    m.ball.x = p.x + C.KICK_REACH; m.ball.y = p.y - C.BODY_H * 0.45;
+    m.ball.vx = 0; m.ball.vy = 0;
+    // Walk first, so the facing has really turned before the kick is pressed.
+    for (let i = 0; i < 6; i++) { m.hitStop = 0; step(m, [{ [dirKey]: true }, {}]); m.events.length = 0; }
+    m.hitStop = 0;
+    step(m, [{ [dirKey]: true, kick: true }, {}]);
+    return { vx: m.ball.vx, facing: p.facing };
+  };
+  const back = kickWhileWalking('left');
+  const fwd = kickWhileWalking('right');
+  ok('(walking left really does turn the body)', back.facing === -1, `facing ${back.facing}`);
+  ok('a kick while walking backwards still goes forward', back.vx > 0, `vx ${back.vx.toFixed(0)}`);
+  ok('and it is the same kick you get walking forward',
+     Math.abs(back.vx - fwd.vx) < Math.abs(fwd.vx) * 0.5,
+     `back ${back.vx.toFixed(0)} vs forward ${fwd.vx.toFixed(0)}`);
+
+  // The HEADER is the same button, so it obeys the same rule — otherwise the ball still goes
+  // backwards, just off a different part of the body.
+  const m = fresh();
+  const p = m.players[0];
+  p.x = 500; p.kickCd = 0; p.prev = {};
+  m.players[1].x = 900;
+  for (let i = 0; i < 6; i++) { m.hitStop = 0; step(m, [{ left: true }, {}]); m.events.length = 0; }
+  m.ball.x = p.x + 10; m.ball.y = headY(p) - 4;
+  m.ball.vx = 0; m.ball.vy = 0;
+  m.hitStop = 0;
+  step(m, [{ left: true, kick: true }, {}]);
+  ok('a header while retreating goes forward too', m.ball.vx > 0 && m.ball.vy < 0,
+     `v=(${m.ball.vx.toFixed(0)}, ${m.ball.vy.toFixed(0)})`);
+}
+
+// ── WHERE ON THE BOOT ─────────────────────────────────────────────────────────
+// The contact point is the shot: the toe cap pokes it flat and fast, the whole foot gets under
+// it and lifts it. Dead centre is the kick this game had before any of this.
+{
+  // Struck at a chosen offset along the boot, from the ankle end (-1) to the toe cap (+1).
+  const kickAt = (along) => {
+    const m = fresh();
+    const p = m.players[0];
+    p.x = 400; p.kickCd = 0; p.prev = {};
+    m.players[1].x = C.W - 60;
+    m.ball.x = p.x + C.KICK_REACH + along * C.KICK_R;
+    m.ball.y = p.y - C.BODY_H * 0.45;
+    m.ball.vx = 0; m.ball.vy = 0;
+    m.hitStop = 0;
+    step(m, [{ kick: true }, {}]);
+    return { vx: m.ball.vx, vy: m.ball.vy };
+  };
+  // The ankle END of the circle is not sampled: it reaches far enough back to be inside the
+  // HEADER's slack around the head, and the header is resolved first, so a ball there is
+  // nodded rather than booted. -0.5 is the deepest a boot contact actually goes.
+  const toe = kickAt(0.95), mid = kickAt(0), foot = kickAt(-0.5);
+  ok('the toe cap drives it flat', Math.abs(toe.vy) < Math.abs(mid.vy) * 0.75,
+     `toe vy ${toe.vy.toFixed(0)} vs mid ${mid.vy.toFixed(0)}`);
+  ok('and the whole foot lifts it', Math.abs(foot.vy) > Math.abs(mid.vy) * 1.2,
+     `foot vy ${foot.vy.toFixed(0)} vs mid ${mid.vy.toFixed(0)}`);
+  ok('a toe-poke is the faster shot of the two', toe.vx > foot.vx,
+     `toe vx ${toe.vx.toFixed(0)} vs foot ${foot.vx.toFixed(0)}`);
+  ok('every one of them still goes forward', toe.vx > 0 && mid.vx > 0 && foot.vx > 0);
+  // THE FLAT SHOT IS REACHABLE, which is the whole point of the toe end: on the very tip the
+  // loft reaches zero and the ball leaves PARALLEL TO THE GRASS, straight at the goal. A shot
+  // that always climbed a little was not a flat shot, it was a slightly worse lofted one.
+  const tip = kickAt(1);
+  ok('the very tip of the boot hits it dead flat', Math.abs(tip.vy) < 1,
+     `vy ${tip.vy.toFixed(1)}`);
+  ok('and dead flat is the fastest thing the boot does, forward',
+     tip.vx > mid.vx * 1.25, `tip vx ${tip.vx.toFixed(0)} vs mid ${mid.vx.toFixed(0)}`);
+  // The aim adds LOFT, so it multiplies a flat shot by nothing: kick it straight and it stays
+  // straight however far out you are. Without this the bow quietly re-arced the driven shot.
+  const tipDeep = (() => {
+    const m = fresh();
+    const p = m.players[0];
+    p.x = 150; p.kickCd = 0; p.prev = {};            // as deep as the pitch gets
+    m.players[1].x = C.W - 60;
+    m.ball.x = p.x + C.KICK_REACH + C.KICK_R; m.ball.y = p.y - C.BODY_H * 0.45;
+    m.ball.vx = 0; m.ball.vy = 0;
+    m.hitStop = 0;
+    step(m, [{ kick: true }, {}]);
+    return m.ball.vy;
+  })();
+  ok('a flat kick from deep is still flat — the bow cannot arc it', Math.abs(tipDeep) < 1,
+     `vy ${tipDeep.toFixed(1)}`);
+
+  // A ball DROPPING onto the boot is chipped: the foot is under it, which is the other axis.
+  const chip = (() => {
+    const m = fresh();
+    const p = m.players[0];
+    p.x = 400; p.kickCd = 0; p.prev = {};
+    m.players[1].x = C.W - 60;
+    m.ball.x = p.x + C.KICK_REACH; m.ball.y = p.y - C.BODY_H * 0.45 - C.KICK_R;
+    m.ball.vx = 0; m.ball.vy = 0;
+    m.hitStop = 0;
+    step(m, [{ kick: true }, {}]);
+    return m.ball.vy;
+  })();
+  ok('a ball above the boot is chipped', Math.abs(chip) > Math.abs(mid.vy),
+     `chip ${chip.toFixed(0)} vs flat ${mid.vy.toFixed(0)}`);
+
+  // The LOB is an aim, not an accident: it must not be flattened by a toe-end contact, or the
+  // one shot whose job is to clear a defender's head stops clearing it.
+  const lobToe = (() => {
+    const m = fresh();
+    const p = m.players[0];
+    p.x = 400; p.kickCd = 0; p.prev = {};
+    m.players[1].x = C.W - 60;
+    m.ball.x = p.x + C.KICK_REACH + 0.95 * C.KICK_R; m.ball.y = p.y - C.BODY_H * 0.45;
+    m.ball.vx = 0; m.ball.vy = 0;
+    m.hitStop = 0;
+    step(m, [{ kick: true, jump: true }, {}]);
+    return m.ball.vy;
+  })();
+  ok('a lob off the toe still lobs', lobToe < mid.vy, `lob ${lobToe.toFixed(0)} vs ${mid.vy.toFixed(0)}`);
+}
+
+// ── MEETING THE BALL ──────────────────────────────────────────────────────────
+// A strike is a COLLISION. It used to be an assignment: the ball's own pace was thrown away
+// and a volley off a driven ball left at exactly the speed of a tap off a ball asleep on the
+// grass. Now what the ball brings into the boot comes back out of it.
+{
+  // Same contact point, same swing — the only difference is what the ball was doing.
+  const strike = (ballVx) => {
+    const m = fresh();
+    const p = m.players[0];
+    p.x = 400; p.kickCd = 0; p.prev = {};
+    m.players[1].x = C.W - 60;
+    m.ball.x = p.x + C.KICK_REACH + C.KICK_R; m.ball.y = p.y - C.BODY_H * 0.45;
+    m.ball.vx = ballVx; m.ball.vy = 0;
+    m.hitStop = 0;
+    step(m, [{ kick: true }, {}]);
+    return m.ball.vx;
+  };
+  const still = strike(0), met = strike(-600), fleeing = strike(600);
+  ok('volleying a ball driven at you hits it far harder', met > still * 1.4,
+     `met ${met.toFixed(0)} vs still ${still.toFixed(0)}`);
+  // Only the pace coming AT the boot counts. A ball already running away is caught up with and
+  // struck, not smashed — otherwise chasing a loose ball would be the best shot in the game.
+  ok('and a ball running away is not', Math.abs(fleeing - still) < 1,
+     `fleeing ${fleeing.toFixed(0)} vs still ${still.toFixed(0)}`);
+}
+{
+  // THE HEADER, the same way. Two things make one hard: the ball came at you, and you met it
+  // on the way UP. Both were worth nothing before — a header was one number whatever arrived.
+  const nod = ({ ballVx = 0, rising = false } = {}) => {
+    const m = fresh();
+    const p = m.players[0];
+    p.x = 500; p.kickCd = 0; p.prev = {};
+    m.players[1].x = 900;
+    if (rising) { p.vy = -C.JUMP_V; p.onGround = false; }
+    m.ball.x = p.x + 10; m.ball.y = headY(p) - 4;
+    m.ball.vx = ballVx; m.ball.vy = 0;
+    m.hitStop = 0;
+    step(m, [{ kick: true }, {}]);
+    return { vx: m.ball.vx, vy: m.ball.vy, sp: Math.hypot(m.ball.vx, m.ball.vy) };
+  };
+  const lazy = nod(), driven = nod({ ballVx: -600 }), jumped = nod({ rising: true });
+  ok('a header meeting a driven ball goes much faster', driven.sp > lazy.sp * 1.3,
+     `${driven.sp.toFixed(0)} vs ${lazy.sp.toFixed(0)}`);
+  ok('…and it is the FORWARD half that grows', driven.vx > lazy.vx * 2,
+     `${driven.vx.toFixed(0)} vs ${lazy.vx.toFixed(0)}`);
+  ok('a header taken on the way up is harder than one standing still',
+     jumped.sp > lazy.sp * 1.2, `${jumped.sp.toFixed(0)} vs ${lazy.sp.toFixed(0)}`);
+  ok('…and the jump is what lifts it', jumped.vy < lazy.vy,
+     `${jumped.vy.toFixed(0)} vs ${lazy.vy.toFixed(0)}`);
+  // The timing this buys: at the apex there is no rise left, so the same jump headed late is
+  // worth nothing. That is the skill, and it is why the rise is read rather than `onGround`.
+  const apex = (() => {
+    const m = fresh();
+    const p = m.players[0];
+    p.x = 500; p.kickCd = 0; p.prev = {};
+    m.players[1].x = 900;
+    p.vy = 0; p.onGround = false;                    // airborne, but no longer climbing
+    m.ball.x = p.x + 10; m.ball.y = headY(p) - 4;
+    m.ball.vx = 0; m.ball.vy = 0;
+    m.hitStop = 0;
+    step(m, [{ kick: true }, {}]);
+    return Math.hypot(m.ball.vx, m.ball.vy);
+  })();
+  ok('a header at the apex is just a header', apex < jumped.sp * 0.95,
+     `apex ${apex.toFixed(0)} vs rising ${jumped.sp.toFixed(0)}`);
 }
 {
   // THE ULTIMATE LEAVES FROM WHERE THE BODY MET THE BALL, and it never fetches the ball. An
@@ -1223,15 +1480,499 @@ const run = (m, ticks, inputs = NONE) => {
       // both — it is over-constrained, not unresolved, and the resolver settles it in favour
       // of whichever player it handled last. What this soak is for is the single-player case.
       if (m.players.filter((p) => depth(m, p) > -1).length > 1) continue;
+      // …and skip a ball CONTESTED BY THE FRAME, which is the same thing with a goalpost as
+      // the second collider. A player may stand on their own goal line, so their torso can
+      // straddle it; keepOutOfGoal will not let a push-out set the ball down behind that line
+      // (see shared/goalbox.js — a contact is not a way into the net). A ball between the two
+      // therefore has no position that satisfies both either, and it settles held against the
+      // line: measured at tick 3731 as the ball at x=57 with its edge exactly on the 69 line
+      // and 1.58px of the player's corner over it. Over-constrained, not unresolved — and the
+      // budget below stays where it was for every configuration that is neither.
+      const edge = m.ball.x + C.BALL_R, redge = m.ball.x - C.BALL_R;
+      const heldByFrame = m.ball.y - C.BALL_R > C.GROUND_Y - C.GOAL_H
+        && (Math.abs(edge - C.GOAL_W) < 1 || Math.abs(redge - (C.W - C.GOAL_W)) < 1);
+      if (heldByFrame) continue;
       for (const p of m.players) {
-        if (p.knocked > 0) continue;
-        if (m.ball.power && m.ball.power.owner !== p.index && p.rooted > 0) continue;
+        if (p.stunned > 0) continue;
         const e = embed(m, p);
         if (e > deepest) { deepest = e; worst = { i, p: p.index }; }
       }
     }
     ok('4000 ticks of random play leave the ball embedded in nobody', deepest < 1.5,
        `${deepest.toFixed(2)}px at tick ${worst?.i} on player ${worst?.p}`);
+  }
+}
+
+// ── A PAUSE MUST NOT EAT THE NEXT PRESS ───────────────────────────────────────
+//
+// hitStop and freeze both return out of step() before stepPlayer runs, so for the length of
+// either one nothing was updating `p.prev` — the latch every edge in this file is read
+// against. It kept whatever was true when the pause began, and a release that happened DURING
+// the pause was never recorded, so the press that followed was not a rising edge.
+//
+// Measured before the fix: score while holding JUMP (which is how a header is scored), let go
+// during the two-second restart, press again as play resumes — zero jumps. And a JUMP pressed
+// during a hit-stop and held never fired at all.
+//
+// The fix watches releases and only releases, so all three of these hold at once. The middle
+// one is the reason the naive fix (clearing `prev` on a restart) is wrong: it would hand a
+// free jump to anyone still leaning on the button.
+{
+  const held = (m, i, input, ticks, want) => {
+    let n = 0;
+    for (let t = 0; t < ticks; t++) {
+      const ins = [{}, {}]; ins[i] = input;
+      step(m, ins);
+      n += m.events.filter((e) => e.type === want && e.player === i).length;
+      m.events.length = 0;
+    }
+    return n;
+  };
+  // …across a GOAL RESTART
+  const restart = (holdThrough, pressAfter) => {
+    const m = createMatch({ rarity: 'legendary', number: 3 }, { rarity: 'legendary', number: 2 }, {});
+    m.phase = 'play'; m.freeze = 0;
+    held(m, 0, { jump: true }, 1, 'jump');              // establish prev.jump = true
+    const b = m.ball;
+    b.x = C.W - C.GOAL_W - 5; b.y = C.GROUND_Y - 20; b.vx = 900;
+    for (let t = 0; t < 30 && m.phase === 'play'; t++) { step(m, [{ jump: true }, {}]); m.events.length = 0; }
+    let guard = 0;
+    while (m.phase !== 'play' && guard++ < 400) { step(m, [{ jump: holdThrough }, {}]); m.events.length = 0; }
+    return held(m, 0, { jump: pressAfter }, 20, 'jump');
+  };
+  ok('a jump released during a goal restart fires on the next press', restart(false, true) === 1,
+     `${restart(false, true)} jumps`);
+  ok('a jump HELD through a goal restart does not fire for free', restart(true, true) === 0,
+     `${restart(true, true)} jumps`);
+  ok('no press after a restart means no jump', restart(false, false) === 0);
+
+  // …and across a HIT-STOP. `before` is the half that matters: the latch only goes stale if
+  // the button was already DOWN when the pause started, so a test that begins from a released
+  // button passes with or without the fix and proves nothing.
+  const hitstop = (before, duringPause, after) => {
+    const m = createMatch({ rarity: 'legendary', number: 3 }, { rarity: 'legendary', number: 2 }, {});
+    m.phase = 'play'; m.freeze = 0;
+    // Hold `before` for a tick to set the latch, and let the resulting jump land again.
+    held(m, 0, { jump: before }, 1, 'jump');
+    for (let t = 0; t < 60 && !m.players[0].onGround; t++) { step(m, [{ jump: before }, {}]); m.events.length = 0; }
+    m.hitStop = 0.2;
+    let n = 0, guard = 0;
+    while (m.hitStop > 0 && guard++ < 60) {
+      step(m, [{ jump: duringPause }, {}]);
+      n += m.events.filter((e) => e.type === 'jump').length; m.events.length = 0;
+    }
+    return n + held(m, 0, { jump: after }, 20, 'jump');
+  };
+  ok('a jump held into a hit-stop, released during it, fires on the next press',
+     hitstop(true, false, true) === 1, `${hitstop(true, false, true)} jumps`);
+  ok('a jump held right through a hit-stop does not re-fire', hitstop(true, true, true) === 0,
+     `${hitstop(true, true, true)} jumps`);
+  ok('a jump pressed during a hit-stop fires when it lifts', hitstop(false, true, true) === 1);
+  ok('a jump pressed and released inside a hit-stop does not fire', hitstop(false, true, false) === 0);
+
+  // POWER is edge-read the same way, and holding it through a restart must not re-arm.
+  {
+    const m = createMatch({ rarity: 'legendary', number: 3 }, { rarity: 'legendary', number: 2 }, {});
+    m.phase = 'play'; m.freeze = 0;
+    m.players[0].gauge = 1;
+    step(m, [{ power: true }, {}]); m.events.length = 0;     // arm once
+    const b = m.ball;
+    b.x = C.W - C.GOAL_W - 5; b.y = C.GROUND_Y - 20; b.vx = 900;
+    let arms = 0, guard = 0;
+    for (let t = 0; t < 30 && m.phase === 'play'; t++) { step(m, [{ power: true }, {}]); m.events.length = 0; }
+    while (m.phase !== 'play' && guard++ < 400) {
+      step(m, [{ power: true }, {}]);
+      arms += m.events.filter((e) => e.type === 'armed').length; m.events.length = 0;
+    }
+    arms += held(m, 0, { power: true }, 30, 'armed');
+    ok('holding POWER through a goal restart does not re-arm', arms === 0, `${arms} extra arms`);
+  }
+}
+
+// ── THE SNAPSHOT CARRIES EVERY LIVE FIELD ─────────────────────────────────────
+//
+// P_FIELDS is the wire schema, and a field left out of it is a field a reconciling client
+// silently loses. The pair in that seat now is `hp`/`stunned`, and they are the same shape of
+// hazard the old `effectId`/`effectT` were: `hp` barely moves the physics, so nothing else
+// would catch it, but the character's damaged look is derived from it and from nothing else —
+// leave it out and every reconcile flickers a hurt player back to healthy.
+//
+// Written as "no live field is missing" rather than "these two are present", so the next field
+// somebody adds to a player has to be classified rather than quietly dropped.
+{
+  const m = createMatch({ rarity: 'legendary', number: 3 }, { rarity: 'legendary', number: 2 }, {});
+  // Fields that are match-constant or rebuilt by restore(), so they legitimately do not travel.
+  const CONSTANT = new Set(['index', 'side', 'char', 'shot', 'stats', 'prev', 'stats_', 'x0', 'y0']);
+  const live = Object.keys(m.players[0]).filter((k) => !CONSTANT.has(k));
+  const s = serialize(m);
+  const m2 = createMatch({ rarity: 'legendary', number: 3 }, { rarity: 'legendary', number: 2 }, {});
+  // Give every live numeric field a distinctive value, then round-trip it.
+  const p = m.players[0];
+  p.gauge = 0.37; p.armed = 1; p.coyote = 0.04; p.jumpBuf = 0.03;
+  p.tackleImmune = 0.55; p.shoved = 0.13;
+  p.hp = 0.37; p.stunned = 0.66; p.kickLob = true; p.kickDir = -1;
+  restore(m2, serialize(m));
+  const lost = live.filter((k) => m2.players[0][k] !== p[k]);
+  ok('every live player field survives serialize -> restore', lost.length === 0, `lost: ${lost.join(', ')}`);
+  ok('health and the stun survive a reconcile',
+     m2.players[0].hp === 0.37 && m2.players[0].stunned === 0.66,
+     `${m2.players[0].hp} / ${m2.players[0].stunned}`);
+}
+
+// ══ HEALTH, DAMAGE AND THE ONE STUN ═══════════════════════════════════════════
+//
+// The system that replaced the signature effects. The rule it is built to keep is a single
+// sentence: BEING HIT COSTS YOU CONDITION, AND ONLY BOTTOMING OUT COSTS YOU CONTROL. Health is
+// invisible — no bar, no number, nothing in the HUD — so the character's own face is the only
+// readout, and hurtTier is the one place the thresholds are written down.
+{
+  // Put the victim on the tackler's boot and press. Returns the match so a test can keep going.
+  const tackle = (m, attacker = 0) => {
+    const a = m.players[attacker], v = m.players[1 - attacker];
+    m.ball.x = C.W / 2; m.ball.y = 100;                 // ball nowhere near: this is a tackle
+    v.x = a.x + Math.sign(v.x - a.x || 1) * C.KICK_REACH;
+    a.facing = Math.sign(v.x - a.x) || 1;
+    v.facing = -a.facing;                               // face them: a FRONT hit, the cheap one
+    a.kickCd = 0; a.prev = {}; v.tackleImmune = 0; m.hitStop = 0;
+    step(m, attacker === 0 ? [{ kick: true }, {}] : [{}, { kick: true }]);
+    m.hitStop = 0;
+    return m;
+  };
+  const events = (m) => m.events.filter((e) => e.type === 'tackle');
+  // Land `n` tackles on the victim, clearing the immunity between them. Returns the events.
+  const beat = (m, n, attacker = 0) => {
+    const seen = [];
+    for (let i = 0; i < n; i++) {
+      tackle(m, attacker);
+      seen.push(...m.events);
+      m.events.length = 0;
+      m.players[1 - attacker].tackleImmune = 0;
+    }
+    return seen;
+  };
+
+  // ---- 1. health exists, starts full, and is not on screen -----------------
+  {
+    const m = fresh();
+    ok('both players start at full health', m.players[0].hp === 1 && m.players[1].hp === 1);
+    ok('and neither starts stunned', m.players[0].stunned === 0 && m.players[1].stunned === 0);
+    ok('health is a fraction, not a percentage', m.players[0].hp === 1);
+  }
+
+  // ---- 2. a kick damages, and does NOT grey / slow / stick -----------------
+  {
+    const m = fresh();
+    const v = m.players[1];
+    tackle(m);
+    ok('a kick damages the opponent', v.hp < 1, `hp=${v.hp.toFixed(3)}`);
+    ok('…by KICK_DAMAGE', Math.abs((1 - v.hp) - C.KICK_DAMAGE) < C.HP_REGEN * C.TICK + 1e-9,
+       `took ${(1 - v.hp).toFixed(4)}, expected ${C.KICK_DAMAGE}`);
+    ok('a damage event says so', m.events.some((e) => e.type === 'damage' && e.player === 1));
+    // The three fields the old effect lived in are gone from the player entirely. Asserted as
+    // ABSENT rather than zero, so re-adding one is a failure rather than a silent revival.
+    for (const dead of ['knocked', 'rooted', 'slow', 'effectId', 'effectT']) {
+      ok(`a kicked player has no '${dead}' state any more`, !(dead in v), `${dead}=${v[dead]}`);
+    }
+    ok('and a kick does not stun', v.stunned === 0);
+  }
+  {
+    // The control test: a kicked player answers the buttons exactly as an untouched one does.
+    // Run both from a standstill so the tackle's own shove is not what is being measured.
+    const hit = fresh(), clean = fresh();
+    tackle(hit);
+    hit.players[1].vx = 0; hit.players[1].vy = 0; hit.players[1].y = C.GROUND_Y; hit.players[1].onGround = true;
+    run(hit, 40, [{}, { right: true }]);
+    run(clean, 40, [{}, { right: true }]);
+    ok('a kicked player keeps normal movement',
+       Math.abs(Math.abs(hit.players[1].vx) - Math.abs(clean.players[1].vx)) < 1,
+       `${hit.players[1].vx.toFixed(0)} vs ${clean.players[1].vx.toFixed(0)}`);
+    ok('…and normal jumping', hit.players[1].hp < 1
+       && (run(hit, 2, [{}, { jump: true }]), hit.players[1].vy < -100), `vy=${hit.players[1].vy.toFixed(0)}`);
+  }
+
+  // ---- 3. a power hit damages, harder ---------------------------------------
+  {
+    const m = fresh();
+    const a = m.players[0], d = m.players[1];
+    a.shot = SHOTS.blaze;
+    d.x = a.x + 300;
+    firePower(m, 0);
+    inLine(m, d);
+    run(m, 30);
+    ok('a power hit damages the opponent', d.hp < 1, `hp=${d.hp.toFixed(3)}`);
+    ok('…by more than a kick', 1 - d.hp > C.KICK_DAMAGE, `${(1 - d.hp).toFixed(3)} vs ${C.KICK_DAMAGE}`);
+    ok('and it does not stun on its own', d.stunned === 0);
+  }
+
+  // ---- 4. the thresholds, and what the character shows ----------------------
+  {
+    ok('above 80% the character is untouched', hurtTier(1) === 0 && hurtTier(0.81) === 0);
+    ok('80% or lower is the first red', hurtTier(0.8) === 1 && hurtTier(0.61) === 1);
+    ok('60% or lower is stronger', hurtTier(0.6) === 2 && hurtTier(0.41) === 2);
+    ok('40% or lower brings the blue marks', hurtTier(0.4) === 3 && hurtTier(0.01) === 3);
+    ok('0% is the critical look', hurtTier(0) === 4);
+    // Monotonic: a player who is getting worse never looks better on the way down.
+    let worst = 0, drops = 0;
+    for (let hp = 1; hp >= 0; hp -= 0.005) {
+      const t = hurtTier(Math.max(0, +hp.toFixed(4)));
+      if (t < worst) drops++;
+      worst = Math.max(worst, t);
+    }
+    ok('the damaged look only ever gets worse as health falls', drops === 0, `${drops} reversals`);
+  }
+  {
+    // …and the tier really does follow damage as it lands, tick by tick, on a live match.
+    const m = fresh();
+    const v = m.players[1];
+    const tiers = [hurtTier(v.hp)];
+    for (let i = 0; i < 6; i++) { tackle(m); m.events.length = 0; v.tackleImmune = 0; tiers.push(hurtTier(v.hp)); }
+    ok('the character visibly worsens as the kicks land', tiers[0] === 0 && tiers[tiers.length - 1] >= 3,
+       tiers.join('->'));
+  }
+
+  // ---- 5. ONE stun at 0%, 1.5-2s, no duplicates ----------------------------
+  {
+    ok('the stun is between 1.5 and 2 seconds', C.HP_STUN_TIME >= 1.5 && C.HP_STUN_TIME <= 2,
+       `${C.HP_STUN_TIME}s`);
+    const m = fresh();
+    const v = m.players[1];
+    const seen = beat(m, 12);                            // more than enough to bottom them out
+    const stuns = seen.filter((e) => e.type === 'stunned' && e.player === 1);
+    ok('bottoming out stuns the player', stuns.length >= 1, `${stuns.length} stuns`);
+    ok('…exactly once, however many hits land', stuns.length === 1, `${stuns.length} stuns`);
+    ok('the stun is set to HP_STUN_TIME', Math.abs(stuns[0].time - C.HP_STUN_TIME) < 1e-9);
+    ok('and the character is at its critical look', hurtTier(v.hp) === 4, `hp=${v.hp}`);
+    // Keep kicking a player who is already down: no second stun, and the clock does not grow.
+    const before = v.stunned;
+    const more = beat(m, 4);
+    ok('a stunned player cannot be re-stunned', !more.some((e) => e.type === 'stunned'));
+    ok('and hitting them does not extend it', v.stunned <= before + 1e-9,
+       `${before.toFixed(2)} -> ${v.stunned.toFixed(2)}`);
+    ok('nor damage them further', v.hp === 0, `hp=${v.hp}`);
+  }
+  {
+    // A stun takes the controls, and gives them back. Both halves, on one match.
+    const m = fresh();
+    const v = m.players[1];
+    beat(m, 12);
+    m.events.length = 0;
+    ok('(the victim is down)', v.stunned > 0);
+    // Against a control, the way the old knockdown test did it: a stunned player still COASTS
+    // — the tackle's shove is decaying under them — so "cannot walk" cannot be a distance. It
+    // is "input changes nothing", which is the property that actually matters.
+    const ctrl = fresh();
+    beat(ctrl, 12);
+    run(m, 20, [{}, { right: true }]);
+    run(ctrl, 20, NONE);
+    ok('a stunned player ignores the controls',
+       Math.abs(v.x - ctrl.players[1].x) < 0.001 && Math.abs(v.vx - ctrl.players[1].vx) < 0.001,
+       `${v.x.toFixed(2)} vs ${ctrl.players[1].x.toFixed(2)}`);
+    // Run out what is LEFT of the stun, timed against the clock it is actually holding: the
+    // ticks above have already eaten some of it. The cap is generous on purpose — what is
+    // asserted is that it ENDS, and a stun that never did would fail here rather than hang.
+    const left = v.stunned;
+    let t = 0;
+    for (; t < 400 && v.stunned > 0; t++) { m.hitStop = 0; step(m, NONE); }
+    ok('the stun always ends', v.stunned === 0, `still stunned after ${t} ticks`);
+    ok('…and runs exactly the clock it was given', Math.abs(t * C.TICK - left) <= C.TICK + 1e-9,
+       `${(t * C.TICK).toFixed(3)}s of ${left.toFixed(3)}s`);
+    ok('and it comes back at about 40%', Math.abs(v.hp - C.HP_AFTER_STUN) < 0.02, `hp=${v.hp.toFixed(3)}`);
+    ok('the player is still visibly hurt', hurtTier(v.hp) === 3, `tier ${hurtTier(v.hp)}`);
+    ok('a revive event reports the handover', m.events.some((e) => e.type === 'revive' && e.player === 1));
+    const x1 = v.x;
+    run(m, 30, [{}, { right: true }]);
+    ok('and the controls come back with them', Math.abs(v.x - x1) > 20,
+       `moved ${Math.abs(v.x - x1).toFixed(1)}px`);
+  }
+  {
+    // A CHAIN-STUN TAKES LONGER THAN THE FIRST ONE, on request — coming back at 40% used to
+    // mean two more boots, under 1.2s of continuous kicking, put the same player straight back
+    // down. HP_REVIVE_GRACE buys one extra TACKLE_IMMUNE window right on revival so a repeat
+    // knockdown costs roughly the length of the example given: ~4-5s from full, ~3s from a
+    // revive. Driven by mashing kick every tick against a stationary victim, the way a human
+    // holding the button down against someone AFK actually plays.
+    const mash = (m, attacker, victim, cond, maxTicks) => {
+      let key = false;
+      for (let t = 0; t < maxTicks; t++) {
+        m.hitStop = 0; key = !key;
+        victim.x = attacker.x + C.KICK_REACH; victim.vx = 0; victim.y = C.GROUND_Y; victim.onGround = true;
+        const input = [{}, {}]; input[attacker.index] = { kick: key };
+        step(m, input);
+        m.events.length = 0;
+        if (cond()) return t * C.TICK;
+      }
+      return -1;
+    };
+    const m = fresh();
+    const a = m.players[0], v = m.players[1];
+    m.ball.x = 9999; m.ball.y = 9999;                    // out of the way
+    const firstStun = mash(m, a, v, () => v.stunned > 0, 600);
+    ok('mashed from full health, the first stun lands in about 4-5s',
+       firstStun >= 3.5 && firstStun <= 6, `${firstStun.toFixed(2)}s`);
+    let t = 0;
+    for (; t < 400 && v.stunned > 0; t++) { m.hitStop = 0; step(m, NONE); }
+    ok('(revived)', v.stunned === 0 && Math.abs(v.hp - C.HP_AFTER_STUN) < 1e-9);
+    const secondStun = mash(m, a, v, () => v.stunned > 0, 600);
+    ok('mashed again right after revival, the second stun takes about 3s',
+       secondStun >= 2.3 && secondStun <= 3.8, `${secondStun.toFixed(2)}s`);
+    ok('…clearly longer than a bare two-hit gap would give without the grace',
+       secondStun > C.TACKLE_IMMUNE * 1.3, `${secondStun.toFixed(2)}s vs immune ${C.TACKLE_IMMUNE}s`);
+  }
+
+  {
+    // THE STUN IS A WALL CLOCK, and hit-stop is the thing that used to bend it. step() returns
+    // before any player is stepped for the length of a hit-stop, so a stun that spanned a few
+    // of them ran long — measured at 1.98s against an authored 1.75s, and a player standing
+    // over a downed opponent could keep adding to it. Now the countdown runs through the pause
+    // and a downed player cannot be tackled at all.
+    const lengthOf = (withHitStops) => {
+      const m = fresh();
+      const v = m.players[1];
+      beat(m, 12);
+      m.events.length = 0;
+      let t = 0;
+      for (; t < 600 && v.stunned > 0; t++) {
+        if (!withHitStops) m.hitStop = 0;
+        else m.hitStop = Math.max(m.hitStop, C.HIT_STOP_POWER);   // a heavy connect, every tick
+        step(m, NONE);
+      }
+      return t * C.TICK;
+    };
+    const quiet = lengthOf(false), busy = lengthOf(true);
+    ok('a stun spanning hit-stops still runs its own clock', Math.abs(busy - quiet) <= C.TICK * 2 + 1e-9,
+       `${quiet.toFixed(3)}s quiet vs ${busy.toFixed(3)}s under constant hit-stop`);
+    ok('…and both are inside the 1.5-2s the brief asks for',
+       quiet >= 1.5 && quiet <= 2 && busy >= 1.5 && busy <= 2, `${quiet.toFixed(2)} / ${busy.toFixed(2)}`);
+  }
+  {
+    // A downed player is not a target. Booting one used to pay the tackler gauge for nothing
+    // and stretch the victim's time on the floor with every hit-stop it made.
+    const m = fresh();
+    const a = m.players[0], v = m.players[1];
+    beat(m, 12);
+    ok('(the victim is down)', v.stunned > 0);
+    const gauge = a.gauge;
+    m.events.length = 0;
+    beat(m, 5);
+    ok('a stunned player cannot be tackled', !m.events.some((e) => e.type === 'tackle')
+       && !events(m).length, JSON.stringify(m.events.map((e) => e.type)));
+    ok('…so nobody farms meter off them', Math.abs(a.gauge - gauge) < 0.02,
+       `${gauge.toFixed(3)} -> ${a.gauge.toFixed(3)}`);
+  }
+
+  // ---- 6. regeneration ------------------------------------------------------
+  {
+    const m = fresh();
+    const v = m.players[1];
+    tackle(m);
+    const hurt = v.hp;
+    run(m, 30);
+    ok('health regenerates on its own', v.hp > hurt, `${hurt.toFixed(3)} -> ${v.hp.toFixed(3)}`);
+    ok('…gradually, not in a jump', v.hp - hurt < 0.1, `+${(v.hp - hurt).toFixed(3)} in half a second`);
+    // All the way back, and no further. 100% is a ceiling, not a target it overshoots.
+    run(m, 60 * 30);
+    ok('it reaches full health', Math.abs(v.hp - 1) < 1e-9, `hp=${v.hp}`);
+    ok('and never exceeds it', v.hp <= 1);
+    ok('the character looks untouched again', hurtTier(v.hp) === 0);
+  }
+  {
+    // The visuals have to follow the mend, not just the damage — a player who has regenerated
+    // past a threshold must LOOK better before they are all the way back.
+    const m = fresh();
+    const v = m.players[1];
+    beat(m, 12);
+    for (let i = 0; i < 400 && v.stunned > 0; i++) { m.hitStop = 0; step(m, NONE); }
+    const tiers = [hurtTier(v.hp)];                      // 3, at 40%
+    // HP_REGEN is slow on purpose now (40% -> full in ~30s), so the sample window has to
+    // cover that whole climb rather than the first 12 seconds of it.
+    for (let i = 0; i < 32; i++) { run(m, 60); tiers.push(hurtTier(v.hp)); }
+    ok('the damaged look lifts as health comes back', tiers[0] === 3 && tiers[tiers.length - 1] === 0,
+       tiers.join('->'));
+    ok('…passing through every tier on the way', tiers.includes(2) && tiers.includes(1),
+       tiers.join('->'));
+    ok('and it never worsens while mending',
+       tiers.every((t, i) => i === 0 || t <= tiers[i - 1]), tiers.join('->'));
+  }
+
+  // ---- 7. both players, the same rules -------------------------------------
+  {
+    const outcome = (attacker) => {
+      const m = fresh();
+      const v = m.players[1 - attacker];
+      const seen = beat(m, 12, attacker);
+      const stun = seen.find((e) => e.type === 'stunned');
+      let t = 0;
+      for (; t < 400 && v.stunned > 0; t++) { m.hitStop = 0; step(m, NONE); }
+      return { hurt: +(1 - m.players[1 - attacker].hp).toFixed(6), stunT: stun && stun.time,
+               victim: stun && stun.player, ticks: t, after: +v.hp.toFixed(6) };
+    };
+    const byP0 = outcome(0), byP1 = outcome(1);
+    ok('player 1 takes damage from player 0 exactly as player 0 does from player 1',
+       byP0.hurt === byP1.hurt && byP0.stunT === byP1.stunT && byP0.after === byP1.after,
+       `${JSON.stringify(byP0)} vs ${JSON.stringify(byP1)}`);
+    // Within a tick, not equal: the two players are stepped in index order, so a victim who is
+    // player 1 has their stun counted down once in the very tick it was set and a victim who is
+    // player 0 does not. One frame, and it belongs to the step order, not to the rules.
+    ok('…and both stuns last the same time to within a tick', Math.abs(byP0.ticks - byP1.ticks) <= 1,
+       `${byP0.ticks} vs ${byP1.ticks} ticks`);
+    ok('…and the stun lands on the one who was hit, both ways',
+       byP0.victim === 1 && byP1.victim === 0, `${byP0.victim} / ${byP1.victim}`);
+  }
+
+  // ---- 8. a goal restart clears the STUN, not the health --------------------
+  //
+  // Changed on request: a beating is meant to carry across the whole match, so a goal no
+  // longer heals either player back to full. What it still has to do is release a stun — a
+  // kickoff nobody can move for is a bug no matter whose fault the health is.
+  {
+    const m = fresh();
+    const v = m.players[1];
+    beat(m, 12);
+    const hpBefore = v.hp;
+    ok('(somebody is hurt and down)', v.hp === 0 && v.stunned > 0);
+    scoreOn(m, true);                                    // drive a ball into the left net
+    ok('(the goal went in)', m.score[1] === 1, `score ${m.score}`);
+    ok('a goal restart does NOT heal health back to full',
+       v.hp === hpBefore, `${hpBefore} -> ${v.hp}`);
+    ok('…but it does clear the stun', v.stunned === 0);
+    m.freeze = 0; m.phase = 'play';                      // past the post-goal freeze
+    run(m, 20, [{}, { right: true }]);
+    ok('…so the hurt character can move again immediately',
+       Math.abs(v.vx) > 20, `vx=${v.vx.toFixed(0)}`);
+  }
+  {
+    // A NEW MATCH IS A NEW MATCH. createMatch builds fresh players, so this is really a guard
+    // against health ever being hung off something module-level that outlives one of them.
+    const m = fresh();
+    beat(m, 12);
+    const next = fresh();
+    ok('a new match starts both players at full health',
+       next.players[0].hp === 1 && next.players[1].hp === 1);
+    ok('and neither of them is carrying a stun into it',
+       next.players[0].stunned === 0 && next.players[1].stunned === 0);
+  }
+
+  // ---- 9. nothing else moved -----------------------------------------------
+  {
+    // Damage must not pay a meter, move a score or touch the ball. The tackler's gauge gain is
+    // TACKLE_GAUGE and was already there; what is asserted is that damage adds nothing to it.
+    const m = fresh();
+    const a = m.players[0], v = m.players[1];
+    tackle(m);
+    ok('damage does not move the score', m.score[0] === 0 && m.score[1] === 0);
+    ok('damage does not touch the victim\'s meter', v.gauge < 0.01, `gauge=${v.gauge.toFixed(3)}`);
+    ok('and the tackler still gets exactly TACKLE_GAUGE',
+       a.gauge >= C.TACKLE_GAUGE && a.gauge < C.TACKLE_GAUGE + 0.01, `gauge=${a.gauge.toFixed(4)}`);
+    // Against a control stepped the same way without the kick — the ball is falling under
+    // gravity in both, so the question is whether the tackle STRUCK it, not whether it moved.
+    const ctrl = fresh();
+    ctrl.ball.x = C.W / 2; ctrl.ball.y = 100;
+    ctrl.players[1].x = ctrl.players[0].x + C.KICK_REACH;
+    ctrl.hitStop = 0;
+    step(ctrl, NONE);
+    ok('a tackle still does not strike the ball',
+       Math.abs(m.ball.x - ctrl.ball.x) < 1e-9 && Math.abs(m.ball.vx - ctrl.ball.vx) < 1e-9,
+       `${m.ball.x.toFixed(2)}/${m.ball.vx.toFixed(2)} vs ${ctrl.ball.x.toFixed(2)}/${ctrl.ball.vx.toFixed(2)}`);
   }
 }
 

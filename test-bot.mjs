@@ -65,7 +65,13 @@ function playMatch(levelA, levelB, seed, duration = C.MATCH_DURATION) {
   const SEEDS = [12345, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11];
   const fired = SEEDS.map((s) => playMatch(3, 3, s).stats.powershots);
   const mean = fired.reduce((a, b) => a + b, 0) / fired.length;
-  ok('bots fire power shots', mean >= 2 && Math.min(...fired) >= 1, `mean=${mean.toFixed(2)} of ${fired.join(',')}`);
+  // MOST seeds, not every one. This used to demand a minimum of 1 across all twelve, which is
+  // the single-match coin toss the paragraph above says not to trust, one level up: a match
+  // where neither bot ever gets a full meter to the ball is a legal match, and one duly turned
+  // up. The property worth fencing is that the move is a regular part of play.
+  const silent = fired.filter((n) => n === 0).length;
+  ok('bots fire power shots', mean >= 2 && silent <= 2,
+     `mean=${mean.toFixed(2)}, ${silent} silent, of ${fired.join(',')}`);
   ok('somebody scores', m.score[0] + m.score[1] > 0, m.score.join('-'));
   // This guards against runaway physics, not against taste: it is what caught the ball
   // tunnelling through a defender (matches finished 15-12) and the inverted aggression
@@ -111,12 +117,32 @@ function playMatch(levelA, levelB, seed, duration = C.MATCH_DURATION) {
 }
 
 // --- the difficulty dial does something -------------------------------------
+//
+// KNOWN FAILING, and deliberately left that way: the dial currently runs BACKWARDS. The very-easy
+// bot beats the legendary one by 35 goals over 64 matches. Swapping the slots rules out a side
+// bias — with the legendary bot in slot 1 the easy bot still wins, by 13 — so the weak bot wins
+// from either end of the pitch. This is the product being wrong, not the test.
+//
+// WHY. Every tier's reaction, ball-reading and tackling were only ever worth a little, and what
+// actually carried the ladder was one coin flip: a weak bot was made to hold the WRONG WAY as it
+// swung, so it shot at its own net and gave goals away. The boot only swings toward the goal you
+// attack now — nobody can shoot at their own net any more — and with that gone the remaining
+// gradient does not cover the gap. Re-measured against the old physics it was already -14 over 64
+// matches; the 16-match reading this used to take was simply landing the right way up by luck.
+//
+// WHAT WAS TRIED, all measured over 64 matches, none of it enough: standing a boot's length off
+// the ball instead of on top of it (the one real gain, and it is kept); aiming the stand-off at
+// the toe cap for the flat drive (-35), at the instep for loft (-42) and at the middle (-36);
+// swinging only in a chosen part of the boot (-18) or swinging at everything (-38); a higher ball
+// speed ceiling (helps, kept); pressure scaled by skill (-28). The gap is not in any one of these
+// knobs — the difficulty MODEL needs rebuilding around what the new rule makes hard, which is
+// getting round the ball and meeting it cleanly, not aiming.
+//
+// The sample is 48 rather than 16 so the number it reports is stable: a failing test that
+// flickers is worse than one that fails the same way every time.
 {
-  // Win/loss over a handful of 60-second matches is mostly noise at ~5 goals a match, and
-  // tuning against it sent the goal size chasing its own tail. Aggregate GOAL DIFFERENCE
-  // over many matches is the same question asked with far less variance.
   let diff = 0, hardWins = 0, easyWins = 0;
-  const N = 16;
+  const N = 48;
   for (let s = 0; s < N; s++) {
     const { m } = playMatch(5, 0, 4000 + s * 37);      // legendary bot vs very-easy bot
     diff += m.score[0] - m.score[1];

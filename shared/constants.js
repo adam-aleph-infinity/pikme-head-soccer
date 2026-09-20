@@ -56,7 +56,13 @@ export let BALL_AIR = 0.9955;       // per-tick horizontal air drag
 export let BALL_GROUND_FRICTION = 0.988;
 export let BALL_BOUNCE = 0.74;      // restitution off the grass
 export const BALL_WALL_BOUNCE = 0.86;
-export let BALL_MAX_SPEED = 1050;    // hard ceiling on a loose ball
+// Hard ceiling on a loose ball. Raised from 1050 when the strike became a collision: at 1050
+// an ordinary lofted kick already arrived AT the ceiling (382 across, 597 up, 709 of a paced
+// 714), so every "better contact" was clipped straight back off and a well-met ball felt
+// exactly like a scuffed one. The headroom is what makes meeting the ball worth doing.
+// It is still the budget a shot SPENDS: a lofted kick puts most of it into climbing, which is
+// why the flat drive off the toe is the fastest shot in the game.
+export let BALL_MAX_SPEED = 1200;
 export const BALL_SPIN_DECAY = 0.985;
 
 // ---- Player ----------------------------------------------------------------
@@ -158,12 +164,56 @@ export let KICK_BOW = 1.35;          // how much extra loft the aimed kick gets
 export let KICK_BOW_MIN = 260;       // px — below this range to the goal, do not loft at all,
                                      // or a tap from the six-yard box sails over the bar
 
+// ── WHERE ON THE BOOT ────────────────────────────────────────────────────────
+// A kick used to be ONE shot: the same speed and the same loft wherever on the foot the ball
+// happened to land, so the only choice in it was the lob button. Now the CONTACT POINT is the
+// shot. Two axes, both read off the ball's position inside the kick circle at the moment it
+// connects:
+//
+//   along the boot   toe cap → a poke. Flat, fast, no air under it, because the tip of the
+//                    foot meets the ball square and there is no instep beneath it to lift.
+//                    Ankle end, the whole foot → the boot gets UNDER the ball and scoops it.
+//   under the ball   the same story on the other axis. The kick circle sits at the height of a
+//                    ball rolling on the grass, so this is ~0 for the ordinary ground kick and
+//                    only grows for a ball dropping onto the boot — which is chipped.
+//
+// Dead centre is 1.0, which is exactly the kick this game already had: the old feel is the
+// middle of the new range rather than one end of it.
+export let KICK_TOE_LOFT = 2;        // how far the toe/instep axis swings the loft, ±half this
+export let KICK_UNDER_LOFT = 0.4;    // and how much a boot under the ball adds
+export let KICK_TOE_DRIVE = 0.85;    // what does not go up goes forward: the toe-poke's punch
+// The bottom of the range is a DEAD FLAT shot — parallel to the grass, straight at the goal,
+// and it has to be reachable or "kick it straight" is not a thing the player can choose. Meet
+// the ball on the very tip of the boot and KICK_TOE_LOFT takes the loft to zero: no arc, no
+// bow (the aim multiplies the loft, so nothing times nothing is still nothing), and the whole
+// of the strike's energy going forward instead of upward. That last part is why the flat shot
+// is also the FAST one — see BALL_MAX_SPEED, which a lofted kick spends most of on climbing.
+export let KICK_LOFT_MIN = 0;
+export let KICK_LOFT_MAX = 1.6;
+
+// ── MEETING THE BALL ─────────────────────────────────────────────────────────
+// A strike used to SET the ball's velocity: the same shot off a ball flying at you as off one
+// asleep on the grass. It is a COLLISION, so the pace the ball carries INTO the boot or the
+// forehead comes back out of it, and a cleanly met ball is the hardest thing on the pitch that
+// is not an ultimate. Only the part coming AT the striker counts — a ball running away is
+// caught up with, not smashed.
+export let KICK_MEET = 0.55;         // of the ball's incoming pace, returned by a boot
+export let HEAD_MEET = 0.62;         // …and by a header, which is the flatter, harder surface
+export let HEAD_RISE = 0.6;          // of the jump's own rise, added to a header's lift. Heading
+                                     // on the way UP is the timing this buys: at the apex the
+                                     // rise is zero and it is just a header.
+
 // ── THE HEADER ───────────────────────────────────────────────────────────────
 // Pressing kick with the ball at head height is now a HEADER rather than a boot that misses.
 // It is the aerial tool: less power than a kick, more loft, and it is the only way to hit a
 // ball you cannot reach with your foot.
 export let HEADER_POWER = 0.72;      // of a kick, horizontally
-export let HEADER_LIFT = 1.35;       // and more of the lift
+// Dropped from 1.35 when the header became a collision. A plain nod used to leave at 606 of a
+// 714 ceiling entirely on this number, so a header that MET the ball — driven at you, taken on
+// the rise — was clipped back to the same speed as one that did not, and the whole point of
+// timing it was invisible. The base is softer now and HEAD_MEET and HEAD_RISE are what fill
+// the gap: a lazy header is weak, a well-met one is the hardest strike on the pitch.
+export let HEADER_LIFT = 1.1;        // and more of the lift
 export let HEADER_R = 16;            // px of slack around the head circle that still counts
 
 export let HEAD_POWER = 0.52;       // head hits multiply the bounce-out speed. Was 1.14: a head
@@ -200,18 +250,51 @@ export let TACKLE_GAUGE = 0.2;       // gauge gifted to the tackler — FIVE hit
                                      // ten volleys and eleven goals a match once the cancel
                                      // window let the shots through. Five keeps it a thing you
                                      // work towards.
-export let TACKLE_SLOW = 0.55;       // victim's speed multiplier while slowed
-export let TACKLE_SLOW_TIME = 1.7;   // s of slow
-export let TACKLE_STUN = 0.22;       // s of "cannot act" from the FRONT — a nudge, not a knockdown
 // Kicking someone in the back is the one hit they could not see coming, so it is the one that
-// stops them dead rather than shoving them. Front tackles push (TACKLE_PUSH below), back
-// tackles freeze — same button, and which one you get is decided by where you are standing.
-export let TACKLE_STUN_BACK = 0.75;  // s of "cannot act" when hit from behind
-export let TACKLE_PUSH_BACK = 0.45;  // and the shove is scaled DOWN to this, so a freeze is a
-                                     // freeze rather than a freeze that also slides you away
+// costs them most. Both directions shove; the back hit shoves LESS and hurts MORE, which is
+// what keeps it worth walking round behind somebody for.
+export let TACKLE_PUSH_BACK = 0.45;  // the shove, scaled down when it lands from behind
 export let TACKLE_PUSH = 430;        // knockback from the front — a real shove
 export let TACKLE_LIFT = 200;
 export let TACKLE_IMMUNE = 1.1;      // s before the same player can be tackled again
+
+// ---- Health -----------------------------------------------------------------
+// INVISIBLE HEALTH. Every player carries one, 1 = 100%, and nothing on screen prints it: the
+// only place it is ever legible is the CHARACTER, whose face reddens and bruises as it falls
+// (see hurtTier in shared/sim.js and .head.hurt1..4 in public/style.css).
+//
+// It replaces the signature-effect system — grey heads, TACKLE_SLOW, rooted and knocked —
+// which turned being hit into being switched off for a second and a half. A hit now costs you
+// CONDITION, which you can see and play around, and the only thing that ever takes the
+// controls away is bottoming out (HP_STUN_TIME).
+export let KICK_DAMAGE = 0.24;       // a boot in the ribs: four of them bottom you out
+export let KICK_DAMAGE_BACK = 1.5;   // × the above when it lands from behind
+export let POWER_DAMAGE = 0.5;       // taking a power shot on the body — two of them
+export let HP_REGEN = 0.05;          // per second, back toward 100%: 40% -> full in 12s.
+                                     // Slow on purpose — a hit is meant to accumulate faster
+                                     // than it fades, or a stun becomes unreachable in a real
+                                     // match with gaps between contacts.
+export let HP_STUN_TIME = 1.75;      // s of no input at 0%. The brief asks for 1.5–2; this is
+                                     // the middle of it, so the PACE dial has room either way.
+export let HP_AFTER_STUN = 0.4;      // what you come back with — hurt, and visibly so
+// GETTING UP TAKES A MOMENT. Revival used to hand you straight back into normal tackle
+// spacing (TACKLE_IMMUNE, 1.1s between hits on anybody), and coming back at 40% means only
+// two more boots are needed to go straight back down — under 1.2s, which read as a stun-lock
+// nobody can play through. This is the one knob that fixes it without touching how long the
+// FIRST knockdown takes: it only ever fires on a revive, so a fresh 100% opponent still goes
+// down in the same ~4-5s of continuous kicking. From 40%, it buys one extra TACKLE_IMMUNE
+// window before the clock the player can already see (their own dodge) — first hit lands at
+// ~HP_REVIVE_GRACE, second (and stunning) hit ~TACKLE_IMMUNE later: ≈3s to a second knockdown.
+// Was 1.9, tuned back against HP_REGEN's old 0.02/s. HP_REGEN is now 0.05/s (40% -> full in
+// 12s instead of 30s), which heals more of the gap back between the two hits above — at 1.9
+// that pushed the second knockdown out to 4.33s. 0.6 is the grace that lands back on the
+// original ~3s target at the faster regen rate (measured, not guessed: swept 0.3-1.9 in
+// 0.1 steps against the mashing test below).
+export let HP_REVIVE_GRACE = 0.6;
+// Where the character's face changes. Read as "at or below".
+export let HP_HURT1 = 0.8;           // a flush of red
+export let HP_HURT2 = 0.6;           // properly red
+export let HP_HURT3 = 0.4;           // red and bruising blue
 
 // ---- Impact ----------------------------------------------------------------
 // Hit-stop: freeze the whole sim for a few frames on a heavy connect. Costs nothing and is
@@ -359,14 +442,20 @@ const SETTERS = {
   JUMP_BUFFER: (v) => { JUMP_BUFFER = v; },
   FALL_MULT: (v) => { FALL_MULT = v; },
   TACKLE_GAUGE: (v) => { TACKLE_GAUGE = v; },
-  TACKLE_SLOW: (v) => { TACKLE_SLOW = v; },
-  TACKLE_SLOW_TIME: (v) => { TACKLE_SLOW_TIME = v; },
-  TACKLE_STUN: (v) => { TACKLE_STUN = v; },
   TACKLE_PUSH: (v) => { TACKLE_PUSH = v; },
-  TACKLE_STUN_BACK: (v) => { TACKLE_STUN_BACK = v; },
   TACKLE_PUSH_BACK: (v) => { TACKLE_PUSH_BACK = v; },
   TACKLE_LIFT: (v) => { TACKLE_LIFT = v; },
   TACKLE_IMMUNE: (v) => { TACKLE_IMMUNE = v; },
+  KICK_DAMAGE: (v) => { KICK_DAMAGE = v; },
+  KICK_DAMAGE_BACK: (v) => { KICK_DAMAGE_BACK = v; },
+  POWER_DAMAGE: (v) => { POWER_DAMAGE = v; },
+  HP_REGEN: (v) => { HP_REGEN = v; },
+  HP_STUN_TIME: (v) => { HP_STUN_TIME = v; },
+  HP_AFTER_STUN: (v) => { HP_AFTER_STUN = v; },
+  HP_REVIVE_GRACE: (v) => { HP_REVIVE_GRACE = v; },
+  HP_HURT1: (v) => { HP_HURT1 = v; },
+  HP_HURT2: (v) => { HP_HURT2 = v; },
+  HP_HURT3: (v) => { HP_HURT3 = v; },
   HIT_STOP_KICK: (v) => { HIT_STOP_KICK = v; },
   HIT_STOP_POWER: (v) => { HIT_STOP_POWER = v; },
   HIT_STOP_TACKLE: (v) => { HIT_STOP_TACKLE = v; },
@@ -395,6 +484,14 @@ const SETTERS = {
   HEAD_POWER: (v) => { HEAD_POWER = v; },
   KICK_AIM: (v) => { KICK_AIM = v; },
   KICK_BOW: (v) => { KICK_BOW = v; },
+  KICK_TOE_LOFT: (v) => { KICK_TOE_LOFT = v; },
+  KICK_UNDER_LOFT: (v) => { KICK_UNDER_LOFT = v; },
+  KICK_TOE_DRIVE: (v) => { KICK_TOE_DRIVE = v; },
+  KICK_LOFT_MIN: (v) => { KICK_LOFT_MIN = v; },
+  KICK_LOFT_MAX: (v) => { KICK_LOFT_MAX = v; },
+  KICK_MEET: (v) => { KICK_MEET = v; },
+  HEAD_MEET: (v) => { HEAD_MEET = v; },
+  HEAD_RISE: (v) => { HEAD_RISE = v; },
   HEADER_POWER: (v) => { HEADER_POWER = v; },
   HEADER_LIFT: (v) => { HEADER_LIFT = v; },
   GAUGE_FULL: (v) => { GAUGE_FULL = v; },
@@ -430,12 +527,20 @@ export function snapshot() {
     JUMP_BUFFER,
     FALL_MULT,
     TACKLE_GAUGE,
-    TACKLE_SLOW,
-    TACKLE_SLOW_TIME,
-    TACKLE_STUN,
     TACKLE_PUSH,
+    TACKLE_PUSH_BACK,
     TACKLE_LIFT,
     TACKLE_IMMUNE,
+    KICK_DAMAGE,
+    KICK_DAMAGE_BACK,
+    POWER_DAMAGE,
+    HP_REGEN,
+    HP_STUN_TIME,
+    HP_AFTER_STUN,
+    HP_REVIVE_GRACE,
+    HP_HURT1,
+    HP_HURT2,
+    HP_HURT3,
     HIT_STOP_KICK,
     HIT_STOP_POWER,
     HIT_STOP_TACKLE,

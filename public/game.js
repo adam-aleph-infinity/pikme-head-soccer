@@ -2,7 +2,7 @@
 // Everything that decides the game lives in /shared; this file only draws it and reads keys.
 
 import * as C from '../shared/constants.js';
-import { createMatch, step, headY, headR, NO_FX } from '../shared/sim.js';
+import { createMatch, step, headY, headR, hurtTier, NO_FX } from '../shared/sim.js';
 import { createBot, botInput, DIFFICULTIES } from '../shared/bot.js';
 import { shotFor, SHOTS } from '../shared/powershots.js';
 import { goalBox, goalAt, depthPoint, INSIDE_Z } from '../shared/goalbox.js';
@@ -319,13 +319,32 @@ function releasePointer(id) {
 //
 // So the walk pointers, and only the walk pointers, re-ask on every move which arrow is under
 // the finger. The capture STAYS where it is: it is what guarantees the move events keep
-// arriving here at all once the finger is over the canvas, and the answer comes from
-// elementFromPoint instead. Sliding off both arrows releases the direction; sliding back on
-// takes it again.
+// arriving here at all once the finger is over the canvas.
+//
+// The answer used to come from document.elementFromPoint on every move, which asks the whole
+// page to hit-test itself dozens of times a second WHILE the button it is testing is having
+// its own transform changed underneath it (`.on`/`:active` scale the pressed arrow down 6%,
+// which moves its hit edges) — a live target on top of a live query. That is a plausible way
+// for a return slide (▶ → ◀ → ▶) to land on the wrong side of the boundary on a real touch
+// screen without ever showing up in a scripted test that moves the finger in tidy steps. So
+// the geometry is read ONCE, when the walking finger first goes down — before either arrow has
+// been pressed and shrunk — and every move during that finger's gesture is answered by simple
+// arithmetic against that frozen box instead of a fresh hit-test.
+let walkGeom = null;
+function captureWalkGeom() {
+  const l = document.querySelector('.pad-l .btn[data-k="left"]');
+  const r = document.querySelector('.pad-l .btn[data-k="right"]');
+  if (!l || !r) return null;
+  return { l, r, lr: l.getBoundingClientRect(), rr: r.getBoundingClientRect() };
+}
 const walkAt = (x, y) => {
-  const el = document.elementFromPoint(x, y);
-  const btn = el && el.closest ? el.closest('.pad .btn') : null;
-  return btn && WALK.has(btn.dataset.k) ? btn : null;
+  if (!walkGeom) return null;
+  const { l, r, lr, rr } = walkGeom;
+  const top = Math.min(lr.top, rr.top), bottom = Math.max(lr.bottom, rr.bottom);
+  if (y < top || y > bottom) return null;
+  if (x >= lr.left && x <= lr.right) return l;
+  if (x >= rr.left && x <= rr.right) return r;
+  return null;                              // the gap between them, or off both ends
 };
 
 // Which fingers are WALKING, kept apart from which ones are currently holding a direction.
@@ -350,7 +369,10 @@ function trackWalk(ev) {
 // it is delivered wherever the finger actually is. Both reach here — and so does the lift,
 // which the button would miss if the finger were over the pitch when it came off.
 addEventListener('pointermove', trackWalk, { passive: true });
-const endWalk = (ev) => { if (walking.delete(ev.pointerId)) releasePointer(ev.pointerId); };
+const endWalk = (ev) => {
+  if (walking.delete(ev.pointerId)) releasePointer(ev.pointerId);
+  if (!walking.size) walkGeom = null;           // no walking finger left: nothing to stay fresh for
+};
 addEventListener('pointerup', endWalk);
 addEventListener('pointercancel', endWalk);
 
@@ -359,13 +381,21 @@ for (const btn of document.querySelectorAll('.pad .btn')) {
     // While the layout is being edited a press MOVES the button instead of firing it.
     if (EDITOR && EDITOR.editing) return;
     ev.preventDefault();
+    // Geometry first: it has to be read before pressPointer's `.on` class can shrink whichever
+    // arrow this finger landed on.
+    if (WALK.has(btn.dataset.k)) walkGeom = captureWalkGeom();
     pressPointer(ev.pointerId, btn, ev.pointerType === 'touch');
     if (WALK.has(btn.dataset.k)) walking.add(ev.pointerId);
     // Capture: every later event for this finger comes here even if it slides off the button,
     // which is the whole fix for the drift.
     try { btn.setPointerCapture(ev.pointerId); } catch { /* older engines: harmless */ }
   });
-  const up = (ev) => { ev.preventDefault(); walking.delete(ev.pointerId); releasePointer(ev.pointerId); };
+  const up = (ev) => {
+    ev.preventDefault();
+    walking.delete(ev.pointerId);
+    releasePointer(ev.pointerId);
+    if (!walking.size) walkGeom = null;
+  };
   btn.addEventListener('pointerup', up);
   btn.addEventListener('pointercancel', up);
   // The capture can be taken away (a system gesture, a rotation). Treat it as a lift rather
@@ -384,6 +414,7 @@ const releaseAll = (touchOnly = false) => {
     releasePointer(id);
   }
   if (!touchOnly) walking.clear();
+  if (!walking.size) walkGeom = null;
 };
 // Anything that takes the page away — a notification, the app backgrounding, a phone call —
 // lifts every finger. Without this the last direction you were holding stays held.
@@ -419,7 +450,7 @@ const setEditing = (on, how = 'save') => {
   for (const k of Object.keys(held)) held[k] = false;
   // The per-pointer books too, or a finger that was on an arrow when the editor opened stays
   // in them and its lift releases a key nobody is holding.
-  heldBy.clear(); walking.clear();
+  heldBy.clear(); walking.clear(); walkGeom = null;
   for (const b of document.querySelectorAll('.pad .btn')) b.classList.remove('on');
 };
 // Reached from settings, the way football's is — one entry point, not a button in the way.
@@ -697,7 +728,10 @@ function drainEvents() {
     // banner is `powershot`, below, and it only fires on a touch.
     else if (e.type === 'armed') { banner(SHOTS[e.shot].name + ' מוכן!', '#ffc400'); flash('#ffe14a', 0.12); }
     else if (e.type === 'ballReset') banner('כדור חדש', '#8ea0be');
-    else if (e.type === 'powershot') { banner(SHOTS[e.shot].name, SHOTS[e.shot].color); flash(SHOTS[e.shot].glow, 0.22); }
+    else if (e.type === 'powershot') {
+      banner(e.countered ? 'קאונטר! ' + SHOTS[e.shot].name : SHOTS[e.shot].name, SHOTS[e.shot].color);
+      flash(SHOTS[e.shot].glow, 0.22);
+    }
     else if (e.type === 'golden') banner('מוות פתאומי', '#ffb800');
     else if (e.type === 'fulltime') { playEvent(e.winner === (ONLINE ? NET.you : 0) ? 'win' : 'lose'); endMatch(); }
     else if (e.type === 'ballReset') playEvent('reset');
@@ -963,10 +997,22 @@ function paintLetterbox() {
 // And they are a two-stop gradient rather than one flat colour, cut at the ground line: sky
 // beside the sky, grass beside the grass. A single colour makes the bottom corners read as
 // holes punched either side of the pitch.
+//
+// AND IT ONLY WRITES WHEN THE BARS ACTUALLY CHANGE. draw() calls paintLetterbox() every frame,
+// which called this every frame, which assigned a `background` on #stage every frame — and
+// #stage is the element covering the whole viewport. Measured: 301 writes over 301 frames, all
+// 301 of them byte-identical to the one before. The three things the gradient is built from
+// (the ground line, the sky sample, the stage's grass) only move on a resize or a stage change,
+// so the write belongs on those events, not on the frame clock. Nothing here is a big number on
+// a desktop; on a phone, handing the engine a fresh full-viewport background sixty times a
+// second is the kind of work that costs a frame without ever showing up as slow JavaScript.
+let barsGround = -1, barsSky = null, barsGrass = null;
 function applyBars() {
   if (!barSky || !STAGE) return;
   const ground = Math.max(0, Math.round(OY + C.GROUND_Y * SC));
   const grass = STAGE.grass ? STAGE.grass[0] : barSky;
+  if (ground === barsGround && barSky === barsSky && grass === barsGrass) return;
+  barsGround = ground; barsSky = barSky; barsGrass = grass;
   $('#stage').style.background =
     `linear-gradient(to bottom, ${barSky} 0 ${ground}px, ${grass} ${ground}px 100%)`;
 }
@@ -1367,9 +1413,15 @@ function drawGoalFront(g, left, netOnly = false) {
 
 // SF2 palettes: hard 3-tone ramps, no gradients, everything sitting inside a black
 // outline. Player 1 is a blue gi, player 2 a red one, both with the yellow belt.
+// The BOOTS carry the same two colours one step further: blue for player one, red for player
+// two. They are the part of the sprite that does the work — the reach is drawn off them — so
+// they are the part that has to be readable at a glance, and a white sole under a saturated
+// upper is how a football boot reads at 33px long.
 const GI = [
-  { base: '#3c6fd6', shade: '#22407f', light: '#6fa0ff', skin: '#f0b48a', skinShade: '#b87d55' },
-  { base: '#d63c3c', shade: '#7f2222', light: '#ff7a6f', skin: '#f0b48a', skinShade: '#b87d55' },
+  { base: '#3c6fd6', shade: '#22407f', light: '#6fa0ff', skin: '#f0b48a', skinShade: '#b87d55',
+    boot: '#1e56c8', bootLight: '#5b93ff', bootDark: '#0d2a6b', sock: '#eaf1ff' },
+  { base: '#d63c3c', shade: '#7f2222', light: '#ff7a6f', skin: '#f0b48a', skinShade: '#b87d55',
+    boot: '#c81e2e', bootLight: '#ff6f61', bootDark: '#6e0f18', sock: '#ffeceb' },
 ];
 const OUTLINE = '#0b0710';
 
@@ -1384,7 +1436,8 @@ function px(g, x, y, w, h, fill) {
 
 function drawBody(g, p) {
   const pal = GI[p.index];
-  const knocked = p.knocked > 0;
+  const knocked = p.stunned > 0;      // the only slump left: bottomed out, not "hit"
+
   const bw = C.BODY_W, bh = C.BODY_H;
   // Projected at the FEET, which is the anchor the whole sprite hangs off. A body is 79px
   // tall against a 192px goal, so the step's vertical part varies by under 5px across it —
@@ -1402,25 +1455,63 @@ function drawBody(g, p) {
   g.translate(Math.round(d.x), Math.round(d.y));
   if (knocked) g.rotate(p.side * 1.15);
 
-  // legs. The kick swings the front one out; otherwise they stride with the run.
+  // LEGS, and they point where the KICK does — `side`, the goal this player attacks — not
+  // where the body faces. The sim latches the swing to the same rule (kickDir), and the two
+  // have to agree or the sprite is lying about which leg can reach the ball: walking backwards
+  // used to turn the boot round while the kick itself went forward.
+  const face = p.side;
   const kickP = p.kickT > 0 ? 1 - p.kickT / C.KICK_TIME : 0;
   const swing = p.kickT > 0 ? Math.sin(kickP * Math.PI) : 0;
   const stride = p.onGround ? Math.sin(performance.now() / 90) * Math.min(1, Math.abs(p.vx) / 260) * 5 : 3;
   const legW = Math.max(4, Math.round(bw * 0.26));
-  const legH = Math.round(bh * 0.42);
-  px(g, -bw * 0.32 - stride, -legH, legW, legH, pal.shade);
-  const kickX = p.facing * swing * C.KICK_REACH * 0.7;
-  px(g, bw * 0.06 + kickX + stride, -legH - swing * 8, legW, legH, pal.base);
-  // BOOTS, three times longer than they were, and pointing the way the player faces — the
-  // reach is derived from this (KICK_REACH), so the thing you can see is the thing that can
-  // touch the ball.
+  // Longer than the 0.42 it was, and most of the extra is hidden behind the torso — which is
+  // the point. It only comes out when the leg does: swing a kick and the thigh appears from
+  // under the shirt, so the kick has a leg behind it instead of a boot sliding out on its own.
+  const legH = Math.round(bh * 0.62);
   const bootL = Math.round((legW + 3) * C.FOOT_LEN);
-  const bootX = (base) => (p.facing > 0 ? base : base - bootL + legW + 3);
-  px(g, bootX(-bw * 0.36 - stride), -3, bootL, 4, '#f2f2f2');
-  px(g, bootX(bw * 0.02 + kickX + stride), -4 - swing * 8, bootL, 4, '#f2f2f2');
-  // a dark sole, so a long boot still reads as a boot rather than as a plank
-  px(g, bootX(-bw * 0.36 - stride), -1, bootL, 2, '#7a7a86');
-  px(g, bootX(bw * 0.02 + kickX + stride), -2 - swing * 8, bootL, 2, '#7a7a86');
+
+  // ONE LEG, drawn up from the grass: boot, sock, a sliver of knee, shorts. That is the order
+  // a footballer's leg actually goes in — the sock covers the shin, which is why there is no
+  // bare shin here — and it is what the old single bar with a white plate under it was missing.
+  // `x` is the leg's near edge, `lift` how far the kick has raised it off the grass.
+  //
+  // Each piece gets ONE keyline and its detail is painted inside without another, or four
+  // stacked 2px bands would be more black outline than leg.
+  const leg = (x, lift, shorts) => {
+    const y = -lift;
+    px(g, x, y - legH, legW, legH - 6, pal.skin);            // the leg, knee down to the ankle
+    g.fillStyle = shorts;                                    // shorts over the top of it
+    g.fillRect(Math.round(x), Math.round(y - legH), legW, legH - 10);
+    g.fillStyle = pal.sock;                                  // sock, from the ankle up the shin
+    g.fillRect(Math.round(x), Math.round(y - 8), legW, 3);
+
+    // THE BOOT. Tall at the ankle and tapering to a lower toe cap — that taper is the whole
+    // silhouette of a football boot — with a pale sole running the length of both halves and
+    // laces across the instep. Built from the ankle TOWARD the toe, so the mirrored player
+    // gets a mirrored boot rather than one with its heel on the wrong end.
+    const s = face;
+    const x0 = s > 0 ? x : x + legW - bootL;                 // the boot's left edge
+    const capL = Math.round(bootL * 0.42);
+    const midL = bootL - capL;
+    const midX = s > 0 ? x0 : x0 + capL;
+    const capX = s > 0 ? x0 + midL : x0;
+    px(g, midX, y - 6, midL, 6, pal.boot);                   // ankle half, the tall one
+    px(g, capX, y - 4, capL, 4, pal.bootLight);              // toe cap, lower and a shade up
+    g.fillStyle = pal.bootDark;                              // heel counter at the very back
+    g.fillRect(Math.round(s > 0 ? midX : midX + midL - 3), Math.round(y - 6), 3, 5);
+    g.fillStyle = '#f4f6fb';                                 // sole, tying the two halves
+    g.fillRect(Math.round(x0), Math.round(y - 2), bootL, 2);
+    g.fillStyle = '#ffffff';                                 // laces across the instep
+    for (let i = 0; i < 3; i++) {
+      g.fillRect(Math.round(midX + (s > 0 ? 5 + i * 3 : midL - 6 - i * 3)), Math.round(y - 5), 1, 3);
+    }
+  };
+
+  // Back leg plants, front leg swings. The swing reaches KICK_REACH, which is the same number
+  // the sim strikes the ball from, so the toe cap really is where the toe-poke happens.
+  const kickX = face * swing * C.KICK_REACH * 0.7;
+  leg(-bw * 0.32 - stride, 0, pal.shade);
+  leg(bw * 0.06 + kickX + stride, swing * 8, pal.base);
 
   // torso — gi body, hard shadow down one side, belt across the waist
   const tH = Math.round(bh * 0.62);
@@ -1627,6 +1718,27 @@ function drawReady(g) {
   g.restore();
 }
 
+// EVERY DOM NODE THE FRAME TOUCHES, LOOKED UP ONCE.
+//
+// drawHeads, paintFaces and syncHud all run on every frame, and between them they used to
+// re-query a dozen elements per frame — sixty times a second, for a row of nodes that are
+// written in index.html and never replaced. (The innerHTML rewrites in this file are the pick
+// grid, the lobby seats, a callout and the tuner body; none of them reach into here, so none of
+// these handles can go stale.) The lookups were the work; the writes are what the HUD is for.
+//
+// Declared above its first user on purpose: these are `const`, so a call that landed before
+// this line would hit the temporal dead zone rather than a missing element.
+const HUD = {
+  s: [$('#s0'), $('#s1')],
+  clock: $('#clock'),
+  gauge: [$('.gauge.g0'), $('.gauge.g1')],
+  gaugeName: [$('.gauge.g0 .nm'), $('.gauge.g1 .nm')],
+  face: [$('#face0'), $('#face1')],
+  head: [$('#head0'), $('#head1')],
+  power: $('#powerBtn'),
+  rtt: $('#rtt'),
+};
+
 // ---- DOM heads -------------------------------------------------------------
 function drawHeads() {
   for (let i = 0; i < 2; i++) {
@@ -1635,7 +1747,7 @@ function drawHeads() {
     // The card art is repainted at the new size rather than transform-scaled: a scaled-up
     // background is a blurry card, and the whole hook is being able to tell who it is.
     const size = headR(M, p) * 2 * SC;
-    const el = $('#head' + i);
+    const el = HUD.head[i];
     const key = `${p.char.rarity}_${p.char.number}_${Math.round(size)}`;
     if (el.dataset.card !== key) {
       paintHead(el.firstElementChild, p.char.rarity, p.char.number, size);
@@ -1646,7 +1758,7 @@ function drawHeads() {
     // head behind on the goal line.
     const d = depthPoint(p.x, headY(p));
     const x = OX + d.x * SC, y = OY + d.y * SC;
-    const tilt = Math.max(-.34, Math.min(.34, p.vx / 1100)) + (p.knocked > 0 ? p.side * 1.2 : 0);
+    const tilt = Math.max(-.34, Math.min(.34, p.vx / 1100)) + (p.stunned > 0 ? p.side * 1.2 : 0);
     el.style.transform = `translate(${x - size / 2}px, ${y - size / 2}px) rotate(${tilt}rad)`;
     // ARMED: THE PLAYER GLOWS LIKE A FULL POWER BAR.
     //
@@ -1656,9 +1768,18 @@ function drawHeads() {
     // the gaugeReady keyframes in style.css, which this is the head's half of.
     el.classList.toggle('armed', p.armed > 0);
     if (p.armed > 0) el.style.setProperty('--glow', '#ffc400');
-    el.classList.toggle('hexed', !!p.effectId);
-    el.classList.toggle('knocked', p.knocked > 0 || p.rooted > 0);
-    el.classList.toggle('slowed', p.slow > 0 && p.knocked <= 0);
+    // DAMAGE IS SHOWN ON THE CHARACTER AND NOWHERE ELSE.
+    //
+    // There is no health bar, no number and no meter anywhere in the HUD — deliberately. The
+    // card's own face is the readout: it reddens as the player is worn down and bruises blue
+    // when they are nearly out (.head.hurt1..4 in style.css). One class at a time, straight
+    // off hurtTier, so the sim and the picture cannot hold different opinions about it.
+    //
+    // This replaces the three markers that used to live here — `hexed` (the signature effect's
+    // green cast), `knocked` (grey) and `slowed` (washed out, with a spinning dashed ring).
+    // All three said "this player has been switched off"; these say "this player is hurt".
+    const hurt = hurtTier(p.hp);
+    for (let t = 1; t <= 4; t++) el.classList.toggle('hurt' + t, hurt === t);
   }
 }
 
@@ -1682,7 +1803,7 @@ let FACE_PX = 44;
 function paintFaces() {
   if (!M) return;
   for (let i = 0; i < 2; i++) {
-    const el = $('#face' + i);
+    const el = HUD.face[i];
     const { rarity, number } = M.players[i].char;
     const key = `${rarity}_${number}_${FACE_PX}`;
     if (el.dataset.card === key) continue;
@@ -1692,9 +1813,9 @@ function paintFaces() {
 }
 
 function syncHud() {
-  $('#s0').textContent = M.score[0];
-  $('#s1').textContent = M.score[1];
-  const clk = $('#clock');
+  HUD.s[0].textContent = M.score[0];
+  HUD.s[1].textContent = M.score[1];
+  const clk = HUD.clock;
   // M:SS rather than a bare count of seconds — see clockText. The board is a football
   // scoreboard now and "59" on one is a shirt number.
   clk.textContent = clockText(M.clock, M.golden);
@@ -1702,7 +1823,7 @@ function syncHud() {
   paintFaces();
   for (let i = 0; i < 2; i++) {
     const p = M.players[i];
-    const gEl = $(`.gauge.g${i}`);
+    const gEl = HUD.gauge[i];
     const armed = p.armed > 0;
     // ARMED KEEPS THE BAR FULL. It used to count DOWN while the move was live, because the
     // move WAS the countdown. Now the meter is not spent until the ball is touched, so a
@@ -1717,19 +1838,19 @@ function syncHud() {
     gEl.style.setProperty('--p', (p.gauge * 100).toFixed(2) + '%');
     gEl.classList.toggle('full', p.gauge >= 1);
     gEl.classList.toggle('powered', armed);
-    gEl.querySelector('.nm').textContent = armed
+    HUD.gaugeName[i].textContent = armed
       ? `${p.shot.name} ⚡`
       : p.shot.name;
   }
   const me = ONLINE ? NET.you : 0;
   const mine = M.players[me];
-  const pb = $('#powerBtn');
+  const pb = HUD.power;
   // Lit when a full meter means you can arm, and held lit while you ARE armed — the button
   // is the same thing the head's glow is saying, and it has nothing left to count down.
   pb.classList.toggle('ready', mine.gauge >= 1 && mine.armed <= 0);
   pb.classList.toggle('live', mine.armed > 0);
   pb.textContent = mine.armed > 0 ? '⚡' : 'POWER';
-  $('#rtt').textContent = ONLINE ? `${NET.rtt}ms` : '';
+  HUD.rtt.textContent = ONLINE ? `${NET.rtt}ms` : '';
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -1752,8 +1873,13 @@ const RANGES = {
   // kick shaping
   LOB_LIFT: [1, 3], LOB_DRIVE: [.2, 1],
   // tackling
-  TACKLE_GAUGE: [0, .4], TACKLE_SLOW: [.2, 1], TACKLE_SLOW_TIME: [0, 4],
-  TACKLE_STUN: [0, 1], TACKLE_PUSH: [0, 900], TACKLE_LIFT: [0, 600], TACKLE_IMMUNE: [0, 4],
+  TACKLE_GAUGE: [0, .4], TACKLE_PUSH: [0, 900], TACKLE_LIFT: [0, 600], TACKLE_IMMUNE: [0, 4],
+  // damage and health. TACKLE_SLOW / TACKLE_SLOW_TIME / TACKLE_STUN used to sit above; they
+  // were the dials on the lockout a hit used to apply, and there is no lockout to dial now.
+  // These are what a hit costs instead. No slider prints a health value on the pitch — the
+  // tuner is a dev panel behind the gear, not part of the HUD.
+  KICK_DAMAGE: [0, .5], KICK_DAMAGE_BACK: [1, 3], POWER_DAMAGE: [0, 1], HP_REGEN: [0, .4],
+  HP_STUN_TIME: [1.5, 2], HP_AFTER_STUN: [.1, .9],
   // impact
   HIT_STOP_KICK: [0, .2], HIT_STOP_POWER: [0, .3], HIT_STOP_TACKLE: [0, .2],
   BALL_IDLE_RESET: [2, 20],
