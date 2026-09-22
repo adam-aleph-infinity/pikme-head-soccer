@@ -1304,7 +1304,44 @@ function mesh(g, A, B, C2, D, nAB, nBC, alpha) {
 // PASS ONE: everything behind a body standing in the net. Drawn deepest first so each net
 // shows through the one in front of it, and every one of them dimmer than the near side — it
 // is a net, and a net you look through has to stay quieter than the net you look at.
+// drawGoalBack/drawGoalFront are pure functions of the goal geometry alone — no ball, no
+// player, nothing that changes between frames — yet the old code re-stroked every cord of
+// every mesh (dozens of clipped line() calls per pass) on every single frame, up to four
+// times over once drawHeadNet's per-head, per-goal passes are counted. That clip-heavy vector
+// redraw was the actual FPS killer on Render: cheap on a dev machine, brutal on the phones
+// kids actually play on. Since the pixels never change except on resize, each pass is baked
+// once per goal side into an offscreen canvas at the same fixed internal resolution as the
+// main canvas, and every frame just blits that bitmap instead of re-walking the mesh.
+const goalLayerCache = new Map();
+function goalLayer(key, left, painter) {
+  const box = goalBox(left);
+  const cacheKey = key + (left ? 'L' : 'R');
+  let entry = goalLayerCache.get(cacheKey);
+  if (!entry || entry.box !== box) {
+    const cnv = document.createElement('canvas');
+    cnv.width = Math.ceil(C.W / PIXEL);
+    cnv.height = Math.ceil((C.H + BLEED) / PIXEL);
+    const cg = cnv.getContext('2d');
+    cg.setTransform(1 / PIXEL, 0, 0, 1 / PIXEL, 0, 0);
+    cg.imageSmoothingEnabled = false;
+    painter(cg, left);
+    entry = { box, canvas: cnv };
+    goalLayerCache.set(cacheKey, entry);
+  }
+  return entry.canvas;
+}
+
 function drawGoalBack(g, left) {
+  g.drawImage(goalLayer('back', left, drawGoalBackRaw), 0, 0, C.W, C.H + BLEED);
+}
+
+function drawGoalFront(g, left, netOnly = false) {
+  const layer = goalLayer(netOnly ? 'frontNet' : 'frontFull', left,
+    (cg, l) => drawGoalFrontRaw(cg, l, netOnly));
+  g.drawImage(layer, 0, 0, C.W, C.H + BLEED);
+}
+
+function drawGoalBackRaw(g, left) {
   const { box, bar, nBT, nBB, fFT, fBT, fFB, fBB, mFT, mBT } = goalCorners(left);
 
   g.save();
@@ -1366,7 +1403,7 @@ function drawGoalBack(g, left) {
 // the crossbar fix is chasing out. The mesh is honest there (the head really is behind the
 // near net at that depth); the frame is not, because those members sit on the near plane the
 // player is standing on, and the rest of the bar recedes BEHIND them into the screen.
-function drawGoalFront(g, left, netOnly = false) {
+function drawGoalFrontRaw(g, left, netOnly = false) {
   const { bar, nFT, nFB, nBT, nBB, fFT, mFT, mBT } = goalCorners(left);
 
   g.save();
