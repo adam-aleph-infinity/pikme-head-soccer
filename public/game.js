@@ -585,6 +585,7 @@ function renderLobby(room) {
 function startOnlineMatch(msg) {
   ONLINE = true;
   STAGE = PIN_STAGE || pickStage();
+  bgAt = -1e9;                        // new stage, so the baked backdrop is stale
   M = NET.match;
   parts.length = 0;
   last = performance.now();
@@ -628,6 +629,7 @@ let M = null, BOT = null, raf = 0, acc = 0, last = 0, running = false;
 function startMatch() {
   ONLINE = false;
   STAGE = PIN_STAGE || pickStage();
+  bgAt = -1e9;                        // new stage, so the baked backdrop is stale
   M = createMatch(pick.me, pick.foe, {});
   BOT = createBot(pick.level);
   parts.length = 0;
@@ -1103,6 +1105,43 @@ function drawHeadNet() {
 // wherever you are playing; only sky, horizon and crowd change.
 let STAGE = pickStage();
 
+// THE BACKDROP WAS THE ENTIRE FRAME.
+//
+// STAGE.draw repaints the whole stadium — sky, skyline and a 520-strong crowd drawn body by
+// body — from scratch on every frame: 9,000-13,000 fillStyle/fillRect calls, measured, against
+// well under 200 for everything that actually moves (both players, the ball, the ball's
+// particles, the goals). Roughly 98% of the frame's draw work was ambient scenery that no part
+// of the game reads, and at 60fps that is over half a million canvas calls a second — nothing
+// on a phone survives it.
+//
+// It is safe to bake because it is a pure function of `t`: every scattered position is a hash
+// of its own index (see `rnd` in art-directions.js, which exists precisely so the layout cannot
+// strobe between frames) and the crowd array is only ever read. So the same call at the same
+// `t` produces the same pixels. It is baked to an offscreen canvas at the same fixed internal
+// resolution as the main one and re-baked BG_HZ times a second instead of sixty.
+//
+// What this costs: ambient motion only — drifting clouds, rain, a flickering sign, the crowd's
+// bob — now updates at BG_HZ. Everything the player is actually looking at (ball, players,
+// goals, the scrolling hoardings below) is untouched and stays at 60.
+const BG_HZ = 12;
+let bgCanvas = null, bgCtx = null, bgAt = -1e9;
+function stageLayer(t, scene) {
+  if (!bgCanvas) {
+    bgCanvas = document.createElement('canvas');
+    bgCanvas.width = Math.ceil(C.W / PIXEL);
+    bgCanvas.height = Math.ceil((C.H + BLEED) / PIXEL);
+    bgCtx = bgCanvas.getContext('2d');
+    bgCtx.setTransform(1 / PIXEL, 0, 0, 1 / PIXEL, 0, 0);
+    bgCtx.imageSmoothingEnabled = false;
+  }
+  if (t - bgAt >= 1 / BG_HZ) {
+    bgAt = t;
+    bgCtx.clearRect(0, 0, C.W, C.H + BLEED);
+    STAGE.draw(bgCtx, scene);
+  }
+  return bgCanvas;
+}
+
 function drawStadium(g) {
   const t = performance.now() / 1000;
   const gy = C.GROUND_Y;
@@ -1115,13 +1154,13 @@ function drawStadium(g) {
   // own art. Handing it only the strip above standTop squeezed each backdrop into ~25% of
   // the frame and left a big flat crowd block underneath — the opposite of SF2, where the
   // backdrop IS most of what you see.
-  STAGE.draw(g, {
+  g.drawImage(stageLayer(t, {
     W: C.W, t, crowd,
     horizon: gy * 0.60,
     crowdTop: gy * 0.61,
     crowdBot: standBot - 8,
     gy,
-  });
+  }), 0, 0, C.W, C.H + BLEED);
 
   // railing across the front of the crowd, common to every stage
   R2(g, 0, standBot - 6, C.W, 6, OUTLINE);
@@ -1139,12 +1178,14 @@ function drawStadium(g) {
   const scroll = Math.round((t * 60) % 240);
   g.save();
   g.beginPath(); g.rect(C.GOAL_W, ledTop, C.W - C.GOAL_W * 2, ledH); g.clip();
+  // Set once, not once per board: the value is identical on every iteration, and assigning
+  // ctx.font re-parses the font shorthand each time. The hoardings stay at 60fps — they scroll.
+  g.textAlign = 'center'; g.textBaseline = 'middle';
+  g.font = `900 ${Math.round(ledH * 0.62)}px -apple-system, Arial`;
   for (let x = -240; x < C.W + 240; x += 240) {
     R2(g, x + scroll, ledTop, 118, ledH, '#1b3f8a');
     R2(g, x + scroll + 120, ledTop, 118, ledH, '#c81e37');
     g.fillStyle = '#ffd23c';
-    g.textAlign = 'center'; g.textBaseline = 'middle';
-    g.font = `900 ${Math.round(ledH * 0.62)}px -apple-system, Arial`;
     g.fillText('SALTIZ', x + scroll + 59, ledTop + ledH / 2);
     g.fillText('ראשים', x + scroll + 179, ledTop + ledH / 2);
   }
@@ -1849,13 +1890,24 @@ function paintFaces() {
   }
 }
 
+// THE HUD IS WRITTEN SIXTY TIMES A SECOND FOR VALUES THAT CHANGE ONCE.
+//
+// Assigning .textContent tears the old text node down and builds a new one even when the
+// string is identical, and a custom-property write invalidates style for the subtree. Doing
+// both unconditionally every frame meant the scoreboard alone dirtied layout on every frame
+// of every match — measured at exactly 1.00 layout per frame, for a score that changes a
+// handful of times and a clock that changes once a second. Reading these back is cheap
+// (inline style and text, no geometry), so each write is now guarded by what is already there.
+const txt = (el, v) => { const s = String(v); if (el.textContent !== s) el.textContent = s; };
+const prop = (el, k, v) => { if (el.style.getPropertyValue(k) !== v) el.style.setProperty(k, v); };
+
 function syncHud() {
-  HUD.s[0].textContent = M.score[0];
-  HUD.s[1].textContent = M.score[1];
+  txt(HUD.s[0], M.score[0]);
+  txt(HUD.s[1], M.score[1]);
   const clk = HUD.clock;
   // M:SS rather than a bare count of seconds — see clockText. The board is a football
   // scoreboard now and "59" on one is a shirt number.
-  clk.textContent = clockText(M.clock, M.golden);
+  txt(clk, clockText(M.clock, M.golden));
   clk.classList.toggle('low', !M.golden && M.clock <= 10);
   paintFaces();
   for (let i = 0; i < 2; i++) {
@@ -1872,12 +1924,10 @@ function syncHud() {
     // is filled, so the colour under the tip never changes and you get a shorter rainbow
     // instead of a climbing one. Revealing a fixed ramp is what makes the leading edge
     // travel green -> yellow -> orange -> red with nothing to step over.
-    gEl.style.setProperty('--p', (p.gauge * 100).toFixed(2) + '%');
+    prop(gEl, '--p', (p.gauge * 100).toFixed(2) + '%');
     gEl.classList.toggle('full', p.gauge >= 1);
     gEl.classList.toggle('powered', armed);
-    HUD.gaugeName[i].textContent = armed
-      ? `${p.shot.name} ⚡`
-      : p.shot.name;
+    txt(HUD.gaugeName[i], armed ? `${p.shot.name} ⚡` : p.shot.name);
   }
   const me = ONLINE ? NET.you : 0;
   const mine = M.players[me];
@@ -1886,8 +1936,8 @@ function syncHud() {
   // is the same thing the head's glow is saying, and it has nothing left to count down.
   pb.classList.toggle('ready', mine.gauge >= 1 && mine.armed <= 0);
   pb.classList.toggle('live', mine.armed > 0);
-  pb.textContent = mine.armed > 0 ? '⚡' : 'POWER';
-  HUD.rtt.textContent = ONLINE ? `${NET.rtt}ms` : '';
+  txt(pb, mine.armed > 0 ? '⚡' : 'POWER');
+  txt(HUD.rtt, ONLINE ? `${NET.rtt}ms` : '');
 }
 
 // ═══════════════════════════════════════════════════════════════════════════

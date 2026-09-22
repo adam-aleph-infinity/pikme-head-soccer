@@ -22,6 +22,7 @@ export function createNet({ onRoom, onStart, onOver, onError, onStatus, onOppone
   const url = `${location.protocol === 'https:' ? 'wss' : 'ws'}://${location.host}/ws`;
   const net = {
     ws: null, id: null, room: null, match: null,
+    live: false,                // is a match actually in progress — see pump
     you: 0, tick: 0, acc: 0,
     inputs: new Map(),          // tick -> packed input (mine)
     oppInput: 0,
@@ -57,6 +58,7 @@ export function createNet({ onRoom, onStart, onOver, onError, onStatus, onOppone
       case 'error': onError?.(msg.code); break;
       case 'start': {
         net.match = createMatch(msg.chars[0], msg.chars[1], { duration: msg.duration });
+        net.live = true;
         net.tick = 0; net.acc = 0;
         net.inputs.clear();
         net.oppInput = 0;
@@ -65,7 +67,7 @@ export function createNet({ onRoom, onStart, onOver, onError, onStatus, onOppone
         break;
       }
       case 'opponentLeft': onOpponentLeft?.(msg.index); break;
-      case 'over': onOver?.(msg.score); break;
+      case 'over': net.live = false; onOver?.(msg.score); break;
       case 'pong': net.rtt = Math.round(performance.now() - msg.t); break;
       default:
         // Snapshots are the hot path and carry no `type` — they are {t, i, s}.
@@ -133,7 +135,13 @@ export function createNet({ onRoom, onStart, onOver, onError, onStatus, onOppone
   // for edge-triggered inputs like dash, is the difference between working and not.
   let sendTimer = 0;
   function pump() {
-    if (!net.match) return;
+    // `net.match` is never cleared once a match has started — it is what advance() replays
+    // from — so guarding on it alone meant this kept serialising and sending an input packet
+    // SEND_HZ times a second for the rest of the page session: on the card screen, through
+    // every later bot match, on the over screen. On a phone that is a main-thread stringify
+    // and a radio wake-up thirty times a second, forever, for a match that finished minutes
+    // ago. `live` tracks whether a match is actually in progress; the sim path is untouched.
+    if (!net.live || !net.match) return;
     const t0 = Math.max(0, net.tick - REDUNDANCY);
     const f = [];
     for (let t = t0; t < net.tick; t++) f.push(net.inputs.get(t) ?? 0);
@@ -153,7 +161,7 @@ export function createNet({ onRoom, onStart, onOver, onError, onStatus, onOppone
     join: (code) => sendMsg({ type: 'join', code }),
     setCard: (card) => sendMsg({ type: 'card', card }),
     ready: (v) => sendMsg({ type: 'ready', v }),
-    leave: () => sendMsg({ type: 'leave' }),
+    leave: () => { net.live = false; sendMsg({ type: 'leave' }); },
     advance,
   });
   return net;
