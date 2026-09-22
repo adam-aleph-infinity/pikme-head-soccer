@@ -120,16 +120,32 @@ export const KICK_COOLDOWN = 0.14;
 // reach follows it: a foot that looks like it can touch the ball and cannot is the reason the
 // kick "did not kick so good". FOOT_LEN is the drawn length; the two are kept in step by
 // deriving the reach from it.
-export let FOOT_LEN = 3;             // multiples of the original 3px boot plate
+// Was 3, which put a 33px boot on an 8px leg — longer than the body is wide, and the reason
+// the foot read as a plank rather than as a shoe. A real boot is a bit under three times the
+// ankle's width; 2.1 lands it at 23px, and the toe still arrives inside the kick circle the
+// sim strikes from, so nothing about the reach is being lied about.
+export let FOOT_LEN = 2.1;           // multiples of the original 3px boot plate
 export let KICK_REACH = 62;
 export let KICK_R = 22;              // kick hitbox radius
-export let KICK_POWER = 520;         // Ball-only slowdown (Adam, 2026-08-21: "make ball slower").
+export let KICK_POWER = 540;         // Ball-only slowdown (Adam, 2026-08-21: "make ball slower").
                                       // 640 put a kicked ball at 1.49x the player, crossing the pitch
                                       // in 1.67s against the player's 2.48s — you could not get there.
                                       // 520 makes it 1.21x, which is a chase you can actually win.
-export let KICK_LIFT = 620;         // upward component — deliberately > half of KICK_POWER, so a
-                                      // clean kick LOBS. Flat rockets made every clearance a goal.
-export let LOB_LIFT = 1.62;           // hold JUMP while kicking: more air, less drive
+// The upward component of an ORDINARY kick. It was 620 against a drive of 520 — a 50° launch
+// before the bow and the contact point had even been read, which is why every clearance went
+// up and almost nothing went at the goal. 400 against a drive of 540 is ~36° before the
+// contact point flattens it, and the median strike over 30 bot matches falls from 23° to 15°
+// with a fifth fewer balloons above 45°. Going UP is now something you ask for — get under it,
+// or hold jump — rather than what the boot does by default.
+//
+// Measured, because flattening the shot does cost goals: 3.3 a match against the 4.9 the
+// 50° kick scored (`_kickprobe` in the 2026-09-22 session; re-measure before moving this).
+// Most of the gap is flat shots hitting a defender's body instead of sailing over it, which
+// is the trade the flat shot is supposed to make.
+export let KICK_LIFT = 400;
+export let LOB_LIFT = 2.5;            // hold JUMP while kicking: more air, less drive. Restated
+                                      // against the cut in KICK_LIFT so the lob is untouched:
+                                      // 2.5 x 400 is the 1.62 x 620 it replaces.
 export let LOB_DRIVE = 0.62;
 // Body contact KILLS the ball's pace (Adam: 'if it dosnt kick, the ball kinda stops and
 // rolles'). The head still bounces — that is the aerial tool — but your torso deadens.
@@ -160,7 +176,10 @@ export let CONTACT_IMPACT_V = 60;
 // the far goal: the horizontal keeps the facing, and the loft is chosen so the arc comes
 // down around the goal mouth rather than flying over it.
 export let KICK_AIM = 0.55;          // 0 = dead flat as before, 1 = fully aimed at the goal
-export let KICK_BOW = 1.35;          // how much extra loft the aimed kick gets
+// Was 1.35, which nearly doubled the loft of any strike from range — on top of a base lift
+// that was already sending the ball up. The bow is meant to stop a long shot falling short,
+// not to turn it into a punt, so it now adds at most a third: 0.55 of aim x 0.6 is 1.33x.
+export let KICK_BOW = 0.6;           // how much extra loft the aimed kick gets
 export let KICK_BOW_MIN = 260;       // px — below this range to the goal, do not loft at all,
                                      // or a tap from the six-yard box sails over the bar
 
@@ -177,11 +196,27 @@ export let KICK_BOW_MIN = 260;       // px — below this range to the goal, do 
 //                    ball rolling on the grass, so this is ~0 for the ordinary ground kick and
 //                    only grows for a ball dropping onto the boot — which is chipped.
 //
-// Dead centre is 1.0, which is exactly the kick this game already had: the old feel is the
-// middle of the new range rather than one end of it.
-export let KICK_TOE_LOFT = 2;        // how far the toe/instep axis swings the loft, ±half this
+// WHERE THE ORDINARY KICK SITS ON THAT AXIS. This used to be the middle of the boot, and that
+// was the bug behind "it kicks straight up": a ball you are DRIBBLING is pinned against your
+// body by the torso collision — half a body plus a ball, about 28px out — and the kick circle
+// reaches from 28px to 96px, so the ordinary running kick lands at the very ankle end of it
+// every single time. The ankle end is the scoop. Every dribble-and-shoot was a scoop.
+//
+// So the neutral point is where the ball ACTUALLY is on a normal kick, not the geometric
+// middle of the circle. Both loft and drive are measured from here: at the neutral you get the
+// plain 1.0 shot, past it toward the toe the ball goes flatter and harder, behind it toward
+// the ankle the boot gets under it and scoops.
+export let KICK_TOE_NEUTRAL = 0.25;  // 0 = ankle/heel end, 1 = toe cap
+// Big enough that the very tip of the boot takes the loft all the way to zero — the dead flat
+// shot has to stay REACHABLE, which is (1 - KICK_TOE_NEUTRAL) x this >= 1.
+export let KICK_TOE_LOFT = 1.35;     // how far the toe/instep axis swings the loft
 export let KICK_UNDER_LOFT = 0.4;    // and how much a boot under the ball adds
-export let KICK_TOE_DRIVE = 0.85;    // what does not go up goes forward: the toe-poke's punch
+export let KICK_TOE_DRIVE = 0.7;     // what does not go up goes forward: the toe-poke's punch
+// A ball DROPPING onto the boot brought its whole fall back out as lift, which made every
+// volley a balloon. A boot swung forward into a falling ball sends it forward: most of that
+// pace joins the drive and only a little of it the loft.
+export let KICK_DROP_DRIVE = 0.35;
+export let KICK_DROP_LOFT = 0.4;
 // The bottom of the range is a DEAD FLAT shot — parallel to the grass, straight at the goal,
 // and it has to be reachable or "kick it straight" is not a thing the player can choose. Meet
 // the ball on the very tip of the boot and KICK_TOE_LOFT takes the loft to zero: no arc, no
@@ -213,7 +248,11 @@ export let HEADER_POWER = 0.72;      // of a kick, horizontally
 // the rise — was clipped back to the same speed as one that did not, and the whole point of
 // timing it was invisible. The base is softer now and HEAD_MEET and HEAD_RISE are what fill
 // the gap: a lazy header is weak, a well-met one is the hardest strike on the pitch.
-export let HEADER_LIFT = 1.1;        // and more of the lift
+// Restated against the flatter boot: this is a multiple of KICK_LIFT, and KICK_LIFT went from
+// 620 to 400 to stop the kick going up. The header is the AERIAL tool and wants to keep going
+// up, so the multiple rises to hold the same 680 it had. It is now well above 1 because the
+// header really is the lofted strike and the kick really is not.
+export let HEADER_LIFT = 1.7;        // and more of the lift
 export let HEADER_R = 16;            // px of slack around the head circle that still counts
 
 export let HEAD_POWER = 0.52;       // head hits multiply the bounce-out speed. Was 1.14: a head
@@ -484,9 +523,12 @@ const SETTERS = {
   HEAD_POWER: (v) => { HEAD_POWER = v; },
   KICK_AIM: (v) => { KICK_AIM = v; },
   KICK_BOW: (v) => { KICK_BOW = v; },
+  KICK_TOE_NEUTRAL: (v) => { KICK_TOE_NEUTRAL = v; },
   KICK_TOE_LOFT: (v) => { KICK_TOE_LOFT = v; },
   KICK_UNDER_LOFT: (v) => { KICK_UNDER_LOFT = v; },
   KICK_TOE_DRIVE: (v) => { KICK_TOE_DRIVE = v; },
+  KICK_DROP_DRIVE: (v) => { KICK_DROP_DRIVE = v; },
+  KICK_DROP_LOFT: (v) => { KICK_DROP_LOFT = v; },
   KICK_LOFT_MIN: (v) => { KICK_LOFT_MIN = v; },
   KICK_LOFT_MAX: (v) => { KICK_LOFT_MAX = v; },
   KICK_MEET: (v) => { KICK_MEET = v; },

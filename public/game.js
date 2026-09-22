@@ -1540,59 +1540,131 @@ function drawBody(g, p) {
   const face = p.side;
   const kickP = p.kickT > 0 ? 1 - p.kickT / C.KICK_TIME : 0;
   const swing = p.kickT > 0 ? Math.sin(kickP * Math.PI) : 0;
-  const stride = p.onGround ? Math.sin(performance.now() / 90) * Math.min(1, Math.abs(p.vx) / 260) * 5 : 3;
+  // The walk and the airborne tuck, both as ANGLES now that the limb pivots — see `leg`.
+  const stride = p.onGround ? Math.sin(performance.now() / 90) * Math.min(1, Math.abs(p.vx) / 260) * 0.5 : 0.3;
   const legW = Math.max(4, Math.round(bw * 0.26));
   // Longer than the 0.42 it was, and most of the extra is hidden behind the torso — which is
   // the point. It only comes out when the leg does: swing a kick and the thigh appears from
   // under the shirt, so the kick has a leg behind it instead of a boot sliding out on its own.
   const legH = Math.round(bh * 0.62);
   const bootL = Math.round((legW + 3) * C.FOOT_LEN);
+  // The boot is drawn on its STUDS: the sole sits SOLE_UP off the grass and the studs bridge
+  // the gap, so the foot rests on the pitch the way a boot does instead of the upper being
+  // buried in it. bootH is the upper alone, ankle down to the sole.
+  const bootH = 6;
+  const SOLE_UP = 2;
+  const sockH = 6;                                           // ankle upward
+  const shortH = 4;                                          // hip downward; skin in between
+  const HIP_Y = -legH;                                       // where both limbs hang from
+  const SHIN = legH - bootH - SOLE_UP + 1;                   // hip to ankle, standing
+  const BOOT_FOLLOW = 0.22;                                  // of the leg's angle the foot takes
+  const KICK_SWING = 1.25;                                   // rad the leg comes through, at full
+  const KICK_EXTEND = 14;                                    // and px of shin it gains doing it
 
-  // ONE LEG, drawn up from the grass: boot, sock, a sliver of knee, shorts. That is the order
-  // a footballer's leg actually goes in — the sock covers the shin, which is why there is no
-  // bare shin here — and it is what the old single bar with a white plate under it was missing.
-  // `x` is the leg's near edge, `lift` how far the kick has raised it off the grass.
+  // ONE LEG, hip to boot. It PIVOTS at the hip rather than sliding sideways, which is the
+  // whole difference between a kick and what this used to draw: the old swing moved the leg
+  // 43px across to meet the sim's reach and left a 29px hole between the hip and the thigh,
+  // so the kicking boot floated away from the body on a stub of sock. Hung off the hip it
+  // stays attached, and the reach comes from the leg EXTENDING through the swing instead —
+  // which is also what a chibi sprite has to do, because no leg on a 27px body reaches 62px.
   //
-  // Each piece gets ONE keyline and its detail is painted inside without another, or four
-  // stacked 2px bands would be more black outline than leg.
-  const leg = (x, lift, shorts) => {
-    const y = -lift;
-    px(g, x, y - legH, legW, legH - 6, pal.skin);            // the leg, knee down to the ankle
-    g.fillStyle = shorts;                                    // shorts over the top of it
-    g.fillRect(Math.round(x), Math.round(y - legH), legW, legH - 10);
-    g.fillStyle = pal.sock;                                  // sock, from the ankle up the shin
-    g.fillRect(Math.round(x), Math.round(y - 8), legW, 3);
+  // `hipX` is the limb's near edge at the hip and `ang` how far it has swung forward, in
+  // radians and positive toward the facing. `reach` is the extension, in px of extra shin.
+  //
+  // Order up from the grass: boot, sock, a sliver of knee, shorts. That is the order a
+  // footballer's leg actually goes in, and the sock — the whole shin with the turnover hoop
+  // at the top of it, not a 3px band at the ankle — is most of what the old leg was missing.
+  // The limb gets ONE keyline and its bands are painted inside without another, or four
+  // stacked 2px plates would be more black outline than leg.
+  const leg = (hipX, ang, shorts, reach = 0) => {
+    const shin = SHIN + reach;
+    const pivotX = hipX + legW / 2;                          // the hip itself
+    const sin = Math.sin(ang), cos = Math.cos(ang);
 
-    // THE BOOT. Tall at the ankle and tapering to a lower toe cap — that taper is the whole
-    // silhouette of a football boot — with a pale sole running the length of both halves and
-    // laces across the instep. Built from the ankle TOWARD the toe, so the mirrored player
-    // gets a mirrored boot rather than one with its heel on the wrong end.
+    g.save();
+    g.translate(Math.round(pivotX), HIP_Y);
+    g.rotate(-face * ang);                                   // canvas y is down; forward is -θ
+    px(g, -legW / 2, 0, legW, shin, pal.skin);               // thigh, knee, shin
+    g.fillStyle = shorts;                                    // shorts over the thigh
+    g.fillRect(Math.round(-legW / 2), 0, legW, shortH);
+    g.fillStyle = pal.sock;                                  // sock up the shin
+    g.fillRect(Math.round(-legW / 2), Math.round(shin - sockH), legW, sockH);
+    g.fillStyle = pal.base;                                  // turnover hoop at the sock top
+    g.fillRect(Math.round(-legW / 2), Math.round(shin - sockH), legW, 2);
+    g.fillStyle = pal.shade;                                 // and the shaded side of the calf
+    g.fillRect(Math.round(legW / 2 - 2), Math.round(shin - sockH + 2), 2, sockH - 2);
+    g.restore();
+
+    // THE BOOT, drawn as ONE silhouette rather than stacked plates: a tall heel, an instep
+    // that falls away over the laces, and a toe that runs out long and LOW along the grass.
+    // That profile is what says "football boot" at this size — the old two-rectangle boot had
+    // a toe cap as tall as the heel, which is a shoe box, not a boot.
+    //
+    // It is drawn in its own space with the toe toward +x, then mirrored by the facing, so the
+    // away player gets a real mirrored boot instead of one wearing its heel on the wrong end.
+    // It hangs off the ANKLE the leg just ended at and only partly follows the leg's angle: a
+    // footballer's foot stays pointed along the strike while the shin swings through, and a
+    // boot turned the full 70° with the leg is a boot pointing at the floor.
     const s = face;
-    const x0 = s > 0 ? x : x + legW - bootL;                 // the boot's left edge
-    const capL = Math.round(bootL * 0.42);
-    const midL = bootL - capL;
-    const midX = s > 0 ? x0 : x0 + capL;
-    const capX = s > 0 ? x0 + midL : x0;
-    px(g, midX, y - 6, midL, 6, pal.boot);                   // ankle half, the tall one
-    px(g, capX, y - 4, capL, 4, pal.bootLight);              // toe cap, lower and a shade up
-    g.fillStyle = pal.bootDark;                              // heel counter at the very back
-    g.fillRect(Math.round(s > 0 ? midX : midX + midL - 3), Math.round(y - 6), 3, 5);
-    g.fillStyle = '#f4f6fb';                                 // sole, tying the two halves
-    g.fillRect(Math.round(x0), Math.round(y - 2), bootL, 2);
+    const ankleX = pivotX + face * sin * shin;
+    const ankleY = HIP_Y + cos * shin;
+    g.save();
+    g.translate(Math.round(ankleX - face * legW / 2), Math.round(ankleY + bootH - 1));
+    g.scale(s, 1);
+    g.rotate(-ang * BOOT_FOLLOW);
+
+    const heel = -3;                                         // a little behind the ankle
+    const toe = bootL + heel;
+    const outline = () => {
+      g.beginPath();
+      g.moveTo(heel, 0);
+      g.lineTo(heel, -bootH + 1);
+      g.quadraticCurveTo(heel, -bootH, heel + 2, -bootH);    // rounded heel counter
+      g.lineTo(heel + legW + 1, -bootH);
+      g.quadraticCurveTo(heel + legW + 4, -bootH, heel + legW + 5, -bootH + 2);
+      g.lineTo(toe - 4, -3.5);                               // the instep falling to the toe
+      g.quadraticCurveTo(toe, -3, toe, -1.5);                // rounded toe
+      g.quadraticCurveTo(toe, 0, toe - 2, 0);
+      g.closePath();
+    };
+
+    g.strokeStyle = OUTLINE; g.lineWidth = 2; g.lineJoin = 'round';
+    outline(); g.stroke();
+    g.fillStyle = pal.boot; outline(); g.fill();
+
+    g.save();
+    outline(); g.clip();                                     // everything below stays in shape
+    g.fillStyle = pal.bootDark;                              // heel counter, darker at the back
+    g.fillRect(heel, -bootH, 4, bootH);
+    g.fillStyle = pal.bootLight;                             // the side flash, heel to toe
+    g.beginPath();
+    g.moveTo(heel + 3, -1.5);
+    g.lineTo(heel + legW + 3, -bootH + 1);
+    g.lineTo(heel + legW + 6, -bootH + 1);
+    g.lineTo(heel + 7, -1.5);
+    g.closePath(); g.fill();
+    g.fillStyle = '#f4f6fb';                                 // sole, running the whole length
+    g.fillRect(heel, -2, bootL + 1, 2);
     g.fillStyle = '#ffffff';                                 // laces across the instep
-    for (let i = 0; i < 3; i++) {
-      g.fillRect(Math.round(midX + (s > 0 ? 5 + i * 3 : midL - 6 - i * 3)), Math.round(y - 5), 1, 3);
-    }
+    for (let i = 0; i < 3; i++) g.fillRect(heel + legW + 2 + i * 3, -bootH + 2, 1, 3);
+    g.restore();
+
+    g.fillStyle = OUTLINE;                                   // studs, bridging sole to grass
+    for (let i = 0; i < 3; i++) g.fillRect(heel + 1 + i * ((bootL - 4) / 3), 0, 2, SOLE_UP);
+    g.restore();
   };
 
-  // Back leg plants, front leg swings. The swing reaches KICK_REACH, which is the same number
-  // the sim strikes the ball from, so the toe cap really is where the toe-poke happens.
-  const kickX = face * swing * C.KICK_REACH * 0.7;
-  leg(-bw * 0.32 - stride, 0, pal.shade);
-  leg(bw * 0.06 + kickX + stride, swing * 8, pal.base);
+  // Back leg plants, front leg swings. The swing is an ANGLE plus an EXTENSION, and between
+  // them the toe cap lands near KICK_REACH — the same number the sim strikes the ball from, so
+  // the toe really is where the toe-poke happens. Neither alone gets there: 70° of a 10px shin
+  // is 9px of reach, and a leg that only grows is a telescope, not a kick.
+  leg(-bw * 0.32, -stride, pal.shade);
+  leg(bw * 0.02, stride + swing * KICK_SWING, pal.base, swing * KICK_EXTEND);
 
-  // torso — gi body, hard shadow down one side, belt across the waist
-  const tH = Math.round(bh * 0.62);
+  // torso — gi body, hard shadow down one side, belt across the waist. Its HEM is what decides
+  // how much leg there is to look at: at 0.62 it finished 2px above the boot and the socks the
+  // leg is mostly made of were never on screen at all. 0.5 leaves a shin's worth showing.
+  const tH = Math.round(bh * 0.5);
   px(g, -bw / 2, -bh, bw, tH, pal.base);
   g.fillStyle = pal.shade;
   g.fillRect(Math.round(bw / 2 - bw * 0.28), Math.round(-bh), Math.round(bw * 0.28), tH);
@@ -2079,6 +2151,10 @@ $('#tunerCopy').onclick = async () => {
 // goalBox/depthPoint are here so a harness can ask the SAME geometry the renderer drew with
 // where a body in the net should have landed, instead of re-deriving it and drifting.
 Object.assign(window, { goalBox, goalAt, depthPoint, INSIDE_Z });
+// drawBody, for looking at the sprite itself at a zoom a 79px body can be judged at. The
+// boots are 23px long on screen and no screenshot of a match will ever settle whether one
+// reads as a football boot — see _bootshots.mjs, which calls this.
+Object.assign(window, { drawBody });
 Object.assign(window, { C, startMatch, pick, SHOTS, paintHead, callout });
 // The measured head anchors, for the crop tools — see head-crop.js and test-heads.mjs.
 Object.defineProperty(window, '__ANCHORS', { get: () => ANCHORS });

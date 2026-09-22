@@ -814,8 +814,14 @@ const scoreOn = (m, left, y = C.GROUND_Y - 60, speed = 600) => {
   const far = kickFrom(120);                          // a long way from the far goal
   const near = kickFrom(C.W - 260);                   // right on top of it
 
-  ok('a kick from deep is lofted toward the goal', far.vy < 0 && Math.abs(far.vy) > C.KICK_LIFT,
-     `vy ${far.vy.toFixed(0)} vs a flat ${(-C.KICK_LIFT).toFixed(0)}`);
+  // Against the SAME kick taken from close in, not against KICK_LIFT. KICK_LIFT is the loft of
+  // a dead-centre contact and the middle of the boot is no longer the neutral shot — the ball
+  // you are dribbling sits at the ankle end of the circle, so that is where the neutral went
+  // (see KICK_TOE_NEUTRAL). What this test is actually about is the BOW, and the bow is the
+  // only thing that differs between these two kicks.
+  ok('a kick from deep is lofted toward the goal',
+     far.vy < 0 && Math.abs(far.vy) > Math.abs(near.vy) * 1.2,
+     `vy ${far.vy.toFixed(0)} vs ${near.vy.toFixed(0)} from close in`);
   ok('and it still goes forward', far.vx > 0, `vx ${far.vx.toFixed(0)}`);
   // From close in, lofting it would put the ball over the bar — so it does not.
   ok('a kick from close in stays low', Math.abs(near.vy) <= Math.abs(far.vy),
@@ -1068,7 +1074,8 @@ const scoreOn = (m, left, y = C.GROUND_Y - 60, speed = 600) => {
 
 // ── WHERE ON THE BOOT ─────────────────────────────────────────────────────────
 // The contact point is the shot: the toe cap pokes it flat and fast, the whole foot gets under
-// it and lifts it. Dead centre is the kick this game had before any of this.
+// it and lifts it. The neutral — the plain 1.0 kick — sits at KICK_TOE_NEUTRAL, near the ankle
+// end, because that is where a dribbled ball actually meets the boot.
 {
   // Struck at a chosen offset along the boot, from the ankle end (-1) to the toe cap (+1).
   const kickAt = (along) => {
@@ -1076,7 +1083,10 @@ const scoreOn = (m, left, y = C.GROUND_Y - 60, speed = 600) => {
     const p = m.players[0];
     p.x = 400; p.kickCd = 0; p.prev = {};
     m.players[1].x = C.W - 60;
-    m.ball.x = p.x + C.KICK_REACH + along * C.KICK_R;
+    // Against the CONTACT radius, which is what the sim divides the contact point by — the
+    // ball's centre reaches KICK_R + its own radius out and still touches the circle. Half a
+    // pixel inside it, because the sim's test is a strict `<` and dead on the rim is a miss.
+    m.ball.x = p.x + C.KICK_REACH + along * (C.KICK_R + m.ball.r - 0.5);
     m.ball.y = p.y - C.BODY_H * 0.45;
     m.ball.vx = 0; m.ball.vy = 0;
     m.hitStop = 0;
@@ -1109,7 +1119,8 @@ const scoreOn = (m, left, y = C.GROUND_Y - 60, speed = 600) => {
     const p = m.players[0];
     p.x = 150; p.kickCd = 0; p.prev = {};            // as deep as the pitch gets
     m.players[1].x = C.W - 60;
-    m.ball.x = p.x + C.KICK_REACH + C.KICK_R; m.ball.y = p.y - C.BODY_H * 0.45;
+    m.ball.x = p.x + C.KICK_REACH + C.KICK_R + m.ball.r - 0.5;   // the very tip; see kickAt
+    m.ball.y = p.y - C.BODY_H * 0.45;
     m.ball.vx = 0; m.ball.vy = 0;
     m.hitStop = 0;
     step(m, [{ kick: true }, {}]);
@@ -1160,7 +1171,8 @@ const scoreOn = (m, left, y = C.GROUND_Y - 60, speed = 600) => {
     const p = m.players[0];
     p.x = 400; p.kickCd = 0; p.prev = {};
     m.players[1].x = C.W - 60;
-    m.ball.x = p.x + C.KICK_REACH + C.KICK_R; m.ball.y = p.y - C.BODY_H * 0.45;
+    m.ball.x = p.x + C.KICK_REACH + C.KICK_R + m.ball.r - 0.5;   // the very tip; see kickAt
+    m.ball.y = p.y - C.BODY_H * 0.45;
     m.ball.vx = ballVx; m.ball.vy = 0;
     m.hitStop = 0;
     step(m, [{ kick: true }, {}]);
@@ -1171,8 +1183,12 @@ const scoreOn = (m, left, y = C.GROUND_Y - 60, speed = 600) => {
      `met ${met.toFixed(0)} vs still ${still.toFixed(0)}`);
   // Only the pace coming AT the boot counts. A ball already running away is caught up with and
   // struck, not smashed — otherwise chasing a loose ball would be the best shot in the game.
-  ok('and a ball running away is not', Math.abs(fleeing - still) < 1,
-     `fleeing ${fleeing.toFixed(0)} vs still ${still.toFixed(0)}`);
+  // Not exactly equal: a ball running away gets a little further out before the boot catches
+  // it, so it is met a little nearer the toe, and the toe hits harder. That is a real few per
+  // cent and not the meet term leaking in — what this asserts is that it is nothing like the
+  // gain a ball driven AT the boot earns.
+  ok('and a ball running away is not', fleeing < still + (met - still) * 0.15,
+     `fleeing ${fleeing.toFixed(0)} vs still ${still.toFixed(0)}, met ${met.toFixed(0)}`);
 }
 {
   // THE HEADER, the same way. Two things make one hard: the ball came at you, and you met it

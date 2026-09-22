@@ -1062,10 +1062,20 @@ function resolveBallPlayers(m, fx, alpha = 1) {
           //   under   how far the boot is beneath the ball's centre. About 0 for a ball rolling
           //           on the grass (the circle sits at that height), positive for one dropping
           //           onto the foot, which is the chip.
-          const along = clamp(((b.x - kx) * dir) / C.KICK_R, -1, 1);
+          //
+          // Normalised by the CONTACT radius, not by KICK_R: the circle the ball is tested
+          // against is KICK_R + b.r across, so dividing by KICK_R alone pinned everything in
+          // the outer third of the boot to a flat -1 or +1 and threw away the end of the range
+          // at both ends.
+          const along = clamp(((b.x - kx) * dir) / (C.KICK_R + b.r), -1, 1);
           const toe = (along + 1) / 2;                     // 0 = the whole foot, 1 = the toe cap
           const under = clamp((ky - b.y) / (C.KICK_R + b.r), -1, 1);
-          let loft = clamp(1 + (0.5 - toe) * C.KICK_TOE_LOFT + under * C.KICK_UNDER_LOFT,
+          // Measured from where the ball sits on an ORDINARY kick rather than from the middle
+          // of the circle — see KICK_TOE_NEUTRAL. A dribbled ball is pinned against the body,
+          // which is the ankle end, so a neutral at 0.5 made the everyday running shot a scoop
+          // and that is why the ball kept going up instead of at the goal.
+          const t = toe - C.KICK_TOE_NEUTRAL;
+          let loft = clamp(1 - t * C.KICK_TOE_LOFT + under * C.KICK_UNDER_LOFT,
                            C.KICK_LOFT_MIN, C.KICK_LOFT_MAX);
           // THE LOB IS STILL AN AIM, NOT AN ACCIDENT. Holding jump means you got your foot
           // under it on purpose, so a toe-end contact may not flatten the one shot whose whole
@@ -1075,7 +1085,7 @@ function resolveBallPlayers(m, fx, alpha = 1) {
           // flat shot is the hard one and the scoop is the soft one. And the flat one is faster
           // again for a reason that is not in this line at all — BALL_MAX_SPEED is a budget on
           // the whole velocity, and a shot that climbs spends most of it climbing.
-          const punch = 1 + (toe - 0.5) * C.KICK_TOE_DRIVE;
+          const punch = 1 + t * C.KICK_TOE_DRIVE;
 
           // MEETING IT. The pace the ball brings INTO the boot comes back out of it: that is
           // the difference between a volley and a tap, and it used to not exist — the strike
@@ -1086,9 +1096,10 @@ function resolveBallPlayers(m, fx, alpha = 1) {
           const meet = Math.max(0, -b.vx * dir);
           const drop = Math.max(0, b.vy);
 
-          b.vx = dir * (C.KICK_POWER * mult * drive * punch + meet * C.KICK_MEET) + p.vx * 0.4;
+          b.vx = dir * (C.KICK_POWER * mult * drive * punch + meet * C.KICK_MEET
+                        + drop * C.KICK_DROP_DRIVE) + p.vx * 0.4;
           b.vy = -(C.KICK_LIFT * mult * lift * loft * (1 + C.KICK_BOW * bow)
-                   + drop * C.KICK_MEET * loft) + p.vy * 0.3;
+                   + drop * C.KICK_MEET * loft * C.KICK_DROP_LOFT) + p.vy * 0.3;
           b.spin = dir * 14;
           p.kickT = 0;
           m.hitStop = Math.max(m.hitStop, C.HIT_STOP_KICK);

@@ -200,7 +200,8 @@ export function botInput(bot, m, index, dt) {
     // bot that can aim stands where the ball will arrive on its TOE CAP — KICK_REACH plus most
     // of the circle's radius — and the one that cannot just crowds it.
     const wantAlong = d.aim * TOE_BIAS;             // -1 ankle … +1 toe cap
-    const standOff = 10 + d.aim * (C.KICK_REACH + wantAlong * C.KICK_R - 10);
+    // Against the CONTACT radius, which is what the sim divides the contact point by.
+    const standOff = 10 + d.aim * (C.KICK_REACH + wantAlong * (C.KICK_R + C.BALL_R) - 10);
 
     if (depth < C.W * 0.42 || incoming) {
       // My half, or a ball heading home: intercept, and always stand GOAL-SIDE of it
@@ -336,7 +337,7 @@ export function botInput(bot, m, index, dt) {
   // The window is around the contact this bot was aiming for (the toe, for one that can aim),
   // not around the middle of the boot — a legendary bot standing where the toe cap meets the
   // ball would otherwise refuse the very swing it walked there to take.
-  const along = (dxb * p.side - C.KICK_REACH) / C.KICK_R;
+  const along = (dxb * p.side - C.KICK_REACH) / (C.KICK_R + C.BALL_R);
   const dangerous = (b.x - (p.side > 0 ? C.GOAL_W : C.W - C.GOAL_W)) * p.side < C.W * 0.35;
   const onTheBoot = dangerous || Math.abs(along - d.aim * TOE_BIAS) < 0.5 + (1 - d.aim) * 2;
 

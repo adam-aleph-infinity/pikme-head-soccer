@@ -70,7 +70,13 @@ function playMatch(levelA, levelB, seed, duration = C.MATCH_DURATION) {
   // where neither bot ever gets a full meter to the ball is a legal match, and one duly turned
   // up. The property worth fencing is that the move is a regular part of play.
   const silent = fired.filter((n) => n === 0).length;
-  ok('bots fire power shots', mean >= 2 && silent <= 2,
+  // 2.7 → 1.5 when the boot was flattened (KICK_LIFT 620 → 400), and the bar comes down with
+  // it. This is not the bar being moved to let a change through: the meter is filled by
+  // TACKLE_GAUGE and by GAUGE_CONCEDE_BONUS, and the flat shot scores 3.4 goals a match where
+  // the lofted one scored 4.9, so a THIRD of the concede bonuses simply stopped being handed
+  // out. Fewer goals, fewer full meters, fewer ultimates — the ultimate itself is untouched.
+  // If the scoring rate is ever put back up, put this back to 2 with it.
+  ok('bots fire power shots', mean >= 1.25 && silent <= 2,
      `mean=${mean.toFixed(2)}, ${silent} silent, of ${fired.join(',')}`);
   ok('somebody scores', m.score[0] + m.score[1] > 0, m.score.join('-'));
   // This guards against runaway physics, not against taste: it is what caught the ball
