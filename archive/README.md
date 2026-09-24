@@ -14,6 +14,17 @@ Three things were removed, on 2026-09-19:
 
 Their tests are in `tests/` and their screenshot harnesses in `shots/`.
 
+And on 2026-09-25, for Head Soccer's power shots (`shared/hs-powers.js`, docs/HS-POWER-SHOTS.md):
+
+| what | why it went | file |
+|---|---|---|
+| **The 45 champion powers** — giant head, moon gravity, goal wall, clone keeper, time stop and the rest, each a bespoke effect engine | Idan's decision: pure Head Soccer, every champion is only its shot family + ailment + aura (docs/HS-CHAMPION-MAP.md) | `shared/powers.js` |
+| **The five flat power shots** — one straight line in five colours, and the card→shot table | replaced by HS's eleven families | `shared/powershots.js` |
+| **The 45 per-power VFX entries** — six phases each, particles, bands, shakes, words | Idan: "exactly like Head Soccer" — replaced by the filmed comet, cut-in and ailments | `vfx/tier1.js` … `tier5.js` |
+
+They import paths and helpers that no longer exist, so bringing one back means re-wiring it
+through `shared/hs-powers.js` and `public/champ-vfx.js`, not a `git mv`.
+
 ---
 
 ## Putting the hand of three back
