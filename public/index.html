@@ -4,7 +4,10 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
-<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%230b1428'/%3E%3Ccircle cx='16' cy='13' r='7' fill='%23ffd54a'/%3E%3Crect x='11' y='21' width='10' height='7' rx='2' fill='%23e01e4f'/%3E%3C/svg%3E">
+<link rel="icon" href="img/saltiz-sm.jpg">
+<link rel="apple-touch-icon" href="img/saltiz-sm.jpg">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Rubik:wght@500;700;900&display=swap">
 <title>סלטיז ראשים · Head Soccer mock</title>
 <link rel="stylesheet" href="style.css">
 </head>
@@ -43,26 +46,108 @@
 
   <div class="grid" id="cardGrid"></div>
 
-  <!-- The two ways to play, stated as a choice rather than left implicit. The old screen had
-       one «שחק» button plus two link-shaped buttons in a row of utilities, so 1v1 read as an
-       afterthought instead of as the other half of the game. -->
+  <!-- One way forward from the album: «שחק». HOW to play is the next screen's question —
+       it used to be a two-way toggle down here, and the game now has two different answers
+       to it (a friend, or the 45-champion arcade), each with its own screen behind it. -->
   <div class="pick-bar">
-  <nav class="modes" id="modes">
-    <button data-mode="bot" class="on"><b>🤖 נגד המחשב</b><span>שחק מיד</span></button>
-    <button data-mode="duo"><b>👥 1 על 1</b><span>שלח קישור לחבר</span></button>
-  </nav>
-
   <footer class="pick-foot">
-    <label class="diff">
-      <span>רמת יריב</span>
-      <input type="range" id="diff" min="0" max="5" step="1" value="3">
-      <b id="diffName">קשה</b>
-    </label>
+    <span class="pick-hint">בחר קלף ולחץ שחק</span>
     <button class="play" id="playBtn">שחק</button>
-    <button class="play" id="hostBtn">🔗 צור קישור</button>
-    <button class="ghost" id="joinBtn">הצטרף לקוד</button>
   </footer>
   </div>
+</section>
+
+<!-- ═══ MODE ═══ the card is chosen: who do you play? ════════════════════ -->
+<!-- .salt = the Saltiz look: the red-and-yellow hexagon, its rays and its hex floor. -->
+<section id="modeSel" class="screen hidden salt">
+  <i class="salt-rays" aria-hidden="true"></i>
+  <button class="salt-back" id="modeBack">‹ חזרה</button>
+  <header class="mode-brand">
+    <span class="salt-logo"><img src="img/saltiz-sm.jpg" alt="סלטיז"></span>
+    <div>
+      <span class="salt-kicker">סלטיז ראשים</span>
+      <h2 class="salt-h">בחר מצב משחק</h2>
+    </div>
+  </header>
+  <div class="mode-cards">
+    <button class="mode-card red" id="modeMulti">
+      <span class="mode-hex"><i>👥</i></span>
+      <b>רב משתתפים</b>
+      <span class="mode-sub">1 על 1 עם חבר · קישור או קוד</span>
+      <em class="mode-tag">🔥 אונליין</em>
+    </button>
+    <button class="mode-card gold" id="modeArcade">
+      <span class="mode-hex"><i>🏆</i></span>
+      <b>שחקן יחיד</b>
+      <span class="mode-sub" id="modeArcadeSub">45 אלופים · שלב 1</span>
+      <em class="mode-tag">⭐ ארקייד</em>
+    </button>
+  </div>
+  <!-- Multiplayer is the existing private-room flow, unchanged: the same two buttons, the
+       same lobby behind them. -->
+  <div class="multi-row hidden" id="multiRow">
+    <button class="play" id="hostBtn">🔗 צור קישור</button>
+    <button class="ghost" id="joinBtn">הצטרף לקוד</button>
+  </div>
+</section>
+
+<!-- ═══ ARCADE ═══ 45 champions, beaten in order ═════════════════════════ -->
+<!-- Laid out like Head Soccer's PLAYER SELECT: you on one side, the champion on the other,
+     VS between, the 45 champions as a strip underneath, the stats and PLAY along the bottom. -->
+<section id="arcade" class="screen hidden salt">
+  <i class="salt-rays" aria-hidden="true"></i>
+  <header class="arc-head">
+    <button class="salt-back" id="arcBack">‹ חזרה</button>
+    <div class="arc-brand">
+      <h2 class="salt-h">בחר אלוף</h2>
+    </div>
+    <div class="arc-prog"><span>🏆</span><div class="arc-bar"><i id="arcBar"></i></div><b id="arcProg">0 / 45</b></div>
+  </header>
+
+  <div class="arc-pitch">
+    <div class="arc-side you">
+      <span class="arc-tag">אתה</span>
+      <div class="hexframe"><i class="arc-you-face" id="arcYouFace"></i></div>
+      <b class="arc-name" id="arcYou">—</b>
+    </div>
+
+    <div class="arc-mid">
+      <span class="salt-logo arc-logo"><img src="img/saltiz-sm.jpg" alt="סלטיז"></span>
+      <span class="arc-stage" id="arcStage">שלב 1</span>
+      <div class="arc-vs">VS</div>
+      <span class="arc-stars" id="arcStars"></span>
+      <span class="arc-status" id="arcStatus"></span>
+      <div class="arc-power"><b id="arcPower">—</b><p id="arcDesc">—</p></div>
+    </div>
+
+    <div class="arc-side foe">
+      <span class="arc-tag">אלוף</span>
+      <!-- The reel, Head Soccer style: the champions stacked vertically, the chosen one big in
+           the middle, the ones before and after shrinking away above and below. ▲/▼, the
+           arrow keys, the wheel, a drag or a tap on a neighbour all roll it. -->
+      <button class="arc-step up" id="arcPrev" aria-label="הקודם">▲</button>
+      <div class="arc-reel" id="arcReel" role="group" aria-roledescription="carousel" aria-label="אלופים"></div>
+      <button class="arc-step down" id="arcNext" aria-label="הבא">▼</button>
+      <b class="arc-name arc-title" id="arcTitle" aria-live="polite">—</b>
+      <span class="arc-count" id="arcCount">1 / 45</span>
+    </div>
+
+    <div class="arc-grid" id="arcGrid"></div>
+  </div>
+
+  <footer class="arc-foot">
+    <div class="arc-free">
+      <button class="salt-btn red" id="freeBtn">אימון חופשי</button>
+      <!-- The old «נגד המחשב» match, kept: your card against the יריב slot at a chosen level. -->
+      <label class="diff">
+        <span>רמה</span>
+        <input type="range" id="diff" min="0" max="5" step="1" value="3">
+        <b id="diffName">קשה</b>
+      </label>
+    </div>
+    <div class="arc-stats" id="arcStats"></div>
+    <button class="salt-btn gold" id="arcPlay">שחק</button>
+  </footer>
 </section>
 
 <!-- ═══ LOBBY ═══ private room, joined by a 4-char code ═══════════════════ -->
@@ -161,6 +246,7 @@
   <div class="over hidden" id="over">
     <h2 id="overTitle"></h2>
     <p id="overScore"></p>
+    <p class="over-sub" id="overSub" hidden></p>
     <div class="over-btns">
       <button id="again">עוד פעם</button>
       <button id="back">קלפים</button>

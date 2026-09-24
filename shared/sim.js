@@ -5,6 +5,12 @@
 import * as C from './constants.js';
 import { launchPowerShot, stepPowerShot, counterPowerShot, shotFor, statsFor, SHOTS } from './powershots.js';
 import { walkBounds, barY, barCeiling, goalBox, ballInGoal, keepOutOfGoal } from './goalbox.js';
+import { championFor } from './champions.js';
+import {
+  champState, freshMods, firePower, champPreStep, champInput, champBallForces, ballGravMul,
+  champFlight, champSkipContact, champBlock, champAfterBlock, champBarriers, champBallPre,
+  champBallPost, champClear,
+} from './powers.js';
 
 // A player's geometry, derived (never stored) so nothing can drift out of sync.
 // `y` is the FEET line; the body box hangs above it and the head sits on the body.
@@ -19,12 +25,20 @@ export const bodyTop = (p) => bodyTopAt(p.y);
 // shrink; both of those systems are gone (see archive/README.md), so this is a constant again
 // — but it stays a function of (m, p) because every collision in this file asks through it,
 // and that is the seam anything that ever resizes a head should come back through.
-export const headR = (m, p) => C.HEAD_R;
+//
+// …and something does again: an arcade champion can grow its own head or shrink the other
+// one's (shared/powers.js). Only a match with champions has `m.champ`; every other match —
+// online 1v1 included — gets exactly the constant it always did.
+export const headR = (m, p) => (m && m.champ ? C.HEAD_R * p.mods.head : C.HEAD_R);
 
 const clamp = (v, lo, hi) => (v < lo ? lo : v > hi ? hi : v);
 
 // Effects are fire-and-forget messages to whatever is drawing. Tests pass NO_FX.
 export const NO_FX = { trail() {}, shockwave() {}, grab() {}, hit() {}, goal() {} };
+
+// What a champion power is allowed to reach inside the sim. Passed in rather than imported, so
+// powers.js does not import this file back and every hit still goes through damage().
+const KIT = { damage, headY, headR, keepOutOfGoal, launch: launchPowerShot };
 
 function makePlayer(index, char) {
   const side = index === 0 ? 1 : -1;       // +1 attacks the RIGHT goal
@@ -75,6 +89,21 @@ export function createMatch(charA, charB, opts = {}) {
     ball: { x: C.BALL_SPAWN.x, y: C.BALL_SPAWN.y, vx: 0, vy: 0, r: C.BALL_R, spin: 0, power: null },
     events: [],              // drained by the renderer each frame
   };
+  // THE ARCADE. Champions are an opt-in on the match, and nothing else in the game passes it:
+  // not the server, not the online client, not the free-play match. Without it there is no
+  // m.champ and every champion seam below is skipped — see the fingerprint in test-arcade.
+  if (opts.champions) {
+    m.champ = champState();
+    m.players.forEach((p, i) => {
+      p.champ = championFor(p.char);             // null for a card that is not a champion
+      p.mods = freshMods();
+      p.meterRate = (opts.meterRate && opts.meterRate[i]) || 1;
+      // The arcade's strength ladder: a stage can scale its champion's legs and boot. A COPY —
+      // statsFor hands every card of a rarity the same shared object.
+      const k = opts.statScale && opts.statScale[i];
+      if (k) p.stats = { speed: p.stats.speed * k.speed, jump: p.stats.jump * k.jump, kick: p.stats.kick * k.kick };
+    });
+  }
   // BOTH PLAYERS START WITH THE ULTIMATE OFF, and it is asserted here rather than assumed
   // from makePlayer. A match object can also be built by restoring into an existing one (see
   // restore), and "the fields happen to be zero because the constructor wrote zero" is
@@ -271,10 +300,15 @@ export function step(m, inputs, dt = C.TICK, fx = NO_FX) {
         // on the match object for as long as the results screen is up — and this object is
         // what an "again" button is most tempted to reuse.
         for (const p of m.players) clearUltimate(m, p);
+        if (m.champ) champClear(m);
         return m;
       }
     }
   }
+
+  // Champion effects age, and the mods and the ball's field are rebuilt from what is left,
+  // before anybody moves — so this tick is played under exactly the rules that are live.
+  if (m.champ) champPreStep(m, dt, KIT, fx);
 
   // Where each player STARTED this tick. The players move once, in full, before the ball
   // moves at all, so a contact tested only against where they ENDED is a contact tested
@@ -284,8 +318,14 @@ export function step(m, inputs, dt = C.TICK, fx = NO_FX) {
   // the pose from here to there across the ball's sub-steps, so the contact is continuous
   // for BOTH bodies. The ball already had this half; the player never did.
   for (const p of m.players) { p.x0 = p.x; p.y0 = p.y; }
-  for (let i = 0; i < 2; i++) stepPlayer(m, m.players[i], inputs[i] || {}, dt, fx);
+  for (let i = 0; i < 2; i++) {
+    // A player time has stopped for is not stepped at all — not even gravity. Their buttons
+    // are still watched for releases, as through any other pause (see latchReleases).
+    if (m.champ && m.players[i].mods.stopped) latchPlayer(m.players[i], inputs[i] || {});
+    else stepPlayer(m, m.players[i], inputs[i] || {}, dt, fx);
+  }
   separatePlayers(m);
+  if (m.champ) champBallPre(m, m.ball, KIT, fx);
   // SUB-STEP THE BALL when it is moving faster than the things it can hit. The power volley
   // travels 34px in a tick and a head is 30px across, so at one step per frame the ball
   // simply skipped PAST defenders between frames — measured: only one reaction distance in
@@ -295,6 +335,10 @@ export function step(m, inputs, dt = C.TICK, fx = NO_FX) {
   const speed = Math.hypot(m.ball.vx, m.ball.vy);
   const slices = Math.max(1, Math.min(6, Math.ceil((speed * dt) / (C.HEAD_R * 0.8))));
   for (let i = 0; i < slices; i++) stepBall(m, dt / slices, fx, i / slices, 1 / slices);
+  if (m.champ) {
+    champBallPost(m, m.ball, KIT);
+    if (m.champ.balls.length && m.phase === 'play') stepExtraBalls(m, dt, fx);
+  }
 
   // Backstop for every way a ball can end up somewhere nobody can reach it. Cheap, and it
   // turns a hung match into a restart nobody even notices.
@@ -343,6 +387,35 @@ function latchReleases(m, inputs) {
     for (const k of PREV_KEYS) if (!input[k]) p.prev[k] = false;
   }
 }
+// The same, for one player whose time alone has stopped (the arcade's עצירת זמן).
+function latchPlayer(p, input) {
+  if (!p.prev) { p.prev = {}; return; }
+  for (const k of PREV_KEYS) if (!input[k]) p.prev[k] = false;
+}
+
+// THE SECOND AND THIRD BALL. Only the arcade's פיצול makes them, and they are real: they move,
+// hit bodies and score through the very same stepBall as the match ball. stepBall only knows
+// `m.ball`, so each extra is swapped in for its turn and swapped back out.
+function stepExtraBalls(m, dt, fx) {
+  const main = m.ball;
+  for (const eb of [...m.champ.balls]) {
+    m.ball = eb;
+    const n = Math.max(1, Math.min(6, Math.ceil((Math.hypot(eb.vx, eb.vy) * dt) / (C.HEAD_R * 0.8))));
+    for (let i = 0; i < n && m.phase === 'play'; i++) stepBall(m, dt / n, fx, i / n, 1 / n);
+    m.ball = main;
+    if (m.phase !== 'play') {
+      // This one scored, and the restart was written onto IT (resetPositions resets m.ball),
+      // so the kickoff ball is copied back onto the real one.
+      if (m.phase === 'goal') {
+        main.x = eb.x; main.y = eb.y; main.vx = eb.vx; main.vy = eb.vy; main.spin = eb.spin; main.power = null;
+      }
+      m.champ.balls.length = 0;
+      return;
+    }
+    // An extra lives exactly as long as it is a power ball: blocked, or out of flight, it goes.
+    if (!eb.power) m.champ.balls.splice(m.champ.balls.indexOf(eb), 1);
+  }
+}
 
 // ---------------------------------------------------------------------------
 function chargeGauge(m, p, dt) {
@@ -356,6 +429,10 @@ function chargeGauge(m, p, dt) {
 }
 
 function stepPlayer(m, p, input, dt, fx) {
+  // An arcade champion's mods, or null. Every use below is `md ? … : <what it always was>`.
+  // `time` is the slow motion: the whole of this player's step runs on a shorter clock.
+  const md = m.champ ? p.mods : null;
+  if (md) { input = champInput(md, input); dt *= md.time; }
   chargeGauge(m, p, dt);
 
   // NOTE there is no `p.armed -= dt` here. The arm used to be a 4.5s countdown that lapsed
@@ -375,14 +452,14 @@ function stepPlayer(m, p, input, dt, fx) {
   if (p.stunned > 0) {
     tickStun(m, p, dt);
     p.vx *= 0.86;
-    integrate(p, dt, 1, C.MAX_JUMPS, headR(m, p));
+    integrate(p, dt, md ? md.grav : 1, C.MAX_JUMPS + (md ? md.airJumps : 0), headR(m, p));
     p.prev = { ...input };
     return;                             // out on your feet = no input at all
   }
 
   // …and otherwise you are always mending. Gradual and unconditional: there is no "out of
   // combat" timer to game, so the only way to keep somebody down is to keep hitting them.
-  if (p.hp < 1) p.hp = Math.min(1, p.hp + C.HP_REGEN * dt);
+  if (p.hp < 1) p.hp = Math.min(1, p.hp + C.HP_REGEN * dt * (md ? md.regen : 1));
 
   const prev = p.prev || {};
   const dir = (input.right ? 1 : 0) - (input.left ? 1 : 0);
@@ -391,8 +468,8 @@ function stepPlayer(m, p, input, dt, fx) {
   if (p.tapT > 0) p.tapT -= dt;
   for (const [key, d] of [['left', -1], ['right', 1]]) {
     if (input[key] && !prev[key]) {
-      if (p.tapDir === d && p.tapT > 0 && p.dashCd <= 0) {
-        p.dashT = C.DASH_TIME; p.dashDir = d; p.dashCd = C.DASH_COOLDOWN;
+      if (p.tapDir === d && p.tapT > 0 && p.dashCd <= 0 && !(md && md.noDash)) {
+        p.dashT = C.DASH_TIME; p.dashDir = d; p.dashCd = md && md.dashFree ? 0.12 : C.DASH_COOLDOWN;
         p.tapT = 0; p.tapDir = 0;
         m.events.push({ type: 'dash', player: p.index, dir: d });
       } else {
@@ -405,16 +482,19 @@ function stepPlayer(m, p, input, dt, fx) {
 
   if (p.dashT > 0) {
     p.dashT -= dt;
-    p.vx = p.dashDir * C.DASH_V * p.stats.speed;
+    p.vx = p.dashDir * C.DASH_V * p.stats.speed * (md ? md.speed : 1);
   } else {
-    const target = dir * C.PLAYER_SPEED * p.stats.speed;
-    const accel = (p.onGround ? C.PLAYER_ACCEL : C.PLAYER_AIR_ACCEL) * dt;
+    const target = dir * C.PLAYER_SPEED * p.stats.speed * (md ? md.speed : 1);
+    const accel = (p.onGround ? C.PLAYER_ACCEL : C.PLAYER_AIR_ACCEL) * dt * (md ? md.accel : 1);
     if (dir !== 0) {
       p.vx += clamp(target - p.vx, -accel, accel);
     } else if (p.onGround && p.shoved <= 0) {
-      p.vx *= C.PLAYER_FRICTION;
+      p.vx *= md && md.friction ? md.friction : C.PLAYER_FRICTION;
     }
   }
+  // Frozen solid: no sliding on the ground — but a body in the air stays ballistic, which is
+  // how the arcade's רעידת אדמה throws somebody who cannot do anything about it.
+  if (md && md.frozen && p.onGround) p.vx *= 0.5;
 
   // ---- jump ----
   // Two forgiveness windows, because a jump that eats your input feels broken even when
@@ -423,15 +503,19 @@ function stepPlayer(m, p, input, dt, fx) {
   p.coyote = p.onGround ? C.COYOTE_TIME : Math.max(0, p.coyote - dt);
   p.jumpBuf = (input.jump && !prev.jump) ? C.JUMP_BUFFER : Math.max(0, p.jumpBuf - dt);
 
-  if (p.jumpBuf > 0 && (p.onGround || p.coyote > 0) && p.jumps > 0) {
-    p.vy = -C.JUMP_V * p.stats.jump;
+  // `air` is a champion's extra jump in the air; zero everywhere else, which leaves this the
+  // ground-or-coyote test it always was.
+  const air = md ? md.airJumps : 0;
+  if (p.jumpBuf > 0 && (p.onGround || p.coyote > 0 || air > 0) && p.jumps > 0 && !(md && md.noJump)) {
+    p.vy = -C.JUMP_V * p.stats.jump * (md ? md.jump : 1);
     p.onGround = false;
     p.coyote = 0;
     p.jumpBuf = 0;
     p.jumps--;
     m.events.push({ type: 'jump', player: p.index });
   }
-  if (!input.jump && p.vy < 0) p.vy *= 1 - (1 - C.JUMP_CUT) * dt * 12;   // variable height
+  // variable height — a jump let go of early is cut short. A frozen player has let go of nothing.
+  if (!input.jump && p.vy < 0 && !(md && md.frozen)) p.vy *= 1 - (1 - C.JUMP_CUT) * dt * 12;
 
   // ---- kick ----
   if (input.kick && !prev.kick && p.kickCd <= 0) {
@@ -490,7 +574,7 @@ function stepPlayer(m, p, input, dt, fx) {
     m.events.push({ type: 'armed', player: p.index, shot: p.shot.id });
   }
 
-  integrate(p, dt, 1, C.MAX_JUMPS, headR(m, p));
+  integrate(p, dt, md ? md.grav : 1, C.MAX_JUMPS + (md ? md.airJumps : 0), headR(m, p));
   p.prev = { ...input };
 }
 
@@ -575,13 +659,22 @@ function separatePlayers(m) {
 function stepBall(m, dt, fx, a0 = 0, aSpan = 1) {
   const b = m.ball;
 
-  const powered = stepPowerShot(b, m.players, dt, fx);
+  // A champion's shot flies its own flight (shared/powers.js); every other power ball, in every
+  // match, still flies stepPowerShot's.
+  const powered = b.power && b.power.champ && m.champ
+    ? champFlight(m, b, dt, fx, KIT)
+    : stepPowerShot(b, m.players, dt, fx);
   if (!powered) {
     // ONE gravity, and nothing else bends a loose ball. The wind used to add an acceleration
     // here and the magnet another; both are gone (archive/README.md), which is what makes the
     // flight of a kicked ball a thing a player can learn once.
-    b.vy += C.BALL_GRAV * dt;
+    //
+    // Outside the arcade, still true. Inside it a champion may bend the ball for a few seconds
+    // — moon gravity, gravity upside down, wind, a magnet — and those are the ONLY forces that
+    // come in here, all through m.champ.field.
+    b.vy += C.BALL_GRAV * dt * (m.champ ? ballGravMul(m) : 1);
     b.vx *= C.BALL_AIR;
+    if (m.champ) champBallForces(m, b, dt);
   }
   b.spin *= C.BALL_SPIN_DECAY;
 
@@ -589,7 +682,8 @@ function stepBall(m, dt, fx, a0 = 0, aSpan = 1) {
   // nothing to run away, and clamping them here silently pinned POWER_SHOT_SPEED to
   // BALL_MAX_SPEED — the power shot's speed knob did nothing for as long as it existed.
   const sp = Math.hypot(b.vx, b.vy);
-  if (!powered && sp > C.BALL_MAX_SPEED) { b.vx *= C.BALL_MAX_SPEED / sp; b.vy *= C.BALL_MAX_SPEED / sp; }
+  const cap = C.BALL_MAX_SPEED * (m.champ ? m.champ.field.maxSpeed : 1);
+  if (!powered && sp > cap) { b.vx *= cap / sp; b.vy *= cap / sp; }
 
   // Sub-step the ball so it can never skip past a body in one tick. Discrete stepping
   // let a 1250px/s shot jump the 40px-wide body box, after which the nearest-point
@@ -606,6 +700,9 @@ function stepBall(m, dt, fx, a0 = 0, aSpan = 1) {
     b.x += b.vx * sdt;
     b.y += b.vy * sdt;
     collideBounds(m, b, fx);
+    // A champion's barriers — a wall on the goal line, a mirror, a clone keeper — are more of
+    // the pitch's furniture, so they answer before the crossing is measured, like the posts do.
+    if (m.champ) champBarriers(m, b, KIT, fx, fromX, fromY);
     // DECIDED BEFORE THE PLAYERS ARE ASKED, and on the ball's own motion. resolveBallPlayers
     // moves the ball — that is what a push-out is — and a ball that is in the net only because
     // a body put it there has not scored. It gets to take a goal AWAY (checkGoal re-tests the
@@ -642,8 +739,11 @@ function collideBounds(m, b, fx) {
     if (b.vy > 0) {
       if (b.power) { b.vy = -Math.abs(b.vy) * 0.45; }
       else {
-        b.vy = -b.vy * C.BALL_BOUNCE;
-        if (Math.abs(b.vy) < 60) b.vy = 0;
+        // The arcade's טרמפולינה replaces the restitution for a few seconds, and the settle
+        // cutoff with it — a trampoline that lets the ball come to rest is not one.
+        const tramp = m.champ ? m.champ.field.bounce : 0;
+        b.vy = -b.vy * (tramp || C.BALL_BOUNCE);
+        if (Math.abs(b.vy) < 60 && !tramp) b.vy = 0;
         fx.hit(b.x, b.y, '#ffffff', 0.4);
       }
     }
@@ -871,7 +971,7 @@ function tryHeader(m, p, fx) {
   // launch or the reach-around re-placement.
   if (dx * dir < 0) return false;
 
-  const mult = p.stats.kick;
+  const mult = p.stats.kick * (m.champ ? p.mods.kick : 1);
   // THE SAME COLLISION THE BOOT MAKES, on the other end of the body. A header used to be one
   // number whatever arrived: a ball driven at your face and a ball rolled gently onto your
   // forehead left at identical speed, which is the least physical thing the sim did.
@@ -960,7 +1060,9 @@ function tryTackle(m, p, fx) {
   foe.vy = Math.min(foe.vy, -C.TACKLE_LIFT * (behind ? C.TACKLE_PUSH_BACK : 1));
   foe.onGround = false;
   foe.dashT = 0;
-  p.gauge = Math.min(1, p.gauge + C.TACKLE_GAUGE);
+  // An arcade champion's bot may earn it faster (meterRate climbs with the stage), and the
+  // arcade's גניבת כוח can lock it for a few seconds. Everywhere else it is one slice a hit.
+  p.gauge = Math.min(1, p.gauge + C.TACKLE_GAUGE * (m.champ ? (p.mods.meterLock ? 0 : p.meterRate) : 1));
   foe.tackleImmune = C.TACKLE_IMMUNE;
   const dealt = damage(m, foe, C.KICK_DAMAGE * (behind ? C.KICK_DAMAGE_BACK : 1));
 
@@ -1024,6 +1126,9 @@ function resolveBallPlayers(m, fx, alpha = 1) {
     // The pose this sub-step collides against: swept from where the player started the tick
     // to where they finished it. Without it every test runs against the end pose and a
     // running player simply appears on the far side of the ball.
+    // Champion shots that pass through a body: the ghost shot, the drill just after it bores
+    // through, and the teleport between its two portals.
+    if (m.champ && champSkipContact(m, b, p)) continue;
     const px = p.x0 === undefined ? p.x : p.x0 + (p.x - p.x0) * alpha;
     const py = p.y0 === undefined ? p.y : p.y0 + (p.y - p.y0) * alpha;
     const hy = headYAt(py);
@@ -1039,7 +1144,7 @@ function resolveBallPlayers(m, fx, alpha = 1) {
       const ky = py - C.BODY_H * 0.45;
       if (Math.hypot(b.x - kx, b.y - ky) < C.KICK_R + b.r) {
         if (!b.power) {
-          const mult = p.stats.kick;
+          const mult = p.stats.kick * (m.champ ? p.mods.kick : 1);
           const drive = p.kickLob ? C.LOB_DRIVE : 1;
           const lift = p.kickLob ? C.LOB_LIFT : 1;
           // THE BOW. A kick used to fly dead flat along your facing, so scoring meant already
@@ -1300,10 +1405,20 @@ function fireUltimateOnContact(m, p, b, fx) {
   if (b.power && b.power.owner === p.index) return false;
   if (p.stunned > 0) return false;                   // not a touch you made
 
+  // The arcade's second and third balls are for scoring with, not for firing off.
+  if (m.champ && b.power && b.power.extra) return false;
+
   const countered = !!b.power;
   p.armed = 0;
   p.gauge = 0;
   m.idle = 0;
+  // A CHAMPION'S ULTIMATE. Same arm, same touch, same spend — the only thing that differs is
+  // what the touch does, and that is the champion's own power (shared/powers.js).
+  if (m.champ && p.champ) {
+    firePower(m, p, b, KIT, fx);
+    m.hitStop = Math.max(m.hitStop, C.HIT_STOP_POWER);
+    return true;
+  }
   // Toward the opponent's goal, which is what `side` is: +1 attacks the right net. Same
   // launch the armed boot always used, so this is the existing ultimate, moved to a new
   // trigger rather than a second implementation of one.
@@ -1328,6 +1443,8 @@ function hitByPowerShot(m, p, b, fx) {
   const pw = b.power;
   const shot = pw.shot;
   m.hitStop = Math.max(m.hitStop, C.HIT_STOP_POWER);
+  // A champion shot may answer a block its own way (the drill bores through it).
+  if (m.champ && pw.champ && champBlock(m, p, b, KIT, fx)) return;
 
   const dealt = damage(m, p, C.POWER_DAMAGE);
 
@@ -1341,6 +1458,8 @@ function hitByPowerShot(m, p, b, fx) {
   m.events.push({ type: 'blocked', player: p.index, by: pw.owner, shot: shot.id,
                  damage: dealt, hp: p.hp });
   fx.shockwave(p.x, headY(p), shot.color);
+  // …and may leave something on the blocker after it (knocked back, burning, paralysed).
+  if (m.champ && pw.champ) champAfterBlock(m, pw, p, KIT, fx);
 }
 
 // ---------------------------------------------------------------------------
@@ -1365,6 +1484,9 @@ function checkGoal(m, fx, scorer) {
   m.lastScorer = scorer;
   m.events.push({ type: 'goal', player: scorer, power: !!b.power, shot: b.power?.id || null });
   fx.goal(b.x, b.y, b.power?.color || '#ffffff');
+  // A goal ends every champion power in play: walls, clones, rain, extra balls. (Not the arm
+  // or the meter — those follow the ordinary rules just below.)
+  if (m.champ) champClear(m);
 
   // The only thing a goal does to a meter, and it is an addition to the player who conceded.
   // Ahead of the golden-goal branch so the rule reads the same either way.

@@ -119,9 +119,109 @@ left-to-right, so the right-hand bar looked like the left-hand player's.
 
 ## Two ways to play
 
-The pick screen asks which, rather than leaving it implicit: **🤖 נגד המחשב** (difficulty slider
-+ שחק) or **👥 1 על 1** (a share link, or join a 4-char code). The choice is remembered per
-device. In 1v1 the opponent brings their own card, so the יריב slot goes inert.
+Pick your card, press **שחק**, and the next screen asks how: **👥 רב משתתפים** (the private-room
+1v1 below — a share link, or join a 4-char code) or **🏆 שחקן יחיד (ארקייד)**, the 45-champion
+campaign. It used to be a bot/1v1 toggle on the pick bar; the arcade is what "play the computer"
+grew into, and the old free match against the bot — your card, the יריב slot, the difficulty
+slider — is still there, as **אימון חופשי** at the foot of the arcade board.
+
+## The arcade — 45 champions
+
+The 45 **אגדי** cards are the 45 champions, in card-number order: stage *n* is legendary *n*,
+because that is the only order the pick screen has ever shown them in. Beat a champion and the
+next one opens. Lose and you play them again. Nothing else is unlocked and nothing is skipped.
+Structure taken from Head Soccer's arcade, where opponents open one at a time down a fixed
+catalogue and the star rating climbs. The names, powers and art are ours.
+
+**It is the same game.** Same sim, same controls, same meter, same goal. A champion's ultimate
+uses the trigger this game already has: fill the meter, press POWER to arm, and the next time
+your head or body touches the ball the power goes off. The only change is what that touch does.
+`launchPowerShot()` is replaced by the champion's own power from `shared/powers.js`. You play
+your own card, and a legendary card fires its champion power as well.
+
+**45 powers, and they are 45 different things.** Nine per tier, from one plain effect up to
+several moving parts:
+
+| tier | stages | e.g. |
+|---|---|---|
+| שכונה | 1-9 | a cannon shot that throws the blocker back, tentacles (no jumping), a goal wall, coin rain |
+| ליגה | 10-18 | a giant head, their head shrunk, moon gravity, a skipping shot, wind, a paralysing strike |
+| נבחרת | 19-27 | reversed controls, a freeze, a meteor, meter theft, an earthquake, ice, a portal |
+| אלופים | 28-36 | a boomerang, a drill through the block, the goal as a magnet, a vampire, gravity upside down |
+| אגדות | 37-45 | a mirror, a teleporting shot, a ball glued to the boot, a ghost shot, slow motion, a clone keeper, a three-way split, a tornado, time stop |
+
+A power is either a **champion shot** or an **effect**. A champion shot is an ordinary power
+ball: blockable by a body, counterable by a timed kick, and it costs the blocker health. It just
+has its own flight, and sometimes its own answer to being blocked. An effect is a timed record
+that changes the rules through a small, fixed set of seams: player mods (speed, jump, head size,
+controls), the ball's field (gravity, bounce, wind, pulls), barriers, and a per-tick step for
+anything that moves by itself. A goal ends every effect in play. Arms and meters follow the
+ordinary rules.
+
+**Online 1v1 is untouched, and that is enforced, not promised.** Champions are opt-in on the
+match (`createMatch(a, b, { champions: true })`), and only the arcade passes that option. Every
+seam in `sim.js` is skipped without it, or multiplies by exactly 1. `test-arcade.mjs` carries a
+SHA-256 of three whole bot-vs-bot matches (every snapshot field and every event), recorded before
+any arcade code existed, and it still matches on Node 22 and 24.
+
+**The difficulty ladder is measured, and it had to be built on two sets of dials.** The bot's own
+dials go from stage 1 = קל מאוד to stage 45 = just short of אגדי: reaction, misread, aim,
+counters, how long it sits on a full meter. That is what a person notices. But bot against bot
+they barely move a scoreline (see the known-failing note in `test-bot.mjs`). So the champion's
+**body and nerve** climb too. Its jump, run and boot go 0.84-0.90 → 1.04 of its own card. Jump is
+the one that matters, because most goals go over the defender's head: 10% off it cost 50 goals
+over 64 matches. Aggression goes 0.16 → 0.66 and meter rate 1 → 1.9, both bent toward the late
+stages. The powers were then rebalanced against the curve: freeze, ice and portal were cut, and
+time stop, carry and boomerang were strengthened. `node _ladder.mjs 300` gives each stage against
+one fixed opponent (the tier-3 bot on legendary 3), 300 matches a stage:
+
+| tier | champion goal diff / match | champion win rate |
+|---|---|---|
+| 1 שכונה | −0.13 | 47% |
+| 2 ליגה | +0.03 | 51% |
+| 3 נבחרת | +0.27 | 55% |
+| 4 אלופים | +0.39 | 58% |
+| 5 אגדות | +0.52 | 60% |
+
+Read the tier column. One stage over 300 matches is only good to about ±0.15 goals. The boomerang's
+return used to be aimed before its swing, so it cleared the bar and never scored. Fixed, and then
+aimed at mid-mouth rather than under the bar: the version that scored under the bar measured +0.96,
+the hardest stage of its tier by far. It is +0.48 now.
+
+**Every power has its own look and sound**, in `public/vfx/tier1.js` … `tier5.js`, run by
+`public/champ-vfx.js`. Six phases per power: *anticipation* (a tell drawn while the champion is
+armed), *activation* (the burst on the touch), *main* (its own projectile, or whatever its effect
+leaves on the pitch, drawn from the live `m.champ` state), *impact* (blocked, scored, saved, or the
+effect taking hold), *aftermath*, and *cleanup*. The toolkit is shared: typed particles, rings,
+lightning, glyphs, light blobs, sunburst rays, energy beams, confetti, comic-book impact words
+("בום!"), screen shake, flash, a colour grade, an edge glow, and synthesised sound recipes through
+`audio.js` `synth()`. No two powers share a look. Every power opens with a **super cut-in**,
+fighting-game style: the match holds for 0.42s, the pitch dims, light bursts out of the champion,
+and a band with their name and the power's icon sweeps across, with the power's own signature drawn
+into it. This happens in the arcade only. Online matches have no `m.champ`, and game.js steps the
+sim as before. While any power is on, the stadium backdrop dims to night so the effects read on
+even the brightest stage. Bodies, ball, nets and heads are drawn above that dim. `test-vfx.mjs` fires all 45 in the real sim, in both seats,
+against an idle, an absent and a chasing defender. It runs every hook on a recording canvas and
+fails on a hook that is never reached, throws, draws NaN, writes to the match, blows the particle
+or frame budget, falls back to the plain fireball, or shares 80% of its colours with another power.
+It also fails on a power that is merely correct. Each one needs a 50+ particle burst on the touch,
+at least three of the light and spectacle shapes, a lit main effect, and a cut-in that holds and
+lets go within a second.
+The VFX layer only watches the match, so it cannot reach the sim, the bot or an online room.
+**`docs/CHAMPIONS.md`** is the design book: the 45-row uniqueness matrix, the difficulty ladder,
+and the 13-point design of every champion. It is generated from that data by `node
+scripts/champions-doc.mjs`, and test-vfx fails when it is stale.
+
+**Progress** lives in `localStorage` under its own key, `hs.arcade.v1`, as a single number
+(`cleared`) plus a win/loss record per stage. `shared/arcade.js` is pure: the client hands it
+localStorage, and the tests hand it a Map. A save that will not parse, or claims something
+impossible, is read as no progress or clamped. It is never trusted, and no existing key is read
+or rewritten. Quitting a stage records nothing.
+
+`?arcade` opens the board. `?arcade=7` starts stage 7, only if it is unlocked. `node
+_arcade-shots.mjs` plays the whole flow in Chrome: mode page, a room, a locked stage refusing to
+start, win → unlock, reload → still unlocked, loss → retry. It fires all 45 powers in the live
+client and screenshots everything at 844×390 and 667×375.
 
 ## Play with someone else
 
@@ -589,6 +689,10 @@ shared/sim.js          authoritative physics + rules. Pure, no DOM, no timers.
 shared/goalbox.js      the goal as a room: its corners, its walls, and the depth it is drawn at
 shared/powershots.js   the five shot behaviours + the card→shot mapping
 shared/bot.js          the opponent. Emits the same input a human does.
+shared/champions.js    the arcade's 45 champions: stage order, titles, the difficulty ladder
+shared/powers.js       the 45 champion powers and the small engine they run on
+shared/arcade.js       arcade progress: locked / open / beaten, load and save. Pure, no DOM.
+public/champ-vfx.js    how the 45 powers look and sound: six phases, one entry each in public/vfx/
 shared/rooms.js        private-room registry: codes, join, leave. Pure, no sockets.
 shared/net.js          wire format + the ordered input FIFO. Pure.
 public/                pick screen, lobby, renderer, input, tuner
@@ -649,6 +753,8 @@ the server — run `npm start` first or they fail on an empty page.
 | `node _pad.mjs` | is the touch pad thumb-sized, on-pitch and non-overlapping on 5 devices? |
 | `node _hudshots.mjs` | is the scoreboard the shape it claims — face over score, clock between, no black panels — on 5 screens? |
 | `node _arrows.mjs` | can a thumb slide from ▶ to ◀ without lifting, is the target bigger than the arrow, and does the brown outline go all the way round? |
+| `node _ladder.mjs` | does the arcade get harder, stage by stage? Each champion as the arcade builds it, against one fixed opponent |
+| `node _arcade-shots.mjs` | can a player get through the arcade — mode page, board, a locked stage, win, reload, lose, retry — and what does each power look like? |
 
 Three real bugs came out of them, all invisible to the unit tests:
 

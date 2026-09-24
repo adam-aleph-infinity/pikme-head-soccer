@@ -6,6 +6,7 @@
 
 import * as C from './constants.js';
 import { headY } from './sim.js';
+import { carrying, activeEffect } from './powers.js';
 
 // `aggression` runs BACKWARDS on purpose. Measured over 10 headless matches per setting,
 // it is the single dominant term in the scoreline — 0.00 → 0.0 goals a match, 0.15 → 8.3,
@@ -30,8 +31,11 @@ export const DIFFICULTIES = [
   { name: 'קשה מאוד', react: 0.08, error: 15, counter: 0.48, aggression: 0.38, aim: 0.90, powerHold: 0.4 },
   { name: 'אגדי',     react: 0.04, error: 7,  counter: 0.66, aggression: 0.38, aim: 0.98, powerHold: 0.2 },
 ];
-export function createBot(level = 2, rng = Math.random) {
-  const d = DIFFICULTIES[Math.max(0, Math.min(DIFFICULTIES.length - 1, level))];
+// `profile` is an arcade champion's bot (shared/champions.js botProfile): the same dials as a
+// DIFFICULTIES row, placed anywhere on the line between them, plus how the champion plays its
+// own power. Without one, a bot is exactly the tier `level` names, as it always was.
+export function createBot(level = 2, rng = Math.random, profile = null) {
+  const d = profile || DIFFICULTIES[Math.max(0, Math.min(DIFFICULTIES.length - 1, level))];
   return {
     level, d, rng,
     t: 0, nextThink: 0,
@@ -57,7 +61,31 @@ function predictX(ball, targetY) {
 
 const TOE_BIAS = 0.8;
 
+// WHEN A CHAMPION ARMS. The trigger is still the touch; this only decides whether now is the
+// moment its power was made for — a shot with the goal ahead, a wall with the ball coming home.
+// Weak arcade bots (and every non-arcade bot) skip the question and arm the moment they can.
+function armMoment(d, p, b) {
+  if (!d.arm || !d.smart) return true;
+  const myGoalX = p.side > 0 ? C.GOAL_W : C.W - C.GOAL_W;
+  const depth = (b.x - myGoalX) * p.side;           // 0 at my own line
+  if (d.arm === 'attack') return depth > C.W * 0.4 && (b.x - p.x) * p.side > -60;
+  if (d.arm === 'defend') return depth < C.W * 0.5;
+  return true;
+}
+
 export function botInput(bot, m, index, dt) {
+  const out = botInputRaw(bot, m, index, dt);
+  // A champion that has had its own controls reversed on it. The sim swaps them after the bot
+  // has chosen, so an able bot chooses the other way round; a weak one runs the wrong way, the
+  // same as a person does.
+  const p = m.players[index];
+  if (m.champ && bot.d.adapt && p.mods.reverse) {
+    const l = out.left; out.left = out.right; out.right = l;
+  }
+  return out;
+}
+
+function botInputRaw(bot, m, index, dt) {
   const p = m.players[index];
   const foe = m.players[1 - index];
   const b = m.ball;
@@ -71,6 +99,25 @@ export function botInput(bot, m, index, dt) {
   // gets back up.
   if (p.stunned > 0 || m.phase === 'over') {
     out.left = out.right = out.jump = out.kick = out.power = false;
+    return out;
+  }
+
+  // ---- TIME HAS STOPPED, and this bot stopped it (the arcade's עצירת זמן) --------------
+  // The ball hangs where it was touched and the other player is a statue. Walk up behind the
+  // ball and head it at their goal once; the strike is banked and goes off when time restarts.
+  // Then stand off it, so a stray shoulder does not nudge the banked shot.
+  const stop = m.champ ? activeEffect(m, 'timestop') : null;
+  if (stop && stop.owner === index) {
+    const spot = b.x - p.side * 34;
+    out.jump = false; out.power = false;
+    if (stop.stored) {
+      out.left = p.side > 0; out.right = p.side < 0; out.kick = false;
+      return out;
+    }
+    out.left = p.x > spot + 5; out.right = p.x < spot - 5;
+    const reach = Math.hypot(b.x - p.x, b.y - headY(p));
+    out.kick = (b.x - p.x) * p.side > 0 && reach < C.HEAD_R + C.BALL_R + C.HEADER_R - 3 && p.kickCd <= 0 && !bot.stopKick;
+    bot.stopKick = out.kick;                             // one press, not a held button
     return out;
   }
 
@@ -223,6 +270,8 @@ export function botInput(bot, m, index, dt) {
     // the whole of the bot's "use the ultimate". It walks into the ball like a player does;
     // there is no path here that reaches the shot any other way.
     if (p.armed > 0) bot.aim = b.x;
+    // CARRYING THE BALL (the arcade's דבק): walk it at their goal.
+    if (m.champ && carrying(m, index)) bot.aim = (p.side > 0 ? C.W - C.GOAL_W : C.GOAL_W) - p.side * 150;
 
     // Never chase past the ball toward their goal while it's mine to defend, and never
     // abandon my half entirely — the two ways a chasing bot gifts an open net.
@@ -267,7 +316,7 @@ export function botInput(bot, m, index, dt) {
     const needGauge = p.gauge < 1;
     bot.wantTackle = foeNear && !incoming && foe.tackleImmune <= 0
                      && (ballFar || needGauge)
-                     && bot.rng() < Math.min(0.95, d.aim * (needGauge ? 1.5 : 1));
+                     && bot.rng() < Math.min(0.95, d.aim * (needGauge ? 1.5 : 1) * (d.tackle ?? 1));
 
     // Jump when the ball is genuinely headable, not just "high".
     const dxb = Math.abs(b.x - p.x);
@@ -366,6 +415,19 @@ export function botInput(bot, m, index, dt) {
     out.left = want < 0; out.right = want > 0;
   }
 
+  // …and a carried ball is released with a kick, which should come close enough to the goal to
+  // count. Until then: keep running, no swings, no jumps.
+  if (m.champ && carrying(m, index)) {
+    const toGoal = ((p.side > 0 ? C.W - C.GOAL_W : C.GOAL_W) - p.x) * p.side;
+    const c = activeEffect(m, 'carry');
+    // Let it go close in, or when the other player is about to take it off the boot, or just
+    // before the glue runs out — never simply the moment it is in range.
+    const blocked = (foe.x - p.x) * p.side > 0 && (foe.x - p.x) * p.side < 110;
+    out.kick = (toGoal < 230 || blocked || (c && c.life - c.t < 0.35)) && p.kickCd <= 0;
+    out.jump = false;
+    out.left = p.side < 0; out.right = p.side > 0;
+  }
+
   // ---- power: ARM, on exactly the player's terms ----------------------------
   //
   // THIS IS THE FIX FOR "the rival used its ultimate the moment the match started".
@@ -395,7 +457,8 @@ export function botInput(bot, m, index, dt) {
                     played > armDelay &&
                     p.gauge >= 1 && p.armed <= 0 && b.power == null &&
                     bot.t > d.powerHold &&
-                    (foe.x - p.x) * p.side > -80;     // the goal I am shooting at is ahead
+                    (foe.x - p.x) * p.side > -80 &&   // the goal I am shooting at is ahead
+                    armMoment(d, p, b);
   out.power = wantPower;
 
   return out;

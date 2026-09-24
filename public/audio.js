@@ -168,6 +168,14 @@ export function setAudioEnabled(v) {
 }
 export const audioEnabled = () => enabled;
 
+// A champion power's own sound, as data: [{ k: 'thud' | 'sweep' | 'blip' | 'crowd', …params }].
+// The same four primitives the kit above is built from — see public/champ-vfx.js.
+const PRIMS = { thud, sweep, blip, crowd };
+export function synth(list) {
+  if (!enabled) return;
+  try { for (const { k, ...o } of list) if (PRIMS[k]) PRIMS[k](o); } catch { /* never worth a frame */ }
+}
+
 // Forward a sim event to the kit. Unknown events are silently ignored, so adding an event
 // to the sim never breaks audio and never needs a matching change here.
 export function playEvent(type) {

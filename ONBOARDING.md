@@ -196,6 +196,9 @@ shared/                   everything both sides run — this is the game
   constants.js            every dial. The tuner edits these live
   sim.js                  the physics and the match state machine
   bot.js                  the AI opponent, difficulty 0-9
+  champions.js            the arcade's 45 champions, their order and the difficulty ladder
+  powers.js               the 45 champion powers — what the ultimate does in the arcade
+  arcade.js               arcade progress: locked / open / beaten, saved on the device
   cards.js                which card gives which power (number = which, rarity = how good)
   powerups.js             what each power does
   powershots.js           the five shot families
@@ -205,10 +208,12 @@ public/
   game.js                 the client: pick screen, rendering, input. The biggest file here
   head-crop.js            the card-art → face-circle maths, the single copy of it
   stages.js  audio.js     backgrounds and sound
+  champ-vfx.js  vfx/      how the 45 champion powers look and sound (six phases each)
   data/head-anchors.json  where the face sits on each of the 180 cards, measured offline
 test-*.mjs                the suite npm test runs
 _*.mjs                    the instruments and the simulator. Throwaway by design
 docs/ONLINE-DESIGN.md     how the netcode was meant to work
+docs/CHAMPIONS.md         the 45 champions: uniqueness matrix and design book (generated)
 AGENT_PROMPT.md           the brief to hand your coding agent
 ```
 

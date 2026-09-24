@@ -401,26 +401,380 @@ body.safedemo { --safe-l: 44px; --safe-r: 44px; --safe-b: 21px; --safe-t: 12px; 
 .card.locked { filter: grayscale(1) brightness(.42); cursor: default; }
 .card.locked b { opacity: .5; }
 
-/* ── THE TWO MODES ────────────────────────────────────────────────────────────
-   Bot or a friend. Both are real answers to "what do I press", so they get equal weight;
-   what changes underneath is only which footer controls apply. */
-.modes {
-  display: flex; gap: 10px; justify-content: center; margin: 10px auto 2px; padding: 0 12px;
-  width: min(560px, 100%);
+/* The pick bar is one button now; how to play is asked on the next screen. */
+.pick-foot { justify-content: flex-end; }
+.pick-hint { flex: 1; font-size: 13px; color: var(--dim); }
+
+/* ─── SALTIZ ───────────────────────────────────────────────────────────── */
+/* The channel's mark is a red-and-yellow hexagon on black, so the menus are built from it:
+   a honeycomb floor, hexagon frames and badges, sun-rays behind the logo, and chunky
+   red / gold buttons. Everything that says "this is Saltiz" lives under .salt. */
+:root {
+  --s-red: #ec1330; --s-red-hi: #ff4a5c; --s-red-lo: #8a0015;
+  --s-gold: #ffd400; --s-gold-hi: #fff08a; --s-gold-lo: #ff8a00;
+  --s-black: #0d0406;
+  --hex: polygon(50% 0, 93.3% 25%, 93.3% 75%, 50% 100%, 6.7% 75%, 6.7% 25%);
+  --s-font: "Rubik", -apple-system, "Segoe UI", "Noto Sans Hebrew", Arial, sans-serif;
 }
-.modes button {
-  flex: 1; display: flex; flex-direction: column; gap: 2px; align-items: center;
-  padding: 9px 8px; border-radius: 13px; background: #1620359e;
-  border: 2px solid #ffffff1f; color: #cfd9f2;
+.salt {
+  overflow: hidden; font-family: var(--s-font);
+  background:
+    radial-gradient(ellipse 80% 55% at 50% -5%, #ff1d3a66, transparent 70%),
+    radial-gradient(ellipse 70% 45% at 50% 108%, #ffb30038, transparent 70%),
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='56' height='100'%3E%3Cpath d='M28 66L0 50V16L28 0l28 16v34L28 66zm0 0v34' fill='none' stroke='%23ff2a3a' stroke-opacity='.13' stroke-width='2'/%3E%3C/svg%3E"),
+    var(--s-black);
 }
-.modes button b { font-size: 15px; font-weight: 800; }
-.modes button span { font-size: 11px; opacity: .72; }
-.modes button.on { background: #24345ad9; border-color: #ffd54a; color: #fff; }
-/* The footer shows only the controls that belong to the chosen mode. */
-body[data-mode="bot"] #hostBtn, body[data-mode="bot"] #joinBtn { display: none; }
-body[data-mode="duo"] .diff, body[data-mode="duo"] #playBtn { display: none; }
-/* In 1v1 the opponent brings their own card, so choosing one for them is meaningless. */
-body[data-mode="duo"] #slotFoe { opacity: .45; pointer-events: none; }
+.salt > :not(.salt-rays):not(.salt-back) { position: relative; z-index: 1; }
+/* Sun-rays in the two colours of the logo, turning slowly behind everything. */
+.salt-rays {
+  position: absolute; z-index: 0; pointer-events: none;
+  width: 200vmax; height: 200vmax; left: 50%; top: 12%; margin: -100vmax 0 0 -100vmax;
+  background: repeating-conic-gradient(from 0deg, #ffd40022 0 9deg, transparent 9deg 18deg, #ff203a1c 18deg 27deg, transparent 27deg 36deg);
+  -webkit-mask: radial-gradient(circle, #000 0, #0000 45%); mask: radial-gradient(circle, #000 0, #0000 45%);
+  animation: saltSpin 70s linear infinite;
+}
+@keyframes saltSpin { to { transform: rotate(1turn); } }
+.salt-logo {
+  display: block; flex: none; width: 96px; height: 96px;
+  filter: drop-shadow(0 0 14px #ff203a99) drop-shadow(0 0 26px #ffd40055);   /* follows the hexagon */
+  animation: saltBob 2.6s ease-in-out infinite;
+}
+/* The jpg is the hexagon on a black square: clip to the hexagon (its own black rim kept as
+   an outline) and the square is gone. */
+.salt-logo img {
+  display: block; width: 100%; height: 100%; object-fit: cover;
+  clip-path: polygon(50% 5%, 89.5% 27.5%, 89.5% 72%, 50% 94.5%, 10.5% 72%, 10.5% 27.5%);
+}
+@keyframes saltBob { 50% { transform: translateY(-5px) rotate(-3deg) scale(1.03); } }
+.salt-kicker {
+  display: inline-block; font-size: 13px; font-weight: 900; letter-spacing: .5px; color: #fff;
+  padding: 2px 12px; border-radius: 99px; background: linear-gradient(180deg, var(--s-red-hi), var(--s-red));
+  box-shadow: 0 2px 0 var(--s-red-lo);
+}
+/* The title: gold, outlined in red, sitting on a dark drop — the logo's own stack of colours. */
+.salt-h {
+  margin: 0; font-family: var(--s-font); font-size: 34px; font-weight: 900; line-height: 1.1;
+  color: var(--s-gold); letter-spacing: .3px;
+  text-shadow:
+    2px 0 0 var(--s-red), -2px 0 0 var(--s-red), 0 2px 0 var(--s-red), 0 -2px 0 var(--s-red),
+    2px 2px 0 var(--s-red), -2px -2px 0 var(--s-red), 2px -2px 0 var(--s-red), -2px 2px 0 var(--s-red),
+    0 5px 0 var(--s-red-lo), 0 9px 16px #000c;
+}
+.salt-back {
+  position: absolute; z-index: 2; top: calc(var(--safe-t) + 10px); inset-inline-start: calc(var(--safe-l) + 2px);
+  padding: 7px 14px; border-radius: 99px; font-family: var(--s-font); font-weight: 900; font-size: 14px;
+  color: var(--s-gold); background: #2a070dcc; border: 2px solid #ff3a4a88;
+  box-shadow: 0 3px 0 #000a;
+}
+.salt-back:active { transform: translateY(2px); box-shadow: none; }
+/* Big 3D buttons, one per colour of the logo. */
+.salt-btn {
+  position: relative; overflow: hidden; font-family: var(--s-font); font-weight: 900; font-size: 20px;
+  padding: 12px 30px; border-radius: 18px; letter-spacing: .5px; white-space: nowrap;
+  border: 3px solid #fff5; transition: transform .08s;
+}
+.salt-btn.gold {
+  color: #5a0010; background: linear-gradient(180deg, var(--s-gold-hi), var(--s-gold) 45%, var(--s-gold-lo));
+  box-shadow: 0 6px 0 #a34a00, 0 10px 20px #000b, inset 0 2px 0 #fff9;
+  text-shadow: 0 1px 0 #fff8;
+}
+.salt-btn.red {
+  color: #fff; background: linear-gradient(180deg, var(--s-red-hi), var(--s-red) 50%, #b0001c);
+  box-shadow: 0 6px 0 var(--s-red-lo), 0 10px 20px #000b, inset 0 2px 0 #fff6;
+  text-shadow: 0 2px 0 #7a0012;
+}
+.salt-btn:active { transform: translateY(4px); box-shadow: 0 2px 0 #000a; }
+.salt-btn:disabled { filter: grayscale(1) brightness(.6); transform: none; box-shadow: 0 4px 0 #000a; }
+/* A glint that runs across the gold buttons now and then — the "press me" of a kids' game. */
+.salt-btn.gold::after, .mode-card::after {
+  content: ''; position: absolute; top: -20%; bottom: -20%; width: 40%; left: -60%;
+  background: linear-gradient(100deg, transparent, #fff8, transparent);
+  transform: skewX(-20deg); animation: saltGlint 3.2s ease-in-out infinite; pointer-events: none;
+}
+.salt-btn:disabled::after { display: none; }
+@keyframes saltGlint { 0%, 55% { left: -60%; } 85%, 100% { left: 130%; } }
+.salt .play {
+  font-family: var(--s-font); font-weight: 900; color: #5a0010;
+  background: linear-gradient(180deg, var(--s-gold-hi), var(--s-gold) 45%, var(--s-gold-lo));
+  box-shadow: 0 5px 0 #a34a00, 0 8px 18px #000a;
+}
+.salt .ghost { font-family: var(--s-font); font-weight: 900; color: #fff; background: linear-gradient(180deg, var(--s-red-hi), var(--s-red)); border-color: #ff8a95; box-shadow: 0 4px 0 var(--s-red-lo); }
+@media (prefers-reduced-motion: reduce) {
+  .salt-rays, .salt-logo, .salt-btn::after, .mode-card::after, .arc-tile.open::before, .arc-vs { animation: none !important; }
+}
+
+/* ─── MODE ─────────────────────────────────────────────────────────────── */
+/* Two answers, equal weight: a red card and a gold card, the two halves of the logo. */
+#modeSel {
+  align-items: center; justify-content: center; gap: 18px; text-align: center;
+  padding: calc(var(--safe-t) + 14px) var(--safe-r) var(--safe-b) var(--safe-l);
+}
+.mode-brand { display: flex; flex-direction: column; align-items: center; gap: 4px; }
+.mode-brand .salt-logo { width: 120px; height: 120px; }
+.mode-brand .salt-h { margin-top: 6px; }
+.mode-cards { display: flex; gap: 18px; justify-content: center; width: min(620px, 100%); padding: 0 12px; }
+.mode-card {
+  position: relative; overflow: hidden; flex: 1; display: flex; flex-direction: column; gap: 4px; align-items: center;
+  padding: 18px 10px 16px; border-radius: 22px; font-family: var(--s-font);
+  border: 3px solid #fff6; transition: transform .12s;
+}
+.mode-card.red {
+  color: #ffe0e4; background: linear-gradient(160deg, var(--s-red-hi), var(--s-red) 55%, #9e0019);
+  box-shadow: 0 7px 0 var(--s-red-lo), 0 16px 28px #000b, inset 0 2px 0 #fff5;
+}
+.mode-card.gold {
+  color: #6b1a00; background: linear-gradient(160deg, var(--s-gold-hi), var(--s-gold) 50%, var(--s-gold-lo));
+  box-shadow: 0 7px 0 #a34a00, 0 16px 28px #000b, inset 0 2px 0 #fff9;
+}
+.mode-card::after { animation-delay: 1.6s; }
+.mode-card.red::after { animation-delay: 0s; }
+@media (hover: hover) { .mode-card:hover { transform: translateY(-4px) rotate(-1deg); } }
+.mode-card:active { transform: translateY(5px) scale(.98); box-shadow: 0 2px 0 #000a; }
+.mode-card.on { border-color: #fff; box-shadow: 0 7px 0 var(--s-red-lo), 0 0 0 4px var(--s-gold), 0 0 28px #ffd400aa; }
+/* The icon sits in a hexagon of the OTHER colour — gold on the red card, red on the gold. */
+.mode-hex {
+  display: grid; place-items: center; width: 74px; height: 74px; clip-path: var(--hex);
+  background: linear-gradient(180deg, var(--s-gold-hi), var(--s-gold-lo));
+}
+.mode-card.gold .mode-hex { background: linear-gradient(180deg, var(--s-red-hi), var(--s-red-lo)); }
+.mode-hex i { font-style: normal; font-size: 36px; line-height: 1; filter: drop-shadow(0 2px 0 #0006); }
+.mode-card b { font-size: 25px; font-weight: 900; line-height: 1.15; }
+.mode-card.red b { color: #fff; text-shadow: 0 3px 0 var(--s-red-lo); }
+.mode-card.gold b { color: #8a0015; text-shadow: 0 2px 0 #fff8; }
+.mode-sub { font-size: 13px; font-weight: 700; opacity: .92; }
+.mode-tag {
+  position: absolute; top: 10px; inset-inline-end: 10px; font-style: normal; font-size: 11px; font-weight: 900;
+  padding: 2px 8px; border-radius: 99px; background: #0007; color: #fff;
+}
+@media (max-width: 520px) { .mode-card { padding-top: 38px; } }
+.multi-row { display: flex; gap: 10px; align-items: center; justify-content: center; }
+
+/* ─── ARCADE ───────────────────────────────────────────────────────────── */
+/* Head Soccer's PLAYER SELECT: a pitch with you on one side, the champion on the other and
+   VS between, the 45 champions as a strip under them, stats and PLAY along the bottom. */
+#arcade {
+  gap: 8px;
+  padding: calc(var(--safe-t) + 8px) var(--safe-r) var(--safe-b) var(--safe-l);
+}
+.arc-head { display: flex; align-items: center; gap: 12px; flex: none; }
+.arc-head .salt-back { position: static; flex: none; }
+.arc-brand { display: flex; align-items: center; gap: 6px; }
+.arc-brand .salt-logo { width: 46px; height: 46px; }
+.arc-brand .salt-h { font-size: 28px; white-space: nowrap; }
+.arc-prog { flex: 1; display: flex; align-items: center; gap: 8px; min-width: 0; font-weight: 900; }
+.arc-bar {
+  flex: 1; height: 14px; border-radius: 99px; background: #2a070d; border: 2px solid #ff3a4a77; overflow: hidden;
+  box-shadow: inset 0 2px 4px #000a;
+}
+.arc-bar i {
+  display: block; height: 100%; width: 0; border-radius: 99px;
+  background: linear-gradient(180deg, var(--s-gold-hi), var(--s-gold) 50%, var(--s-gold-lo));
+  box-shadow: 0 0 10px #ffd400aa;
+}
+.arc-prog b { font-size: 15px; color: var(--s-gold); font-variant-numeric: tabular-nums; white-space: nowrap; direction: ltr; unicode-bidi: isolate; }
+
+/* The pitch: striped grass, a halfway line and a centre circle, framed in gold. */
+.arc-pitch {
+  --hex-size: clamp(84px, min(30vh, 20vw), 210px);
+  flex: 1; min-height: 0; display: grid; gap: 4px 8px; padding: 10px 12px 6px;
+  grid-template-columns: 1fr minmax(0, 1.25fr) 1fr; grid-template-rows: minmax(0, 1fr) auto;
+  grid-template-areas: "foe mid you" "strip strip strip";
+  border-radius: 22px; border: 4px solid var(--s-gold);
+  background:
+    radial-gradient(circle at 50% 42%, transparent 0 16%, #ffffff40 16% calc(16% + 2px), transparent calc(16% + 3px)),
+    linear-gradient(90deg, transparent calc(50% - 1px), #ffffff40 calc(50% - 1px) calc(50% + 1px), transparent calc(50% + 1px)),
+    repeating-linear-gradient(90deg, #3a9a2e 0 9%, #2f8726 9% 18%);
+  box-shadow: 0 0 0 3px var(--s-red), 0 8px 0 3px var(--s-red-lo), 0 16px 30px #000c, inset 0 0 40px #0008;
+}
+.arc-side { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; min-width: 0; }
+.arc-side.you { grid-area: you; }
+.arc-side.foe { grid-area: foe; justify-content: flex-start; min-height: 0; }
+.arc-tag {
+  font-size: 13px; font-weight: 900; color: #fff; padding: 1px 14px; border-radius: 99px;
+  box-shadow: 0 2px 0 #0008;
+}
+.you .arc-tag { background: linear-gradient(180deg, #5fb0ff, #1f6fd6); }
+.foe .arc-tag { background: linear-gradient(180deg, var(--s-red-hi), var(--s-red)); }
+/* A hexagon frame, like the logo: coloured rim, dark bed, the face clipped to the same shape. */
+.hexframe {
+  position: relative; width: var(--hex-size); height: var(--hex-size); flex: none;
+  filter: drop-shadow(0 6px 0 #0007) drop-shadow(0 0 16px var(--glow, #ffd40088));
+}
+.hexframe::before, .hexframe::after { content: ''; position: absolute; clip-path: var(--hex); }
+.hexframe::before { inset: 0; background: linear-gradient(160deg, var(--s-gold-hi), var(--s-gold) 45%, var(--s-gold-lo)); }
+.hexframe::after { inset: 6%; background: radial-gradient(circle at 50% 35%, #3a1a22, #0b0306); }
+.foe .hexframe { --glow: #ff203a99; }
+.foe .hexframe::before { background: linear-gradient(160deg, var(--s-red-hi), var(--s-red) 50%, var(--s-red-lo)); }
+.hexframe > i {
+  position: absolute; inset: 9%; z-index: 1; clip-path: var(--hex); background-repeat: no-repeat;
+}
+.arc-name {
+  max-width: 100%; font-size: 17px; font-weight: 900; color: #fff; text-align: center; line-height: 1.15;
+  text-shadow: 0 2px 0 #000a, 0 0 8px #000; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+/* ‹▲ ▼› above and below the reel: roll the ladder one champion at a time. */
+.arc-step {
+  flex: none; width: 46px; height: 30px; border-radius: 99px; z-index: 12;
+  font-size: 16px; font-weight: 900; line-height: 1; color: #5a0010;
+  background: linear-gradient(180deg, var(--s-gold-hi), var(--s-gold-lo)); border: 2px solid #fff8;
+  box-shadow: 0 3px 0 #a34a00;
+}
+.arc-step:active { transform: translateY(2px); box-shadow: none; }
+.arc-step:disabled { visibility: hidden; }
+/* They sit over the reel's faded ends rather than taking height from it. */
+.arc-step.up { margin-bottom: -26px; }
+.arc-step.down { margin-top: -26px; }
+@media (hover: hover) { .arc-step:not(:disabled):hover { filter: brightness(1.12); transform: scale(1.08); } }
+
+/* THE REEL. Every champion is laid on the same spot and pushed `--d` steps up or down from the
+   middle, scaled by `--s`: the chosen one big, the neighbours shrinking away, the reel's own
+   edges fading them out. Moving the selection only changes --d, so the transition rolls it. */
+.arc-reel {
+  position: relative; z-index: 0; flex: 1; min-height: 0; width: 100%; overflow: hidden;
+  touch-action: none; user-select: none; -webkit-user-select: none; cursor: grab;
+  -webkit-mask-image: linear-gradient(180deg, transparent, #000 10%, #000 90%, transparent);
+          mask-image: linear-gradient(180deg, transparent, #000 10%, #000 90%, transparent);
+}
+.arc-reel.dragging { cursor: grabbing; }
+.arc-slot {
+  position: absolute; left: 50%; top: 50%; width: var(--h, 120px); height: var(--h, 120px);
+  margin: calc(var(--h, 120px) / -2) 0 0 calc(var(--h, 120px) / -2); padding: 0;
+  transform: translateY(calc(var(--d, 0) * var(--step, 96px))) scale(var(--s, 1));
+  transition: transform .32s cubic-bezier(.2, .9, .25, 1.1), opacity .32s;
+  filter: drop-shadow(0 5px 0 #0007);
+}
+.arc-reel.dragging .arc-slot { transition: none; }
+.arc-slot::before { content: ''; position: absolute; inset: 0; clip-path: var(--hex); background: #ffffff55; }
+.arc-slot::after { content: ''; position: absolute; inset: 6%; clip-path: var(--hex); background: radial-gradient(circle at 50% 35%, #3a1a22, #0b0306); }
+.arc-slot .f { position: absolute; inset: 9%; z-index: 2; clip-path: var(--hex); background-repeat: no-repeat; transition: filter .2s; }
+/* A card that never loads leaves its stage number showing on the dark bed. */
+.arc-slot .fb {
+  position: absolute; inset: 0; z-index: 1; display: grid; place-items: center;
+  font-family: var(--s-font); font-size: calc(var(--h, 120px) * .3); font-weight: 900; color: #ffffff30;
+}
+.arc-slot .lk {
+  position: absolute; inset: 0; z-index: 3; display: none; place-items: center;
+  font-size: calc(var(--h, 120px) * .26); filter: drop-shadow(0 3px 0 #000a);
+}
+.arc-slot.locked .f { filter: grayscale(1) brightness(.4); }
+.arc-slot.locked .lk { display: grid; }
+.arc-slot.sel { filter: drop-shadow(0 6px 0 #0007) drop-shadow(0 0 18px #ff203acc); }
+.arc-slot.sel::before { background: linear-gradient(160deg, var(--s-red-hi), var(--s-red) 50%, var(--s-red-lo)); }
+.arc-slot.sel.done::before { background: linear-gradient(160deg, #7dffae, #1f9c52 55%, #0d5c2e); }
+.arc-count {
+  font-size: 11px; font-weight: 900; color: #fff; padding: 0 8px; border-radius: 99px; background: #0008;
+  direction: ltr; unicode-bidi: isolate; font-variant-numeric: tabular-nums;
+}
+/* The Saltiz hexagon, big, over the VS. */
+.arc-logo { width: clamp(54px, 14vh, 110px); height: clamp(54px, 14vh, 110px); margin-bottom: -6px; }
+@media (prefers-reduced-motion: reduce) { .arc-slot { transition: none; } }
+
+.arc-mid {
+  grid-area: mid; display: flex; flex-direction: column; align-items: center; justify-content: center;
+  gap: 3px; min-width: 0; text-align: center;
+}
+.arc-stage {
+  font-size: 13px; font-weight: 900; color: #3a0008; padding: 2px 12px; border-radius: 8px;
+  background: linear-gradient(180deg, #fff, #ffe7a8); box-shadow: 0 2px 0 #0006;
+}
+.arc-vs {
+  font-family: var(--s-font); font-size: clamp(40px, 11vh, 72px); font-weight: 900; font-style: italic; line-height: 1;
+  color: var(--s-gold); letter-spacing: -2px;
+  text-shadow: 3px 0 0 var(--s-red), -3px 0 0 var(--s-red), 0 3px 0 var(--s-red), 0 -3px 0 var(--s-red),
+    3px 3px 0 var(--s-red), -3px -3px 0 var(--s-red), 0 7px 0 var(--s-red-lo), 0 10px 18px #000c;
+  animation: arcVs 1.4s ease-in-out infinite;
+}
+@keyframes arcVs { 50% { transform: scale(1.08) rotate(-3deg); } }
+.arc-stars { direction: ltr; font-size: 17px; color: var(--s-gold); letter-spacing: 1px; text-shadow: 0 2px 0 #7a3a00, 0 0 6px #000; }
+.arc-status {
+  font-size: 12px; font-weight: 900; padding: 2px 10px; border-radius: 99px; background: #000a; color: #fff; white-space: nowrap;
+}
+.arc-status.locked { color: #cbb; }
+.arc-status.open { background: var(--s-gold); color: #5a0010; }
+.arc-status.done { background: #1f9c52; color: #fff; }
+.arc-power {
+  max-width: 100%; padding: 5px 10px; border-radius: 12px; background: #0009; border: 2px solid #ffffff22;
+}
+.arc-power b { font-size: 15px; font-weight: 900; color: var(--pc, var(--s-gold)); }
+.arc-power p { margin: 1px 0 0; font-size: 12px; line-height: 1.35; color: #f2f2f2; }
+
+/* The strip: 45 hexagon faces, nine to a tier, scrolled sideways. */
+.arc-grid {
+  grid-area: strip; display: flex; gap: 3px; overflow-x: auto; overflow-y: hidden;
+  -webkit-overflow-scrolling: touch; scrollbar-width: none; scroll-snap-type: x proximity;
+  padding: 19px 10px 5px; border-radius: 14px; background: #0007;
+}
+.arc-grid::-webkit-scrollbar { display: none; }
+.arc-tile {
+  position: relative; flex: none; width: var(--tile, 48px); height: var(--tile, 48px); padding: 0;
+  scroll-snap-align: center; transition: transform .12s;
+}
+.arc-tile::before { content: ''; position: absolute; inset: 0; clip-path: var(--hex); background: var(--tc, #445); }
+.arc-tile .f { position: absolute; inset: 8%; clip-path: var(--hex); background: #0b1020 no-repeat; }
+.arc-tile[data-tier="0"] { --tc: #4cc35a; }
+.arc-tile[data-tier="1"] { --tc: #3aa0ff; }
+.arc-tile[data-tier="2"] { --tc: #b46bff; }
+.arc-tile[data-tier="3"] { --tc: #ff3a4a; }
+.arc-tile[data-tier="4"] { --tc: #ffc400; }
+/* A gap and a label before each tier's first champion. */
+.arc-tile.tier1st:not(:first-child) { margin-inline-start: 14px; }
+.arc-tile u {
+  position: absolute; top: -15px; inset-inline-start: 0; text-decoration: none; white-space: nowrap;
+  font-size: 10px; font-weight: 900; color: var(--tc);
+}
+.arc-tile b {
+  position: absolute; z-index: 1; bottom: -2px; left: 50%; transform: translateX(-50%);
+  font-size: 10px; font-weight: 900; line-height: 1.3; padding: 0 5px; border-radius: 6px;
+  background: #000c; color: #fff;
+}
+.arc-tile em { position: absolute; z-index: 1; top: 8%; inset-inline-end: 0; font-style: normal; font-size: 12px; line-height: 1; }
+.arc-tile.locked .f { filter: grayscale(1) brightness(.35); }
+.arc-tile.locked::before { background: #3a3a44; }
+.arc-tile.locked em::after { content: '🔒'; }
+.arc-tile.done em::after { content: '✓'; color: #fff; background: #1f9c52; border-radius: 50%; padding: 1px 3px; font-weight: 900; font-size: 11px; }
+.arc-tile.open::before { background: var(--s-gold); animation: arcOpen .8s infinite alternate; }
+@keyframes arcOpen { to { background: #fff; } }
+.arc-tile.sel { transform: scale(1.12); z-index: 2; }
+.arc-tile.sel::before { background: #fff; box-shadow: none; }
+.arc-tile.sel .f { inset: 11%; }
+
+/* Bottom row: free match on one side, PLAY on the other, the champion's stats between. */
+.arc-foot { display: flex; align-items: center; gap: 12px; flex: none; }
+.arc-free { display: flex; flex-direction: column; gap: 4px; align-items: stretch; flex: none; }
+.arc-free .salt-btn { font-size: 15px; padding: 7px 14px; }
+.arc-free .diff { font-size: 11px; color: #fcc; gap: 4px; }
+.arc-free .diff input { accent-color: var(--s-gold); min-width: 60px; }
+.arc-free .diff b { min-width: 42px; font-size: 11px; }
+.arc-stats {
+  flex: 1; min-width: 0; display: grid; grid-template-columns: 1fr 1fr; gap: 3px 16px;
+  padding: 6px 12px; border-radius: 14px; background: #0009; border: 2px solid #ff3a4a55;
+}
+.arc-stat { display: flex; align-items: center; gap: 6px; min-width: 0; }
+.arc-stat span { flex: 0 0 52px; font-size: 11px; font-weight: 900; color: var(--s-gold); }
+.arc-stat i { flex: 1; display: flex; gap: 2px; }
+.arc-stat i s { flex: 1; height: 8px; border-radius: 2px; background: #ffffff1c; }
+.arc-stat i s.on { background: linear-gradient(180deg, #9dff7a, #2fc23a); box-shadow: 0 0 4px #4f4a; }
+#arcPlay { flex: none; font-size: 24px; padding: 12px 34px; }
+
+.over-sub { font-size: 15px !important; color: #cfd9f2 !important; }
+
+/* A phone held upright: the two faces side by side, the details under them. */
+@media (max-aspect-ratio: 1/1) {
+  .arc-pitch {
+    --hex-size: clamp(84px, 30vw, 200px);
+    grid-template-columns: 1fr 1fr; grid-template-rows: minmax(260px, 1fr) auto;
+    grid-template-areas: "foe you" "mid mid";
+  }
+  /* Upright, the reel is the way through the 45: the strip gives it the height. */
+  .arc-grid { display: none; }
+  .arc-logo { width: 52px; height: 52px; }
+  .arc-mid .arc-vs { font-size: 44px; }
+  .arc-foot { flex-wrap: wrap; justify-content: space-between; }
+  .arc-stats { order: -1; flex-basis: 100%; }
+  .arc-brand .salt-h { font-size: 22px; }
+  .arc-prog { flex-basis: 100%; }
+  .arc-head { flex-wrap: wrap; }
+}
 
 /* ── A LANDSCAPE PHONE IS 390px TALL ─────────────────────────────────────────
    The pick screen was authored for a browser window and it does not fit one: header, two
@@ -458,11 +812,6 @@ body[data-mode="duo"] #slotFoe { opacity: .45; pointer-events: none; }
     padding: 5px var(--safe-r) var(--safe-b) var(--safe-l);
     box-shadow: 0 -10px 14px #070a12;      /* the album fades out under it instead of peeking */
   }
-  #pick .modes { flex: 0 0 auto; width: auto; max-width: none; margin: 0; padding: 0; gap: 6px; }
-  /* One line each. «נגד המחשב» wrapped to two and made the bar taller than the button it
-     contains, which is how a control row starts eating the album again. */
-  #pick .modes button { padding: 6px 10px; white-space: nowrap; }
-  #pick .modes button b { font-size: 11.5px; }
   #pick .pick-foot { flex: 1; padding: 0; }
   /* No padding under the bar: the page's own bottom padding was showing a sliver of album
      below it, which reads as the layout not quite fitting — which is exactly what it was. */
@@ -483,9 +832,33 @@ body[data-mode="duo"] #slotFoe { opacity: .45; pointer-events: none; }
   .slots { gap: 10px; }
   .rarity-tabs button { padding: 3px 10px; font-size: 11px; }
   .grid { gap: 5px; grid-template-columns: repeat(auto-fill, minmax(52px, 1fr)); }
-  .modes { margin: 4px auto 0; }
-  .modes button { padding: 6px 8px; }
-  .modes button b { font-size: 12px; }
+  #modeSel { gap: 10px; padding-top: calc(var(--safe-t) + 8px); }
+  .mode-brand { flex-direction: row; gap: 10px; }
+  .mode-brand .salt-logo { width: 74px; height: 74px; }
+  .mode-brand > div { text-align: start; }
+  .salt-h { font-size: 26px; }
+  .mode-card { padding: 12px 8px 10px; }
+  .mode-hex { width: 54px; height: 54px; }
+  .mode-hex i { font-size: 26px; }
+  .mode-card b { font-size: 20px; }
+  #arcade { gap: 6px; padding-top: calc(var(--safe-t) + 5px); }
+  .arc-brand .salt-logo { width: 36px; height: 36px; }
+  .arc-brand .salt-h { font-size: 21px; }
+  .salt-back { padding: 5px 11px; font-size: 12px; }
+  .arc-pitch { padding: 6px 10px 4px; border-width: 3px; --hex-size: clamp(70px, 27vh, 150px); }
+  .arc-name { font-size: 14px; }
+  .arc-tag { font-size: 11px; }
+  .arc-vs { font-size: 40px; }
+  .arc-stars { font-size: 14px; }
+  .arc-power { padding: 3px 8px; }
+  .arc-power b { font-size: 13px; }
+  .arc-power p { font-size: 10.5px; }
+  .arc-grid { padding-top: 17px; }
+  .arc-stats { padding: 4px 10px; gap: 2px 12px; }
+  .arc-stat span { flex-basis: 46px; font-size: 10px; }
+  .arc-stat i s { height: 6px; }
+  #arcPlay { font-size: 19px; padding: 8px 24px; }
+  .arc-free .salt-btn { font-size: 13px; padding: 5px 10px; }
   .modes button span { display: none; }     /* the icon and the label carry it */
   .online-row { gap: 6px; }
   .ghost { padding: 6px 12px; font-size: 12px; }
@@ -915,3 +1288,6 @@ body.editing .pad .btn .grip {
   background: #0a0f1cbb; border: 1px solid #ffffff1f; font-size: 14px;
 }
 .sndBtn.off { opacity: .45; }
+
+/* A landscape phone: the reel IS the way through the 45, so the strip gives it the height. */
+@media (max-height: 520px) and (min-aspect-ratio: 1/1) { .arc-grid { display: none; } .arc-logo { width: 48px; height: 48px; } }
