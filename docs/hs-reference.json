@@ -908,6 +908,176 @@
     "note": "A LOWER BOUND: 0.4 s is how long it stayed before its OWN jump took it off, not how long until it fell. The pair barely moved (x 838 → 844) while the human dashed right, so both were pushing into each other; the human kept pressing R through 67.10 s (0.75 s), which is what hs-scenarios dashUnder re-enacts: in our sim the push holds the airborne body up (BODY_GRIP) for as long as it lasts."
   },
   {
+    "id": "kick.stun.hitsToStun",
+    "value": 15,
+    "unit": "kicks",
+    "clips": [
+      "M4"
+    ],
+    "n": 1,
+    "sd": 2,
+    "tol": 3,
+    "scenario": "kickStun",
+    "status": "estimated",
+    "source": "M4 match 2, 103.35–119.33 s (frames 6201–7159): Idan (left, facing right) boots the CPU over and over; stars at 119.33 s (frame 7159).",
+    "how": "Frame strips at 2–3 frame steps, counting every boot that rocks the CPU's head back: 6201 6211 6221 6235 6299 6345 | 6906 6918 6990 | 7052 7062 7098 7121 7131 7148 = 15 to the stars. The red drops (hurts) came on the 6th, 9th and 15th.",
+    "note": "One readable knockout (M3 82.6 s is a second, but mutual kicking there makes its count unreadable). The sim's fixed rule is 5 boots a hurt x 3 hurts = 15: the same total, hurts on 5/10/15 instead of 6/9/15. HS may roll a chance per boot; nothing in the footage needs it."
+  },
+  {
+    "id": "kick.stun.hurtsToStun",
+    "value": 3,
+    "unit": "hurts",
+    "clips": [
+      "M4"
+    ],
+    "n": 1,
+    "sd": 0,
+    "tol": 0.5,
+    "scenario": "kickStun",
+    "status": "estimated",
+    "source": "M4 106.00 s, 116.70 s, 119.33 s (frames 6358, 7002, 7159): red drops fly off the CPU's head; the third comes with the stars. Wiki (Power Shot Guide): 'if you get damaged three times, you will get knocked out, and it resets the three times'.",
+    "how": "Red-drop onsets found by a masked saturated-red pixel count over every frame, each checked on a frame strip."
+  },
+  {
+    "id": "kick.hurt.every",
+    "value": 5,
+    "unit": "kicks",
+    "clips": [
+      "M4"
+    ],
+    "n": 3,
+    "sd": 1.7,
+    "tol": 3.4,
+    "scenario": "kickStun",
+    "status": "estimated",
+    "source": "M4 frames 6201–7159: boots per hurt 6, 3, 6 (see kick.stun.hitsToStun).",
+    "how": "Mean of the three gaps.",
+    "note": "Every boot rocks the victim back; only these hurt. Nothing visible separates a hurting boot from the others (same height, same contact, victim standing or airborne), so the rule is a count."
+  },
+  {
+    "id": "kick.stun.duration",
+    "value": 2,
+    "unit": "s",
+    "clips": [
+      "M3"
+    ],
+    "n": 1,
+    "sd": 0.05,
+    "tol": 0.1,
+    "scenario": "kickStun",
+    "status": "estimated",
+    "source": "M3 82.60–84.57 s (frames 4956–5074): the CPU stands tipped back ~20° with three stars orbiting, then walks off.",
+    "how": "First and last frame with the stars up: 118 frames = 1.97 s.",
+    "note": "M4 119.33 s: stars until the kickoff reset at 120.47 s cut them short (>= 1.15 s) — the restart clears a knockout. power.blockStun (0.5 s) is a different daze."
+  },
+  {
+    "id": "kick.stun.resetsOnKO",
+    "value": 1,
+    "unit": "yes/no",
+    "clips": [
+      "M4"
+    ],
+    "n": 1,
+    "sd": 0,
+    "tol": 0,
+    "scenario": "kickStun",
+    "status": "estimated",
+    "source": "Wiki (Power Shot Guide): '…knocked out, and it resets the three times'.",
+    "how": "Rule text; the footage has no second knockout on the same player to count."
+  },
+  {
+    "id": "kick.stun.decays",
+    "value": 0,
+    "unit": "yes/no",
+    "clips": [
+      "M4"
+    ],
+    "n": 1,
+    "sd": 0,
+    "tol": 0,
+    "scenario": "kickStunPause",
+    "status": "estimated",
+    "source": "M4 106.0 s (1st hurt) → 115.1 s: 9 s with no boot on the CPU, then only 3 boots (6906 6918 6990) to the 2nd hurt.",
+    "how": "A count that ran down with time would have needed more boots after the rest, not fewer.",
+    "note": "No time window: the count is boots, however far apart."
+  },
+  {
+    "id": "kick.stun.goalResets",
+    "value": 0,
+    "unit": "yes/no",
+    "clips": [
+      "M4"
+    ],
+    "n": 1,
+    "sd": 0,
+    "tol": 0,
+    "scenario": "kickStunGoal",
+    "status": "estimated",
+    "source": "M4 116.70 s 2nd hurt, 117.47 s GOAL (banner up while both keep kicking), 119.33 s knockout after 6 more boots; the red nose is still on after the stars and the reset (121.3 s).",
+    "how": "Frame strips 7004–7160 and 7140–7290."
+  },
+  {
+    "id": "kick.reel",
+    "value": 0.2,
+    "unit": "s",
+    "clips": [
+      "M4"
+    ],
+    "n": 8,
+    "sd": 0.05,
+    "tol": 0.1,
+    "scenario": "kickStun",
+    "status": "estimated",
+    "source": "M4 6196–6250 (103.3–104.2 s): four boots in a row, the CPU's head tipped back ~25° (eyes shut) for 8–12 frames each; 6990: ~18 frames.",
+    "how": "Frames from the boot's contact to the head upright again."
+  },
+  {
+    "id": "kick.knockback.ground",
+    "value": 40,
+    "unit": "px",
+    "clips": [
+      "M4"
+    ],
+    "n": 5,
+    "sd": 15,
+    "tol": 30,
+    "scenario": "kickKnock",
+    "status": "estimated",
+    "source": "M4 6201–6243 (the CPU pushed ~80 px toward its goal by four boots, ~20 px each) and 6990 (~60 px).",
+    "how": "Head-blob x from the per-frame M4 tracks before and after; the blobs merge when the heads touch, so ±15 px.",
+    "note": "Always toward the victim's OWN goal; a standing victim stays on his feet (kick.knockback.lift)."
+  },
+  {
+    "id": "kick.knockback.air",
+    "value": 120,
+    "unit": "px",
+    "clips": [
+      "M4"
+    ],
+    "n": 2,
+    "sd": 25,
+    "tol": 50,
+    "scenario": "kickKnock",
+    "status": "estimated",
+    "source": "M4 6299 (105.0 s): the CPU booted mid-jump, carried 875 → 1017 px (142) over 0.65 s; 6345 (105.75 s): 1020 → 1115 px (95) until the goalpost stopped him.",
+    "how": "Head-blob x from the tracks, boot to landing."
+  },
+  {
+    "id": "kick.knockback.lift",
+    "value": 0,
+    "unit": "px",
+    "clips": [
+      "M4"
+    ],
+    "n": 5,
+    "sd": 2,
+    "tol": 4,
+    "scenario": "kickKnock",
+    "status": "estimated",
+    "source": "M4 6201–6243, 6906, 6918, 6990: the boots stay on the grass (blob bottom 495–497) while the head rocks back.",
+    "how": "Body-blob bottom from the tracks."
+  },
+  {
     "id": "ball.maxSpeed",
     "value": null,
     "unit": "px/s",

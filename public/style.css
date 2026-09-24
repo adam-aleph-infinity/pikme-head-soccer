@@ -1251,8 +1251,884 @@ body.editing .pad .btn .grip {
 .play[disabled] { opacity: .4; box-shadow: none; }
 .scoreboard .rtt { font-style: normal; font-size: 10px; color: var(--dim); min-width: 34px; }
 
-/* NO DAMAGE LOOK. The .head.hurt1..4 bruise tiers that sat here were the only readout of a
-   hidden health bar; Head Soccer has no health, so both are gone. */
+/* ARMED: the press empties the bar (HS M4 36.49 s) and the refill climbs in the same ramp,
+   with a white-hot sheen over it while the arm waits for a touch. No pulse — the bar is not
+   ready, the head's glow is what says armed. */
+.gauge.powered .fill { filter: saturate(1.3) brightness(1.2); }
+/* The ready halo. Stacked drop-shadows rather than one: each is applied to the result of
+   the last, so a tight white core, a yellow body and a wide amber bloom build a glow with
+   falloff instead of a flat ring. It never drops to nothing — at full the bar is ALWAYS
+   lit and the pulse only changes how hard. */
+@keyframes gaugeReady {
+  from {
+    filter: drop-shadow(0 2px 0 #0009) drop-shadow(0 0 4px #fff8c8)
+            drop-shadow(0 0 9px #ffe14a) drop-shadow(0 0 16px #ffc40088);
+  }
+  to {
+    filter: drop-shadow(0 2px 0 #0009) drop-shadow(0 0 6px #fffde8)
+            drop-shadow(0 0 14px #ffe66a) drop-shadow(0 0 24px #ffc400cc);
+  }
+}
+/* Kept: other rules still reference gaugeFull (the clock at ten seconds, the POWER
+   button, the lobby gauge), and those are box-shadow elements with no clip-path. */
+@keyframes gaugeFull { from { box-shadow: 0 0 0 2px #d8d8e4, 3px 3px 0 #0009; } to { box-shadow: 0 0 0 2px #ffd23c, 0 0 14px 3px #ffb80099, 3px 3px 0 #0009; } }
+
+.banner {
+  position: absolute; inset-inline: 0; top: 30%; text-align: center;
+  font-size: clamp(30px, 9vw, 68px); font-weight: 900; letter-spacing: 0;
+  pointer-events: none; opacity: 0; transform: scale(.7);
+  /* Arcade lettering: fat black keyline plus a hard drop shadow, no glow. */
+  -webkit-text-stroke: 6px #000;
+  paint-order: stroke fill;
+  text-shadow: 5px 5px 0 #00000088;
+}
+.banner.show { animation: pop 1.1s ease-out; }
+@keyframes pop {
+  0% { opacity: 0; transform: scale(.5) rotate(-6deg); }
+  18% { opacity: 1; transform: scale(1.12) rotate(2deg); }
+  30% { transform: scale(1) rotate(0); }
+  78% { opacity: 1; }
+  100% { opacity: 0; transform: scale(1.05); }
+}
+
+/* touch pad — every dimension derives from --u, the thumb unit, which resize() sets from
+   the STAGE box (not the viewport: the stage is letterboxed, so a 62px button that looked
+   right on a phone was a tap-target on an iPad and half the pitch on a portrait phone).
+   --pl/--pr/--pb are the parts of the safe-area inset the letterbox does NOT already
+   cover — adding env() raw would shove the pad inward twice on a notched landscape phone. */
+/* A card outside the player's album: visible, so the album is something to go and finish,
+   but not selectable as their own head. */
+.card.locked { filter: grayscale(1) brightness(.42); cursor: default; }
+.card.locked b { opacity: .5; }
+
+/* The pick bar is one button now; how to play is asked on the next screen. */
+.pick-foot { justify-content: flex-end; }
+.pick-hint { flex: 1; font-size: 13px; color: var(--dim); }
+
+/* ─── SALTIZ ───────────────────────────────────────────────────────────── */
+/* The channel's mark is a red-and-yellow hexagon on black, so the menus are built from it:
+   a honeycomb floor, hexagon frames and badges, sun-rays behind the logo, and chunky
+   red / gold buttons. Everything that says "this is Saltiz" lives under .salt. */
+:root {
+  --s-red: #ec1330; --s-red-hi: #ff4a5c; --s-red-lo: #8a0015;
+  --s-gold: #ffd400; --s-gold-hi: #fff08a; --s-gold-lo: #ff8a00;
+  --s-black: #0d0406;
+  --hex: polygon(50% 0, 93.3% 25%, 93.3% 75%, 50% 100%, 6.7% 75%, 6.7% 25%);
+  --s-font: "Rubik", -apple-system, "Segoe UI", "Noto Sans Hebrew", Arial, sans-serif;
+}
+.salt {
+  overflow: hidden; font-family: var(--s-font);
+  background:
+    radial-gradient(ellipse 80% 55% at 50% -5%, #ff1d3a66, transparent 70%),
+    radial-gradient(ellipse 70% 45% at 50% 108%, #ffb30038, transparent 70%),
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='56' height='100'%3E%3Cpath d='M28 66L0 50V16L28 0l28 16v34L28 66zm0 0v34' fill='none' stroke='%23ff2a3a' stroke-opacity='.13' stroke-width='2'/%3E%3C/svg%3E"),
+    var(--s-black);
+}
+.salt > :not(.salt-rays):not(.salt-back) { position: relative; z-index: 1; }
+/* Sun-rays in the two colours of the logo, turning slowly behind everything. */
+.salt-rays {
+  position: absolute; z-index: 0; pointer-events: none;
+  width: 200vmax; height: 200vmax; left: 50%; top: 12%; margin: -100vmax 0 0 -100vmax;
+  background: repeating-conic-gradient(from 0deg, #ffd40022 0 9deg, transparent 9deg 18deg, #ff203a1c 18deg 27deg, transparent 27deg 36deg);
+  -webkit-mask: radial-gradient(circle, #000 0, #0000 45%); mask: radial-gradient(circle, #000 0, #0000 45%);
+  animation: saltSpin 70s linear infinite;
+}
+@keyframes saltSpin { to { transform: rotate(1turn); } }
+.salt-logo {
+  display: block; flex: none; width: 96px; height: 96px;
+  filter: drop-shadow(0 0 14px #ff203a99) drop-shadow(0 0 26px #ffd40055);   /* follows the hexagon */
+  animation: saltBob 2.6s ease-in-out infinite;
+}
+/* The jpg is the hexagon on a black square: clip to the hexagon (its own black rim kept as
+   an outline) and the square is gone. */
+.salt-logo img {
+  display: block; width: 100%; height: 100%; object-fit: cover;
+  clip-path: polygon(50% 5%, 89.5% 27.5%, 89.5% 72%, 50% 94.5%, 10.5% 72%, 10.5% 27.5%);
+}
+@keyframes saltBob { 50% { transform: translateY(-5px) rotate(-3deg) scale(1.03); } }
+.salt-kicker {
+  display: inline-block; font-size: 13px; font-weight: 900; letter-spacing: .5px; color: #fff;
+  padding: 2px 12px; border-radius: 99px; background: linear-gradient(180deg, var(--s-red-hi), var(--s-red));
+  box-shadow: 0 2px 0 var(--s-red-lo);
+}
+/* The title: gold, outlined in red, sitting on a dark drop — the logo's own stack of colours. */
+.salt-h {
+  margin: 0; font-family: var(--s-font); font-size: 34px; font-weight: 900; line-height: 1.1;
+  color: var(--s-gold); letter-spacing: .3px;
+  text-shadow:
+    2px 0 0 var(--s-red), -2px 0 0 var(--s-red), 0 2px 0 var(--s-red), 0 -2px 0 var(--s-red),
+    2px 2px 0 var(--s-red), -2px -2px 0 var(--s-red), 2px -2px 0 var(--s-red), -2px 2px 0 var(--s-red),
+    0 5px 0 var(--s-red-lo), 0 9px 16px #000c;
+}
+.salt-back {
+  position: absolute; z-index: 2; top: calc(var(--safe-t) + 10px); inset-inline-start: calc(var(--safe-l) + 2px);
+  padding: 7px 14px; border-radius: 99px; font-family: var(--s-font); font-weight: 900; font-size: 14px;
+  color: var(--s-gold); background: #2a070dcc; border: 2px solid #ff3a4a88;
+  box-shadow: 0 3px 0 #000a;
+}
+.salt-back:active { transform: translateY(2px); box-shadow: none; }
+/* Big 3D buttons, one per colour of the logo. */
+.salt-btn {
+  position: relative; overflow: hidden; font-family: var(--s-font); font-weight: 900; font-size: 20px;
+  padding: 12px 30px; border-radius: 18px; letter-spacing: .5px; white-space: nowrap;
+  border: 3px solid #fff5; transition: transform .08s;
+}
+.salt-btn.gold {
+  color: #5a0010; background: linear-gradient(180deg, var(--s-gold-hi), var(--s-gold) 45%, var(--s-gold-lo));
+  box-shadow: 0 6px 0 #a34a00, 0 10px 20px #000b, inset 0 2px 0 #fff9;
+  text-shadow: 0 1px 0 #fff8;
+}
+.salt-btn.red {
+  color: #fff; background: linear-gradient(180deg, var(--s-red-hi), var(--s-red) 50%, #b0001c);
+  box-shadow: 0 6px 0 var(--s-red-lo), 0 10px 20px #000b, inset 0 2px 0 #fff6;
+  text-shadow: 0 2px 0 #7a0012;
+}
+.salt-btn:active { transform: translateY(4px); box-shadow: 0 2px 0 #000a; }
+.salt-btn:disabled { filter: grayscale(1) brightness(.6); transform: none; box-shadow: 0 4px 0 #000a; }
+/* A glint that runs across the gold buttons now and then — the "press me" of a kids' game. */
+.salt-btn.gold::after, .mode-card::after {
+  content: ''; position: absolute; top: -20%; bottom: -20%; width: 40%; left: -60%;
+  background: linear-gradient(100deg, transparent, #fff8, transparent);
+  transform: skewX(-20deg); animation: saltGlint 3.2s ease-in-out infinite; pointer-events: none;
+}
+.salt-btn:disabled::after { display: none; }
+@keyframes saltGlint { 0%, 55% { left: -60%; } 85%, 100% { left: 130%; } }
+.salt .play {
+  font-family: var(--s-font); font-weight: 900; color: #5a0010;
+  background: linear-gradient(180deg, var(--s-gold-hi), var(--s-gold) 45%, var(--s-gold-lo));
+  box-shadow: 0 5px 0 #a34a00, 0 8px 18px #000a;
+}
+.salt .ghost { font-family: var(--s-font); font-weight: 900; color: #fff; background: linear-gradient(180deg, var(--s-red-hi), var(--s-red)); border-color: #ff8a95; box-shadow: 0 4px 0 var(--s-red-lo); }
+@media (prefers-reduced-motion: reduce) {
+  .salt-rays, .salt-logo, .salt-btn::after, .mode-card::after, .arc-tile.open::before, .arc-vs { animation: none !important; }
+}
+
+/* ─── MODE ─────────────────────────────────────────────────────────────── */
+/* Two answers, equal weight: a red card and a gold card, the two halves of the logo. */
+#modeSel {
+  align-items: center; justify-content: center; gap: 18px; text-align: center;
+  padding: calc(var(--safe-t) + 14px) var(--safe-r) var(--safe-b) var(--safe-l);
+}
+.mode-brand { display: flex; flex-direction: column; align-items: center; gap: 4px; }
+.mode-brand .salt-logo { width: 120px; height: 120px; }
+.mode-brand .salt-h { margin-top: 6px; }
+.mode-cards { display: flex; gap: 18px; justify-content: center; width: min(620px, 100%); padding: 0 12px; }
+.mode-card {
+  position: relative; overflow: hidden; flex: 1; display: flex; flex-direction: column; gap: 4px; align-items: center;
+  padding: 18px 10px 16px; border-radius: 22px; font-family: var(--s-font);
+  border: 3px solid #fff6; transition: transform .12s;
+}
+.mode-card.red {
+  color: #ffe0e4; background: linear-gradient(160deg, var(--s-red-hi), var(--s-red) 55%, #9e0019);
+  box-shadow: 0 7px 0 var(--s-red-lo), 0 16px 28px #000b, inset 0 2px 0 #fff5;
+}
+.mode-card.gold {
+  color: #6b1a00; background: linear-gradient(160deg, var(--s-gold-hi), var(--s-gold) 50%, var(--s-gold-lo));
+  box-shadow: 0 7px 0 #a34a00, 0 16px 28px #000b, inset 0 2px 0 #fff9;
+}
+.mode-card::after { animation-delay: 1.6s; }
+.mode-card.red::after { animation-delay: 0s; }
+@media (hover: hover) { .mode-card:hover { transform: translateY(-4px) rotate(-1deg); } }
+.mode-card:active { transform: translateY(5px) scale(.98); box-shadow: 0 2px 0 #000a; }
+.mode-card.on { border-color: #fff; box-shadow: 0 7px 0 var(--s-red-lo), 0 0 0 4px var(--s-gold), 0 0 28px #ffd400aa; }
+/* The icon sits in a hexagon of the OTHER colour — gold on the red card, red on the gold. */
+.mode-hex {
+  display: grid; place-items: center; width: 74px; height: 74px; clip-path: var(--hex);
+  background: linear-gradient(180deg, var(--s-gold-hi), var(--s-gold-lo));
+}
+.mode-card.gold .mode-hex { background: linear-gradient(180deg, var(--s-red-hi), var(--s-red-lo)); }
+.mode-hex i { font-style: normal; font-size: 36px; line-height: 1; filter: drop-shadow(0 2px 0 #0006); }
+.mode-card b { font-size: 25px; font-weight: 900; line-height: 1.15; }
+.mode-card.red b { color: #fff; text-shadow: 0 3px 0 var(--s-red-lo); }
+.mode-card.gold b { color: #8a0015; text-shadow: 0 2px 0 #fff8; }
+.mode-sub { font-size: 13px; font-weight: 700; opacity: .92; }
+.mode-tag {
+  position: absolute; top: 10px; inset-inline-end: 10px; font-style: normal; font-size: 11px; font-weight: 900;
+  padding: 2px 8px; border-radius: 99px; background: #0007; color: #fff;
+}
+@media (max-width: 520px) { .mode-card { padding-top: 38px; } }
+.multi-row { display: flex; gap: 10px; align-items: center; justify-content: center; }
+
+/* ─── ARCADE ───────────────────────────────────────────────────────────── */
+/* Head Soccer's PLAYER SELECT: a pitch with you on one side, the champion on the other and
+   VS between, the 45 champions as a strip under them, stats and PLAY along the bottom. */
+#arcade {
+  gap: 8px;
+  padding: calc(var(--safe-t) + 8px) var(--safe-r) var(--safe-b) var(--safe-l);
+}
+.arc-head { display: flex; align-items: center; gap: 12px; flex: none; }
+.arc-head .salt-back { position: static; flex: none; }
+.arc-brand { display: flex; align-items: center; gap: 6px; }
+.arc-brand .salt-logo { width: 46px; height: 46px; }
+.arc-brand .salt-h { font-size: 28px; white-space: nowrap; }
+.arc-prog { flex: 1; display: flex; align-items: center; gap: 8px; min-width: 0; font-weight: 900; }
+.arc-bar {
+  flex: 1; height: 14px; border-radius: 99px; background: #2a070d; border: 2px solid #ff3a4a77; overflow: hidden;
+  box-shadow: inset 0 2px 4px #000a;
+}
+.arc-bar i {
+  display: block; height: 100%; width: 0; border-radius: 99px;
+  background: linear-gradient(180deg, var(--s-gold-hi), var(--s-gold) 50%, var(--s-gold-lo));
+  box-shadow: 0 0 10px #ffd400aa;
+}
+.arc-prog b { font-size: 15px; color: var(--s-gold); font-variant-numeric: tabular-nums; white-space: nowrap; direction: ltr; unicode-bidi: isolate; }
+
+/* The pitch: striped grass, a halfway line and a centre circle, framed in gold. */
+.arc-pitch {
+  --hex-size: clamp(84px, min(30vh, 20vw), 210px);
+  flex: 1; min-height: 0; display: grid; gap: 4px 8px; padding: 10px 12px 6px;
+  grid-template-columns: 1fr minmax(0, 1.25fr) 1fr; grid-template-rows: minmax(0, 1fr) auto;
+  grid-template-areas: "foe mid you" "strip strip strip";
+  border-radius: 22px; border: 4px solid var(--s-gold);
+  background:
+    radial-gradient(circle at 50% 42%, transparent 0 16%, #ffffff40 16% calc(16% + 2px), transparent calc(16% + 3px)),
+    linear-gradient(90deg, transparent calc(50% - 1px), #ffffff40 calc(50% - 1px) calc(50% + 1px), transparent calc(50% + 1px)),
+    repeating-linear-gradient(90deg, #3a9a2e 0 9%, #2f8726 9% 18%);
+  box-shadow: 0 0 0 3px var(--s-red), 0 8px 0 3px var(--s-red-lo), 0 16px 30px #000c, inset 0 0 40px #0008;
+}
+.arc-side { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; min-width: 0; }
+.arc-side.you { grid-area: you; }
+.arc-side.foe { grid-area: foe; justify-content: flex-start; min-height: 0; }
+.arc-tag {
+  font-size: 13px; font-weight: 900; color: #fff; padding: 1px 14px; border-radius: 99px;
+  box-shadow: 0 2px 0 #0008;
+}
+.you .arc-tag { background: linear-gradient(180deg, #5fb0ff, #1f6fd6); }
+.foe .arc-tag { background: linear-gradient(180deg, var(--s-red-hi), var(--s-red)); }
+/* A hexagon frame, like the logo: coloured rim, dark bed, the face clipped to the same shape. */
+.hexframe {
+  position: relative; width: var(--hex-size); height: var(--hex-size); flex: none;
+  filter: drop-shadow(0 6px 0 #0007) drop-shadow(0 0 16px var(--glow, #ffd40088));
+}
+.hexframe::before, .hexframe::after { content: ''; position: absolute; clip-path: var(--hex); }
+.hexframe::before { inset: 0; background: linear-gradient(160deg, var(--s-gold-hi), var(--s-gold) 45%, var(--s-gold-lo)); }
+.hexframe::after { inset: 6%; background: radial-gradient(circle at 50% 35%, #3a1a22, #0b0306); }
+.foe .hexframe { --glow: #ff203a99; }
+.foe .hexframe::before { background: linear-gradient(160deg, var(--s-red-hi), var(--s-red) 50%, var(--s-red-lo)); }
+.hexframe > i {
+  position: absolute; inset: 9%; z-index: 1; clip-path: var(--hex); background-repeat: no-repeat;
+}
+.arc-name {
+  max-width: 100%; font-size: 17px; font-weight: 900; color: #fff; text-align: center; line-height: 1.15;
+  text-shadow: 0 2px 0 #000a, 0 0 8px #000; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+/* ‹▲ ▼› above and below the reel: roll the ladder one champion at a time. */
+.arc-step {
+  flex: none; width: 46px; height: 30px; border-radius: 99px; z-index: 12;
+  font-size: 16px; font-weight: 900; line-height: 1; color: #5a0010;
+  background: linear-gradient(180deg, var(--s-gold-hi), var(--s-gold-lo)); border: 2px solid #fff8;
+  box-shadow: 0 3px 0 #a34a00;
+}
+.arc-step:active { transform: translateY(2px); box-shadow: none; }
+.arc-step:disabled { visibility: hidden; }
+/* They sit over the reel's faded ends rather than taking height from it. */
+.arc-step.up { margin-bottom: -26px; }
+.arc-step.down { margin-top: -26px; }
+@media (hover: hover) { .arc-step:not(:disabled):hover { filter: brightness(1.12); transform: scale(1.08); } }
+
+/* THE REEL. Every champion is laid on the same spot and pushed `--d` steps up or down from the
+   middle, scaled by `--s`: the chosen one big, the neighbours shrinking away, the reel's own
+   edges fading them out. Moving the selection only changes --d, so the transition rolls it. */
+.arc-reel {
+  position: relative; z-index: 0; flex: 1; min-height: 0; width: 100%; overflow: hidden;
+  touch-action: none; user-select: none; -webkit-user-select: none; cursor: grab;
+  -webkit-mask-image: linear-gradient(180deg, transparent, #000 10%, #000 90%, transparent);
+          mask-image: linear-gradient(180deg, transparent, #000 10%, #000 90%, transparent);
+}
+.arc-reel.dragging { cursor: grabbing; }
+.arc-slot {
+  position: absolute; left: 50%; top: 50%; width: var(--h, 120px); height: var(--h, 120px);
+  margin: calc(var(--h, 120px) / -2) 0 0 calc(var(--h, 120px) / -2); padding: 0;
+  transform: translateY(calc(var(--d, 0) * var(--step, 96px))) scale(var(--s, 1));
+  transition: transform .32s cubic-bezier(.2, .9, .25, 1.1), opacity .32s;
+  filter: drop-shadow(0 5px 0 #0007);
+}
+.arc-reel.dragging .arc-slot { transition: none; }
+.arc-slot::before { content: ''; position: absolute; inset: 0; clip-path: var(--hex); background: #ffffff55; }
+.arc-slot::after { content: ''; position: absolute; inset: 6%; clip-path: var(--hex); background: radial-gradient(circle at 50% 35%, #3a1a22, #0b0306); }
+.arc-slot .f { position: absolute; inset: 9%; z-index: 2; clip-path: var(--hex); background-repeat: no-repeat; transition: filter .2s; }
+/* A card that never loads leaves its stage number showing on the dark bed. */
+.arc-slot .fb {
+  position: absolute; inset: 0; z-index: 1; display: grid; place-items: center;
+  font-family: var(--s-font); font-size: calc(var(--h, 120px) * .3); font-weight: 900; color: #ffffff30;
+}
+.arc-slot .lk {
+  position: absolute; inset: 0; z-index: 3; display: none; place-items: center;
+  font-size: calc(var(--h, 120px) * .26); filter: drop-shadow(0 3px 0 #000a);
+}
+.arc-slot.locked .f { filter: grayscale(1) brightness(.4); }
+.arc-slot.locked .lk { display: grid; }
+.arc-slot.sel { filter: drop-shadow(0 6px 0 #0007) drop-shadow(0 0 18px #ff203acc); }
+.arc-slot.sel::before { background: linear-gradient(160deg, var(--s-red-hi), var(--s-red) 50%, var(--s-red-lo)); }
+.arc-slot.sel.done::before { background: linear-gradient(160deg, #7dffae, #1f9c52 55%, #0d5c2e); }
+.arc-count {
+  font-size: 11px; font-weight: 900; color: #fff; padding: 0 8px; border-radius: 99px; background: #0008;
+  direction: ltr; unicode-bidi: isolate; font-variant-numeric: tabular-nums;
+}
+/* The Saltiz hexagon, big, over the VS. */
+.arc-logo { width: clamp(54px, 14vh, 110px); height: clamp(54px, 14vh, 110px); margin-bottom: -6px; }
+@media (prefers-reduced-motion: reduce) { .arc-slot { transition: none; } }
+
+.arc-mid {
+  grid-area: mid; display: flex; flex-direction: column; align-items: center; justify-content: center;
+  gap: 3px; min-width: 0; text-align: center;
+}
+.arc-stage {
+  font-size: 13px; font-weight: 900; color: #3a0008; padding: 2px 12px; border-radius: 8px;
+  background: linear-gradient(180deg, #fff, #ffe7a8); box-shadow: 0 2px 0 #0006;
+}
+.arc-vs {
+  font-family: var(--s-font); font-size: clamp(40px, 11vh, 72px); font-weight: 900; font-style: italic; line-height: 1;
+  color: var(--s-gold); letter-spacing: -2px;
+  text-shadow: 3px 0 0 var(--s-red), -3px 0 0 var(--s-red), 0 3px 0 var(--s-red), 0 -3px 0 var(--s-red),
+    3px 3px 0 var(--s-red), -3px -3px 0 var(--s-red), 0 7px 0 var(--s-red-lo), 0 10px 18px #000c;
+  animation: arcVs 1.4s ease-in-out infinite;
+}
+@keyframes arcVs { 50% { transform: scale(1.08) rotate(-3deg); } }
+.arc-stars { direction: ltr; font-size: 17px; color: var(--s-gold); letter-spacing: 1px; text-shadow: 0 2px 0 #7a3a00, 0 0 6px #000; }
+.arc-status {
+  font-size: 12px; font-weight: 900; padding: 2px 10px; border-radius: 99px; background: #000a; color: #fff; white-space: nowrap;
+}
+.arc-status.locked { color: #cbb; }
+.arc-status.open { background: var(--s-gold); color: #5a0010; }
+.arc-status.done { background: #1f9c52; color: #fff; }
+.arc-power {
+  max-width: 100%; padding: 5px 10px; border-radius: 12px; background: #0009; border: 2px solid #ffffff22;
+}
+.arc-power b { font-size: 15px; font-weight: 900; color: var(--pc, var(--s-gold)); }
+.arc-power p { margin: 1px 0 0; font-size: 12px; line-height: 1.35; color: #f2f2f2; }
+
+/* The strip: 45 hexagon faces, nine to a tier, scrolled sideways. */
+.arc-grid {
+  grid-area: strip; display: flex; gap: 3px; overflow-x: auto; overflow-y: hidden;
+  -webkit-overflow-scrolling: touch; scrollbar-width: none; scroll-snap-type: x proximity;
+  padding: 19px 10px 5px; border-radius: 14px; background: #0007;
+}
+.arc-grid::-webkit-scrollbar { display: none; }
+.arc-tile {
+  position: relative; flex: none; width: var(--tile, 48px); height: var(--tile, 48px); padding: 0;
+  scroll-snap-align: center; transition: transform .12s;
+}
+.arc-tile::before { content: ''; position: absolute; inset: 0; clip-path: var(--hex); background: var(--tc, #445); }
+.arc-tile .f { position: absolute; inset: 8%; clip-path: var(--hex); background: #0b1020 no-repeat; }
+.arc-tile[data-tier="0"] { --tc: #4cc35a; }
+.arc-tile[data-tier="1"] { --tc: #3aa0ff; }
+.arc-tile[data-tier="2"] { --tc: #b46bff; }
+.arc-tile[data-tier="3"] { --tc: #ff3a4a; }
+.arc-tile[data-tier="4"] { --tc: #ffc400; }
+/* A gap and a label before each tier's first champion. */
+.arc-tile.tier1st:not(:first-child) { margin-inline-start: 14px; }
+.arc-tile u {
+  position: absolute; top: -15px; inset-inline-start: 0; text-decoration: none; white-space: nowrap;
+  font-size: 10px; font-weight: 900; color: var(--tc);
+}
+.arc-tile b {
+  position: absolute; z-index: 1; bottom: -2px; left: 50%; transform: translateX(-50%);
+  font-size: 10px; font-weight: 900; line-height: 1.3; padding: 0 5px; border-radius: 6px;
+  background: #000c; color: #fff;
+}
+.arc-tile em { position: absolute; z-index: 1; top: 8%; inset-inline-end: 0; font-style: normal; font-size: 12px; line-height: 1; }
+.arc-tile.locked .f { filter: grayscale(1) brightness(.35); }
+.arc-tile.locked::before { background: #3a3a44; }
+.arc-tile.locked em::after { content: '🔒'; }
+.arc-tile.done em::after { content: '✓'; color: #fff; background: #1f9c52; border-radius: 50%; padding: 1px 3px; font-weight: 900; font-size: 11px; }
+.arc-tile.open::before { background: var(--s-gold); animation: arcOpen .8s infinite alternate; }
+@keyframes arcOpen { to { background: #fff; } }
+.arc-tile.sel { transform: scale(1.12); z-index: 2; }
+.arc-tile.sel::before { background: #fff; box-shadow: none; }
+.arc-tile.sel .f { inset: 11%; }
+
+/* Bottom row: free match on one side, PLAY on the other, the champion's stats between. */
+.arc-foot { display: flex; align-items: center; gap: 12px; flex: none; }
+.arc-free { display: flex; flex-direction: column; gap: 4px; align-items: stretch; flex: none; }
+.arc-free .salt-btn { font-size: 15px; padding: 7px 14px; }
+.arc-free .diff { font-size: 11px; color: #fcc; gap: 4px; }
+.arc-free .diff input { accent-color: var(--s-gold); min-width: 60px; }
+.arc-free .diff b { min-width: 42px; font-size: 11px; }
+.arc-stats {
+  flex: 1; min-width: 0; display: grid; grid-template-columns: 1fr 1fr; gap: 3px 16px;
+  padding: 6px 12px; border-radius: 14px; background: #0009; border: 2px solid #ff3a4a55;
+}
+.arc-stat { display: flex; align-items: center; gap: 6px; min-width: 0; }
+.arc-stat span { flex: 0 0 52px; font-size: 11px; font-weight: 900; color: var(--s-gold); }
+.arc-stat i { flex: 1; display: flex; gap: 2px; }
+.arc-stat i s { flex: 1; height: 8px; border-radius: 2px; background: #ffffff1c; }
+.arc-stat i s.on { background: linear-gradient(180deg, #9dff7a, #2fc23a); box-shadow: 0 0 4px #4f4a; }
+#arcPlay { flex: none; font-size: 24px; padding: 12px 34px; }
+
+.over-sub { font-size: 15px !important; color: #cfd9f2 !important; }
+
+/* A phone held upright: the two faces side by side, the details under them. */
+@media (max-aspect-ratio: 1/1) {
+  .arc-pitch {
+    --hex-size: clamp(84px, 30vw, 200px);
+    grid-template-columns: 1fr 1fr; grid-template-rows: minmax(260px, 1fr) auto;
+    grid-template-areas: "foe you" "mid mid";
+  }
+  /* Upright, the reel is the way through the 45: the strip gives it the height. */
+  .arc-grid { display: none; }
+  .arc-logo { width: 52px; height: 52px; }
+  .arc-mid .arc-vs { font-size: 44px; }
+  .arc-foot { flex-wrap: wrap; justify-content: space-between; }
+  .arc-stats { order: -1; flex-basis: 100%; }
+  .arc-brand .salt-h { font-size: 22px; }
+  .arc-prog { flex-basis: 100%; }
+  .arc-head { flex-wrap: wrap; }
+}
+
+/* ── A LANDSCAPE PHONE IS 390px TALL ─────────────────────────────────────────
+   The pick screen was authored for a browser window and it does not fit one: header, two
+   card slots, four rarity tabs, the grid, the two modes and the footer add up to more than
+   the height of an iPhone on its side, so the grid collapsed to a sliver and the play button
+   fell off the bottom edge. Everything below compacts the CHROME so the grid — the part you
+   are actually here to use — keeps real estate. Nothing is hidden that you need. */
+@media (max-height: 520px) {
+  /* SCROLL, don't squeeze. The first pass shrank the chrome to make everything fit at once,
+     which works right up until the album is 45 cards deep and the grid is two rows tall. So
+     the page scrolls and the grid grows to its natural height — you flick to see more cards
+     instead of scrubbing a 2-row window — while the part you press stays pinned. */
+  #pick { gap: 6px; padding: var(--safe-t) var(--safe-r) 0 var(--safe-l); overflow-y: auto; overflow-x: hidden; }
+  #pick .grid { flex: none; overflow: visible; min-height: 0; }
+  /* ONE header row, not three stacked. Title, the two cards and the rarity tabs used to eat
+     135px of a 390px screen — a third of the phone before a single album card. Side by side
+     they take about 70px and the album gets the rest. */
+  #pick .pick-top {
+    display: flex; align-items: center; justify-content: space-between; gap: 10px;
+    flex: none;
+  }
+  #pick .pick-head { padding: 0; text-align: start; }
+  #pick .slots { flex: 0 0 auto; }
+  #pick .rarity-tabs { flex-wrap: wrap; justify-content: flex-end; max-width: 40%; gap: 4px; }
+
+  /* ONE control row, pinned. The modes and the play controls were two stacked sticky bars
+     with a seam between them; together they are a single bar a thumb's height tall. */
+  #pick .pick-bar {
+    position: sticky; bottom: 0; z-index: 3; flex: none;
+    display: flex; align-items: center; gap: 8px;
+    /* The BAR bleeds to the screen edge — a strip that stops short of a notch looks broken —
+       but its buttons stay inside the safe zone. */
+    background: #070a12;
+    margin-inline: calc(var(--safe-l) * -1) calc(var(--safe-r) * -1);
+    padding: 5px var(--safe-r) var(--safe-b) var(--safe-l);
+    box-shadow: 0 -10px 14px #070a12;      /* the album fades out under it instead of peeking */
+  }
+  #pick .pick-foot { flex: 1; padding: 0; }
+  /* No padding under the bar: the page's own bottom padding was showing a sliver of album
+     below it, which reads as the layout not quite fitting — which is exactly what it was. */
+  #pick { padding-bottom: 0; }
+  /* The header row is as tall as the slots, so the slots decide how much album you see. */
+  #pick .slot { width: 66px; padding: 3px; }
+  #pick .slot-art { width: 34px; height: 34px; }
+  #pick .slot-cap { font-size: 9px; }
+  #pick .slot-shot { font-size: 9px; min-height: 11px; }
+  #pick .vs { font-size: 11px; }
+  .pick-head { padding-top: 2px; }
+  .pick-head h1 { font-size: 17px; }
+  .pick-head .sub { display: none; }        /* the two slots below say the same thing */
+  .slot { width: 72px; padding: 4px; border-radius: 10px; }
+  .slot-art { width: 38px; height: 38px; border-width: 2px; }
+  .slot-cap { font-size: 10px; }
+  .slot-shot { font-size: 10px; min-height: 12px; }
+  .slots { gap: 10px; }
+  .rarity-tabs button { padding: 3px 10px; font-size: 11px; }
+  .grid { gap: 5px; grid-template-columns: repeat(auto-fill, minmax(52px, 1fr)); }
+  #modeSel { gap: 10px; padding-top: calc(var(--safe-t) + 8px); }
+  .mode-brand { flex-direction: row; gap: 10px; }
+  .mode-brand .salt-logo { width: 74px; height: 74px; }
+  .mode-brand > div { text-align: start; }
+  .salt-h { font-size: 26px; }
+  .mode-card { padding: 12px 8px 10px; }
+  .mode-hex { width: 54px; height: 54px; }
+  .mode-hex i { font-size: 26px; }
+  .mode-card b { font-size: 20px; }
+  #arcade { gap: 6px; padding-top: calc(var(--safe-t) + 5px); }
+  .arc-brand .salt-logo { width: 36px; height: 36px; }
+  .arc-brand .salt-h { font-size: 21px; }
+  .salt-back { padding: 5px 11px; font-size: 12px; }
+  .arc-pitch { padding: 6px 10px 4px; border-width: 3px; --hex-size: clamp(70px, 27vh, 150px); }
+  .arc-name { font-size: 14px; }
+  .arc-tag { font-size: 11px; }
+  .arc-vs { font-size: 40px; }
+  .arc-stars { font-size: 14px; }
+  .arc-power { padding: 3px 8px; }
+  .arc-power b { font-size: 13px; }
+  .arc-power p { font-size: 10.5px; }
+  .arc-grid { padding-top: 17px; }
+  .arc-stats { padding: 4px 10px; gap: 2px 12px; }
+  .arc-stat span { flex-basis: 46px; font-size: 10px; }
+  .arc-stat i s { height: 6px; }
+  #arcPlay { font-size: 19px; padding: 8px 24px; }
+  .arc-free .salt-btn { font-size: 13px; padding: 5px 10px; }
+  .modes button span { display: none; }     /* the icon and the label carry it */
+  .online-row { gap: 6px; }
+  .ghost { padding: 6px 12px; font-size: 12px; }
+  .play { padding: 7px 18px; font-size: 14px; box-shadow: 0 3px 0 #a86800, 0 6px 12px #0009; }
+  .pick-foot { gap: 8px; }
+}
+
+/* ── CARD CALL-OUTS ──────────────────────────────────────────────────────────
+   A card is the loudest thing a player can do, and until now it happened in silence: the
+   only feedback was your own button greying out, and your opponent got nothing at all. So
+   every use announces itself under the scoreboard — WHO, and WHAT — in the power's own
+   colour, on the side of the pitch that player is defending, so you can tell at a glance
+   whether the thing that just happened was yours.
+
+   Deliberately not the shared #banner: that is one line for one event, and a card fired
+   while a goal banner is up would have replaced it (or been replaced). These stack. */
+.callouts {
+  /* Below the scoreboard, and the scoreboard is now two rows of --face tall — a fixed 74px
+     put the first callout through the middle of the scores on anything bigger than a phone. */
+  position: absolute; top: calc(var(--face) * 2 + 18px); left: 50%; transform: translateX(-50%);
+  width: min(560px, 92%); display: flex; flex-direction: column; gap: 5px;
+  pointer-events: none; z-index: 6; direction: rtl;
+}
+.callout {
+  align-self: center; display: flex; align-items: center; gap: 7px;
+  padding: 5px 12px 5px 8px; border-radius: 999px;
+  background: #070a12e8; border: 2px solid var(--cc, #fff);
+  box-shadow: 0 0 18px var(--cc, #fff), 0 4px 10px #0009;
+  animation: calloutPop .34s cubic-bezier(.2, 1.6, .4, 1) both;
+  white-space: nowrap;
+}
+.callout.p0 { align-self: flex-start; }        /* left player, left of the scoreboard */
+.callout.p1 { align-self: flex-end; }
+.callout.out { animation: calloutOut .3s ease-in forwards; }
+.callout .who {
+  font-size: 11px; font-weight: 800; color: #0b1020; background: var(--cc, #fff);
+  padding: 1px 7px; border-radius: 999px;
+}
+.callout .what { font-size: 14px; font-weight: 900; color: var(--cc, #fff); letter-spacing: -.2px; }
+.callout .spark { font-size: 13px; animation: calloutSpin .7s linear infinite; }
+@keyframes calloutPop {
+  from { opacity: 0; transform: translateY(-10px) scale(.7); }
+  60%  { opacity: 1; transform: translateY(0) scale(1.12); }
+  to   { opacity: 1; transform: translateY(0) scale(1); }
+}
+@keyframes calloutOut { to { opacity: 0; transform: translateY(-8px) scale(.9); } }
+@keyframes calloutSpin { to { transform: rotate(360deg); } }
+
+.pad {
+  position: absolute; inset: 0; pointer-events: none; direction: ltr;
+  --u: 62px;
+  --gap: calc(var(--u) * 0.14);
+  --edge: calc(var(--u) * 0.17);
+  --pl: 0px; --pr: 0px; --pb: 0px;
+}
+.pad-l, .pad-r {
+  position: absolute; bottom: calc(var(--edge) + var(--pb));
+  display: flex; gap: var(--gap); pointer-events: none;
+}
+.pad-l { left: calc(var(--edge) + var(--pl)); }    /* walk — physical left thumb, ◀ then ▶ */
+.pad-r { right: calc(var(--edge) + var(--pr)); align-items: flex-end; }
+.pad .btn {
+  /* --s and --xf are the saved layout: size multiplier and translate. Untouched buttons
+     carry the defaults (1 and none), so a fresh device gets the tuned layout exactly.
+     --ctl-op is how visible the pad is when idle: the controls sit on top of the pitch, and
+     how much pitch they may hide is taste. Pressing one always shows it at full strength. */
+  --s: 1;
+  opacity: var(--ctl-op, 0.72);
+  transform: var(--xf, none);
+  pointer-events: auto; min-width: calc(var(--u) * var(--s)); height: calc(var(--u) * var(--s));
+  padding: 0 calc(var(--u) * var(--s) * 0.19);
+  border-radius: var(--r, 50%); background: #1620359e;
+  border: max(2px, calc(var(--u) * var(--s) * 0.032)) solid #ffffff26;
+  font-size: clamp(11px, calc(var(--u) * var(--s) * 0.24), 24px);
+  font-weight: 800; backdrop-filter: blur(3px);
+  touch-action: none; user-select: none; -webkit-user-select: none;
+  /* The MAGNIFIER. iOS reads a long press on a ◀ glyph as "select this text" and pops its
+     loupe over the controls; touch-action does not stop that, this does. The tap highlight
+     goes too — a grey flash on every press reads as lag. */
+  -webkit-touch-callout: none;
+  -webkit-tap-highlight-color: transparent;
+}
+.pad .btn:active, .pad .btn.on { background: #3a4d78d0; opacity: 1; }
+.pad .btn:active, .pad .btn.on { transform: var(--xf, none) scale(.94); }
+
+/* ── THE ARCADE PAD ───────────────────────────────────────────────────────────
+   Modelled on Head Soccer's own controls, because that is the game this is in the
+   mould of and its pad is the part players touch for the whole match: fat gold
+   arrows for the feet, carved stone plaques for the actions. The old pad was five
+   translucent grey circles — readable, and completely forgettable.
+
+   Everything below is paint only. Sizing still comes from --u (the thumb unit) and
+   --s (the layout editor's per-button multiplier), and --xf still carries a dragged
+   position, so the editor and _pad.mjs's thumb-size checks are untouched. */
+
+/* ── THE WALK ARROWS ──────────────────────────────────────────────────────────
+   Two clipped layers inside a box that is bigger than either of them.
+
+   THE OUTLINE, and why it had holes. The shape used to BE the button — one clip-path cut
+   the brown arrow out of the element, and a gold ::before inset `i` px inside it carried
+   the SAME percentage polygon. A percentage polygon in a smaller box is a smaller arrow,
+   not an inset one: each vertex moves by i·(1 − 2·fraction), so the tip and the back of the
+   tail got the full i of brown while the two step edges either side of the head — at 46% —
+   got i·0.08, half a pixel. That is the outline that was missing from the back edges.
+
+   So the gold carries its OWN polygon now: the same shape offset inward by a true uniform
+   distance, vertices mitred, which is what a stroke does — a sharp corner pulls back further
+   than a flat edge. The box's aspect is pinned at 1.08 by min-width, so that offset is
+   expressible in percentages and costs nothing at runtime.
+
+   THE HIT AREA. The button is bigger than its artwork on three sides — outward, above and
+   below — and negative margins of the same size hand the extra back to the flex row, so the
+   arrow lands exactly where it always did and only the invisible target grew. The gap
+   between the two arrows is deliberately left alone: a thumb landing between them picks
+   NEITHER, because a wrong direction is worse than no direction. */
+.pad-l .btn {
+  --arrow: polygon(0% 50%, 46% 0%, 46% 26%, 100% 26%, 100% 74%, 46% 74%, 46% 100%);
+  /* --arrow inset by 0.068 of the box height, uniformly. Recompute if --arrow changes. */
+  --gold: polygon(8.88% 50.00%, 39.70% 16.49%, 39.70% 32.80%, 93.70% 32.80%,
+                  93.70% 67.20%, 39.70% 67.20%, 39.70% 83.51%);
+  /* How far the target reaches past the gold. Deliberately NOT scaled by --s: --edge, the
+     strip of screen the pad is inset by, is not scaled either, so a hit margin that grew
+     with a resized button would hang its bottom off the phone. A button the player has
+     already made bigger needs less help anyway. */
+  --hx: calc(var(--u) * 0.14);
+  --hy: calc(var(--u) * 0.15);
+  /* hx nudged from 0.12 to 0.14, not the 0.24 this once tried. The hand of cards lives
+     BETWEEN the two thumb groups, and centreRow() stacks it above the pad when the gap drops
+     under ~172px at 667x375 — 0.24 ate that budget and pushed three cards over the pitch,
+     measured, not guessed. Sideways growth is capped by that budget.
+     hy has its own ceiling: --edge (0.17u) is how far the pad sits off the bottom of the
+     screen, and margin-block pulls the button's box down by hy past that — go past 0.17 and
+     the bottom of the hit box runs off the bottom of a short landscape phone (measured: 0.20
+     put it 2px past a 667x375 screen, dead space no finger can be in). 0.15 stays under that
+     with a real margin. */
+  min-width: calc(var(--u) * var(--s) * 1.08 + var(--hx));
+  height: calc(var(--u) * var(--s) + var(--hy) * 2);
+  margin-block: calc(var(--hy) * -1);
+  padding: 0;
+  background: none; border: 0; border-radius: 0;
+  color: #5d3410; font-size: clamp(9px, calc(var(--u) * var(--s) * 0.19), 19px);
+  backdrop-filter: none;
+  filter: drop-shadow(0 calc(var(--u) * var(--s) * 0.045) 0 #2e1704cc);
+  display: grid; place-items: center;
+  position: relative;
+}
+.pad-l .btn[data-k="left"]  { margin-inline-start: calc(var(--hx) * -1); }
+.pad-l .btn[data-k="right"] { margin-inline-end: calc(var(--hx) * -1); }
+.pad-l .btn[data-k="right"] {
+  --arrow: polygon(100% 50%, 54% 0%, 54% 26%, 0% 26%, 0% 74%, 54% 74%, 54% 100%);
+  --gold: polygon(91.12% 50.00%, 60.30% 16.49%, 60.30% 32.80%, 6.30% 32.80%,
+                  6.30% 67.20%, 60.30% 67.20%, 60.30% 83.51%);
+}
+/* Both layers sit on the ARTWORK box — the button's box minus the hit margin — so the two
+   polygons share one coordinate system and the offset above stays true. */
+.pad-l .btn::before, .pad-l .btn::after {
+  content: ''; position: absolute; pointer-events: none;
+  top: var(--hy); bottom: var(--hy);
+}
+.pad-l .btn[data-k="left"]::before,  .pad-l .btn[data-k="left"]::after  { left: var(--hx); right: 0; }
+.pad-l .btn[data-k="right"]::before, .pad-l .btn[data-k="right"]::after { left: 0; right: var(--hx); }
+.pad-l .btn::before { background: #4a2708; clip-path: var(--arrow); }
+.pad-l .btn::after {
+  clip-path: var(--gold);
+  background: linear-gradient(#ffe066 0%, #ffc021 46%, #e98f12 100%);
+}
+.pad-l .btn > * { z-index: 0; }
+.pad-l .btn:active::before, .pad-l .btn.on::before { background: #3a1d05; }
+.pad-l .btn:active::after, .pad-l .btn.on::after {
+  background: linear-gradient(#fff3a8 0%, #ffd047 46%, #f5a01a 100%);
+}
+/* The press tint on .pad .btn is a background, and this button no longer has one. */
+.pad-l .btn:active, .pad-l .btn.on { background: none; }
+
+/* The action plaques: jump, kick, power. Rounded stone rather than a circle, a heavy
+   dark rim, and a top-lit face so they read as carved instead of printed. */
+.pad-r .btn {
+  --r: calc(var(--u) * var(--s) * 0.30);
+  /* No min-width override: the Hebrew labels already make these wider than tall, and every
+     px here comes straight out of the card row's gap (see the arrows above). */
+  background: linear-gradient(#f7dfa2 0%, #e0b45c 42%, #b8801f 100%);
+  /* The heavy rim is an INSET SHADOW, not a border. A border is part of the box, so
+     thickening it widened every plaque, which stole the card row's gap and stacked the
+     hand over the pitch. A shadow paints the same rim for zero layout cost. */
+  border: max(2px, calc(var(--u) * var(--s) * 0.032)) solid #4a2708;
+  color: #3a1d05;
+  text-shadow: 0 1px 0 #ffeeb8, 0 -1px 0 #00000033;
+  backdrop-filter: none;
+  box-shadow:
+    inset 0 0 0 max(2px, calc(var(--u) * var(--s) * 0.045)) #4a2708,
+    inset 0 calc(var(--u) * var(--s) * 0.10) 0 #fffdf0aa,
+    inset 0 calc(var(--u) * var(--s) * -0.11) 0 #9c6a1f77,
+    0 calc(var(--u) * var(--s) * 0.05) 0 #2e1704aa;
+}
+.pad-r .btn:active, .pad-r .btn.on {
+  background: linear-gradient(#f3dfa8 0%, #dcb865 40%, #b8852c 100%);
+  box-shadow: inset 0 calc(var(--u) * var(--s) * 0.05) 0 #00000033;
+}
+/* Jump and kick are deliberately the SAME plaque, as they are in the reference. Tinting
+   them apart was the first thing tried and it looked like three different games; the pad
+   reads as one carved set, and position is what tells them apart under a thumb. */
+
+/* POWER is the one that has to shout when it is ready, and sit down when it is not. */
+.pad-r .power {
+  background: linear-gradient(#f7d9b0 0%, #c89a63 40%, #8a5a25 100%);
+  color: #3a1d05; visibility: hidden; pointer-events: none;
+}
+.pad-r .power.ready {
+  visibility: visible; opacity: 1; pointer-events: auto;
+  animation: gaugeFull .5s infinite alternate;
+  background: linear-gradient(#fff1a8 0%, #ffb524 45%, #e0530d 100%);
+  border-color: #6d2a05;
+  color: #5e1d02; text-shadow: 0 1px 0 #ffe9a0;
+  box-shadow:
+    inset 0 0 0 max(2px, calc(var(--u) * var(--s) * 0.045)) #6d2a05,
+    inset 0 calc(var(--u) * var(--s) * 0.10) 0 #fffbe0cc,
+    inset 0 calc(var(--u) * var(--s) * -0.11) 0 #a33b0577,
+    0 0 calc(var(--u) * var(--s) * 0.26) #ff8c1aaa,
+    0 calc(var(--u) * var(--s) * 0.05) 0 #40160099;
+}
+/* The pad used to be hidden on anything without a coarse pointer. It is the ability UI
+   now — three cards you cannot press if you cannot see them — so it shows everywhere, and
+   the keyboard keeps working alongside it. */
+body.no-touch .pad .btn { cursor: pointer; }
+
+/* (The three-card hand that used to sit between the two thumbs is archived — see
+   archive/README.md. Its styles went with it rather than being left to style nothing.) */
+
+/* ── EDIT MODE ────────────────────────────────────────────────────────────── */
+/* Edit mode makes every button grabbable — but it must NOT force them opaque. The opacity
+   slider lives in the edit bar, so overriding opacity here meant setting a preference whose
+   effect you could not see until you closed the editor. */
+body.editing .pad .btn { pointer-events: auto !important; touch-action: none; }
+body.editing .pad .btn::after { content: none; }
+body.editing .pad .btn {
+  outline: 2px dashed #ffd54a; outline-offset: 2px; cursor: grab;
+}
+body.editing .pad .btn.dragging { cursor: grabbing; outline-color: #7bff7b; z-index: 3; }
+/* The resize corner. Its own hit area so a drag on the body always MOVES and a drag on the
+   corner always SIZES — one gesture, two meanings, decided by where the finger lands. */
+body.editing .pad .btn .grip {
+  position: absolute; right: -6px; bottom: -6px; width: 22px; height: 22px;
+  border-radius: 7px; background: #ffd54a; border: 2px solid #221a00;
+  display: block; z-index: 4; touch-action: none; cursor: nwse-resize;
+}
+.pad .btn .grip { display: none; }
+.editbar {
+  position: absolute; left: 50%; top: 46px; transform: translateX(-50%);
+  display: flex; align-items: center; gap: 10px; z-index: 12;
+  max-width: 94vw; white-space: nowrap;
+  background: #0a0f1ce8; border: 1px solid #ffffff24; border-radius: 12px;
+  padding: 8px 12px; font-size: 13px; color: #dfe7ff; direction: rtl;
+}
+.editbar .ghost, .editbar .play { padding: 5px 12px; font-size: 13px; border-radius: 8px; }
+/* The settings row that opens the editor. Full width and at the top of the panel, because
+   it is the only row in there a player (rather than a tuner) is looking for. */
+.ctl-edit-row {
+  display: block; width: calc(100% - 16px); margin: 8px; padding: 9px 10px;
+  border-radius: 10px; background: #24345ad9; border: 1px solid #ffffff2b;
+  color: #eaf0ff; font-size: 14px; font-weight: 700; text-align: center;
+}
+.ctl-edit-row:active { background: #31456fd9; }
+.editbar .ce-slider {
+  display: flex; align-items: center; gap: 6px; font-size: 12px; color: #b9c6e6;
+}
+.editbar .ce-slider input { width: 92px; }
+.editbar > span { flex: 0 1 auto; overflow: hidden; text-overflow: ellipsis; }
+
+.gear, .quit {
+  position: absolute; top: 44px; width: 34px; height: 34px; border-radius: 10px;
+  background: #0a0f1cbb; border: 1px solid #ffffff1f; font-size: 15px;
+}
+.gear { right: 8px; }
+.quit { left: 8px; }
+
+.over {
+  position: absolute; inset: 0; display: grid; place-content: center; gap: 8px; text-align: center;
+  background: #05070de8; backdrop-filter: blur(4px);
+}
+.over h2 { margin: 0; font-size: 44px; font-weight: 900; }
+.over p { margin: 0; color: var(--dim); font-size: 20px; font-variant-numeric: tabular-nums; }
+.over-btns { display: flex; gap: 10px; justify-content: center; margin-top: 12px; }
+.over-btns button {
+  padding: 12px 22px; border-radius: 12px; font-weight: 800;
+  background: var(--panel); border: 1px solid var(--line);
+}
+.over-btns #again { background: linear-gradient(180deg, #ffcf49, #ff9f00); color: #241700; border: 0; }
+
+/* ─── TUNER ────────────────────────────────────────────────────────────── */
+#tuner {
+  position: fixed; inset-block: 0; inset-inline-end: 0; width: min(330px, 88vw);
+  background: #0b1020f2; border-inline-start: 1px solid var(--line);
+  display: flex; flex-direction: column; z-index: 50; backdrop-filter: blur(6px);
+}
+#tuner header, #tuner footer {
+  display: flex; align-items: center; justify-content: space-between; gap: 8px;
+  padding: 10px 12px; border-bottom: 1px solid var(--line); font-weight: 800;
+}
+#tuner footer { border-bottom: 0; border-top: 1px solid var(--line); }
+#tuner footer button { padding: 8px 12px; border-radius: 9px; background: var(--panel); border: 1px solid var(--line); font-size: 13px; }
+#tunerBody { flex: 1; overflow-y: auto; padding: 8px 12px; }
+.tune-row { display: grid; grid-template-columns: 1fr auto; gap: 2px 8px; align-items: center; margin-bottom: 9px; }
+.tune-row label { font-size: 12px; color: var(--dim); font-family: ui-monospace, Menlo, monospace; }
+.tune-row output { font-size: 12px; font-weight: 700; font-variant-numeric: tabular-nums; }
+.tune-row input { grid-column: 1 / -1; width: 100%; accent-color: var(--hot); }
+
+/* ─── ONLINE ───────────────────────────────────────────────────────────── */
+.online-row { display: flex; align-items: center; justify-content: center; gap: 8px; }
+.ghost {
+  padding: 8px 14px; border-radius: 10px; font-size: 13px; font-weight: 700;
+  background: var(--panel); border: 1px solid var(--line); color: var(--ink);
+}
+.ghost:active { transform: translateY(1px); }
+.netdot {
+  position: absolute; top: calc(var(--safe-t) + 8px); inset-inline-end: var(--safe-r);
+  width: 9px; height: 9px; border-radius: 50%; background: #56607a;
+}
+.netdot.on { background: #46d17f; box-shadow: 0 0 8px #46d17f; }
+.netdot.busy { background: var(--hot); }
+
+#lobby { align-items: center; justify-content: center; gap: 14px; padding: 20px; text-align: center; }
+#lobby h2 { margin: 0; font-size: 26px; font-weight: 800; }
+.lobby-back { position: absolute; top: calc(var(--safe-t) + 12px); inset-inline-start: calc(var(--safe-l) + 4px); color: var(--dim); }
+.code-box, .join-box {
+  display: flex; align-items: center; gap: 10px; padding: 12px 16px;
+  background: var(--panel); border: 1px solid var(--line); border-radius: 14px;
+}
+.code-label { font-size: 12px; color: var(--dim); }
+#roomCode {
+  font-size: 32px; font-weight: 900; letter-spacing: 6px; color: var(--hot);
+  font-family: ui-monospace, Menlo, monospace;
+}
+#codeInput {
+  width: 110px; padding: 8px; border-radius: 9px; text-align: center;
+  font: 800 22px/1 ui-monospace, Menlo, monospace; letter-spacing: 4px; text-transform: uppercase;
+  background: #0b1020; border: 1px solid var(--line); color: var(--ink);
+}
+.seats { display: flex; gap: 14px; align-items: center; }
+.seat {
+  width: 104px; padding: 10px; border-radius: 14px; background: var(--panel);
+  border: 2px solid var(--line); display: flex; flex-direction: column; align-items: center; gap: 6px;
+}
+.seat.ready { border-color: #46d17f; }
+.seat .face { width: 64px; height: 64px; border-radius: 50%; background: #0b1020 center/cover no-repeat; border: 3px solid var(--line); }
+.seat .nm { font-size: 12px; font-weight: 700; max-width: 92px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.seat .st { font-size: 11px; color: var(--dim); }
+.seat.empty .face { opacity: .25; }
+.lobby-hint { margin: 0; color: var(--dim); font-size: 13px; min-height: 18px; }
+.play[disabled] { opacity: .4; box-shadow: none; }
+.scoreboard .rtt { font-style: normal; font-size: 10px; color: var(--dim); min-width: 34px; }
+
+/* THE BRUISE (drawHeads sets .hurt1..3 off the sim's `hurt`, one tier per HURT this match —
+   the knockout's every-fifth kick, not health). HS keeps a red nose on a hurt player, through
+   goals and after the stars (M4 116.7–121.3 s). Ours: a faint flush, then a red nose, then the
+   nose and a darker cheek. On the card layer (<i>), so the head's clip-path clips it too. */
+.head.hurt1 > i::after, .head.hurt2 > i::after, .head.hurt3 > i::after {
+  content: ''; position: absolute; inset: 0; pointer-events: none;
+  background: radial-gradient(ellipse 30% 14% at 50% 64%, #ff2a3a3a, #ff2a3a00);
+}
+.head.hurt2 > i::after {
+  background:
+    radial-gradient(ellipse 9% 7% at 50% 60%, #e8182ad0, #e8182a00),
+    radial-gradient(ellipse 30% 14% at 50% 64%, #ff2a3a44, #ff2a3a00);
+}
+.head.hurt3 > i::after {
+  background:
+    radial-gradient(ellipse 9% 7% at 50% 60%, #e8182ae0, #e8182a00),
+    radial-gradient(ellipse 12% 9% at 33% 50%, #5a1a4a88, #5a1a4a00),
+    radial-gradient(ellipse 30% 14% at 50% 64%, #ff2a3a55, #ff2a3a00);
+}
 
 /* ARMED: the press empties the bar and hides the button (HS M4 36.49 s); the head wears Head
    Soccer's thin bright rim until the touch fires the shot (docs/HS-POWER-SHOTS.md §1) — a rim,

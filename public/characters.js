@@ -23,10 +23,12 @@ export const charUrl = (ch, expr = 'normal') =>
   `img/chars/${ch.dir}/${EXPRESSIONS.includes(expr) ? expr : 'normal'}.svg`;
 
 // Which face a player on the pitch is making, from match state only (the sim is not touched):
-// hurt while stunned (or the stun-after-kick `hurt` flag, where the sim has one), happy after
-// scoring and sad after conceding while the GOAL! banner stands, gritted while kicking.
+// hurt while stunned (the knockout's stars, or a power-shot daze), happy after scoring and sad
+// after conceding while the GOAL! banner stands, gritted while kicking. NOT off `p.hurt`: that is
+// the bruise tier (kickDamage), kept for the whole match, and HS shows it as a mark on the face —
+// the .hurt1..3 overlay — not as a face held for the rest of the game.
 export function expressionFor(m, p) {
-  if (p.stunned > 0 || p.hurt > 0) return 'hurt';
+  if (p.stunned > 0) return 'hurt';
   if (m && m.banner === 'goal' && m.lastScorer != null) return m.lastScorer === p.index ? 'happy' : 'sad';
   if (p.kickT > 0) return 'kick';
   return 'normal';

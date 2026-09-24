@@ -26,7 +26,8 @@ const p = (o = {}) => ({ index: 0, stunned: 0, kickT: 0, ...o });
 assert.equal(expressionFor({}, p()), 'normal');
 assert.equal(expressionFor({}, p({ kickT: 0.1 })), 'kick');
 assert.equal(expressionFor({}, p({ stunned: 0.5 })), 'hurt');
-assert.equal(expressionFor({}, p({ hurt: 0.5 })), 'hurt');
+// The bruise tier (`hurt`, kept all match) is a mark on the face, not a face held all match.
+assert.equal(expressionFor({}, p({ hurt: 2 })), 'normal');
 assert.equal(expressionFor({ banner: 'goal', lastScorer: 0 }, p()), 'happy');
 assert.equal(expressionFor({ banner: 'goal', lastScorer: 1 }, p()), 'sad');
 assert.equal(expressionFor({ banner: 'goal', lastScorer: 1 }, p({ stunned: 1 })), 'hurt');
