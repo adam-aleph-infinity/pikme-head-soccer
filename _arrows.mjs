@@ -10,7 +10,8 @@
 //      trusted. Driven with real CDP touch events, not by poking the input object.
 //   2. THE HIT AREA. Bigger than the artwork on three sides, and — the other half of the
 //      requirement, and the easier one to get wrong — still not overlapping the other arrow.
-//      A thumb that lands between them must pick NEITHER.
+//      (A thumb in the gap between them now picks the NEARER one — see public/walkpad.js and
+//      _touch-slide.mjs, which judges hold and slide by where the player actually goes.)
 //   3. THE OUTLINE. Every visible edge of the gold has brown around it. Measured as a
 //      dilation: over a flat magenta backdrop, no gold pixel may have a background pixel
 //      within three pixels of it, in any direction. The old build failed that at the two
@@ -24,7 +25,7 @@ import { chromePath } from './_chrome.mjs';
 import { ensureServer } from './_serve.mjs';
 
 const CHROME = chromePath();
-const PORT = process.env.PORT || 3020, CDP = 9487;
+const PORT = process.env.PORT || 3020, CDP = Number(process.env.CDP) || 9487;
 const OUT = process.env.SHOT_OUT || `${import.meta.dirname}/.shots/arrows`;
 mkdirSync(OUT, { recursive: true });
 await ensureServer(PORT);
@@ -264,13 +265,15 @@ console.log('\nnothing gets stuck');
   await sleep(60);
 }
 {
-  // Two thumbs. Only the one that lifts should stop; the other keeps its own direction.
+  // Two thumbs. Both down resolves to the one that landed LAST (HS: the newest press turns
+  // you; summing them to zero froze the player). Only the one that lifts should stop; the
+  // other keeps its own direction.
   await touch('touchStart', [mid(L.art)]);
   await sleep(50);
   await touch('touchStart', [mid(L.art), mid(R.art)]);
   await sleep(70);
   const both = await walk();
-  ok('two fingers hold two directions', both.left === true && both.right === true, dir(both));
+  ok('two fingers down: the newer one (▶) wins', dir(both) === 'right', dir(both));
   // Lift ONE of them. Which one CDP ends for a partial touchEnd is not worth pinning down;
   // what this is testing is that a lift is per-finger at all, so the assertion is that
   // exactly one direction survives it.
