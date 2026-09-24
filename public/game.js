@@ -7,6 +7,7 @@ import { createBot, botInput, DIFFICULTIES } from '../shared/bot.js';
 import { shotFor, SHOTS } from '../shared/powershots.js';
 import { goalBox, goalAt, depthPoint, INSIDE_Z } from '../shared/goalbox.js';
 import { createEditor, applyLayout, applyOpacity, loadOpacity } from './padlayout.js';
+import { walkPick, resolveWalk } from './walkpad.js';
 import { headCrop } from './head-crop.js';
 import { clockText } from './hud.js';
 import { createNet } from './net.js';
@@ -494,17 +495,32 @@ const keyLabel = (code) => {
 // RTL note: the pitch is NOT mirrored, so ← always means screen-left. The player always
 // defends the LEFT goal, which keeps the arrow keys honest in both directions.
 
+// `held` is what the sim reads, and it is DERIVED — from the keys that are down and the
+// fingers that are on the pad — by syncHeld(), never written directly. Two sources writing
+// one flag is how a key gets stuck: a finger lifting used to clear a direction the keyboard
+// was still holding, and vice versa.
+const keyDown = { left: false, right: false, jump: false, kick: false, power: false };
+// When each walk direction was last pressed, by whatever pressed it. Both held at once (→
+// with ← on top, two thumbs, a slide that has not let go of the old arrow yet) resolves to
+// the most recent — see resolveWalk in walkpad.js.
+const walkStamp = { left: 0, right: 0 };
+let walkClock = 0;
+const WALK = new Set(['left', 'right']);
+
 addEventListener('keydown', (e) => {
   const k = KEYMAP[e.code];
   if (!k) return;
-  held[k] = true;
   e.preventDefault();
+  if (!keyDown[k] && WALK.has(k)) walkStamp[k] = ++walkClock;   // auto-repeat is not a new press
+  keyDown[k] = true;
+  syncHeld();
 });
 addEventListener('keyup', (e) => {
   const k = KEYMAP[e.code];
   if (!k) return;
-  held[k] = false;
   e.preventDefault();
+  keyDown[k] = false;
+  syncHeld();
 });
 
 // ── EDIT MODE ──────────────────────────────────────────────────────────────
@@ -518,159 +534,179 @@ let EDITOR = null;
 
 // THE CONTROLS, AS A GAMEPAD RATHER THAN AS WEB BUTTONS.
 //
-// Two complaints, one cause. The buttons "sometimes get stuck" and "sometimes open a
-// magnifier", and both come from treating a thumb like a mouse:
+// On a phone the pad runs on TOUCH EVENTS, one record per finger keyed by Touch.identifier;
+// pointer events drive it only for a mouse or pen (and for a touch screen with no touch
+// events at all). The history, because each step was a real bug on Idan's iPhone:
 //
-//   • RELEASING ON pointerleave. A thumb does not hold still — it rolls and drifts a few
-//     pixels while you hold a direction — and the moment it crossed the edge of the button
-//     the key was released while the finger was still down. That reads as "unresponsive" and,
-//     if the finger then came back without a new pointerdown, as "stuck". A real d-pad keeps
-//     the input until you LIFT. So the pointer is captured on down and only released on up or
-//     cancel, and pointerleave is gone.
-//   • THE MAGNIFIER is iOS deciding that a long press on a ◀ glyph means "select this text".
-//     touch-action alone does not stop it; -webkit-touch-callout and a killed contextmenu do.
+//   • pointerleave released a direction while the thumb was still down (it drifts). Fixed by
+//     capturing the pointer — which in turn stopped a slide ▶→◀ from ever reaching ◀, fixed by
+//     re-hit-testing the walk arrows on every move.
+//   • "I can hold ▶, slide to ◀, but sliding back to ▶ it's stuck" — and "I can't hold the
+//     arrows". Pointer events on iOS cannot keep a touch: pointerdown.preventDefault() does
+//     not stop WebKit's own gesture recognisers (long-press, the loupe, text-selection drag),
+//     and touch-action only speaks for pan and zoom. Hold still for a moment, then move, and
+//     iOS may take the touch for itself: pointercancel (the direction drops, and the finger
+//     is no longer tracked, so nothing it does until it lifts can walk) or simply no more
+//     pointermoves (the old direction stays held). And the walk hit-test was the button's own
+//     box, so a thumb that rolled a few px high on the way back held NOTHING — measured by
+//     _touch-slide.mjs. A non-passive touchstart/touchmove that preventDefault()s is the one
+//     thing that tells iOS the page owns this touch; touch events always come back to the
+//     element the touch started on, with a stable identifier, until the finger lifts.
+//   • THE MAGNIFIER is iOS deciding a long press on a ◀ glyph means "select this text".
+//     -webkit-touch-callout, the killed contextmenu and the preventDefault below stop it.
 //
-// Also tracked PER POINTER ID, so a second thumb landing on jump cannot release the direction
-// the first one is holding, and a pointer lost to the OS (a notification, a call) releases
-// exactly its own key.
-const heldBy = new Map();                       // pointerId -> { k, touch }
-// The two buttons a thumb is allowed to slide BETWEEN. Everything else keeps the capture it
-// was pressed with, because sliding off jump onto kick is a miss, not a change of mind.
-const WALK = new Set(['left', 'right']);
+// Walk fingers are tracked from the press until the lift, whatever they are over in between,
+// and on every move walkPick (walkpad.js) re-asks which arrow the point is nearer to — the gap
+// between the arrows is live, a thumb a button-height off the row still walks, a thumb out on
+// the pitch holds nothing until it comes back. Jump, kick and power keep the key they landed
+// on until the lift: sliding off jump onto kick is a miss, not a change of mind.
+const PAD_BTNS = [...document.querySelectorAll('.pad .btn')];
+const fingers = new Map();              // 't<Touch.identifier>' | 'p<pointerId>' -> { k, walk, touch }
 
-function pressPointer(id, btn, touch) {
-  const k = btn.dataset.k;
-  heldBy.set(id, { k, touch });
-  held[k] = true;
-  btn.classList.add('on');
+function syncHeld() {
+  const on = { ...keyDown };
+  const byFinger = {};
+  for (const f of fingers.values()) if (f.k) on[f.k] = byFinger[f.k] = true;
+  Object.assign(on, resolveWalk(on, walkStamp));
+  for (const k of Object.keys(held)) held[k] = !!on[k];
+  // Lit = a finger is on it AND it is the direction that won, so a thumb can see which one
+  // the game heard.
+  for (const b of PAD_BTNS) b.classList.toggle('on', !!(byFinger[b.dataset.k] && held[b.dataset.k]));
 }
 
-function releasePointer(id) {
-  const rec = heldBy.get(id);
-  if (!rec) return;
-  heldBy.delete(id);
-  // Only clear the key if no OTHER live pointer is still holding it — two thumbs on the same
-  // direction should take two lifts.
-  for (const r of heldBy.values()) if (r.k === rec.k) return;
-  held[rec.k] = false;
-  for (const b of document.querySelectorAll(`.pad .btn[data-k="${rec.k}"]`)) b.classList.remove('on');
+function setFinger(id, k, init) {
+  let f = fingers.get(id);
+  if (!f) fingers.set(id, f = { k: null, walk: false, touch: false, ...init });
+  if (k && k !== f.k && WALK.has(k)) walkStamp[k] = ++walkClock;
+  f.k = k;
+  syncHeld();
+}
+function dropFinger(id) { if (fingers.delete(id)) syncHeld(); }
+
+// The two arrows' boxes, read when a walking finger goes down and kept for its gesture (a
+// layout cannot change mid-press). A pressed arrow is drawn at scale(.94); that is undone
+// here so the plate is the arrow's real footprint, not the shrunk one.
+let walkRects = null;
+function readWalkRects() {
+  const box = (b) => {
+    if (!b) return null;
+    const q = b.getBoundingClientRect();
+    if (!q.width || !q.height) return null;
+    const pressed = b.classList.contains('on') || b.matches(':active');
+    const gx = pressed ? q.width * (1 / 0.94 - 1) / 2 : 0, gy = pressed ? q.height * (1 / 0.94 - 1) / 2 : 0;
+    return { left: q.left - gx, top: q.top - gy, right: q.right + gx, bottom: q.bottom + gy };
+  };
+  const l = box(document.querySelector('.pad .btn[data-k="left"]'));
+  const r = box(document.querySelector('.pad .btn[data-k="right"]'));
+  return l && r ? { l, r } : null;
+}
+const pickAt = (x, y, opt) => (walkRects ? walkPick(x, y, walkRects.l, walkRects.r, opt) : null);
+const editing = () => !!(EDITOR && EDITOR.editing);
+
+// ── TOUCH ────────────────────────────────────────────────────────────────────
+const HAS_TOUCH_EVENTS = 'ontouchstart' in window;
+// Where a touch that did not land on a button may still start a walk (the plate between and
+// around the arrows): the pitch itself, never a menu, the HUD's buttons or a dialog.
+const onPitch = (el) => !!(el && el.closest && el.closest('#stage') && !el.closest('button, a, input, label, select'));
+const tid = (t) => 't' + t.identifier;
+// Any finger we think is down that the glass no longer reports is gone — a touchend the OS
+// swallowed (a notification, a system gesture) must not leave its key held.
+function reconcile(ev) {
+  const live = new Set([...ev.touches].map(tid));
+  let changed = false;
+  for (const [id, f] of fingers) if (f.touch && id[0] === 't' && !live.has(id)) { fingers.delete(id); changed = true; }
+  if (changed) syncHeld();
 }
 
-// ── SLIDING BETWEEN THE ARROWS ──────────────────────────────────────────────
-// The capture above is what stops a drifting thumb from dropping a direction, and it is also
-// what stopped a thumb SLIDING from ▶ onto ◀ from ever reaching ◀: every move for that finger
-// is delivered to the button it started on. Correct for five separate buttons, wrong for the
-// one pair you walk with — nobody lifts their thumb to turn around.
-//
-// So the walk pointers, and only the walk pointers, re-ask on every move which arrow is under
-// the finger. The capture STAYS where it is: it is what guarantees the move events keep
-// arriving here at all once the finger is over the canvas.
-//
-// The answer used to come from document.elementFromPoint on every move, which asks the whole
-// page to hit-test itself dozens of times a second WHILE the button it is testing is having
-// its own transform changed underneath it (`.on`/`:active` scale the pressed arrow down 6%,
-// which moves its hit edges) — a live target on top of a live query. That is a plausible way
-// for a return slide (▶ → ◀ → ▶) to land on the wrong side of the boundary on a real touch
-// screen without ever showing up in a scripted test that moves the finger in tidy steps. So
-// the geometry is read ONCE, when the walking finger first goes down — before either arrow has
-// been pressed and shrunk — and every move during that finger's gesture is answered by simple
-// arithmetic against that frozen box instead of a fresh hit-test.
-let walkGeom = null;
-function captureWalkGeom() {
-  const l = document.querySelector('.pad-l .btn[data-k="left"]');
-  const r = document.querySelector('.pad-l .btn[data-k="right"]');
-  if (!l || !r) return null;
-  return { l, r, lr: l.getBoundingClientRect(), rr: r.getBoundingClientRect() };
-}
-const walkAt = (x, y) => {
-  if (!walkGeom) return null;
-  const { l, r, lr, rr } = walkGeom;
-  const top = Math.min(lr.top, rr.top), bottom = Math.max(lr.bottom, rr.bottom);
-  if (y < top || y > bottom) return null;
-  if (x >= lr.left && x <= lr.right) return l;
-  if (x >= rr.left && x <= rr.right) return r;
-  return null;                              // the gap between them, or off both ends
+addEventListener('touchstart', (ev) => {
+  if (editing()) return;              // the layout editor drives its own drags (pointer events)
+  reconcile(ev);
+  let mine = false;
+  for (const t of ev.changedTouches) {
+    const btn = t.target && t.target.closest ? t.target.closest('.pad .btn') : null;
+    let k = null;
+    if (btn) {
+      k = btn.dataset.k;
+      if (WALK.has(k)) walkRects = readWalkRects();
+    } else if (onPitch(t.target)) {
+      walkRects = readWalkRects();
+      k = pickAt(t.clientX, t.clientY, { start: true });
+    }
+    if (!k) continue;
+    mine = true;
+    setFinger(tid(t), k, { walk: WALK.has(k), touch: true });
+  }
+  // THE line: this touch is the page's. No long-press, loupe, selection, scroll or zoom, and
+  // no pointercancel stealing it back half way through a hold.
+  if (mine && ev.cancelable) ev.preventDefault();
+}, { passive: false });
+
+addEventListener('touchmove', (ev) => {
+  let mine = false;
+  for (const t of ev.changedTouches) {
+    const f = fingers.get(tid(t));
+    if (!f) continue;
+    mine = true;
+    if (!f.walk || editing()) continue;
+    const k = pickAt(t.clientX, t.clientY, { cur: f.k });
+    if (k !== f.k) setFinger(tid(t), k);
+  }
+  if (mine && ev.cancelable) ev.preventDefault();
+}, { passive: false });
+
+const touchUp = (ev) => {
+  let mine = false;
+  for (const t of ev.changedTouches) if (fingers.has(tid(t))) { mine = true; dropFinger(tid(t)); }
+  reconcile(ev);
+  // Cancelling the lift of a pad touch stops the synthetic click/mouse events that would
+  // otherwise follow it onto whatever is under the button.
+  if (mine && ev.cancelable && ev.type === 'touchend') ev.preventDefault();
 };
+addEventListener('touchend', touchUp, { passive: false });
+addEventListener('touchcancel', touchUp, { passive: false });
 
-// Which fingers are WALKING, kept apart from which ones are currently holding a direction.
-// They are not the same set and conflating them was the first version of this: a finger that
-// slides off both arrows lets go of its direction, and if that is also what stops it being
-// tracked then sliding back on can never pick anything up again. A walk pointer is tracked
-// from the press that started it until it lifts, whatever it happens to be over in between.
-const walking = new Set();                      // pointerIds that pressed a walk arrow
-
-function trackWalk(ev) {
-  if (!walking.has(ev.pointerId)) return;               // not a walking finger: leave it be
-  if (EDITOR && EDITOR.editing) return;
-  const btn = walkAt(ev.clientX, ev.clientY);
-  const cur = heldBy.get(ev.pointerId);
-  if (btn && cur && btn.dataset.k === cur.k) return;    // still on the same arrow
-  const touch = cur ? cur.touch : ev.pointerType === 'touch';
-  releasePointer(ev.pointerId);
-  if (btn) pressPointer(ev.pointerId, btn, touch);
-}
-// On the window, not on the button: with a capture the move is delivered to the capturing
-// element and bubbles from there, and without one (an engine where setPointerCapture threw)
-// it is delivered wherever the finger actually is. Both reach here — and so does the lift,
-// which the button would miss if the finger were over the pitch when it came off.
-addEventListener('pointermove', trackWalk, { passive: true });
-const endWalk = (ev) => {
-  if (walking.delete(ev.pointerId)) releasePointer(ev.pointerId);
-  if (!walking.size) walkGeom = null;           // no walking finger left: nothing to stay fresh for
-};
-addEventListener('pointerup', endWalk);
-addEventListener('pointercancel', endWalk);
-
-for (const btn of document.querySelectorAll('.pad .btn')) {
+// ── MOUSE / PEN (and touch on an engine without touch events) ────────────────
+// Same books, keyed 'p<pointerId>'. Captured on down, so a drag off the button still ends
+// here; walk pointers re-pick on every move exactly as a walking finger does.
+const pid = (ev) => 'p' + ev.pointerId;
+for (const btn of PAD_BTNS) {
   btn.addEventListener('pointerdown', (ev) => {
-    // While the layout is being edited a press MOVES the button instead of firing it.
-    if (EDITOR && EDITOR.editing) return;
+    if (editing()) return;            // while the layout is being edited a press MOVES the button
+    if (ev.pointerType === 'touch' && HAS_TOUCH_EVENTS) return;   // the touch handlers own it
     ev.preventDefault();
-    // Geometry first: it has to be read before pressPointer's `.on` class can shrink whichever
-    // arrow this finger landed on.
-    if (WALK.has(btn.dataset.k)) walkGeom = captureWalkGeom();
-    pressPointer(ev.pointerId, btn, ev.pointerType === 'touch');
-    if (WALK.has(btn.dataset.k)) walking.add(ev.pointerId);
-    // Capture: every later event for this finger comes here even if it slides off the button,
-    // which is the whole fix for the drift.
+    const k = btn.dataset.k;
+    if (WALK.has(k)) walkRects = readWalkRects();
+    setFinger(pid(ev), k, { walk: WALK.has(k), touch: ev.pointerType === 'touch' });
     try { btn.setPointerCapture(ev.pointerId); } catch { /* older engines: harmless */ }
   });
-  const up = (ev) => {
-    ev.preventDefault();
-    walking.delete(ev.pointerId);
-    releasePointer(ev.pointerId);
-    if (!walking.size) walkGeom = null;
-  };
-  btn.addEventListener('pointerup', up);
-  btn.addEventListener('pointercancel', up);
-  // The capture can be taken away (a system gesture, a rotation). Treat it as a lift rather
-  // than leaving the key down forever.
+  // A capture taken away (a system gesture) is a lift for jump/kick/power. A walk pointer is
+  // followed by position, not by the capture, so losing it there is not a release.
   btn.addEventListener('lostpointercapture', (ev) => {
-    // The capture going away is only a lift for buttons that RELY on it. A walk arrow keeps
-    // following the finger by hit-test, so losing the capture there is not a release.
-    if (!walking.has(ev.pointerId)) releasePointer(ev.pointerId);
+    const f = fingers.get(pid(ev));
+    if (f && !f.walk) dropFinger(pid(ev));
   });
   btn.addEventListener('contextmenu', (ev) => ev.preventDefault());
 }
-const releaseAll = (touchOnly = false) => {
-  for (const [id, rec] of [...heldBy]) {
-    if (touchOnly && !rec.touch) continue;
-    walking.delete(id);
-    releasePointer(id);
-  }
-  if (!touchOnly) walking.clear();
-  if (!walking.size) walkGeom = null;
+addEventListener('pointermove', (ev) => {
+  const f = fingers.get(pid(ev));
+  if (!f || !f.walk || editing()) return;
+  const k = pickAt(ev.clientX, ev.clientY, { cur: f.k });
+  if (k !== f.k) setFinger(pid(ev), k);
+}, { passive: true });
+const pointerUp = (ev) => dropFinger(pid(ev));
+addEventListener('pointerup', pointerUp);
+addEventListener('pointercancel', pointerUp);
+
+// Anything that takes the page away — a notification, the app backgrounding, a phone call,
+// alt-tab — lifts every finger and every key. Without this the last direction stays held.
+const releaseAll = () => {
+  fingers.clear();
+  for (const k of Object.keys(keyDown)) keyDown[k] = false;
+  walkRects = null;
+  syncHeld();
 };
-// Anything that takes the page away — a notification, the app backgrounding, a phone call —
-// lifts every finger. Without this the last direction you were holding stays held.
-addEventListener('blur', () => releaseAll());
+addEventListener('blur', releaseAll);
 document.addEventListener('visibilitychange', () => { if (document.hidden) releaseAll(); });
-// Belt and braces for the platform that has swallowed a pointerup before: if the glass has no
-// touches left on it, nothing can still be held by a touch. Mouse pointers are left alone, or
-// a stray tap on a touchscreen laptop would drop the key the mouse is holding.
-const allTouchesGone = (ev) => { if (!ev.touches.length) releaseAll(true); };
-addEventListener('touchend', allTouchesGone, { passive: true });
-addEventListener('touchcancel', allTouchesGone, { passive: true });
 // The pad is on every device now, thumb or mouse — it holds the three cards, and an ability
 // you cannot see is an ability nobody presses. `no-touch` survives as a flag for the few
 // places that still want to know (cursor, the key caps printed on the cards); `?pad=1` is
@@ -692,11 +728,9 @@ const setEditing = (on, how = 'save') => {
   else EDITOR.stop();
   $('#editBar').classList.toggle('hidden', !on);
   $('#editOpacity').value = String(EDITOR.opacity);
-  for (const k of Object.keys(held)) held[k] = false;
-  // The per-pointer books too, or a finger that was on an arrow when the editor opened stays
-  // in them and its lift releases a key nobody is holding.
-  heldBy.clear(); walking.clear(); walkGeom = null;
-  for (const b of document.querySelectorAll('.pad .btn')) b.classList.remove('on');
+  // Every finger and key, or one that was on an arrow when the editor opened stays in the
+  // books and holds a key nobody is pressing.
+  releaseAll();
 };
 // Reached from settings, the way football's is — one entry point, not a button in the way.
 $('#editCtlBtn').onclick = () => { $('#tuner').classList.add('hidden'); setEditing(true); };
