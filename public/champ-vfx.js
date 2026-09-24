@@ -104,6 +104,9 @@ export function createVfx({ now = () => performance.now() / 1000, drawBall: pain
       // head, no tail (§2) — then it flies under the dark. A ball carried on through a HIT is drawn
       // as its after-images, not a comet (§4).
       if (M.cutin > C.POWER_RELEASE || pw.hit) return false;
+      // Pinned on a boot, dead at the feet, or hanging still: no tail — HS shows only the block's
+      // spark burst there (§4, M4 61.45–62.7 s). The comet is a thing that MOVES.
+      if (pw.ph === 'grind' || pw.ph === 'rest' || pw.ph === 'hold') return false;
       const V = FAMILY_VFX[pw.fam] || FAMILY_VFX.straight;
       const r = track.get(b);
       const d = depthPoint(b.x, b.y);

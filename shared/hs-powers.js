@@ -155,7 +155,7 @@ export function wave(u) {
 
 // ── helpers ─────────────────────────────────────────────────────────────────────
 const goalLineX = (dir) => (dir > 0 ? C.W - C.GOAL_W : C.GOAL_W);
-const baseSpeed = (pw) => C.POWER_SHOT_SPEED * FAMILIES[pw.fam].speed * (0.92 + 0.16 * pw.int);
+const baseSpeed = (pw) => C.POWER_SHOT_SPEED * FAMILIES[pw.fam].speed * (0.85 + 0.3 * pw.int);
 export const ailDur = (type, int = 0.5, fam = null) =>
   (AILMENTS[type] ? AILMENTS[type].dur : 1) * (0.6 + 0.8 * int) * (fam === 'ailment' ? 1.4 : 1);
 
@@ -367,6 +367,9 @@ export function skipContact(b, p) {
 // Returns the outcome: 'block' | 'hit' | 'smash' | 'through' | 'pass' | 'grab' | 'deflect'.
 export function contact(m, p, b, kit, fx) {
   const pw = b.power;
+  // The dark lifts the moment the shot meets someone (M4: the block at 61.45 s and the hit at
+  // 43.33 s both land as the screen comes back up).
+  if (m.cutin > 0 && m.cutin <= C.POWER_RELEASE && m.hitStop <= 0) { m.cutin = 0; m.cutinBy = -1; }
   const F = FAMILIES[pw.fam];
   // The leg is out for KICK_TIME after the press, whether or not the swing already met the ball
   // (a strike cuts kickT short; the cooldown still says how long ago the press was).

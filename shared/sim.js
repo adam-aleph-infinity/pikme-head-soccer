@@ -1683,6 +1683,8 @@ function checkGoal(m, fx, scorer) {
 
   m.score[scorer]++;
   m.lastScorer = scorer;
+  // A goal lifts a cut-in's dark at once (M4 124.1 s: the net bulges under a bright screen).
+  if (m.cutin > 0 && m.hitStop <= 0) { m.cutin = 0; m.cutinBy = -1; }
   m.events.push({ type: 'goal', player: scorer, power: !!b.power, shot: b.power?.fam || null });
   fx.goal(b.x, b.y, b.power?.color || '#ffffff');
   // A goal ends a Multi-Ball's extra balls. (Not the arm or the meter — those follow the
