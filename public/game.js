@@ -2492,6 +2492,9 @@ $('#tunerCopy').onclick = async () => {
 
   // ?me=legendary_3&foe=epic_7&diff=4 — so a screenshot harness can pin a matchup.
   const q = new URLSearchParams(location.search);
+  // This Mac, or a phone on its Wi-Fi (npm start's «phone» address): localhost and the private
+  // address ranges. Production is a public hostname, so it is never one.
+  const DEV_HOST = /^(localhost|\[::1\]|[\w-]+\.local|(127|10)(\.\d{1,3}){3}|192\.168(\.\d{1,3}){2}|172\.(1[6-9]|2\d|3[01])(\.\d{1,3}){2})$/.test(location.hostname);
   for (const [key, who] of [['me', 'me'], ['foe', 'foe']]) {
     const v = q.get(key);
     if (!v) continue;
@@ -2532,8 +2535,10 @@ $('#tunerCopy').onclick = async () => {
   } else if (q.has('play')) startMatch();
   // ?arcade opens the board; ?arcade=7 starts stage 7 — if, and only if, it is unlocked.
   else if (q.has('arcade') || q.has('unlockall') || q.has('resetarcade')) {
-    // ?unlockall / ?resetarcade — testing links: every stage open, or a fresh campaign, on this device.
-    if (q.has('unlockall') || q.has('resetarcade')) {
+    // ?unlockall / ?resetarcade — testing links: every stage open, or a fresh campaign, on this
+    // device. Only on a dev machine or the local network, never on production: there they would
+    // hand anyone all 45 champions for typing a word.
+    if (DEV_HOST && (q.has('unlockall') || q.has('resetarcade'))) {
       PROG = ARC.parseProgress(JSON.stringify({ v: 1, cleared: q.has('unlockall') ? 45 : 0, record: {} }));
       ARC.saveProgress(STORE, PROG);
       ARC_SEL = ARC.currentStage(PROG);
