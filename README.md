@@ -462,65 +462,50 @@ canvas; the two heads are `<div>`s with a background image.
 
 ## Feel
 
-Three things carry the jump, and they are the difference between a jump that feels good and
-one that feels broken: **coyote time** (you can still jump just after leaving the ground),
-**input buffering** (a press just before landing fires on touchdown instead of being eaten),
-and **asymmetric gravity** (falling is `FALL_MULT` heavier than rising — symmetric arcs read
-as floaty).
+The movement is **Head Soccer's, measured** — fitted from Idan's recordings of the real game
+(`docs/hs-reference.json`, M1–M4) and gated by `node test-hs-parity.mjs`, which runs the same
+fit over our sim. There is no platformer dressing left on it:
+
+| | Head Soccer (measured) | notes |
+|---|---|---|
+| run | **228 px/s**, full speed / stop / reversal inside 3 frames | instant: the body takes the stick's velocity. Air control is *assumed* the same (unmeasured) |
+| jump | **one fixed impulse**, 235 px/s takeoff → **46px** apex | no variable height (`JUMP_CUT` is gone), no double jump |
+| held jump | re-jumps **0.05s** after landing | a held button is a jump, not only an edge |
+| gravity | player **595**, ball **580** px/s² | one parabola up and down — no `FALL_MULT` |
+| dash | double-tap, **1790 px/s** for 5 ticks (reads as 4 frames / 120px), cooldown **0.42s** | |
+| kick | leg out **0.26s**, repeat **0.349s** | timing only; the contact model is a later pass |
+| geometry | head **52.8px**, crossbar top **138px**, mouth **57px** deep, roof **154px** | the ball lands on the goal's roof, not the bar |
+| ceiling | **off-screen** at y = −130, restitution **0.41**, kills sideways speed | a skied ball just leaves the top of the picture |
+| bounce | grass **0.65**, goal roof **0.67** | |
+
+Coyote time and the jump buffer are kept but cut to 3 frames: HS shows no input lag at all.
 
 **Hit-stop** freezes the whole sim for a few frames on a heavy connect, with a couple of
-pixels of screen shake underneath. It costs nothing and is most of what makes a hit land.
-Input held across the freeze is not lost — the sim's edge detection sees it the moment play
-resumes.
+pixels of screen shake underneath. Input held across the freeze is not lost — the sim's edge
+detection sees it the moment play resumes.
 
-## Pace
+**The cut-in** is the same freeze, 1.34s long, the moment a power shot fires (HS M4): both
+players, the ball and the clock hold while the pitch darkens and rays fan out of the shooter.
+It lives in the sim (`m.cutin`), so an online match freezes on the same tick on both phones.
+A power shot that hits an unarmed player dazes them for **0.5s** and rebounds.
 
-`PACE` (`shared/constants.js`, shipped at **0.68**) is one dial over how fast the whole match
-runs. It is **slow-motion, not a nerf**: velocities scale by *k*, accelerations by *k²*,
-per-tick drags by *^k* and action durations by *1/k*, so every trajectory keeps its **shape** —
-same jump height, same arc, same reach — and only the clock on it changes. Scaling speeds
-alone would flatten every arc instead, which is a different game rather than a slower one.
+**Restarts.** KICK OFF stands for **2.17s**. After a goal, GOAL! is up **2.05s**, the players
+move again at **2.24s**, and the ball drops in at the centre **2.795s** after the goal —
+302px up, drifting 138 px/s toward whoever conceded. Both banners are timed by the sim.
 
-**It got there in two moves, and they are worth separating.** First the *ball* was slowed on
-its own, so the gap between ball and player closed rather than both shrinking together: a
-kicked ball went from 1.49× the player's speed to 1.21×, and from crossing the pitch in 1.67s
-to 2.05s against the player's 2.48s. That ratio is the whole point — a chase you can
-plausibly win instead of one you cannot. Only then did `PACE` go 0.80 → 0.68 for everything
-else. The ball-vs-player ratio is untouched by the dial, by design.
+**The gauge** fills on a wall clock at **1/13 per second** — through goal restarts and
+cut-ins — after a **2s lead** at the start of a match, and not under the KICK OFF banner. That
+one model gives both of HS's numbers: first fill 15.0s after the banner, refill 13.0s (the refill
+window had 3.6s of pauses in it and was still shorter, so it cannot be a play-time clock; the
+2s gap is the same in two recordings with different characters, so it is a delay, not a rate).
 
-Re-measured at the shipped constants, 20 bot-vs-bot matches per row (`node _pace.mjs`):
+## Pace — REMOVED
 
-| k | goals/match | ball avg | cross-pitch | jump apex | hang | legendary : very-easy |
-|---|---|---|---|---|---|---|
-| 1.00 | 9.0 | 393 px/s | 2.70s | 143px | 0.65s | 23:1 |
-| 0.90 | 7.9 | 373 px/s | 2.84s | 144px | 0.72s | 23:1 |
-| 0.80 | 7.3 | 339 px/s | 3.12s | 144px | 0.82s | 23:1 |
-| **0.70** | **6.0** | **316 px/s** | **3.36s** | **145px** | **0.92s** | **24:0** |
-| 0.60 | 5.3 | 287 px/s | 3.69s | 146px | 1.08s | 24:0 |
-
-0.68 sits just under the 0.70 row; `_feel.mjs` puts the shipped game at **6.3 goals a match**.
-The apex column is still the proof it is a time change and not a physics change — 1.9% drift
-across the whole sweep, while hang time stretches by exactly 1/k.
-
-⚠ **The skill column has stopped being evidence.** It reads 23:1 or better at *every* k, so it
-no longer discriminates and cannot be used to defend a pace. What picks 0.68 now is the goal
-rate and the ball-to-player ratio above. Two of this README's arguments have died this way
-(see the goal mouth, below); when a sweep goes flat, say so rather than keep quoting it.
-
-Live: the `PACE` row in the tuner, or `?pace=0.7` on the URL. Both are client-side — in an
-online match the server keeps its own pace, so use them for solo feel-finding.
-
-**A power shot is now as fast as it says it is.** `stepBall` clamped every ball to
-`BALL_MAX_SPEED` *after* `stepPowerShot` had set its speed, so `POWER_SHOT_SPEED = 2100`
-silently flew at 1250 and the tuner knob above 1250 did nothing. Powered balls now skip that
-clamp — their velocity is re-set every tick, so it cannot run away — and the constant was set
-to the speed power shots actually had. Nothing about the balance changed; the number stopped
-lying. It is **1000** today, cut again with the ball pass above.
-
-> **The speed constants are written pre-`PACE`, and the dial scales them on load.** Shipped,
-> `BALL_MAX_SPEED` 1050 and `POWER_SHOT_SPEED` 1000 are **714** and **680** live. So a figure
-> read off the source is not the figure the ball flies at, and the two are 32% apart at 0.68 —
-> far enough to read as a bug when it is arithmetic. Print the constant, do not trust the file.
+There used to be a `PACE` dial (shipped at 0.68): one slow-motion scale over every speed,
+gravity, drag and duration, so the file said one number and the match ran another. It is gone
+with `_pace.mjs`, `?pace=` and its tuner row. Every constant in `shared/constants.js` is now the
+absolute per-second value the sim runs — HS's measured number where one exists, and otherwise
+the old live value (authored × 0.68, × 0.68², ^0.68 or / 0.68) so nothing unmeasured moved.
 
 ## Proportions
 
@@ -551,9 +536,9 @@ asked for directly. They are the price of it, not separate drift. `GOAL_W` staye
 the goal also got *shallower* in proportion — 0.33 → 0.28 — which nobody asked for and which
 is the row to revisit first if the net starts looking wrong.
 
-The other deliberate departure: a strict match puts the head at 5.8% of pitch width
-(`HEAD_R` 28); it is held at 30 because the head is a Saltiz card face and the hook stops
-working when you cannot tell who it is.
+The head used to be held over the reference (`HEAD_R` 30) so a Saltiz card face stayed
+readable. The HS parity pass settled it: **52.8px, Head Soccer's exact size** (`HEAD_R` 26.4),
+with the body scaled with it (28 × 24).
 
 > **Unresolved, and not part of the goal change:** `W`/`H` are 1060×530, which is **2.00 : 1**,
 > not the 1.81 : 1 the top row claims — and neither has ever been edited since the first
@@ -744,9 +729,9 @@ This exists because arguing about `KICK_LIFT` between restarts is not how a feel
 
 Balance was measured, not guessed. Each of these answers one question:
 
-⚠ The figures in **Pace**, **Proportions** and **The goal** were re-measured at the shipped
-constants. Anything quoted elsewhere here, and the comments in `shared/constants.js`, may
-still date from `PACE` 1.0 and a 160px mouth. Re-run the instrument before trusting a number.
+⚠ The movement and timing numbers are Head Soccer's own now (see **Feel**), and the PACE dial
+is gone. Figures quoted in **Proportions** and **The goal** predate that pass — re-run the
+instrument before trusting a number.
 
 They also need a Chrome-family browser for the four that drive one (`_shot`, `_duo`, `_pad`,
 and the shot harnesses): `brew install --cask google-chrome`, or set `CHROME_BIN`. `_chrome.mjs`
@@ -762,7 +747,7 @@ the server — run `npm start` first or they fail on an empty page.
 | `node _shot.mjs` | drive one real Chrome client and screenshot it (`?solo=1` freezes the bot) |
 | `node _goalshots.mjs` | is the ball actually *inside* the goal? Parks one in each net and reads the pixels back — the picture half of the goal box, which geometry cannot prove |
 | `node _duo.mjs` | two real Chrome clients playing each other through the real server |
-| `node _pace.mjs` | how slow can the match get before it stops being a game? |
+| `node test-hs-parity.mjs` | how far is our sim from Head Soccer? Every measured number, both sides through the same fit |
 | `node _pad.mjs` | is the touch pad thumb-sized, on-pitch and non-overlapping on 5 devices? |
 | `node _hudshots.mjs` | is the scoreboard the shape it claims — face over score, clock between, no black panels — on 5 screens? |
 | `node _arrows.mjs` | can a thumb slide from ▶ to ◀ without lifting, is the target bigger than the arrow, and does the brown outline go all the way round? |
