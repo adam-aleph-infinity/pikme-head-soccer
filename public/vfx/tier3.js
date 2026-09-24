@@ -127,7 +127,7 @@ function wash(g, s, col, a, t = 1) {
 // One ambient particle somewhere over the whole pitch (not just round the victim).
 function anywhere(s, o) {
   const { fx, C } = s;
-  return fx.emit({ x: fx.rand(0, C.W), y: fx.rand(C.CEIL_Y, C.GROUND_Y), ...o });
+  return fx.emit({ x: fx.rand(0, C.W), y: fx.rand(C.SKY_Y, C.GROUND_Y), ...o });
 }
 // The lingering aftermath: a long soft glow, slow faint rays and `n` motes drifting for ~2 s,
 // so a short power leaves the pitch glowing well after its record is gone.
@@ -312,7 +312,7 @@ export default {
       }
       // question marks that hang in the air for the whole hex
       for (let i = 0, n = fx.n(6); i < n; i++) {
-        fx.emit({ shape: 'glyph', text: '?', rot: i % 2 ? Math.PI : 0, x: fx.rand(80, s.C.W - 80), y: fx.rand(s.C.CEIL_Y + 50, s.C.GROUND_Y - 120), vy: -12, spin: fx.rand(-1.5, 1.5), r: fx.rand(30, 46), life: fx.rand(2.2, 3.2), color: i % 3 ? '#ff66ff' : '#39e6c8' });
+        fx.emit({ shape: 'glyph', text: '?', rot: i % 2 ? Math.PI : 0, x: fx.rand(80, s.C.W - 80), y: fx.rand(s.C.SKY_Y + 50, s.C.GROUND_Y - 120), vy: -12, spin: fx.rand(-1.5, 1.5), r: fx.rand(30, 46), life: fx.rand(2.2, 3.2), color: i % 3 ? '#ff66ff' : '#39e6c8' });
       }
       fx.flash('#ff66ff', 0.3, 0.25);
       fx.vignette('#ff66ff', 0.55, 1.4);
@@ -422,7 +422,7 @@ export default {
       if (Math.random() < 0.2) fx.emit({ shape: 'star', x: h.x + fx.rand(-R - 40, R + 40), y: h.y - R, vy: -40, spin: 5, r: 6, life: 0.6, color: '#ffe45c' });
       // candy sparkles twinkling all over the pitch, and paper swirling down from the roof
       if (Math.random() < 0.5) anywhere(s, { shape: 'star', r: fx.rand(4, 8), spin: 4, life: 0.7, vy: -10, color: ['#ff66ff', '#39e6c8', '#ffe45c'][Math.floor(Math.random() * 3)] });
-      if (Math.random() < 0.3) fx.emit({ shape: 'confetti', x: fx.rand(0, s.C.W), y: s.C.CEIL_Y, vx: fx.rand(-40, 40), vy: 60, grav: 60, spin: 8, r: 5, life: 2, color: Math.random() < 0.5 ? '#ff66ff' : '#39e6c8' });
+      if (Math.random() < 0.3) fx.emit({ shape: 'confetti', x: fx.rand(0, s.C.W), y: s.C.SKY_Y, vx: fx.rand(-40, 40), vy: 60, grav: 60, spin: 8, r: 5, life: 2, color: Math.random() < 0.5 ? '#ff66ff' : '#39e6c8' });
     },
 
     end(s, info) {
@@ -540,7 +540,7 @@ export default {
       }
       // a cold snap over the whole stadium: big flakes hanging in the air for seconds
       for (let i = 0, n = fx.n(22); i < n; i++) {
-        fx.emit({ shape: 'glyph', text: '❄', x: fx.rand(20, s.C.W - 20), y: fx.rand(s.C.CEIL_Y, s.C.GROUND_Y - 40), vx: fx.rand(-30, 30), vy: fx.rand(20, 50), spin: fx.rand(-2, 2), r: fx.rand(16, 34), life: fx.rand(1.8, 2.8), color: i % 3 ? '#e6fbff' : '#8fe9ff' });
+        fx.emit({ shape: 'glyph', text: '❄', x: fx.rand(20, s.C.W - 20), y: fx.rand(s.C.SKY_Y, s.C.GROUND_Y - 40), vx: fx.rand(-30, 30), vy: fx.rand(20, 50), spin: fx.rand(-2, 2), r: fx.rand(16, 34), life: fx.rand(1.8, 2.8), color: i % 3 ? '#e6fbff' : '#8fe9ff' });
       }
       fx.rays(q.x, q.y - 40, { color: '#5ad1f0', color2: '#e6fbff', n: 12, r1: 320, life: 0.9, spin: -1.2, alpha: 0.45 });
       fx.flash('#8fe9ff', 0.3, 0.2);
@@ -679,7 +679,7 @@ export default {
       fx.stamp(f.x, cy - 90, 'קראאק!', { color: '#8fe9ff', edge: '#0b2c4a', r: 60, life: 1.3 });
       // the snap leaves the stadium glittering: frost light and flakes drifting down for 2 s
       linger(s, f.x, cy, { c1: '#8fe9ff', c2: '#e6fbff', R: 230, n: 18, life: 2.4, vy: 30, w: 260, mote: { shape: 'star', spin: 3, r: 5 } });
-      for (let i = 0; i < fx.n(14); i++) fx.emit({ shape: 'glyph', text: '❄', x: fx.rand(20, s.C.W - 20), y: fx.rand(s.C.CEIL_Y, cy), vy: fx.rand(30, 60), vx: fx.rand(-20, 20), spin: fx.rand(-2, 2), r: fx.rand(16, 30), life: fx.rand(1.8, 2.6), color: i % 2 ? '#e6fbff' : '#5ad1f0' });
+      for (let i = 0; i < fx.n(14); i++) fx.emit({ shape: 'glyph', text: '❄', x: fx.rand(20, s.C.W - 20), y: fx.rand(s.C.SKY_Y, cy), vy: fx.rand(30, 60), vx: fx.rand(-20, 20), spin: fx.rand(-2, 2), r: fx.rand(16, 30), life: fx.rand(1.8, 2.6), color: i % 2 ? '#e6fbff' : '#5ad1f0' });
       fx.flash('#e6fbff', 0.3, 0.15);
       fx.shake(10, 0.35);
     },
@@ -789,7 +789,7 @@ export default {
       const { fx, C } = s;
       blast(s, at.x, at.y, { c1: '#ff5a1f', c2: '#ffe6c7', n: 12, word: 'שיגור!', wc: '#ffc49a', edge: '#3a2a22', wy: at.y + 70, spin: 2 });
       // the launch beam: a column of fire from the boot to the sky
-      fx.beam(at.x, at.y, at.x + s.side * 40, C.CEIL_Y, { color: '#ff5a1f', color2: '#ffe6c7', w: 26, life: 0.4 });
+      fx.beam(at.x, at.y, at.x + s.side * 40, C.SKY_Y, { color: '#ff5a1f', color2: '#ffe6c7', w: 26, life: 0.4 });
       fx.burst(at.x, at.y, 20, { shape: 'shard', speed: 420, angle: -Math.PI / 2, spread: 1.4, r: 7, spin: 12, grav: 1000, life: 0.9, color: '#5c4a3d' });
       fx.burst(at.x, at.y, 18, { shape: 'streak', speed: 620, angle: -Math.PI / 2, spread: 0.8, life: 0.35, w: 3, color: '#ff5a1f', color2: '#ffc49a' });
       fx.burst(at.x, at.y, 12, { shape: 'sq', speed: 380, r: 4, grav: 500, drag: 1, life: 0.7, color: '#ffc49a', color2: '#ff5a1f' });
@@ -811,7 +811,7 @@ export default {
       const nx = -uy, ny = ux;
       const { C } = s;
       // the sky catches fire over the whole stadium while it is up there
-      s.fx.drawGlow(g, d.x, C.CEIL_Y, 560, dive ? '#ff5a1f' : '#8a2b0e', dive ? 0.5 : 0.4);
+      s.fx.drawGlow(g, d.x, C.SKY_Y, 560, dive ? '#ff5a1f' : '#8a2b0e', dive ? 0.5 : 0.4);
       // the landing zone: a red target locked on the goal it is going to hit
       if (pw) {
         const tx = pw.dir > 0 ? C.W - C.GOAL_W * 0.55 : C.GOAL_W * 0.55, ty = C.GROUND_Y - C.GOAL_H * 0.45;
@@ -1201,7 +1201,7 @@ export default {
       if (Math.random() < 0.08) s.fx.emit({ shape: 'smoke', x: q.x, y: q.y - 20, vy: -25, r: 6, r1: 22, life: 0.9, color: '#0a1f17', layer: 'back' });
       // energy motes all over the pitch, pulled into the thief
       if (Math.random() < 0.7) {
-        const life = 0.9, x = s.fx.rand(0, s.C.W), y = s.fx.rand(s.C.CEIL_Y, s.C.GROUND_Y), tx = o.x, ty = o.y - s.C.BODY_H / 2;
+        const life = 0.9, x = s.fx.rand(0, s.C.W), y = s.fx.rand(s.C.SKY_Y, s.C.GROUND_Y), tx = o.x, ty = o.y - s.C.BODY_H / 2;
         s.fx.emit({ shape: 'dot', x, y, vx: (tx - x) / life, vy: (ty - y) / life, r: s.fx.rand(2.5, 4.5), life, color: Math.random() < 0.5 ? '#c6ff4a' : '#00d68f', blend: 'lighter' });
       }
       if (Math.random() < 0.15) anywhere(s, { shape: 'glyph', text: '%', r: 18, vy: -30, life: 0.8, color: '#2e8a63' });
@@ -1466,7 +1466,7 @@ export default {
       if (Math.random() < 0.35) fx.emit({ shape: 'smoke', x, y: C.GROUND_Y, vy: -100, drag: 1, r: 8, r1: 26, life: 0.9, color: '#c08b5c', alpha: 0.7, layer: 'back' });
       if (Math.random() < 0.3) fx.emit({ shape: 'dot', x, y: C.GROUND_Y, vy: fx.rand(-260, -120), grav: 500, r: 4, life: 0.6, color: '#ff7a2a', blend: 'lighter' });
       // the roof is coming down: rubble falling out of the sky all over the stadium
-      if (Math.random() < 0.6) fx.emit({ shape: 'shard', x: fx.rand(0, C.W), y: fx.rand(-20, C.CEIL_Y + 40), vx: fx.rand(-30, 30), vy: fx.rand(80, 200), grav: 900, spin: fx.rand(-10, 10), r: fx.rand(5, 11), life: 0.9, color: Math.random() < 0.5 ? '#8c6239' : '#c08b5c', color2: '#5a3d24' });
+      if (Math.random() < 0.6) fx.emit({ shape: 'shard', x: fx.rand(0, C.W), y: fx.rand(-20, C.SKY_Y + 40), vx: fx.rand(-30, 30), vy: fx.rand(80, 200), grav: 900, spin: fx.rand(-10, 10), r: fx.rand(5, 11), life: 0.9, color: Math.random() < 0.5 ? '#8c6239' : '#c08b5c', color2: '#5a3d24' });
     },
 
     end(s, info) {
@@ -1608,7 +1608,7 @@ export default {
       wash(g, s, '#e8263b', 0.08 * k, e.t);
       g.save();
       // the canvas drapes: red-and-cream swags hanging from the roof, a scalloped hem
-      const hem = C.CEIL_Y + 70;
+      const hem = C.SKY_Y + 70;
       for (let i = 0; i < 12; i++) {
         const a = i * (C.W / 12), c = a + C.W / 12;
         g.globalAlpha = 0.6 * k; g.fillStyle = i % 2 ? '#fff6c2' : '#e8263b';
@@ -1676,7 +1676,7 @@ export default {
       }
       g.stroke();
       // bunting under the big-top roof: three swags of pennants, swaying
-      const y0 = C.CEIL_Y + 4, span = (C.W - 180) / 3;
+      const y0 = C.SKY_Y + 4, span = (C.W - 180) / 3;
       const cols = ['#e8263b', '#ffe14a', '#1f5fd1', '#2bb673'];
       g.strokeStyle = '#1f5fd1'; g.lineWidth = 2; g.globalAlpha = 0.85 * k;
       g.beginPath();
@@ -1728,18 +1728,18 @@ export default {
       if (Math.random() < 0.15) fx.emit({ shape: 'star', x: fx.rand(C.GOAL_W, C.W - C.GOAL_W), y: C.GROUND_Y - 4, vy: -60, spin: 4, r: 5, life: 0.6, color: '#fff6c2' });
       // circus glitter twinkling all over the tent, and paper fluttering down from the roof
       if (Math.random() < 0.4) anywhere(s, { shape: 'star', r: fx.rand(4, 8), spin: 5, life: 0.6, color: ['#ffe14a', '#fff6c2', '#2bb673'][Math.floor(Math.random() * 3)] });
-      if (Math.random() < 0.35) fx.emit({ shape: 'confetti', x: fx.rand(0, C.W), y: C.CEIL_Y + 50, vx: fx.rand(-30, 30), vy: 40, grav: 50, spin: 9, r: 5, life: 2.2, color: ['#e8263b', '#ffe14a', '#1f5fd1', '#2bb673'][Math.floor(Math.random() * 4)] });
+      if (Math.random() < 0.35) fx.emit({ shape: 'confetti', x: fx.rand(0, C.W), y: C.SKY_Y + 50, vx: fx.rand(-30, 30), vy: 40, grav: 50, spin: 9, r: 5, life: 2.2, color: ['#e8263b', '#ffe14a', '#1f5fd1', '#2bb673'][Math.floor(Math.random() * 4)] });
     },
 
     end(s, info) {
       const { fx, C } = s;
       const cols = ['#e8263b', '#ffe14a', '#2bb673'];
       for (let i = 0; i < 3; i++) {
-        fx.burst(C.W * (0.25 + i * 0.25), C.CEIL_Y + 10, 10, { shape: 'confetti', speed: 120, angle: Math.PI / 2, spread: 2.6, grav: 260, drag: 0.6, spin: 10, r: 5, life: 1.6, color: cols[i] });
+        fx.burst(C.W * (0.25 + i * 0.25), C.SKY_Y + 10, 10, { shape: 'confetti', speed: 120, angle: Math.PI / 2, spread: 2.6, grav: 260, drag: 0.6, spin: 10, r: 5, life: 1.6, color: cols[i] });
       }
       // the grand finale: three fireworks bursting under the roof
       [['#ffe14a', 0.25], ['#e8263b', 0.5], ['#2bb673', 0.75]].forEach(([col, u], i) => {
-        const x = C.W * u, y = C.CEIL_Y + 90 + (i % 2) * 40;
+        const x = C.W * u, y = C.SKY_Y + 90 + (i % 2) * 40;
         fx.burst(x, y, 14, { shape: 'star', speed: 260, r: 6, spin: 6, grav: 120, drag: 1.2, life: 1.6, color: col, color2: '#fff6c2' });
         fx.ring(x, y, { color: col, r: 6, r1: 130, life: 0.6, w: 5, layer: 'front' });
         fx.glow(x, y, 120, col, { life: 1.2, alpha: 0.8 });
@@ -1895,7 +1895,7 @@ export default {
         // fast-forward: speed lines tearing across the whole screen
         g.globalAlpha = 0.45; g.lineCap = 'round';
         for (let i = 0; i < 9; i++) {
-          const y = C.CEIL_Y + hash(i + 80) * (C.GROUND_Y - C.CEIL_Y), L = 120 + hash(i + 81) * 160;
+          const y = C.SKY_Y + hash(i + 80) * (C.GROUND_Y - C.SKY_Y), L = 120 + hash(i + 81) * 160;
           const x = ((hash(i + 82) * C.W + s.t * 2200 * dir) % (C.W + L) + C.W + L) % (C.W + L) - L / 2;
           g.strokeStyle = i % 3 === 0 ? '#ff2e63' : i % 3 === 1 ? '#08f7fe' : '#e0e0e0'; g.lineWidth = 3;
           g.beginPath(); g.moveTo(x, y); g.lineTo(x - dir * L, y); g.stroke();
@@ -2004,7 +2004,7 @@ export default {
         if (Math.random() < 0.8) fx.emit({ shape: 'sq', x: b.x + fx.rand(-70, 70), y: b.y + fx.rand(-50, 50), r: 5, life: 0.15, color: Math.random() < 0.5 ? '#ff2e63' : '#08f7fe' });
         // static snow flickering all over the paused picture
         for (let i = 0; i < 2; i++) anywhere(s, { shape: 'sq', r: fx.rand(3, 7), life: 0.12, color: ['#e0e0e0', '#ff2e63', '#08f7fe'][Math.floor(Math.random() * 3)] });
-        if (Math.random() < 0.3) fx.emit({ shape: 'streak', x: fx.rand(0, s.C.W), y: fx.rand(s.C.CEIL_Y, s.C.GROUND_Y), vx: 1400, r: 60, w: 3, life: 0.12, color: '#e0e0e0' });
+        if (Math.random() < 0.3) fx.emit({ shape: 'streak', x: fx.rand(0, s.C.W), y: fx.rand(s.C.SKY_Y, s.C.GROUND_Y), vx: 1400, r: 60, w: 3, life: 0.12, color: '#e0e0e0' });
       } else if (ph === 2) {
         const dir = Math.sign(b.vx) || 1;
         fx.emit({ shape: 'streak', x: b.x - dir * 16, y: b.y - 6, vx: dir * 320, r: 18, w: 3, life: 0.16, color: '#08f7fe' });
@@ -2274,7 +2274,7 @@ export default {
       if (Math.random() < 0.35) fx.emit({ shape: 'smoke', x: f.x + fx.rand(-130, 130), y: f.y + 2, vy: -14, vx: fx.rand(-8, 8), r: 6, r1: 24, life: 1, alpha: 0.5, color: '#d9eef7', layer: 'back' });
       if (Math.random() < 0.2) fx.emit({ shape: 'star', x: f.x + fx.rand(-180, 180), y: f.y + fx.rand(-4, 8), r: 5, spin: 4, life: 0.5, color: '#f2fbff' });
       // cold glitter drifting down over the whole rink
-      if (Math.random() < 0.6) fx.emit({ shape: 'star', x: fx.rand(0, s.C.W), y: fx.rand(s.C.CEIL_Y, s.C.GROUND_Y - 60), vx: fx.rand(-10, 10), vy: fx.rand(30, 60), spin: 3, r: fx.rand(3, 6), life: 1.4, color: Math.random() < 0.5 ? '#f2fbff' : '#b8f0ff', layer: 'back' });
+      if (Math.random() < 0.6) fx.emit({ shape: 'star', x: fx.rand(0, s.C.W), y: fx.rand(s.C.SKY_Y, s.C.GROUND_Y - 60), vx: fx.rand(-10, 10), vy: fx.rand(30, 60), spin: 3, r: fx.rand(3, 6), life: 1.4, color: Math.random() < 0.5 ? '#f2fbff' : '#b8f0ff', layer: 'back' });
     },
 
     end(s, info) {

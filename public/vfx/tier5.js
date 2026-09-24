@@ -63,7 +63,7 @@ function beacon(g, s, p, col, edge) {
 }
 
 // Somewhere random on the pitch — for the ambient particles a power fills the whole scene with.
-const anywhere = (s) => ({ x: s.fx.rand(10, s.C.W - 10), y: s.fx.rand(s.C.CEIL_Y + 10, s.C.GROUND_Y - 10) });
+const anywhere = (s) => ({ x: s.fx.rand(10, s.C.W - 10), y: s.fx.rand(s.C.SKY_Y + 10, s.C.GROUND_Y - 10) });
 // A wrapped, drifting x across the screen for ambient objects: seed i, speed v px/s.
 const drift = (s, i, v) => { const W = s.C.W + 160; return ((hash(i) * W + s.t * v) % W + W) % W - 80; };
 
@@ -141,7 +141,7 @@ function hourglass(g, x, y, h, fill, rot, a, t) {
 function beam(g, x, s, k, w) {
   if (k <= 0.02) return;
   const { C } = s;
-  const top = C.CEIL_Y, bot = C.GROUND_Y, h = bot - top;
+  const top = C.SKY_Y, bot = C.GROUND_Y, h = bot - top;
   g.save();
   const gr = g.createLinearGradient(x - w, 0, x + w, 0);
   gr.addColorStop(0, '#0b4f4a'); gr.addColorStop(0.5, '#00f5d4'); gr.addColorStop(1, '#0b4f4a');
@@ -199,7 +199,7 @@ function cyber(g, s, k) {
     g.globalAlpha = 0.4 * k; g.beginPath(); g.moveTo(x0, G); g.lineTo(x1, G + depth); g.stroke();
   }
   g.globalCompositeOperation = 'lighter';
-  const sy = C.CEIL_Y + ((s.t * 320) % (G - C.CEIL_Y));
+  const sy = C.SKY_Y + ((s.t * 320) % (G - C.SKY_Y));
   g.globalAlpha = 0.35 * k; g.fillStyle = '#7dff4f'; g.fillRect(0, sy, C.W, 3);
   g.globalAlpha = 0.1 * k; g.fillRect(0, sy - 18, C.W, 18);
   const seed = Math.floor(s.t * 14);
@@ -207,7 +207,7 @@ function cyber(g, s, k) {
     const hh = hash(seed * 7 + i);
     if (hh < 0.45) continue;
     g.globalAlpha = 0.3 * k; g.fillStyle = i % 2 ? '#00f5d4' : '#7dff4f';
-    g.fillRect(hash(seed + i * 3) * C.W * 0.6, C.CEIL_Y + hash(seed * 3 + i) * (G - C.CEIL_Y), 80 + hh * 300, 3 + hh * 8);
+    g.fillRect(hash(seed + i * 3) * C.W * 0.6, C.SKY_Y + hash(seed * 3 + i) * (G - C.SKY_Y), 80 + hh * 300, 3 + hh * 8);
   }
   g.restore();
 }
@@ -224,14 +224,14 @@ function aurora(g, s, k) {
     g.globalAlpha = 0.28 * k; g.strokeStyle = cols[i]; g.lineWidth = 12;
     g.beginPath();
     for (let x = -20; x <= C.W + 20; x += 40) {
-      const y = C.CEIL_Y + 40 + i * 13 + Math.sin(x * 0.008 + s.t * 1.6) * 34 + Math.sin(x * 0.02 - s.t * 2.4) * 8;
+      const y = C.SKY_Y + 40 + i * 13 + Math.sin(x * 0.008 + s.t * 1.6) * 34 + Math.sin(x * 0.02 - s.t * 2.4) * 8;
       x < 0 ? g.moveTo(x, y) : g.lineTo(x, y);
     }
     g.stroke();
   }
   g.restore();
   for (let i = 0; i < 5; i++) {
-    const x = drift(s, i + 150, i % 2 ? 40 : -34), y = C.CEIL_Y + 150 + hash(i + 160) * 180 + Math.sin(s.t * 1.4 + i) * 16, S = 14 + hash(i + 170) * 14;
+    const x = drift(s, i + 150, i % 2 ? 40 : -34), y = C.SKY_Y + 150 + hash(i + 160) * 180 + Math.sin(s.t * 1.4 + i) * 16, S = 14 + hash(i + 170) * 14;
     fx.drawGlow(g, x, y, S * 2.4, cols[(i * 2) % 6], 0.5 * k);
     g.save();
     g.translate(x, y); g.rotate(s.t * 1.2 + i);
@@ -415,12 +415,12 @@ export default {
       g.globalAlpha = 0.5 + 0.2 * Math.sin(s.t * 10);
       const off = (s.t * 60) % 24;
       g.fillStyle = '#56657a';
-      for (let y = C.CEIL_Y + off; y < C.GROUND_Y; y += 24) g.fillRect(mx - 5, y - 1, 10, 15);
+      for (let y = C.SKY_Y + off; y < C.GROUND_Y; y += 24) g.fillRect(mx - 5, y - 1, 10, 15);
       g.fillStyle = '#f2fbff';
-      for (let y = C.CEIL_Y + off; y < C.GROUND_Y; y += 24) g.fillRect(mx - 3, y, 6, 13);
+      for (let y = C.SKY_Y + off; y < C.GROUND_Y; y += 24) g.fillRect(mx - 3, y, 6, 13);
       g.restore();
       fx.drawGlow(g, mx, C.GROUND_Y, 44, '#d0f4ff', 0.5);
-      fx.drawGlow(g, mx, C.CEIL_Y + 10, 30, '#f2fbff', 0.35);
+      fx.drawGlow(g, mx, C.SKY_Y + 10, 30, '#f2fbff', 0.35);
     },
 
     cutin(g, s, k) {
@@ -456,9 +456,9 @@ export default {
       fx.burst(at.x, at.y, 26, { shape: 'shard', speed: 420, r: 7, spin: 16, grav: 700, life: 0.9, color: '#c3ccd6', color2: '#f2fbff' });
       fx.confetti(at.x, at.y, 18, ['#f2fbff', '#c3ccd6', '#d0f4ff', '#8a96a8']);
       const mx = C.W / 2 - side * 130;
-      fx.beam(mx, C.GROUND_Y, mx, C.CEIL_Y, { color: '#d0f4ff', w: 30, life: 0.5 });
+      fx.beam(mx, C.GROUND_Y, mx, C.SKY_Y, { color: '#d0f4ff', w: 30, life: 0.5 });
       for (let i = 0, n = fx.n(14); i < n; i++) {
-        fx.emit({ shape: 'star', x: mx + fx.rand(-10, 10), y: C.GROUND_Y - (i / n) * (C.GROUND_Y - C.CEIL_Y), vy: -240, r: 6, life: 0.6, color: '#f2fbff', blend: 'lighter', spin: 6 });
+        fx.emit({ shape: 'star', x: mx + fx.rand(-10, 10), y: C.GROUND_Y - (i / n) * (C.GROUND_Y - C.SKY_Y), vy: -240, r: 6, life: 0.6, color: '#f2fbff', blend: 'lighter', spin: 6 });
       }
       fx.flash('#f2fbff', 0.2, 0.16);
     },
@@ -466,11 +466,11 @@ export default {
     back(g, e, s) {
       const { C, fx } = s, o = s.owner;
       const k = fade(e, 0.25, 0.5) * (e.life - e.t < 0.5 && Math.random() < 0.25 ? 0.5 : 1);
-      const top = C.GROUND_Y - (C.GROUND_Y - C.CEIL_Y) * clamp(e.t / 0.25, 0.05, 1);
+      const top = C.GROUND_Y - (C.GROUND_Y - C.SKY_Y) * clamp(e.t / 0.25, 0.05, 1);
       const x = e.x, w = 26, h = C.GROUND_Y - top;
       // the hall of mirrors: silver shards drifting all over the pitch, each catching the light
       for (let i = 0; i < 8; i++) {
-        const sx = drift(s, i + 11, (i % 2 ? 26 : -22)), sy = C.CEIL_Y + 50 + hash(i + 21) * (C.GROUND_Y - C.CEIL_Y - 130) + Math.sin(s.t * 1.3 + i) * 14;
+        const sx = drift(s, i + 11, (i % 2 ? 26 : -22)), sy = C.SKY_Y + 50 + hash(i + 21) * (C.GROUND_Y - C.SKY_Y - 130) + Math.sin(s.t * 1.3 + i) * 14;
         const S = 16 + hash(i + 5) * 18, gl = Math.max(0, Math.sin(s.t * 2.2 + i * 1.7));
         g.save();
         g.translate(sx, sy); g.rotate(s.t * 0.7 + i);
@@ -485,7 +485,7 @@ export default {
       g.save();
       g.globalCompositeOperation = 'lighter';
       for (let i = 0; i < 2; i++) {
-        const oy = C.CEIL_Y + (C.GROUND_Y - C.CEIL_Y) * (0.3 + i * 0.35), a = Math.sin(s.t * 0.9 + i * 2) * 0.35 + (i ? 0.15 : -0.15);
+        const oy = C.SKY_Y + (C.GROUND_Y - C.SKY_Y) * (0.3 + i * 0.35), a = Math.sin(s.t * 0.9 + i * 2) * 0.35 + (i ? 0.15 : -0.15);
         const dir = -o.side, L = 640;
         g.globalAlpha = 0.13 * k; g.fillStyle = '#d0f4ff';
         g.beginPath(); g.moveTo(x, oy);
@@ -537,7 +537,7 @@ export default {
     front(g, e, s) {
       const { C } = s, o = s.owner;
       const k = fade(e, 0.25, 0.5);
-      const top = C.GROUND_Y - (C.GROUND_Y - C.CEIL_Y) * clamp(e.t / 0.25, 0.05, 1);
+      const top = C.GROUND_Y - (C.GROUND_Y - C.SKY_Y) * clamp(e.t / 0.25, 0.05, 1);
       const fx0 = e.x + o.side * 14;
       g.save();
       g.globalAlpha = 0.85 * k;
@@ -553,12 +553,12 @@ export default {
     tick(e, s) {
       const { C, fx } = s;
       if (Math.random() < 0.45) {
-        fx.emit({ shape: 'star', x: e.x + fx.rand(-12, 12), y: fx.rand(C.CEIL_Y + 10, C.GROUND_Y - 10), r: 5, r1: 1, life: 0.45, color: '#f2fbff', blend: 'lighter', spin: 5, layer: 'back' });
+        fx.emit({ shape: 'star', x: e.x + fx.rand(-12, 12), y: fx.rand(C.SKY_Y + 10, C.GROUND_Y - 10), r: 5, r1: 1, life: 0.45, color: '#f2fbff', blend: 'lighter', spin: 5, layer: 'back' });
       }
-      if (Math.random() < 0.08) fx.glow(e.x, fx.rand(C.CEIL_Y + 40, C.GROUND_Y - 20), 36, '#d0f4ff', { life: 0.5, alpha: 0.5 });
+      if (Math.random() < 0.08) fx.glow(e.x, fx.rand(C.SKY_Y + 40, C.GROUND_Y - 20), 36, '#d0f4ff', { life: 0.5, alpha: 0.5 });
       const q = anywhere(s);
       fx.emit({ shape: 'star', x: q.x, y: q.y, r: 1, r1: 9, life: 0.7, color: '#f2fbff', color2: '#d0f4ff', blend: 'lighter', spin: 3, layer: 'back' });
-      if (Math.random() < 0.5) fx.emit({ shape: 'sq', x: q.x, y: C.CEIL_Y, vy: fx.rand(40, 90), r: 3, life: 1.6, color: '#c3ccd6', color2: '#8a96a8', layer: 'back' });
+      if (Math.random() < 0.5) fx.emit({ shape: 'sq', x: q.x, y: C.SKY_Y, vy: fx.rand(40, 90), r: 3, life: 1.6, color: '#c3ccd6', color2: '#8a96a8', layer: 'back' });
     },
 
     ball(g, b, s) {
@@ -659,9 +659,9 @@ export default {
       const { fx, C } = s;
       if (info.kind === 'effect' && !info.e.used) {
         for (let i = 0, n = fx.n(16); i < n; i++) {
-          fx.emit({ shape: 'sq', x: info.e.x + fx.rand(-12, 12), y: fx.rand(C.CEIL_Y, C.GROUND_Y), vy: fx.rand(20, 70), r: 3, life: 1.1, color: '#c3ccd6', color2: '#8a96a8', layer: 'back' });
+          fx.emit({ shape: 'sq', x: info.e.x + fx.rand(-12, 12), y: fx.rand(C.SKY_Y, C.GROUND_Y), vy: fx.rand(20, 70), r: 3, life: 1.1, color: '#c3ccd6', color2: '#8a96a8', layer: 'back' });
         }
-        for (let i = 0; i < 3; i++) fx.glow(info.e.x, C.CEIL_Y + 80 + i * 120, 60, '#d0f4ff', { life: 0.9, alpha: 0.5 });
+        for (let i = 0; i < 3; i++) fx.glow(info.e.x, C.SKY_Y + 80 + i * 120, 60, '#d0f4ff', { life: 0.9, alpha: 0.5 });
         return;
       }
       if (info.kind === 'effect') return;
@@ -758,8 +758,8 @@ export default {
       const { fx, C } = s, b = s.M.ball, o = s.owner;
       const src = (b.power && b.power.src) || { x: o.x, y: s.headY(o) };
       opener(s, src, { col: '#00f5d4', col2: '#7dff4f', hot: '#e6fff9', word: 'זאפ!', wordCol: '#7dff4f', edge: '#0b4f4a' });
-      fx.beam(src.x, C.CEIL_Y, src.x, C.GROUND_Y, { color: '#00f5d4', w: 36, life: 0.5 });
-      fx.beam(b.x, C.CEIL_Y, b.x, C.GROUND_Y, { color: '#7dff4f', w: 30, life: 0.6 });
+      fx.beam(src.x, C.SKY_Y, src.x, C.GROUND_Y, { color: '#00f5d4', w: 36, life: 0.5 });
+      fx.beam(b.x, C.SKY_Y, b.x, C.GROUND_Y, { color: '#7dff4f', w: 30, life: 0.6 });
       fx.glow(b.x, b.y, 110, '#7dff4f', { life: 0.6 });
       fx.burst(src.x, src.y, 44, { shape: 'sq', speed: 260, r: 5, life: 0.6, vy: -80, drag: 2, color: '#00f5d4', color2: '#7dff4f' });
       fx.burst(src.x, src.y, 12, { shape: 'streak', speed: 600, spread: 0.6, angle: -Math.PI / 2, r: 12, w: 3, life: 0.35, color: '#e6fff9', blend: 'lighter' });
@@ -785,7 +785,7 @@ export default {
         // the warp link: a dashed arc from one beam to the other
         g.strokeStyle = '#7dff4f'; g.lineWidth = 3; g.globalAlpha = 0.7;
         g.setLineDash([10, 10]); g.lineDashOffset = -s.t * 120;
-        g.beginPath(); g.moveTo(src.x, src.y); g.quadraticCurveTo((src.x + b.x) / 2, C.CEIL_Y + 30, b.x, b.y); g.stroke();
+        g.beginPath(); g.moveTo(src.x, src.y); g.quadraticCurveTo((src.x + b.x) / 2, C.SKY_Y + 30, b.x, b.y); g.stroke();
         g.setLineDash([]);
         g.lineWidth = 4;
         for (let i = 0; i < 3; i++) {
@@ -842,10 +842,10 @@ export default {
         fx.emit({ shape: 'sq', x: src.x + fx.rand(-14, 14), y: src.y + fx.rand(-14, 14), vy: -110, r: 4, life: 0.45, color: '#00f5d4', color2: '#e6fff9' });
         const a = fx.rand(0, TAU);
         fx.emit({ shape: 'sq', x: b.x + Math.cos(a) * 50, y: b.y + Math.sin(a) * 50, vx: -Math.cos(a) * 130, vy: -Math.sin(a) * 130, r: 4, life: 0.38, color: '#7dff4f' });
-        fx.emit({ shape: 'sq', x: Math.round(fx.rand(0, s.C.W) / 20) * 20, y: s.C.CEIL_Y, vy: fx.rand(260, 420), r: 5, life: 1.1, color: '#7dff4f', color2: '#00f5d4', layer: 'back' });
+        fx.emit({ shape: 'sq', x: Math.round(fx.rand(0, s.C.W) / 20) * 20, y: s.C.SKY_Y, vy: fx.rand(260, 420), r: 5, life: 1.1, color: '#7dff4f', color2: '#00f5d4', layer: 'back' });
         return;
       }
-      fx.emit({ shape: 'sq', x: Math.round(fx.rand(0, s.C.W) / 20) * 20, y: s.C.CEIL_Y, vy: fx.rand(260, 420), r: 5, life: 1.1, color: '#7dff4f', color2: '#00f5d4', layer: 'back' });
+      fx.emit({ shape: 'sq', x: Math.round(fx.rand(0, s.C.W) / 20) * 20, y: s.C.SKY_Y, vy: fx.rand(260, 420), r: 5, life: 1.1, color: '#7dff4f', color2: '#00f5d4', layer: 'back' });
       fx.emit({ shape: 'sq', x: b.x - dirOf(b) * 12, y: b.y + fx.rand(-10, 10), r: 5, life: 0.45, color: '#00f5d4', color2: '#0b4f4a' });
       fx.emit({ shape: 'sq', x: b.x - dirOf(b) * 22, y: b.y + fx.rand(-12, 12), r: 3, life: 0.3, color: '#7dff4f' });
       if (Math.random() < 0.3) fx.emit({ shape: 'streak', x: b.x, y: b.y + fx.rand(-10, 10), vx: -b.vx * 0.2, r: 10, w: 2, life: 0.2, color: '#e6fff9', blend: 'lighter' });
@@ -863,7 +863,7 @@ export default {
       fx.beam(0, ev.y, s.C.W, ev.y, { color: '#00f5d4', w: 14, life: 0.3 });
       fx.vignette('#00f5d4', 0.45, 0.8);
       fx.ring(ev.x, ev.y, { color: '#5dfdcb', r1: 170, life: 0.5, w: 7 });
-      fx.beam(ev.x, ev.y, ev.x, C.CEIL_Y, { color: '#00f5d4', w: 30, life: 0.45 });
+      fx.beam(ev.x, ev.y, ev.x, C.SKY_Y, { color: '#00f5d4', w: 30, life: 0.45 });
       for (let i = 0, n = fx.n(8); i < n; i++) {
         fx.emit({ shape: 'streak', x: ev.x + fx.rand(-30, 30), y: ev.y, vy: -fx.rand(500, 850), r: 12, w: 3, life: 0.3, color: '#e6fff9', blend: 'lighter' });
       }
@@ -978,17 +978,17 @@ export default {
       g.save();
       g.globalAlpha = 0.92 * k;
       g.fillStyle = '#e08a00';
-      g.beginPath(); g.moveTo(0, 0); g.lineTo(C.W, 0); g.lineTo(C.W, C.CEIL_Y + 6);
-      for (let i = 20; i >= 0; i--) g.lineTo((i / 20) * C.W, C.CEIL_Y + 6 + (i % 2) * 8 + Math.sin(s.t * 2 + i) * 3);
+      g.beginPath(); g.moveTo(0, 0); g.lineTo(C.W, 0); g.lineTo(C.W, C.SKY_Y + 6);
+      for (let i = 20; i >= 0; i--) g.lineTo((i / 20) * C.W, C.SKY_Y + 6 + (i % 2) * 8 + Math.sin(s.t * 2 + i) * 3);
       g.closePath(); g.fill();
       g.strokeStyle = '#7a4308'; g.lineWidth = 3; g.stroke();
       for (let i = 0; i < 14; i++) {
         const x = ((i + 0.5) / 14) * C.W + (hash(i + 40) - 0.5) * 30;
         const cyc = (s.t * (0.35 + hash(i) * 0.3) + hash(i + 9)) % 1, L = 20 + cyc * (60 + hash(i + 3) * 90);
         g.fillStyle = i % 3 ? '#ffb627' : '#e08a00';
-        g.beginPath(); g.moveTo(x - 7, C.CEIL_Y + 6); g.lineTo(x + 7, C.CEIL_Y + 6); g.lineTo(x + 3, C.CEIL_Y + L); g.arc(x, C.CEIL_Y + L, 6 + cyc * 3, 0, Math.PI); g.lineTo(x - 7, C.CEIL_Y + 6); g.closePath(); g.fill();
+        g.beginPath(); g.moveTo(x - 7, C.SKY_Y + 6); g.lineTo(x + 7, C.SKY_Y + 6); g.lineTo(x + 3, C.SKY_Y + L); g.arc(x, C.SKY_Y + L, 6 + cyc * 3, 0, Math.PI); g.lineTo(x - 7, C.SKY_Y + 6); g.closePath(); g.fill();
         g.strokeStyle = '#7a4308'; g.lineWidth = 2; g.stroke();
-        g.fillStyle = '#fff1c1'; g.fillRect(x - 4, C.CEIL_Y + 10, 2, L * 0.6);
+        g.fillStyle = '#fff1c1'; g.fillRect(x - 4, C.SKY_Y + 10, 2, L * 0.6);
       }
       // a glowing honeycomb floor spreading under the carrier
       for (let i = -3; i <= 3; i++) {
@@ -1243,7 +1243,7 @@ export default {
       // eyes blinking open in the dark
       const hk = clamp((b.power.t ?? 1) / 0.25, 0, 1);
       for (let i = 0; i < 6; i++) {
-        const gx = drift(s, i + 60, (i % 2 ? 50 : -40)), gy = C.CEIL_Y + 60 + hash(i + 70) * 220 + Math.sin(s.t * 2 + i) * 18;
+        const gx = drift(s, i + 60, (i % 2 ? 50 : -40)), gy = C.SKY_Y + 60 + hash(i + 70) * 220 + Math.sin(s.t * 2 + i) * 18;
         s.fx.drawGlow(g, gx, gy + 10, 50, '#5cf2a0', 0.35 * hk);
         sheet(g, gx, gy, 1.4 + hash(i + 80) * 0.8, i % 2 ? 1 : -1, s.t + i, 0.8 * hk);
       }
@@ -1251,7 +1251,7 @@ export default {
       for (let i = 0; i < 5; i++) {
         const cyc = (s.t * 0.7 + hash(i + 90)) % 1, open = Math.sin(cyc * Math.PI);
         if (open < 0.2) continue;
-        const ex = hash(i + 91 + Math.floor(s.t * 0.7 + hash(i + 90))) * C.W, ey = C.CEIL_Y + 40 + hash(i + 95) * 200;
+        const ex = hash(i + 91 + Math.floor(s.t * 0.7 + hash(i + 90))) * C.W, ey = C.SKY_Y + 40 + hash(i + 95) * 200;
         g.globalAlpha = 0.9 * hk * open; g.fillStyle = '#b8ffcf';
         g.beginPath(); g.ellipse(ex - 7, ey, 4, 6 * open, 0, 0, TAU); g.ellipse(ex + 7, ey, 4, 6 * open, 0, 0, TAU); g.fill();
       }
@@ -1458,7 +1458,7 @@ export default {
       g.restore();
       // the slow world: hourglasses drifting in slow motion all over the pitch, sand trickling
       for (let i = 0; i < 6; i++) {
-        const x = drift(s, i + 120, i % 2 ? 14 : -12), y = C.CEIL_Y + 70 + hash(i + 130) * 230 + Math.sin(s.t * 0.6 + i) * 10;
+        const x = drift(s, i + 120, i % 2 ? 14 : -12), y = C.SKY_Y + 70 + hash(i + 130) * 230 + Math.sin(s.t * 0.6 + i) * 10;
         fx.drawGlow(g, x, y, 40, '#e6c88a', 0.35 * k);
         hourglass(g, x, y, 30 + hash(i + 140) * 22, 0.5 + 0.5 * Math.sin(s.t * 0.3 + i), s.t * 0.25 + i, 0.75 * k, s.t);
       }
@@ -1518,7 +1518,7 @@ export default {
       fx.emit({ shape: 'sq', x: q.x + fx.rand(-hr - 30, hr + 30), y: hy - hr - fx.rand(0, 24), vy: fx.rand(25, 45), grav: 50, r: 3, life: 1.3, color: '#e6c88a', color2: '#a67c52' });
       if (Math.random() < 0.3) fx.emit({ shape: 'sq', x: q.x + fx.rand(-hr, hr), y: hy - hr - 10, vy: 30, r: 2, life: 1, color: '#f6ead0' });
       if (Math.random() < 0.03) fx.ring(q.x, (hy + q.y) / 2, { color: '#7209b7', r: 20, r1: 100, life: 1.2, w: 4, alpha: 0.6 });
-      fx.emit({ shape: 'sq', x: fx.rand(0, s.C.W), y: s.C.CEIL_Y, vy: fx.rand(30, 60), r: 3, life: 2.4, color: '#e6c88a', color2: '#a67c52', layer: 'back' });
+      fx.emit({ shape: 'sq', x: fx.rand(0, s.C.W), y: s.C.SKY_Y, vy: fx.rand(30, 60), r: 3, life: 2.4, color: '#e6c88a', color2: '#a67c52', layer: 'back' });
     },
 
     impact(s, ev) {
@@ -1629,12 +1629,12 @@ export default {
       // brackets, and data readouts ticking along the ceiling
       g.save();
       g.globalCompositeOperation = 'lighter';
-      const sy0 = C.CEIL_Y + ((s.t * 140) % (C.GROUND_Y - C.CEIL_Y));
+      const sy0 = C.SKY_Y + ((s.t * 140) % (C.GROUND_Y - C.SKY_Y));
       g.globalAlpha = 0.4 * k; g.fillStyle = '#2de2ff'; g.fillRect(0, sy0, C.W, 3);
       g.globalAlpha = 0.1 * k; g.fillRect(0, sy0 - 26, C.W, 26);
       g.globalCompositeOperation = 'source-over';
       g.lineCap = 'square';
-      const B = 70, m = 110, y0 = C.CEIL_Y + 60, y1 = C.GROUND_Y - 150;
+      const B = 70, m = 110, y0 = C.SKY_Y + 60, y1 = C.GROUND_Y - 150;
       for (const [w2, c, al] of [[9, '#16407a', 0.8], [4, '#9fd4ff', 1]]) {
         g.lineWidth = w2; g.strokeStyle = c; g.globalAlpha = al * k;
         g.beginPath();
@@ -1744,7 +1744,7 @@ export default {
       const { fx, C } = s;
       if (ev.kind === 'land') {
         const e = ev.e;
-        fx.beam(e.x, C.CEIL_Y, e.x, C.GROUND_Y, { color: '#4ea0ff', w: 44, life: 0.45 });
+        fx.beam(e.x, C.SKY_Y, e.x, C.GROUND_Y, { color: '#4ea0ff', w: 44, life: 0.45 });
         fx.glow(e.x, C.GROUND_Y - 50, 110, '#2de2ff', { life: 0.6 });
         fx.ring(e.x, C.GROUND_Y, { color: '#2de2ff', r1: 110, life: 0.5, w: 5 });
         for (let i = 0, n = fx.n(20); i < n; i++) {
@@ -1763,7 +1763,7 @@ export default {
       fx.confetti(ev.x, ev.y, 26, ['#4ea0ff', '#9fd4ff', '#2de2ff', '#e3f3ff']);
       fx.rays(ev.x, ev.y, { color: '#9fd4ff', n: 10, r: 20, r1: 600, life: 0.6, alpha: 0.3, spin: -1 });
       fx.ring(ev.x, ev.y, { color: '#16407a', r: 20, r1: 260, life: 0.6, w: 12, alpha: 0.7 });
-      fx.beam(ev.x, ev.y, ev.x, s.C.CEIL_Y, { color: '#2de2ff', w: 26, life: 0.4 });
+      fx.beam(ev.x, ev.y, ev.x, s.C.SKY_Y, { color: '#2de2ff', w: 26, life: 0.4 });
       fx.vignette('#4ea0ff', 0.45, 0.9);
       fx.shake(7, 0.3);
     },
@@ -2080,7 +2080,7 @@ export default {
     fire(s, at) {
       const { fx, side, C } = s;
       opener(s, at, { col: '#94d2bd', col2: '#7e858f', hot: '#e8f4ff', word: 'וווש!', wordCol: '#e8f4ff', edge: '#2b2e34' });
-      fx.bolt(at.x + fx.rand(-60, 60), C.CEIL_Y, at.x, at.y, { color: '#e8f4ff', w: 5, life: 0.3 });
+      fx.bolt(at.x + fx.rand(-60, 60), C.SKY_Y, at.x, at.y, { color: '#e8f4ff', w: 5, life: 0.3 });
       fx.ring(at.x, at.y, { color: '#94d2bd', r1: 150, life: 0.45, w: 6 });
       fx.burst(at.x, C.GROUND_Y - 4, 22, { shape: 'smoke', speed: 240, spread: 0.8, angle: side > 0 ? -0.3 : Math.PI + 0.3, r: 6, r1: 20, drag: 2, life: 0.9, color: '#c9b68a', layer: 'back' });
       fx.burst(at.x, at.y, 14, { shape: 'streak', speed: 600, spread: 0.5, angle: side > 0 ? 0 : Math.PI, r: 12, w: 3, life: 0.3, color: '#94d2bd' });
@@ -2190,7 +2190,7 @@ export default {
       const a = fx.rand(0, TAU);
       fx.emit({ shape: 'smoke', x: e.x + Math.cos(a) * 20, y: C.GROUND_Y - 4, vx: Math.cos(a) * 80 + e.dir * 60, vy: -40, r: 5, r1: 16, drag: 1, life: 0.7, color: '#c9b68a', layer: 'back' });
       // rain across the pitch
-      for (let j = 0; j < 2; j++) fx.emit({ shape: 'streak', x: fx.rand(0, C.W), y: fx.rand(C.CEIL_Y, C.GROUND_Y - 80), vx: e.dir * 140, vy: 760, r: 12, w: 2.5, life: 0.4, color: '#b8c0ca', alpha: 0.75, layer: 'back' });
+      for (let j = 0; j < 2; j++) fx.emit({ shape: 'streak', x: fx.rand(0, C.W), y: fx.rand(C.SKY_Y, C.GROUND_Y - 80), vx: e.dir * 140, vy: 760, r: 12, w: 2.5, life: 0.4, color: '#b8c0ca', alpha: 0.75, layer: 'back' });
       if (Math.random() < 0.6) {
         // debris torn off and hurled across the whole pitch
         const fromL = Math.random() < 0.5;
@@ -2243,7 +2243,7 @@ export default {
 
     trail(b, s) {
       const { fx } = s;
-      if (Math.random() < 0.5) fx.emit({ shape: 'streak', x: fx.rand(0, s.C.W), y: fx.rand(s.C.CEIL_Y, s.C.GROUND_Y - 60), vx: dirOf(b) * 140, vy: 760, r: 12, w: 2.5, life: 0.4, color: '#b8c0ca', alpha: 0.75, layer: 'back' });
+      if (Math.random() < 0.5) fx.emit({ shape: 'streak', x: fx.rand(0, s.C.W), y: fx.rand(s.C.SKY_Y, s.C.GROUND_Y - 60), vx: dirOf(b) * 140, vy: 760, r: 12, w: 2.5, life: 0.4, color: '#b8c0ca', alpha: 0.75, layer: 'back' });
       fx.emit({ shape: 'smoke', x: b.x - dirOf(b) * 18, y: b.y, vx: fx.rand(-30, 30), vy: fx.rand(-50, 50), r: 5, r1: 16, life: 0.5, color: '#7e858f', layer: 'back' });
       if (Math.random() < 0.35) fx.emit({ shape: 'shard', x: b.x, y: b.y, vx: -b.vx * 0.2, vy: fx.rand(-110, 110), spin: 14, r: 5, life: 0.45, color: '#8b5a2b' });
     },
@@ -2398,7 +2398,7 @@ export default {
     back(g, e, s) {
       if (e.type !== 'timestop') return;
       const { C, fx } = s, k = fade(e, 0.15, 0.2);
-      const cx = C.W / 2, cy = (C.CEIL_Y + C.GROUND_Y) / 2 - 20, R = 195;
+      const cx = C.W / 2, cy = (C.SKY_Y + C.GROUND_Y) / 2 - 20, R = 195;
       fx.drawGlow(g, cx, cy, R * 1.3, '#b5893b', 0.35 * k);
       g.save();
       g.globalAlpha = 0.22 * k; g.fillStyle = '#e9dcb6';
@@ -2446,12 +2446,12 @@ export default {
       gear(g, cx + R + 14, cy + R * 0.7, 32, 9, e.t * 2, '#b5893b', '#3b3f46', 0.7 * k);
       gear(g, cx - R - 10, cy - R * 0.7, 30, 9, -e.t * 2.2, '#e9dcb6', '#3b3f46', 0.6 * k);
       // the clockwork in the corners of the world
-      const corners = [[40, C.CEIL_Y + 20], [C.W - 40, C.CEIL_Y + 20], [40, C.GROUND_Y - 40], [C.W - 40, C.GROUND_Y - 40]];
+      const corners = [[40, C.SKY_Y + 20], [C.W - 40, C.SKY_Y + 20], [40, C.GROUND_Y - 40], [C.W - 40, C.GROUND_Y - 40]];
       corners.forEach(([x, y], i) => gear(g, x, y, 30, 8, (i % 2 ? -1 : 1) * e.t * 3, '#8c6a2f', '#3b3f46', 0.7 * k));
       // frozen in mid-air: a field of motes and falling drops hung still all over the pitch
       g.save();
       for (let i = 0; i < 40; i++) {
-        const x = hash(i + 300) * C.W, y = C.CEIL_Y + 20 + hash(i + 340) * (C.GROUND_Y - C.CEIL_Y - 40);
+        const x = hash(i + 300) * C.W, y = C.SKY_Y + 20 + hash(i + 340) * (C.GROUND_Y - C.SKY_Y - 40);
         const tw = 0.55 + 0.45 * Math.sin(s.t * 3 + i);
         g.globalAlpha = 0.85 * k * tw;
         if (i % 3 === 0) { g.fillStyle = '#e9dcb6'; g.fillRect(x - 1.5, y - 7, 3, 14); }
@@ -2584,7 +2584,7 @@ export default {
         return;
       }
       if (ev.kind === 'timeResumes') {
-        const cx = C.W / 2, cy = (C.CEIL_Y + C.GROUND_Y) / 2 - 20, p = spot(s, ev.x, ev.y - 90);
+        const cx = C.W / 2, cy = (C.SKY_Y + C.GROUND_Y) / 2 - 20, p = spot(s, ev.x, ev.y - 90);
         fx.rays(cx, cy, { color: '#b5893b', color2: '#e9dcb6', n: 20, r1: 460, life: 0.8 });
         fx.glow(cx, cy, 200, '#b5893b', { life: 0.6 });
         fx.glow(ev.x, ev.y, 90, '#f8f9fa', { life: 0.4 });

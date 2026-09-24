@@ -103,7 +103,7 @@ function setup(stage, i, o = {}) {
 }
 const b0 = (c) => c.m.ball;
 // Park the ball high over halfway, still. Called every tick by checks that are about players.
-function park(c) { const b = c.m.ball; b.x = C.W / 2; b.y = C.CEIL_Y + 60; b.vx = 0; b.vy = 0; b.power = null; }
+function park(c) { const b = c.m.ball; b.x = C.W / 2; b.y = C.SKY_Y + 60; b.vx = 0; b.vy = 0; b.power = null; }
 
 function fire(c) {
   const { m, p } = c;
@@ -116,7 +116,7 @@ function fire(c) {
   c.log.push(...m.events);
   c.fired = m.events.find((e) => e.type === 'powershot' && e.player === p.index) || null;
   m.events.length = 0;
-  m.hitStop = 0;                     // the checks time the power, not the impact pause before it
+  m.hitStop = 0; m.cutin = 0;        // the checks time the power, not the cut-in pause before it
   return c.fired;
 }
 // Run `secs` of match. `pIn`/`qIn` are inputs (or functions of elapsed time) for the champion
@@ -325,8 +325,8 @@ const CHECKS = {
   meteor(n, i) {
     const c = setup(n, i, { qx: 150 }); fire(c);
     let top = C.GROUND_Y, dived = false;
-    run(c, 1.6, { each() { const b = b0(c); if (!b.power) return; top = Math.min(top, b.y); if (top < C.CEIL_Y + 90 && b.vy > 100 && b.vx * c.side > 0) dived = true; } });
-    return [top < C.CEIL_Y + 90 && dived, `climbed to y ${top.toFixed(0)}, dived ${dived}`];
+    run(c, 1.6, { each() { const b = b0(c); if (!b.power) return; top = Math.min(top, b.y); if (top < C.SKY_Y + 90 && b.vy > 100 && b.vx * c.side > 0) dived = true; } });
+    return [top < C.SKY_Y + 90 && dived, `climbed to y ${top.toFixed(0)}, dived ${dived}`];
   },
   drain(n, i) {
     const c = setup(n, i);
@@ -498,7 +498,10 @@ const CHECKS = {
     const c = setup(n, i, { qx: 150 }); fire(c);
     const b = b0(c), x0 = b.x;
     let lifted = false;
-    run(c, 1.0, { each() { if (b.y < C.GROUND_Y - 80) lifted = true; } });
+    // Lifted to mouth height: the tornado carries the ball at 0.6 of GOAL_H, so "lifted" is half
+    // the goal up — relative, as the tornado is. (A flat 80px was 0.56 of the old 144 mouth and is
+    // the tornado's own centre line in HS's 133 one, which a swaying ball only brushes.)
+    run(c, 1.0, { each() { if (b.y < C.GROUND_Y - C.GOAL_H * 0.5) lifted = true; } });
     const e = c.m.champ.effects.find((x) => x.type === 'tornado');
     return [!!e && lifted && (b.x - x0) * c.side > 120, `carried ${((b.x - x0) * c.side).toFixed(0)}px, lifted ${lifted}`];
   },
@@ -772,7 +775,13 @@ const CHECKS = {
   // hidden health (`hp` left the snapshot), tackle/concede gauge fill (the gauge is a clock now)
   // and push-away-from-the-tackler (a tackle now shoves toward the victim's own goal) were all
   // removed from the NON-arcade sim, so this digest had to move. Nothing arcade-only did.
-  const GOLDEN = 'afeffc64fc31997c61a342316bab3a499bbeef66c29b370c66389ab79db09fa6';
+  //
+  // RE-RECORDED again for the HS movement/timing pass (hs/fit-movement, Phase C 5/6/10/11): the
+  // PACE layer is gone and every movement, gravity, geometry and restart number is Head Soccer's
+  // measured one, the cut-in freezes the sim, and a blocked shot dazes — all non-arcade changes,
+  // so the digest had to move. The arcade's own powers were touched only where they read a
+  // removed constant (FALL_MULT, and CEIL_Y for effects, now SKY_Y).
+  const GOLDEN = '94bed903514b447413e531b81d1ed2d03872adb642dd15d6698587fa7d618114';
   const h = createHash('sha256');
   const cases = [
     [{ rarity: 'legendary', number: 3 }, { rarity: 'legendary', number: 2 }, 3, 3, 11],
@@ -803,8 +812,10 @@ const CHECKS = {
     step(m, [IDLE, IDLE]);
     return m.ball.power && !m.ball.power.champ && m.events.some((e) => e.type === 'powershot' && !e.champ);
   })());
-  ok('the snapshot schema is unchanged', JSON.stringify(Object.keys(serialize(m))) === JSON.stringify(['t', 'clock', 'phase', 'freeze', 'hitStop', 'idle', 'score', 'golden', 'lastScorer', 'p', 'b']) &&
-     serialize(m).p[0].length === 24);
+  // The HS restart and cut-in state joined the snapshot in the same pass (cutin … gaugeLead, and
+  // landT on each player): every one of them decides what a future tick does.
+  ok('the snapshot schema is unchanged', JSON.stringify(Object.keys(serialize(m))) === JSON.stringify(['t', 'clock', 'phase', 'freeze', 'hitStop', 'idle', 'cutin', 'cutinBy', 'banner', 'bannerT', 'ballWait', 'gaugeLead', 'score', 'golden', 'lastScorer', 'p', 'b']) &&
+     serialize(m).p[0].length === 25);
   ok('an ordinary bot is still exactly its tier', createBot(3).d === DIFFICULTIES[3]);
 }
 

@@ -32,7 +32,11 @@ function inLine(m, p) {
 }
 
 // Arm, then walk the ball into the armed player's head until the ultimate goes off.
-function firePower(m, i = 0, dir) {
+//
+// The shot's CUT-IN (1.34s of the whole match holding, POWER_CUTIN) is skipped here unless
+// `keepCutin`: these blocks are about where the shot flies and what it hits, and the pause in
+// front of it is asserted on its own (see THE CUT-IN below).
+function firePower(m, i = 0, dir, keepCutin = false) {
   const p = m.players[i];
   armPower(m, i);
   m.events.length = 0;
@@ -43,6 +47,7 @@ function firePower(m, i = 0, dir) {
     step(m, [{}, {}]);
     m.events.length = 0;
   }
+  if (!keepCutin && m.cutin > 0) { m.hitStop = 0; m.cutin = 0; m.cutinBy = -1; }
   if (dir !== undefined && m.ball.power) { m.ball.vx = Math.abs(m.ball.vx) * dir; m.ball.power.dir = dir; }
   return m.ball.power;
 }
@@ -50,9 +55,11 @@ function firePower(m, i = 0, dir) {
 
 const CA = { rarity: 'legendary', number: 3 };
 const CB = { rarity: 'legendary', number: 2 };
+// Open play: past the KICK OFF banner and past the gauge's kickoff lead (GAUGE_LEAD), so the
+// clock is running. The real kickoff is built with createMatch and asserted on its own.
 const fresh = (opts) => {
   const m = createMatch(CA, CB, opts);
-  m.freeze = 0; m.phase = 'play';
+  m.freeze = 0; m.phase = 'play'; m.banner = null; m.bannerT = 0; m.gaugeLead = 0;
   return m;
 };
 const run = (m, ticks, inputs = NONE) => {
@@ -304,11 +311,12 @@ const scoreOn = (m, left, y = C.GROUND_Y - 60, speed = 600) => {
   ok('straight power shot holds its line', Math.abs(m.ball.y - y0) < 30, `dy=${(m.ball.y - y0).toFixed(1)}`);
 }
 {
-  // A BLOCKED POWER SHOT DEFLECTS. IT DOES NOT SWITCH YOU OFF, AND IT COSTS NOTHING ELSE.
+  // A BLOCKED POWER SHOT DEFLECTS AND DAZES YOU — FOR HALF A SECOND, AND THAT IS ALL.
   //
   // This block used to assert `b.knocked > 0` (the old signature lockout) and then that the
-  // block took half a hidden health bar. Head Soccer has neither: the ball comes back off the
-  // body and the defender plays on.
+  // block took half a hidden health bar; after that, that it cost nothing at all. HS M4 (60.16 s,
+  // 78.36 s): the ball comes back off the body and the unarmed defender is dazed ~0.5s, then
+  // plays on — POWER_BLOCK_STUN, no health, no lockout.
   const m = fresh();
   const a = m.players[0], b = m.players[1];
   a.shot = SHOTS.blaze;
@@ -322,17 +330,22 @@ const scoreOn = (m, left, y = C.GROUND_Y - 60, speed = 600) => {
   run(m, 30);
   ok('a defender in its line blocks the power shot', m.events.some((e) => e.type === 'blocked' && e.player === 1)
      && m.score[0] === 0, m.events.map((e) => e.type).join(','));
-  ok('and the block is a deflection and nothing else', b.stunned === 0 && !('hp' in b),
-     `stunned=${b.stunned}`);
-  // The old test proved the defender was frozen by comparing them against a control that was
-  // given no input. Same comparison, opposite expectation: a hit player still plays.
+  const blockAt = m.events.findIndex((e) => e.type === 'blocked');
+  ok('and the block dazes the defender, and only for POWER_BLOCK_STUN',
+     m.events.some((e, k) => k >= blockAt && e.type === 'stunned' && e.player === 1 && Math.abs(e.time - C.POWER_BLOCK_STUN) < 1e-9)
+     && !('hp' in b), `stunned=${b.stunned}`);
+  // Let the daze run out. The old test proved the defender was frozen by comparing them against
+  // a control that was given no input; same comparison, and once the half second is up a hit
+  // player plays again.
+  run(m, Math.ceil(C.POWER_BLOCK_STUN / C.TICK) + 1);
+  ok('…and the daze runs out', b.stunned === 0, `stunned=${b.stunned}`);
   const ctrl = fresh();
   const ca = ctrl.players[0], cb = ctrl.players[1];
   ca.shot = SHOTS.blaze;
   cb.x = ca.x + 300;
   firePower(ctrl, 0);
   inLine(ctrl, cb);
-  run(ctrl, 30);
+  run(ctrl, 30 + Math.ceil(C.POWER_BLOCK_STUN / C.TICK) + 1);
   run(m, 5, [{}, { right: true }]);      // held right
   run(ctrl, 5, [{}, {}]);                // held nothing
   ok('a defender who blocked still answers the controls', Math.abs(b.vx - cb.vx) > 20,
@@ -354,6 +367,8 @@ const scoreOn = (m, left, y = C.GROUND_Y - 60, speed = 600) => {
   for (let i = 0; i < 240 && m.ball.power; i++) { inLine(m, b); step(m, NONE); }
   ok('tentacles are blocked like anything else', m.events.some((e) => e.type === 'blocked' && e.player === 1),
      m.events.map((e) => e.type).join(','));
+  // Out of the half-second daze every block now leaves (POWER_BLOCK_STUN) — and then walking.
+  run(m, Math.ceil(C.POWER_BLOCK_STUN / C.TICK) + 1);
   const x0 = b.x;
   run(m, 20, [{}, { left: true }]);
   ok('and the defender can still walk away', Math.abs(b.x - x0) > 10,
@@ -415,8 +430,8 @@ const scoreOn = (m, left, y = C.GROUND_Y - 60, speed = 600) => {
      'shot went through');
   ok('a blocked shot comes back out', m.ball.vx <= 0 || !m.ball.power, `vx=${m.ball.vx.toFixed(0)}`);
   // It used to cost the blocker health here ("but the blocker pays for it"). No health now:
-  // the deflection is the whole of the block, and the blocker is not knocked down by it.
-  ok('and the blocker is not knocked down by it', b.stunned === 0, `stunned=${b.stunned}`);
+  // the block costs the blocker HS's half-second daze and nothing that lasts.
+  ok('and the blocker is only dazed by it', b.stunned > 0 && b.stunned <= C.POWER_BLOCK_STUN, `stunned=${b.stunned}`);
 }
 {
   // ARMED BEATS INCOMING: a defender who is ALSO armed and gets hit by the incoming shot does
@@ -460,9 +475,11 @@ const scoreOn = (m, left, y = C.GROUND_Y - 60, speed = 600) => {
     firePower(m, 0);
     inLine(m, d);
     run(m, 30);
-    return `${m.events.some((e) => e.type === 'blocked' && e.player === 1)}|${d.stunned}`;
+    // What each shot leaves on the blocker: the same POWER_BLOCK_STUN daze, whoever fired it.
+    const daze = m.events.filter((e) => e.type === 'stunned' && e.player === 1).map((e) => e.time);
+    return `${m.events.some((e) => e.type === 'blocked' && e.player === 1)}|${daze.join('+')}`;
   });
-  ok('and every one of them is blocked the same way', new Set(dmg).size === 1 && dmg[0] === 'true|0', dmg.join(','));
+  ok('and every one of them is blocked the same way', new Set(dmg).size === 1 && dmg[0] === `true|${C.POWER_BLOCK_STUN}`, dmg.join(','));
 }
 
 // --- the head deadens too, just less -----------------------------------------
@@ -611,8 +628,10 @@ const scoreOn = (m, left, y = C.GROUND_Y - 60, speed = 600) => {
   ok('a buffered jump fires on landing', p.vy < 0, `vy=${p.vy.toFixed(0)}`);
 }
 {
-  // Falling must be heavier than rising, or the arc reads as floaty. Measure ONE tick of
-  // each — comparing two ticks of rise against one of fall proves nothing.
+  // ONE GRAVITY, UP AND DOWN ALIKE. This used to assert the opposite — falling FALL_MULT heavier
+  // than rising, the platformer's trick. HS M4's jumps are one parabola (595 px/s² both ways), so
+  // one tick of rise and one tick of fall now pick up exactly the same speed. ONE tick of each:
+  // comparing two ticks of rise against one of fall proves nothing.
   const m = fresh();
   const p = m.players[0];
   p.onGround = false; p.y = 200; p.vy = -200;
@@ -625,10 +644,124 @@ const scoreOn = (m, left, y = C.GROUND_Y - 60, speed = 600) => {
   step(m, [{ jump: true }, {}]);
   const dFall = p.vy - downBefore;
 
-  ok('gravity is heavier on the way down', dFall > dRise * 1.3,
-     `rise +${dRise.toFixed(1)}/tick vs fall +${dFall.toFixed(1)}/tick`);
-  ok('and by roughly FALL_MULT', Math.abs(dFall / dRise - C.FALL_MULT) < 0.05,
-     `ratio ${(dFall / dRise).toFixed(2)} vs ${C.FALL_MULT}`);
+  ok('gravity is the same on the way down as on the way up', Math.abs(dFall - dRise) < 1e-9,
+     `rise +${dRise.toFixed(2)}/tick vs fall +${dFall.toFixed(2)}/tick`);
+  ok('and it is PLAYER_GRAV, 595 (HS M4)', Math.abs(dRise - C.PLAYER_GRAV * C.TICK) < 1e-9 && C.PLAYER_GRAV === 595,
+     `${(dRise / C.TICK).toFixed(1)} px/s²`);
+}
+
+// --- HS movement (M4) ---------------------------------------------------------
+// The measured feel, asserted as behaviour rather than as constants: what a player's body does
+// on the ticks after a press. The numbers are Head Soccer's (docs/hs-reference.json), measured on
+// the STARTER character — so these bodies play at 1x stats, not the legendary card's +6%.
+const starter = (m) => { for (const p of m.players) p.stats = { speed: 1, jump: 1, kick: 1 }; return m; };
+const jumpArc = (input) => {
+  // One jump from standing, JUMP held for as long as `input(i)` says. Apex (px above standing)
+  // and ticks from takeoff to landing.
+  const m = starter(fresh());
+  const p = m.players[0];
+  m.ball.x = C.W - 40; m.ball.y = C.GROUND_Y - C.BALL_R;      // out of the way
+  const y0 = p.y;
+  let apex = 0, up = -1, down = -1, jumps = 0;
+  for (let i = 0; i < 120; i++) {
+    step(m, [{ jump: input(i) }, {}]);
+    jumps += m.events.filter((e) => e.type === 'jump' && e.player === 0).length;
+    m.events.length = 0;
+    if (up < 0 && !p.onGround) up = i;
+    apex = Math.max(apex, y0 - p.y);
+    if (up >= 0 && down < 0 && p.onGround) { down = i; break; }
+  }
+  return { apex, air: down - up, jumps, p, m };
+};
+{
+  const tap = jumpArc((i) => i === 0);
+  const hold = jumpArc((i) => i < 30);
+  // v²/2g less the integrator's half-tick: 46.4 sampled (see JUMP_V). HS: 45.8.
+  ok('a tapped jump peaks ~46px up (HS M4 45.8)', tap.apex > 44 && tap.apex < 48, `${tap.apex.toFixed(1)}px`);
+  ok('and HOLDING jump does not make it any higher — no variable height', Math.abs(hold.apex - tap.apex) < 1e-9,
+     `tap ${tap.apex.toFixed(2)} vs hold ${hold.apex.toFixed(2)}`);
+  ok('it is in the air ~0.79s (2 x 235 / 595)', Math.abs(tap.air * C.TICK - 0.79) < 0.03, `${(tap.air * C.TICK).toFixed(3)}s`);
+}
+{
+  // HOLD JUMP AND YOU KEEP JUMPING: 3 ticks (0.05s) after every landing, with no fresh press.
+  const m = fresh();
+  const p = m.players[0];
+  const takeoffs = [];
+  let landed = -1, gap = -1;
+  for (let i = 0; i < 150; i++) {
+    const was = p.onGround;
+    step(m, [{ jump: true }, {}]);
+    if (was && !p.onGround) { takeoffs.push(i); if (landed >= 0 && gap < 0) gap = i - landed; }
+    if (!was && p.onGround) landed = i;
+  }
+  ok('a held jump re-jumps on its own', takeoffs.length >= 2, `takeoffs at ${takeoffs.join(',')}`);
+  ok('JUMP_REJUMP (3 ticks, HS M4 0.05s) after landing', gap === 3, `gap ${gap} ticks`);
+  // …and a fresh press on the grass still takes off on the tick it is pressed.
+  const n = fresh();
+  step(n, [{ jump: true }, {}]);
+  ok('a press takes off on the very tick', !n.players[0].onGround && n.players[0].vy < 0);
+}
+{
+  // NO DOUBLE JUMP (MAX_JUMPS 1): a second press near the top of the arc does nothing.
+  const two = jumpArc((i) => i === 0 || i === 20);
+  ok('there is no second jump in the air', two.jumps === 1 && Math.abs(two.apex - jumpArc((i) => i === 0).apex) < 1e-9,
+     `jumps=${two.jumps}`);
+}
+{
+  // INSTANT RUN, STOP AND TURN (HS M4: each inside 3 frames). The body takes the stick's
+  // velocity on the tick it is pressed; on the grass and — assumed, unmeasured — in the air.
+  const m = starter(fresh());
+  const p = m.players[0];
+  step(m, [{ right: true }, {}]);
+  ok('full speed on the first tick', p.vx === C.PLAYER_SPEED && C.PLAYER_SPEED === 228, `vx=${p.vx}`);
+  step(m, [{}, {}]);
+  ok('a dead stop on the tick it is let go', p.vx === 0, `vx=${p.vx}`);
+  // (A fresh body for the turn: right, let go, right again is a double tap — a dash.)
+  const t = starter(fresh()), q = t.players[0];
+  run(t, 5, [{ right: true }, {}]);
+  step(t, [{ left: true }, {}]);
+  ok('and a reversal in one tick', q.vx === -C.PLAYER_SPEED, `vx=${q.vx}`);
+  // In the air too (the assumption, stated in constants.js).
+  step(m, [{}, {}]);
+  run(m, 16);                                          // clear of the double-tap window
+  step(m, [{ jump: true, right: true }, {}]);
+  step(m, [{}, {}]);
+  ok('the air is steered the same way (assumed)', !p.onGround && p.vx === 0, `vx=${p.vx} air=${!p.onGround}`);
+}
+{
+  // THE DASH: double-tap, 5 ticks at DASH_V (1790) — what the camera reads as HS's 4 frames and
+  // 120px (see DASH_TIME) — then straight back to a walk; and not again for DASH_COOLDOWN.
+  const m = starter(fresh());
+  const p = m.players[0];
+  const seq = [{ right: true }, {}, { right: true }];
+  const vs = [];
+  for (let i = 0; i < 14; i++) { step(m, [seq[i] || { right: true }, {}]); vs.push(p.vx); }
+  const fast = vs.filter((v) => v === C.DASH_V).length;
+  ok('a double tap dashes at 1790 px/s', vs.includes(1790), vs.join(','));
+  ok('for 5 ticks', fast === 5, `${fast} ticks`);
+  ok('then walks again at once', vs[vs.length - 1] === C.PLAYER_SPEED);
+  // Cooldown: a second double-tap straight after does not dash.
+  m.events.length = 0;
+  for (let i = 0; i < 6; i++) step(m, [i % 2 ? {} : { right: true }, {}]);
+  ok('no second dash inside DASH_COOLDOWN (HS >= 0.42s)', !m.events.some((e) => e.type === 'dash') && C.DASH_COOLDOWN >= 0.42);
+}
+{
+  // THE KICK'S CLOCKS (HS M4): the leg is out 0.26s, and a mashed kick comes round every 0.349s.
+  const m = fresh();
+  const p = m.players[0];
+  m.ball.x = C.W - 40; m.ball.y = C.GROUND_Y - C.BALL_R;       // nothing to hit
+  m.players[1].x = C.W - 150;
+  const kicks = [];
+  let out = 0;
+  for (let i = 0; i < 90; i++) {
+    step(m, [{ kick: i % 2 === 0 }, {}]);
+    if (m.events.some((e) => e.type === 'kick')) kicks.push(i);
+    if (kicks.length === 1 && p.kickT > 0) out++;
+    m.events.length = 0;
+  }
+  ok('the leg stays out 0.26s', Math.abs(out * C.TICK - 0.26) < 1.5 * C.TICK, `${(out * C.TICK).toFixed(3)}s`);
+  const gap = (kicks[1] - kicks[0]) * C.TICK;
+  ok('and a mashed kick repeats every ~0.35s', Math.abs(gap - 0.349) < 0.04, `${gap.toFixed(3)}s (${kicks.join(',')})`);
 }
 
 // --- hit-stop ---------------------------------------------------------------
@@ -659,10 +792,10 @@ const scoreOn = (m, left, y = C.GROUND_Y - 60, speed = 600) => {
 // --- gauge & clock ----------------------------------------------------------
 {
   // THE GAUGE IS A CLOCK (Head Soccer). Nobody touches anything: both meters go from empty to
-  // full in 1 / GAUGE_PASSIVE seconds — 20s with the placeholder rate — and then stay full.
+  // full in 1 / GAUGE_PASSIVE seconds — 13s, HS M4's refill — and then stay full.
   const m = fresh();
   const full = 1 / C.GAUGE_PASSIVE;
-  ok('(the placeholder fill time is 20s)', Math.abs(full - 20) < 1e-9, `${full}s`);
+  ok('(the fill time is HS\'s 13s)', Math.abs(full - 13) < 1e-9, `${full}s`);
   run(m, Math.round((full - 0.5) / C.TICK));
   const [p0, p1] = m.players;
   ok('half a second short of it, the gauge is not yet full', p0.gauge < 1 && p0.gauge > 0.95,
@@ -675,6 +808,31 @@ const scoreOn = (m, left, y = C.GROUND_Y - 60, speed = 600) => {
   run(m, Math.round(5 / C.TICK));
   ok('and a full gauge stays full, never past it', p0.gauge === 1 && p1.gauge === 1);
   ok('the clock alone arms nobody', p0.armed === 0 && p1.armed === 0);
+}
+{
+  // THE FIRST FILL, FROM A REAL KICKOFF: 15.0s after the KICK OFF banner ends (HS M4), and a
+  // refill 13.0s. One model gives both (see GAUGE_PASSIVE): nothing under the banner, a
+  // GAUGE_LEAD of 2s once play starts, then 1/13 a second.
+  const m = createMatch(CA, CB, {});
+  run(m, Math.round(C.KICKOFF_FREEZE / C.TICK) - 2);
+  ok('the gauge does not fill under the KICK OFF banner', m.players[0].gauge === 0 && m.phase === 'kickoff');
+  let t = 0;
+  while (m.phase !== 'play') { step(m, NONE); }
+  while (m.players[0].gauge < 1 && t < 30) { m.ball.x = C.W / 2; m.ball.y = 60; m.ball.vx = m.ball.vy = 0; step(m, NONE); t += C.TICK; }
+  ok('the first fill takes ~15s from the banner (HS M4 14.99)', Math.abs(t - 15) < 0.1, `${t.toFixed(2)}s`);
+}
+{
+  // …and it is a WALL clock after that: the refill runs straight through a goal's restart and a
+  // cut-in (M4's 13.0s refill had both in it).
+  const m = fresh();
+  m.hitStop = 1; m.cutin = 1; m.cutinBy = 0;
+  run(m, 30);
+  ok('the gauge fills under a cut-in', Math.abs(m.players[0].gauge - 30 * C.TICK * C.GAUGE_PASSIVE) < 1e-9, `${m.players[0].gauge}`);
+  const n = fresh();
+  scoreOn(n, true);
+  const g0 = n.players[0].gauge;
+  run(n, 60);
+  ok('and through a goal\'s restart', n.phase === 'goal' && n.players[0].gauge > g0, `${g0} → ${n.players[0].gauge}`);
 }
 {
   const m = fresh({ duration: 0.5 });
@@ -716,30 +874,89 @@ const scoreOn = (m, left, y = C.GROUND_Y - 60, speed = 600) => {
   ok('the sim is deterministic', JSON.stringify(a.ball) === JSON.stringify(b.ball) && a.score.join() === b.score.join());
 }
 
-// --- pace -------------------------------------------------------------------
-// PACE has to be slow-motion, not a nerf: the same jump, the same arc, a longer clock.
+// --- no pace layer -----------------------------------------------------------------
+// The PACE dial (a 0.68x slow-motion over every speed, gravity, drag and duration) is gone: the
+// constants are Head Soccer's own absolute per-second numbers, so there is nothing to rescale.
+// This used to prove the dial kept a jump's shape; now it proves the dial cannot come back
+// quietly and the numbers the file says are the numbers the sim runs.
 {
-  const shipped = C.PACE;
-  const arc = () => {
-    let y = 0, vy = -C.JUMP_V, t = 0, apex = 0;
-    while (y <= 0) { vy += C.PLAYER_GRAV * (vy > 0 ? C.FALL_MULT : 1) * C.TICK; y += vy * C.TICK; t += C.TICK; apex = Math.min(apex, y); }
-    return { apex: -apex, hang: t };
-  };
-  C.setPace(1); const fast = arc(), fastSpeed = C.PLAYER_SPEED;
-  C.setPace(0.5); const slow = arc(), slowSpeed = C.PLAYER_SPEED;
-  // The invariance is EXACT in the continuous case — (kv)^2 / (2·k^2·g) = v^2 / (2g) — so what
-  // is measured here is the fixed-tick integrator, not the physics. Euler undershoots the apex
-  // by about half a tick of velocity, v·TICK/2, which is a constant absolute error against an
-  // apex of v^2/2g: the RELATIVE gap between two paces is therefore ~g·TICK/(2·JUMP_V), and it
-  // grows as the jump gets smaller. At JUMP_V 830 that was 2.4% and 3% was a fair fence; at the
-  // 505 the jump was pulled down to (it is derived from GOAL_H now) it is 3.8%, and the fence
-  // was catching the arithmetic rather than a regression. 5% holds it either side of that.
-  ok('pace keeps jump height', Math.abs(fast.apex - slow.apex) / fast.apex < 0.05, `${fast.apex.toFixed(1)} vs ${slow.apex.toFixed(1)}`);
-  ok('pace stretches hang time', Math.abs(slow.hang / fast.hang - 2) < 0.06, `x${(slow.hang / fast.hang).toFixed(2)}`);
-  ok('pace halves running speed', Math.abs(slowSpeed / fastSpeed - 0.5) < 1e-9);
-  C.setPace(shipped);
-  ok('pace is restorable', Math.abs(C.PLAYER_SPEED - fastSpeed * shipped) < 1e-6);
-  ok('setPace ignores nonsense', (C.setPace(0), C.setPace(NaN), C.PACE === shipped));
+  ok('there is no PACE and no setPace', !('PACE' in C) && !('setPace' in C) && !C.TUNABLE.includes('PACE'));
+  const m = starter(fresh());
+  const p = m.players[0];
+  step(m, [{ right: true }, {}]);
+  ok('a constant is the live value (PLAYER_SPEED reads what the body does)', p.vx === C.PLAYER_SPEED);
+  m.ball.x = C.W / 2; m.ball.y = 100; m.ball.vx = 0; m.ball.vy = 0;
+  step(m, NONE);
+  ok('and BALL_GRAV is the ball\'s fall, per second, as written', Math.abs(m.ball.vy - C.BALL_GRAV * C.TICK) < 1e-9, `${m.ball.vy / C.TICK}`);
+}
+
+// --- THE CUT-IN ------------------------------------------------------------
+// HS M4, 7 cut-ins: 1.34s of the whole match holding the moment a power shot fires. A sim pause,
+// so an online client freezes on the same tick; asserted here as frozen bodies, a frozen ball,
+// a stun that is not run down under it, and a restored snapshot that finishes it identically.
+{
+  const m = fresh();
+  const a = m.players[0], b = m.players[1];
+  a.shot = SHOTS.blaze;
+  firePower(m, 0, undefined, true);
+  ok('firing a power shot starts a cut-in', m.cutin > 0 && m.cutinBy === 0 && m.hitStop >= C.POWER_CUTIN - C.TICK,
+     `cutin=${m.cutin} by=${m.cutinBy}`);
+  b.stunned = 0.4;
+  const before = JSON.stringify([m.ball.x, m.ball.y, a.x, a.y, b.x, b.y, m.clock]);
+  const snap = serialize(m);
+  const ticks = Math.round(C.POWER_CUTIN / C.TICK) - 2;
+  run(m, ticks, [{ right: true, jump: true }, { left: true }]);
+  ok('the whole match holds under it — both bodies, the ball, the clock',
+     JSON.stringify([m.ball.x, m.ball.y, a.x, a.y, b.x, b.y, m.clock]) === before);
+  ok('and a daze is not run down under it', b.stunned === 0.4, `stunned=${b.stunned}`);
+  run(m, 4, NONE);
+  ok('it lifts after POWER_CUTIN, with the shot in flight', m.cutin === 0 && m.hitStop <= 0 && !!m.ball.power && m.ball.x !== JSON.parse(before)[0]);
+  // Restore mid-cut-in into two fresh matches and play both on: they have to agree tick for tick.
+  const r = fresh(), q = fresh();
+  r.players[0].shot = SHOTS.blaze; q.players[0].shot = SHOTS.blaze;
+  restore(r, snap); restore(q, snap);
+  run(r, ticks + 4, NONE); run(q, ticks + 4, NONE);
+  ok('a snapshot taken inside the cut-in carries it', snap.cutin > 0 && snap.cutinBy === 0 &&
+     JSON.stringify(serialize(r)) === JSON.stringify(serialize(q)) && r.cutin === 0 && !!r.ball.power);
+}
+
+// --- HS restarts ---------------------------------------------------------------
+{
+  // KICKOFF: KICK OFF for 2.17s, nobody moving; the ball waiting 302px above the grass.
+  const m = createMatch(CA, CB, {});
+  ok('a match opens on the KICK OFF banner', m.phase === 'kickoff' && m.banner === 'kickoff' && m.freeze === C.KICKOFF_FREEZE && C.KICKOFF_FREEZE === 2.17);
+  ok('with the ball 302px up at the centre', m.ball.x === C.W / 2 && Math.abs(C.GROUND_Y - m.ball.y - 302) < 1e-9);
+  let t = 0;
+  while (m.phase === 'kickoff') { step(m, [{ right: true }, {}]); t += C.TICK; }
+  ok('play starts 2.17s in', Math.abs(t - 2.17) < 1.5 * C.TICK, `${t.toFixed(3)}s`);
+}
+{
+  // AFTER A GOAL: GOAL! for 2.05s, players moving at 2.24s, the ball dropping in at 2.795s with
+  // a 138 px/s drift toward whoever conceded.
+  const m = fresh();
+  const b = m.ball;
+  b.x = C.GOAL_W + b.r + 2; b.y = C.GROUND_Y - 60; b.vx = -600; b.vy = 0;
+  let t = 0;
+  while (m.phase === 'play' && t < 1) { step(m, NONE); t += C.TICK; }
+  ok('a goal puts up GOAL! and hides the ball', m.phase === 'goal' && m.banner === 'goal' && m.ballWait > 0);
+  t = 0;
+  let bannerOff = -1, moved = -1, drop = -1;
+  const x0 = m.players[0].x;
+  while (t < 4 && drop < 0) {
+    step(m, [{ right: true }, {}]);
+    t += C.TICK;
+    if (bannerOff < 0 && !m.banner) bannerOff = t;
+    if (moved < 0 && m.players[0].x !== x0) moved = t;
+    if (m.events.some((e) => e.type === 'ballDrop')) drop = t;
+    m.events.length = 0;
+  }
+  ok('the GOAL! banner is up 2.05s', Math.abs(bannerOff - 2.05) < 1.5 * C.TICK, `${bannerOff.toFixed(3)}s`);
+  // The freeze lifts on the tick it runs out and the body moves on the next: a tick of slack.
+  ok('the players move again at 2.24s', Math.abs(moved - 2.24) < 2 * C.TICK, `${moved.toFixed(3)}s`);
+  ok('the ball drops in at 2.795s', Math.abs(drop - 2.795) < 1.5 * C.TICK, `${drop.toFixed(3)}s`);
+  ok('302px up, drifting 138 px/s toward the conceder', Math.abs(C.GROUND_Y - b.y - 302) < 2 &&
+     Math.abs(Math.abs(b.vx) - 138) < 3 && Math.sign(b.vx) === m.players[0].side,
+     `y ${(C.GROUND_Y - b.y).toFixed(1)} vx ${b.vx.toFixed(1)}`);
 }
 
 // --- a power shot is as fast as it says it is -------------------------------
@@ -970,7 +1187,8 @@ const scoreOn = (m, left, y = C.GROUND_Y - 60, speed = 600) => {
     if (m.score[0] > 0) break;
   }
   ok('a body in its path blocks it', blocked, `score ${m.score[0]}`);
-  ok('and the block is a deflection, not a knockdown', d.stunned === 0, `stunned=${d.stunned}`);
+  // A deflection and HS's half-second daze (POWER_BLOCK_STUN) — not a knockdown.
+  ok('and the block dazes, it does not knock down', d.stunned > 0 && d.stunned <= C.POWER_BLOCK_STUN, `stunned=${d.stunned}`);
 }
 {
   // 6. YOU CANNOT ARM WITHOUT THE METER, OR TWICE OFF ONE PRESS.
@@ -1005,7 +1223,10 @@ const scoreOn = (m, left, y = C.GROUND_Y - 60, speed = 600) => {
   // which is the only way to exercise the latch. Placed inside the hitbox it connects on the
   // press tick, before any turn, and the test proves nothing.
   m.ball.x = p.x + C.KICK_REACH + 46; m.ball.y = p.y - C.BODY_H * 0.45;
-  m.ball.vx = -260; m.ball.vy = 0;
+  // Rolling in FASTER than a player runs: steering is instant now (PLAYER_SPEED), so the body
+  // turned left walks away from the ball at full speed on the very next tick, and a 260 px/s
+  // ball never caught it inside the swing.
+  m.ball.vx = -700; m.ball.vy = 0;
   m.hitStop = 0;
 
   // Swing facing RIGHT, then hold left before the ball is struck.
@@ -1029,7 +1250,7 @@ const scoreOn = (m, left, y = C.GROUND_Y - 60, speed = 600) => {
   q.x = 500; q.facing = 1; q.kickCd = 0; q.prev = {};
   m2.players[0].x = 100;
   m2.ball.x = q.x - C.KICK_REACH - 46; m2.ball.y = q.y - C.BODY_H * 0.45;
-  m2.ball.vx = 260; m2.ball.vy = 0;
+  m2.ball.vx = 700; m2.ball.vy = 0;
   m2.hitStop = 0;
   step(m2, [{}, { kick: true }]);
   m2.events.length = 0;
@@ -1546,6 +1767,11 @@ const scoreOn = (m, left, y = C.GROUND_Y - 60, speed = 600) => {
 // The fix watches releases and only releases, so all three of these hold at once. The middle
 // one is the reason the naive fix (clearing `prev` on a restart) is wrong: it would hand a
 // free jump to anyone still leaning on the button.
+//
+// …except that JUMP is no longer only an edge. HS re-jumps on its own while JUMP is held
+// (JUMP_REJUMP), so a button held through a pause IS a jump once the pause lifts — one, on the
+// landing clock, not a second one out of the latch. KICK and POWER are still edges only, and
+// POWER is asserted below the way JUMP used to be.
 {
   const held = (m, i, input, ticks, want) => {
     let n = 0;
@@ -1571,8 +1797,8 @@ const scoreOn = (m, left, y = C.GROUND_Y - 60, speed = 600) => {
   };
   ok('a jump released during a goal restart fires on the next press', restart(false, true) === 1,
      `${restart(false, true)} jumps`);
-  ok('a jump HELD through a goal restart does not fire for free', restart(true, true) === 0,
-     `${restart(true, true)} jumps`);
+  ok('a jump HELD through a goal restart jumps once as play resumes (HS: a held JUMP re-jumps)',
+     restart(true, true) === 1, `${restart(true, true)} jumps`);
   ok('no press after a restart means no jump', restart(false, false) === 0);
 
   // …and across a HIT-STOP. `before` is the half that matters: the latch only goes stale if
@@ -1594,8 +1820,8 @@ const scoreOn = (m, left, y = C.GROUND_Y - 60, speed = 600) => {
   };
   ok('a jump held into a hit-stop, released during it, fires on the next press',
      hitstop(true, false, true) === 1, `${hitstop(true, false, true)} jumps`);
-  ok('a jump held right through a hit-stop does not re-fire', hitstop(true, true, true) === 0,
-     `${hitstop(true, true, true)} jumps`);
+  ok('a jump held right through a hit-stop jumps once, on the landing clock — not out of the latch',
+     hitstop(true, true, true) === 1, `${hitstop(true, true, true)} jumps`);
   ok('a jump pressed during a hit-stop fires when it lifts', hitstop(false, true, true) === 1);
   ok('a jump pressed and released inside a hit-stop does not fire', hitstop(false, true, false) === 0);
 

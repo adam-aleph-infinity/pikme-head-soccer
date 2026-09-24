@@ -17,7 +17,7 @@ import {
 // Taken from the FEET LINE rather than from the player, so a collision test can ask for the
 // geometry at a swept pose — where the player was part-way through the tick — and not only
 // at where they ended it. One formula, two callers, nothing to drift apart.
-const headYAt = (y) => y - C.BODY_H - C.HEAD_R + 8;
+const headYAt = (y) => y - C.BODY_H - C.HEAD_R + C.NECK;
 const bodyTopAt = (y) => y - C.BODY_H;
 export const headY = (p) => headYAt(p.y);
 export const bodyTop = (p) => bodyTopAt(p.y);
@@ -64,6 +64,10 @@ function makePlayer(index, char) {
     gauge: 0, armed: 0,
     shoved: 0,
     coyote: 0, jumpBuf: 0,          // jump forgiveness (see COYOTE_TIME / JUMP_BUFFER)
+    // Seconds since the feet last touched down — what makes a HELD jump re-jump JUMP_REJUMP
+    // after landing (HS M4). Starts long past it: a player standing at kickoff has been down
+    // for ages, so holding JUMP through the banner jumps the moment play starts.
+    landT: 1,
     tackleImmune: 0,                // s before the same player can be tackled again
     // `stunned` is the one and only way the controls are ever taken off a player: seconds
     // left on the floor, set by stun() and counted down by tickStun(). There is no health —
@@ -84,6 +88,19 @@ export function createMatch(charA, charB, opts = {}) {
     golden: false,
     lastScorer: null,
     hitStop: 0,
+    // THE CUT-IN (see POWER_CUTIN): seconds left of the freeze a fired power shot makes, and
+    // whose shot it is. The freeze itself is the hitStop above; these say it is a cut-in, so the
+    // renderer can spotlight the shooter and a stun is not run down under it.
+    cutin: 0, cutinBy: -1,
+    // THE BANNER, as the sim times it: 'kickoff' (KICK OFF) or 'goal' (GOAL!), and seconds
+    // left. In the sim rather than the renderer because HS times its restarts off the banner,
+    // and an online client has to put it up on the same tick as the server.
+    banner: 'kickoff', bannerT: C.KICKOFF_FREEZE,
+    // After a goal the ball is not in play for GOAL_BALL_DELAY once the players can move: it
+    // drops in at the centre when this runs out. 0 = the ball is there.
+    ballWait: 0,
+    // The kickoff's head start on the gauge (GAUGE_LEAD), counted down in play.
+    gaugeLead: C.GAUGE_LEAD,
     idle: 0,                 // seconds since a player last touched the ball
     players: [makePlayer(0, charA), makePlayer(1, charB)],
     ball: { x: C.BALL_SPAWN.x, y: C.BALL_SPAWN.y, vx: 0, vy: 0, r: C.BALL_R, spin: 0, power: null },
@@ -194,15 +211,16 @@ function resetPositions(m, towards) {
     p.vx = 0; p.vy = 0; p.onGround = true; p.facing = p.side;
     p.kickT = 0; p.kickCd = 0; p.dashT = 0; p.dashCd = 0;
     p.shoved = 0;
-    p.tackleImmune = 0; p.coyote = 0; p.jumpBuf = 0;
+    p.tackleImmune = 0; p.coyote = 0; p.jumpBuf = 0; p.landT = 1;
     p.jumps = C.MAX_JUMPS;
     // The STUN clears, because a kickoff nobody can move for is a bug whoever caused it.
     p.stunned = 0;
   }
   const b = m.ball;
   b.x = C.BALL_SPAWN.x; b.y = C.BALL_SPAWN.y;
-  // Kickoff drifts towards whoever just conceded, so the restart isn't a coin flip.
-  b.vx = towards ? towards * 90 : 0;
+  // Kickoff drifts towards whoever just conceded, so the restart isn't a coin flip — at HS's
+  // measured 138 px/s (BALL_SPAWN_DRIFT).
+  b.vx = towards ? towards * C.BALL_SPAWN_DRIFT : 0;
   b.vy = 0; b.spin = 0; b.power = null;
   m.idle = 0;
 }
@@ -214,27 +232,53 @@ export function step(m, inputs, dt = C.TICK, fx = NO_FX) {
 
   if (m.phase === 'over') return m;
 
+  // The banner is presentation on a wall clock: it runs down through every kind of pause.
+  if (m.bannerT > 0) {
+    m.bannerT -= dt;
+    if (m.bannerT <= 0) { m.bannerT = 0; m.banner = null; m.events.push({ type: 'bannerOff' }); }
+  }
+
   // Hit-stop. A few frozen frames on a heavy connect is most of what makes a hit read as
   // an impact rather than a teleport. Timers still tick so nothing can wedge here.
+  //
+  // A fired power shot's CUT-IN is the same freeze, 1.34s long (POWER_CUTIN): the whole match
+  // holds while the shooter is spotlit, exactly as HS does.
   if (m.hitStop > 0) {
     m.hitStop -= dt;
+    const cut = m.cutin > 0;
+    if (cut) { m.cutin -= dt; if (m.cutin <= 0 || m.hitStop <= 0) { m.cutin = 0; m.cutinBy = -1; } }
     latchReleases(m, inputs);
     // The stun is the one timer that keeps running through a pause. Everything else here is
     // frozen on purpose — that is what hit-stop is — but a player's 1.75 seconds on the floor
     // has to be 1.75 seconds of the match clock, not 1.75 seconds plus however many heavy
     // connects happened to land while they were down. See tickStun.
-    for (const p of m.players) tickStun(m, p, dt);
+    //
+    // …EXCEPT under a cut-in. That is not a heavy connect three frames long but the whole game
+    // stopping for a second and a third, and HS's dazed player is still dazed when it lifts —
+    // run the stun down under it and a 0.5s daze from the shot before would simply vanish.
+    if (!cut) for (const p of m.players) tickStun(m, p, dt);
+    // The gauge is a wall clock (see GAUGE_PASSIVE) and runs through pauses of every kind.
+    for (const p of m.players) chargeGauge(m, p, dt);
     return m;
   }
 
   if (m.freeze > 0) {
     m.freeze -= dt;
     if (m.freeze <= 0 && (m.phase === 'kickoff' || m.phase === 'goal')) m.phase = 'play';
-    // Frozen: no physics, no clock, but gauges still tick so a restart isn't dead time.
-    for (const p of m.players) chargeGauge(m, p, dt);
+    // Frozen: no physics, no clock. The gauge runs through a GOAL's restart (HS M4's refill had
+    // one in it and still took 13.0s), but not under the KICK OFF banner, which M4 times the
+    // first fill from the end of.
+    if (m.phase !== 'kickoff') for (const p of m.players) chargeGauge(m, p, dt);
     latchReleases(m, inputs);
     return m;
   }
+
+  // A cut-in only lives inside its hit-stop. Anything that ends the pause early (a test, a
+  // restore) ends the cut-in with it, so a stale one can never outlive the freeze it describes.
+  if (m.cutin > 0) { m.cutin = 0; m.cutinBy = -1; }
+
+  // The match's head start on the gauge: GAUGE_LEAD of play before the first fill begins.
+  if (m.gaugeLead > 0) m.gaugeLead = Math.max(0, m.gaugeLead - dt);
 
   if (m.phase === 'play') {
     m.clock -= dt;
@@ -275,6 +319,18 @@ export function step(m, inputs, dt = C.TICK, fx = NO_FX) {
     else stepPlayer(m, m.players[i], inputs[i] || {}, dt, fx);
   }
   separatePlayers(m);
+
+  // NO BALL YET. After a goal the players get GOAL_BALL_DELAY of play before the ball drops in
+  // at the centre (HS: players move 2.24s after the goal, the ball appears at 2.795s). It is
+  // parked at the spot the whole time — resetPositions put it there — and nothing touches it.
+  if (m.ballWait > 0) {
+    m.ballWait -= dt;
+    m.idle = 0;
+    if (m.ballWait > 0) return m;
+    m.ballWait = 0;
+    m.events.push({ type: 'ballDrop', x: m.ball.x, y: m.ball.y });
+  }
+
   if (m.champ) champBallPre(m, m.ball, KIT, fx);
   // SUB-STEP THE BALL when it is moving faster than the things it can hit. The power volley
   // travels 34px in a tick and a head is 30px across, so at one step per frame the ball
@@ -372,6 +428,8 @@ function chargeGauge(m, p, dt) {
   // Sudden death freezes the gauges — the wiki's rule, and it stops overtime becoming
   // a power-shot slugfest where positioning stops mattering.
   if (m.golden) return;
+  // …and it has not started yet: the kickoff's lead (GAUGE_LEAD).
+  if (m.gaugeLead > 0) return;
   // THE CLOCK IS THE ONLY SOURCE, as in Head Soccer: no tackle, touch or goal adds to it.
   // An arcade champion's meter may run faster (meterRate climbs with the stage), and the
   // arcade's drain power can lock it for a few seconds. Everywhere else it is 1x.
@@ -403,6 +461,9 @@ function stepPlayer(m, p, input, dt, fx) {
   if (p.stunned > 0) {
     tickStun(m, p, dt);
     p.vx *= 0.86;
+    // Dazed AND frozen by an arcade power (a strike's paralysis, landing on the same block as
+    // the HS daze): frozen means no sliding either, whichever timer took the controls.
+    if (md && md.frozen && p.onGround) p.vx *= 0.5;
     integrate(p, dt, md ? md.grav : 1, C.MAX_JUMPS + (md ? md.airJumps : 0), headR(m, p));
     p.prev = { ...input };
     return;                             // out on your feet = no input at all
@@ -430,13 +491,23 @@ function stepPlayer(m, p, input, dt, fx) {
   if (p.dashT > 0) {
     p.dashT -= dt;
     p.vx = p.dashDir * C.DASH_V * p.stats.speed * (md ? md.speed : 1);
+  } else if (p.shoved > 0) {
+    // A SHOVE OWNS THE BODY for TACKLE_SHOVE: ballistic in the air, a short slide on the grass.
+    // With instant steering below, anything less and the knockback would last one tick.
+    if (p.onGround) p.vx *= C.PLAYER_FRICTION;
   } else {
     const target = dir * C.PLAYER_SPEED * p.stats.speed * (md ? md.speed : 1);
-    const accel = (p.onGround ? C.PLAYER_ACCEL : C.PLAYER_AIR_ACCEL) * dt * (md ? md.accel : 1);
-    if (dir !== 0) {
-      p.vx += clamp(target - p.vx, -accel, accel);
-    } else if (p.onGround && p.shoved <= 0) {
-      p.vx *= md && md.friction ? md.friction : C.PLAYER_FRICTION;
+    if (md && (md.accel < 1 || md.friction)) {
+      // The arcade's grip powers (ice, mud) are the one place a body still has to get going
+      // and slide to a stop — that is what they ARE. SLIP_ACCEL is the old ground grip.
+      const accel = C.SLIP_ACCEL * dt * md.accel;
+      if (dir !== 0) p.vx += clamp(target - p.vx, -accel, accel);
+      else if (p.onGround) p.vx *= md.friction || C.PLAYER_FRICTION;
+    } else {
+      // HS M4: full speed, a dead stop and a reversal each inside 3 frames — the body simply
+      // takes the stick's velocity. Ground and air alike (the air is an assumption: see
+      // PLAYER_SPEED).
+      p.vx = target;
     }
   }
   // Frozen solid: no sliding on the ground — but a body in the air stays ballistic, which is
@@ -446,14 +517,18 @@ function stepPlayer(m, p, input, dt, fx) {
   // ---- jump ----
   // Two forgiveness windows, because a jump that eats your input feels broken even when
   // it is technically correct: COYOTE lets you jump just after leaving the ground, BUFFER
-  // lets a press just before landing fire on touchdown.
+  // lets a press just before landing fire on touchdown. Both are 3 frames (see COYOTE_TIME).
   p.coyote = p.onGround ? C.COYOTE_TIME : Math.max(0, p.coyote - dt);
   p.jumpBuf = (input.jump && !prev.jump) ? C.JUMP_BUFFER : Math.max(0, p.jumpBuf - dt);
+  if (p.onGround) p.landT += dt;
+  // HOLDING JUMP JUMPS AGAIN, JUMP_REJUMP after every landing (HS M4 23.81–26.25 s). A held
+  // button is a level, not an edge, so this is the one jump that does not need a fresh press.
+  const rejump = input.jump && p.onGround && p.landT >= C.JUMP_REJUMP - 1e-9;
 
   // `air` is a champion's extra jump in the air; zero everywhere else, which leaves this the
   // ground-or-coyote test it always was.
   const air = md ? md.airJumps : 0;
-  if (p.jumpBuf > 0 && (p.onGround || p.coyote > 0 || air > 0) && p.jumps > 0 && !(md && md.noJump)) {
+  if ((p.jumpBuf > 0 || rejump) && (p.onGround || p.coyote > 0 || air > 0) && p.jumps > 0 && !(md && md.noJump)) {
     p.vy = -C.JUMP_V * p.stats.jump * (md ? md.jump : 1);
     p.onGround = false;
     p.coyote = 0;
@@ -461,8 +536,8 @@ function stepPlayer(m, p, input, dt, fx) {
     p.jumps--;
     m.events.push({ type: 'jump', player: p.index });
   }
-  // variable height — a jump let go of early is cut short. A frozen player has let go of nothing.
-  if (!input.jump && p.vy < 0 && !(md && md.frozen)) p.vy *= 1 - (1 - C.JUMP_CUT) * dt * 12;
+  // NO VARIABLE HEIGHT. A jump let go of early used to be cut short (JUMP_CUT); HS M4's jumps
+  // are 45.8px whether JUMP is tapped or held, so the impulse above is the whole jump.
 
   // ---- kick ----
   if (input.kick && !prev.kick && p.kickCd <= 0) {
@@ -529,15 +604,15 @@ function stepPlayer(m, p, input, dt, fx) {
 // heavier as a robot. `jumps` is how many the pickups say they get back on landing. Both
 // are arguments rather than lookups so integrate() stays a pure function of the player.
 function integrate(p, dt, gm = 1, maxJumps = C.MAX_JUMPS, hr = C.HEAD_R) {
-  // Falling faster than you rose is what stops a jump reading as floaty.
-  p.vy += C.PLAYER_GRAV * gm * (p.vy > 0 ? C.FALL_MULT : 1) * dt;
+  // One gravity, up and down alike: HS's jump is a single parabola (PLAYER_GRAV).
+  p.vy += C.PLAYER_GRAV * gm * dt;
   p.x += p.vx * dt;
   p.y += p.vy * dt;
 
   if (p.y >= C.GROUND_Y) {
     p.y = C.GROUND_Y;
     if (p.vy > 0) p.vy = 0;
-    if (!p.onGround) p.jumps = maxJumps;
+    if (!p.onGround) { p.jumps = maxJumps; p.landT = 0; }
     p.onGround = true;
   } else {
     p.onGround = false;
@@ -697,7 +772,12 @@ function collideBounds(m, b, fx) {
     b.vx *= C.BALL_GROUND_FRICTION;
   }
   // ceiling
-  if (b.y < C.CEIL_Y + b.r) { b.y = C.CEIL_Y + b.r; if (b.vy < 0) b.vy = -b.vy * C.BALL_WALL_BOUNCE; }
+  // ceiling — off the top of the screen, and dead: it keeps 0.41 of the climb and kills the
+  // sideways speed (HS M4; CEIL_BOUNCE, CEIL_KEEP_X), so a skied ball drops back almost straight.
+  if (b.y < C.CEIL_Y + b.r) {
+    b.y = C.CEIL_Y + b.r;
+    if (b.vy < 0) { b.vy = -b.vy * C.CEIL_BOUNCE; b.vx *= C.CEIL_KEEP_X; }
+  }
 
   // side walls — only ABOVE the goal mouth; inside the mouth the ball is a goal
   const inMouthY = b.y > C.GROUND_Y - C.GOAL_H;
@@ -721,6 +801,8 @@ function collideBounds(m, b, fx) {
   bounceOffBar(b, C.W - C.GOAL_W, barY, C.W, barY, fx);
   bounceOffRoofEdge(b, true, fx);
   bounceOffRoofEdge(b, false, fx);
+  bounceOffRoof(b, true, fx);
+  bounceOffRoof(b, false, fx);
   bounceOffPost(b, C.GOAL_W, barY, fx);
   bounceOffPost(b, C.W - C.GOAL_W, barY, fx);
 }
@@ -781,6 +863,23 @@ function bounceOffRoofEdge(b, left, fx) {
   bounceOffBar(b, box.lineX, box.top, box.lineX + box.wx, box.top + box.wy, fx, true);
 }
 
+// THE ROOF ITSELF — the far frame's top rail, the one the renderer draws a step up and across
+// from the near one (wx, wy). HS M4: a ball dropped onto the goal lands on its ROOF, 154px above
+// the grass, not on the front bar (138): the net has a top you can see and the ball sits on it.
+// So the rail the picture already draws becomes a surface — solid from above, open from below,
+// for the same reasons as the roof edge — and a ball over the net comes to it before it ever
+// reaches the near rail 17px lower. It spans the drawn far rail exactly, back post to front.
+//
+// STRICTLY one-sided, without the roof edge's "climbing straight through" exception: the only
+// way to be under this rail is to be on the near rail (17px under it, not the 34 a ball needs to
+// fit between them), and a ball bouncing up off that rail must not then be slammed back down
+// into it by the roof — that is a crusher, not a goal. Nothing climbs to it from inside the mouth
+// anyway: the near rail stops it first, and over the pitch the roof edge does.
+function bounceOffRoof(b, left, fx) {
+  const box = goalBox(left);
+  bounceOffBar(b, box.wallX + box.wx, box.top + box.wy, box.lineX + box.wx, box.top + box.wy, fx, 'strict');
+}
+
 // A BAR: any capsule of radius POST_R laid along a segment, and the ball bounces off it.
 //
 // This was `bounceOffCrossbar(b, x0, x1, barY)` — a horizontal span only, clamped on x — which
@@ -819,7 +918,7 @@ function bounceOffBar(b, ax, ay, bx, by, fx, fromAboveOnly = false) {
   // ball headed straight through the net's roof from underneath, and this was the hole it went
   // through. Reported: the ball could not fall through the roof from above, but shot straight
   // up through it from inside the mouth as if there were nothing there.
-  if (fromAboveOnly && b.vy >= 0) {
+  if (fromAboveOnly && (b.vy >= 0 || fromAboveOnly === 'strict')) {
     let upx = ey, upy = -ex;                      // a perpendicular…
     if (upy > 0) { upx = -upx; upy = -upy; }      // …taken on the side the sky is on
     if (dx * upx + dy * upy <= 0) return;         // ball is under the bar: it passes in front
@@ -830,8 +929,8 @@ function bounceOffBar(b, ax, ay, bx, by, fx, fromAboveOnly = false) {
   b.y = py + ny * min;
   const dot = b.vx * nx + b.vy * ny;
   if (dot < 0) {
-    b.vx = (b.vx - 2 * dot * nx) * 0.72;
-    b.vy = (b.vy - 2 * dot * ny) * 0.72;
+    b.vx = (b.vx - 2 * dot * nx) * C.BAR_BOUNCE;
+    b.vy = (b.vy - 2 * dot * ny) * C.BAR_BOUNCE;
   }
   // Nothing may come to REST on the bar. A ball that lands flat on top has no horizontal
   // velocity to roll it off and the bar keeps pushing it back up, so it sits there — which
@@ -890,6 +989,7 @@ function tryCounter(m, p, fx) {
 function tryHeader(m, p, fx) {
   const b = m.ball;
   if (b.power) return false;                       // a live power shot is not headable
+  if (m.ballWait > 0) return false;                // no ball on the pitch yet (after a goal)
   // ARMED means the next time this player's body reaches the ball the ULTIMATE goes off, and
   // a header that swallowed that contact would quietly eat a full meter. Stand down: the
   // contact is a tick away in resolveBallPlayers, and it is worth more than a header.
@@ -963,7 +1063,7 @@ function tryTackle(m, p, fx) {
   // place the swing is drawn and the same place the ball can be struck from. A tackle box on
   // `facing` would be a hit landed by a leg that is not there.
   const kx = p.x + p.side * C.KICK_REACH;
-  const ky = p.y - C.BODY_H * 0.45;
+  const ky = p.y - C.BODY_H * 0.5;                 // the kick circle's height (resolveBallPlayers)
   // THE WHOLE LEG, NOT JUST THE TOE. This used to test one circle sitting at the tip of the
   // reach, which is exactly wrong for an opponent standing RIGHT ON TOP of you — closer than
   // the tip, so the circle at the tip missed them entirely and the swing reached past their
@@ -998,6 +1098,7 @@ function tryTackle(m, p, fx) {
   foe.vy = Math.min(foe.vy, -C.TACKLE_LIFT * (behind ? C.TACKLE_PUSH_BACK : 1));
   foe.onGround = false;
   foe.dashT = 0;
+  foe.shoved = C.TACKLE_SHOVE;               // the knockback owns the body for a moment
   foe.tackleImmune = C.TACKLE_IMMUNE;
 
   p.kickT = 0;                                   // the boot is spent on them, not the ball
@@ -1075,7 +1176,11 @@ function resolveBallPlayers(m, fx, alpha = 1) {
     if (p.kickT > 0) {
       const dir = p.kickDir || p.side;              // the aim, as latched at the swing
       const kx = px + dir * C.KICK_REACH;
-      const ky = py - C.BODY_H * 0.45;
+      // The kick circle sits at the height of a ball resting on the grass: half the torso, 12px
+      // on the 24px body, which is BALL_R. (It was 0.45 of the old 27px torso — 12.2 — and 0.45
+      // of the new one would sink the circle 1.2px under a resting ball and quietly lift every
+      // "dead flat" toe-poke.)
+      const ky = py - C.BODY_H * 0.5;
       if (Math.hypot(b.x - kx, b.y - ky) < C.KICK_R + b.r) {
         if (!b.power) {
           const mult = p.stats.kick * (m.champ ? p.mods.kick : 1);
@@ -1350,17 +1455,28 @@ function fireUltimateOnContact(m, p, b, fx) {
   // what the touch does, and that is the champion's own power (shared/powers.js).
   if (m.champ && p.champ) {
     firePower(m, p, b, KIT, fx);
-    m.hitStop = Math.max(m.hitStop, C.HIT_STOP_POWER);
+    cutIn(m, p);
     return true;
   }
   // Toward the opponent's goal, which is what `side` is: +1 attacks the right net. Same
   // launch the armed boot always used, so this is the existing ultimate, moved to a new
   // trigger rather than a second implementation of one.
   launchPowerShot(b, p, p.shot, p.side);
-  m.hitStop = Math.max(m.hitStop, C.HIT_STOP_POWER);
+  cutIn(m, p);
   m.events.push({ type: 'powershot', player: p.index, shot: p.shot.id, ultimate: true, countered });
   fx.shockwave(b.x, b.y, p.shot.color);
   return true;
+}
+
+// THE CUT-IN: the whole match holds for POWER_CUTIN (1.34s, HS M4) the moment a power shot goes
+// off — the shot is already launched, so play resumes with it in flight. It rides the hit-stop,
+// which already freezes everything, already travels in the snapshot and already watches the
+// buttons for releases; `cutin`/`cutinBy` only say that this particular pause is the shooter's
+// moment, for the renderer's spotlight and so a stun is not run down under it.
+function cutIn(m, p) {
+  m.hitStop = Math.max(m.hitStop, C.POWER_CUTIN);
+  m.cutin = C.POWER_CUTIN;
+  m.cutinBy = p.index;
 }
 
 // A power shot that reaches a defender is BLOCKED, not a battering ram. It used to punch
@@ -1390,6 +1506,11 @@ function hitByPowerShot(m, p, b, fx) {
   fx.shockwave(p.x, headY(p), shot.color);
   // …and may leave something on the blocker after it (knocked back, burning, paralysed).
   if (m.champ && pw.champ) champAfterBlock(m, pw, p, KIT, fx);
+  // …and it dazes them. HS M4 60.16 s and 78.36 s: an unarmed player the CPU's power shot hits
+  // is out on their feet for ~0.5s while the ball comes back off them. AFTER the champion's own
+  // consequence, so a champion's longer paralysis is the one that lands — stun() refuses a player
+  // already down, which is also why a second shot cannot stack the daze.
+  stun(m, p, C.POWER_BLOCK_STUN);
 }
 
 // ---------------------------------------------------------------------------
@@ -1430,7 +1551,11 @@ function checkGoal(m, fx, scorer) {
     return true;
   }
   m.phase = 'goal';
-  m.freeze = C.KICKOFF_FREEZE + 0.9;
+  // HS's restart, three clocks off the goal (see GOAL_RESUME): GOAL! up for 2.05s, players
+  // moving at 2.24s, the ball dropping in 0.555s after that.
+  m.freeze = C.GOAL_RESUME;
+  m.banner = 'goal'; m.bannerT = C.GOAL_BANNER;
+  m.ballWait = C.GOAL_BALL_DELAY;
   // Bodies and ball only. Both meters and both arms come through this untouched — see the
   // note on resetPositions for why that is the fix and not an oversight.
   resetPositions(m, m.players[1 - scorer].side);
@@ -1462,6 +1587,8 @@ const P_FIELDS = [
   // Added with the tackle + jump-feel pass. Anything that can change a future step has to
   // travel, or a reconciling client re-runs the last 30 ticks with the wrong state.
   'tackleImmune', 'coyote', 'jumpBuf',
+  // The held-jump clock (JUMP_REJUMP): miss it and a restored client re-jumps a tick early or late.
+  'landT',
   // `stunned` has to travel: it decides whether input is read at all, and the renderer draws
   // the slump off it. (`hp` sat next to it until the hidden health was removed.)
   'stunned',
@@ -1475,6 +1602,10 @@ export function serialize(m) {
     // client restored mid-hit-stop skipped the freeze the server was still in and ran two
     // ticks ahead of it: the clocks came apart by exactly 2/60s, then everything else did.
     hitStop: m.hitStop, idle: m.idle,
+    // The HS restart and cut-in state: every one of these decides what a future tick does
+    // (whether the ball exists, whether a stun runs, whether the gauge has started).
+    cutin: m.cutin, cutinBy: m.cutinBy, banner: m.banner, bannerT: m.bannerT,
+    ballWait: m.ballWait, gaugeLead: m.gaugeLead,
     score: [m.score[0], m.score[1]], golden: m.golden, lastScorer: m.lastScorer,
     // Players travel POSITIONALLY, in P_FIELDS order. Field names were 60% of the whole
     // snapshot — an array halves it at no cost in precision, and P_FIELDS is the schema.
@@ -1503,6 +1634,8 @@ export function restore(m, s) {
   m.t = s.t; m.clock = s.clock; m.phase = s.phase; m.freeze = s.freeze; m.hitStop = s.hitStop || 0; m.idle = s.idle || 0;
   m.score[0] = s.score[0]; m.score[1] = s.score[1];
   m.golden = s.golden; m.lastScorer = s.lastScorer;
+  m.cutin = s.cutin || 0; m.cutinBy = s.cutinBy ?? -1; m.banner = s.banner ?? null; m.bannerT = s.bannerT || 0;
+  m.ballWait = s.ballWait || 0; m.gaugeLead = s.gaugeLead || 0;
   for (let i = 0; i < 2; i++) {
     const p = m.players[i], o = s.p[i];
     P_FIELDS.forEach((f, j) => { p[f] = o[j]; });

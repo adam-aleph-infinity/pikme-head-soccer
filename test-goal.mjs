@@ -84,7 +84,9 @@ const BAR = barY();
 // in the goal sits strictly between the two side planes. z is the number the whole draw order
 // is sorted on, so this is that requirement, tested.
 {
-  const deep = depthZ(30, C.GROUND_Y - 40);              // well inside the left net
+  // Well inside the left net: past the entry ramp (half the depth in from the line). Derived,
+  // not typed — x=30 was deep in a 69px goal and is still on the ramp in HS's 57px one.
+  const deep = depthZ(C.GOAL_W * 0.35, C.GROUND_Y - 40);
   ok('a ball in the net is BEHIND the near net', deep > NEAR_Z, `z=${deep}`);
   ok('a ball in the net is IN FRONT of the far net', deep < FAR_Z, `z=${deep}`);
   ok('…and it is at the middle of the goal', Math.abs(deep - INSIDE_Z) < 1e-9, `z=${deep}`);
@@ -305,8 +307,9 @@ const BAR = barY();
   // cause, because a crown above the bar means the goal is solid again and the player would
   // be flung back out onto the pitch mid-jump.
   //
-  // Held, not tapped. A tapped jump is cut short by JUMP_CUT and tops out 60px below the bar,
-  // which is how the first version of this test passed while the bar was made of nothing.
+  // Held, as the first version was forced to be: a tapped jump used to be cut short by JUMP_CUT.
+  // There is no variable height now (HS), so held and tapped rise alike — and held also
+  // re-jumps on landing (JUMP_REJUMP), which puts the head at the bar over and over.
   const m = fresh();
   const p = m.players[0];
   run(m, 200, [{ left: true }, {}]);
@@ -324,6 +327,16 @@ const BAR = barY();
      `crown ${crown.toFixed(1)} vs the bar's underside ${BAR + C.POST_R}`);
   ok('…and is never flung back out of the goal', escaped === 0, `${escaped} ticks outside`);
   ok('…and is still standing in the net afterwards', p.x < C.GOAL_W, `${wentIn.toFixed(1)} → ${p.x.toFixed(1)}`);
+  // THE PARITY HALF. JUMP_V used to be SOLVED from GOAL_H so the crown stopped just short of the
+  // bar. Both are Head Soccer's measured numbers now (a 46px jump, a 138px bar top) and nothing
+  // ties them, so the rule has to be checked rather than assumed: the shipped jump, under the
+  // bar, never reaches it — the crown tops out with daylight to spare, and headReach() (what the
+  // bot and the docs quote) agrees with the jump the sim actually makes.
+  const reach = C.GROUND_Y - crown;
+  ok('the shipped HS jump never reaches the bar from underneath', crown > BAR + C.POST_R + 4,
+     `crown ${reach.toFixed(1)}px up vs the bar's underside at ${C.GOAL_H - C.POST_R}px`);
+  ok('…and headReach() is the jump the sim makes', Math.abs(C.headReach() - reach) < 3,
+     `headReach ${C.headReach().toFixed(1)} vs measured ${reach.toFixed(1)}`);
 }
 {
   // The roof is solid from the outside too: you cannot jump in over the post. Held at the apex
@@ -346,6 +359,7 @@ const BAR = barY();
   // A mouth shorter than a player is not a room, and must not become one — the tuner can take
   // GOAL_H down to 90 against an 79px body, and a ceiling below the floor would wedge someone
   // under the pitch.
+  const SHIPPED_GOAL_H = C.GOAL_H;
   C.tune({ GOAL_H: 90 });
   const m = fresh();
   const p = m.players[0];
@@ -355,7 +369,9 @@ const BAR = barY();
   ok('a goal too short to stand in is not entered', fits || p.x >= C.GOAL_W + C.BODY_W / 2 - 0.01,
      `x=${p.x.toFixed(1)} mouth ${C.GOAL_H} vs body ${tall}`);
   ok('…and nobody ends up under the pitch', p.y <= C.GROUND_Y + 0.01, `y=${p.y.toFixed(1)}`);
-  C.tune({ GOAL_H: 144 });
+  // Put back what shipped, not a number typed here: this used to restore 144, which silently
+  // re-sized the goal for every test below the moment the real GOAL_H moved.
+  C.tune({ GOAL_H: SHIPPED_GOAL_H });
 }
 
 // ═══ 6. THE CROSSBAR IS SOLID ══════════════════════════════════════════════
@@ -382,8 +398,8 @@ const intoBar = (x, y) => {
   const nr = Math.max(C.W - C.GOAL_W, Math.min(x, C.W));
   return CLEAR - Math.min(Math.hypot(x - nl, y - BAR), Math.hypot(x - nr, y - BAR));
 };
-// Hold jump — not tap it. JUMP_CUT halves a tapped jump and it tops out 60px below the bar,
-// which is exactly how a test can "pass" against a bar made of nothing.
+// Hold jump — a held JUMP keeps re-jumping (JUMP_REJUMP), so the head goes back up to the bar
+// on every landing instead of once.
 const jumpAt = (x, held = 90) => {
   const m = noWhistle();
   const p = m.players[0];
@@ -406,8 +422,8 @@ const jumpAt = (x, held = 90) => {
 
 // EVERYTHING BELOW RUNS ON A TUNED-UP JUMP, AND THAT IS THE POINT OF THE LAST BLOCK.
 //
-// The shipped JUMP_V is derived from GOAL_H now (see shared/constants.js) and deliberately
-// stops a few pixels UNDER the bar, so a head never meets it in an ordinary match. Tested with
+// The shipped JUMP_V is Head Soccer's measured jump (see shared/constants.js), and it stops
+// ~12px UNDER the bar, so a head never meets it in an ordinary match. Tested with
 // that jump, every assertion in this section would pass against a crossbar made of nothing —
 // which is exactly the bug the section exists to fence. So the bar is tested with a jump that
 // reaches it: the one that would carry the crown a clear head ABOVE the bar if the capsule did
@@ -417,7 +433,7 @@ const jumpAt = (x, held = 90) => {
 // The tuner can do this live at any time, which is the other reason barCeiling still has to be
 // right: JUMP_V is a slider in public/game.js, range 400..1500.
 const freeCrownJump = (crown) =>
-  Math.sqrt(2 * C.PLAYER_GRAV * (C.GROUND_Y - crown - (C.BODY_H + C.HEAD_R * 2 - 8)));
+  Math.sqrt(2 * C.PLAYER_GRAV * (C.GROUND_Y - crown - (C.BODY_H + C.HEAD_R * 2 - C.NECK)));
 const SHIPPED_JUMP = C.JUMP_V;
 C.tune({ JUMP_V: freeCrownJump(BAR - C.HEAD_R) });
 {
@@ -601,14 +617,19 @@ C.tune({ JUMP_V: SHIPPED_JUMP });
     const b = m.ball;
     b.x = x; b.y = barY() - 40; b.vx = 0; b.vy = vy0;
     const min = C.BALL_R + C.POST_R;
+    // The goal's top is TWO rails now: the near one at the bar, and the ROOF — the far frame's
+    // rail, drawn a step up and across, which is what a ball dropped on the goal lands on (HS
+    // M4: 154px up, not the bar's 138). Contact with either is contact with the top of the goal.
+    const rails = [true, false].flatMap((left) => {
+      const bx = goalBox(left);
+      return [[left ? 0 : C.W - C.GOAL_W, left ? C.GOAL_W : C.W, barY()],
+              [Math.min(bx.wallX, bx.lineX) + bx.wx, Math.max(bx.wallX, bx.lineX) + bx.wx, bx.top + bx.wy]];
+    });
     let sawContact = false, worst = 0;
     for (let i = 0; i < ticks; i++) {
       m.hitStop = 0;
       step(m, [{}, {}], C.TICK, NO_FX);
-      const nearestLeft = Math.max(0, Math.min(b.x, C.GOAL_W));
-      const nearestRight = Math.max(C.W - C.GOAL_W, Math.min(b.x, C.W));
-      const d = Math.min(Math.hypot(b.x - nearestLeft, b.y - barY()),
-                          Math.hypot(b.x - nearestRight, b.y - barY()));
+      const d = Math.min(...rails.map(([x0, x1, y]) => Math.hypot(b.x - Math.max(x0, Math.min(b.x, x1)), b.y - y)));
       if (d < min + 0.5) { sawContact = true; worst = Math.max(worst, Math.abs(b.vx)); }
     }
     return { sawContact, worst };

@@ -155,7 +155,7 @@ function scenario(id, n, i, foeX, secs, sounds, active = false) {
   // Armed, a moment before the touch: the tell.
   p.gauge = 1; p.armed = 1;
   const b = m.ball;
-  b.x = C.W / 2; b.y = C.CEIL_Y + 60; b.vx = b.vy = 0;
+  b.x = C.W / 2; b.y = C.SKY_Y + 60; b.vx = b.vy = 0;
   for (let k = 0; k < 12; k++) frame(1 / 60);
   // The touch.
   b.x = p.x + p.side * 4; b.y = headY(p); b.vx = 0; b.vy = 0; b.power = null;

@@ -279,7 +279,7 @@ const EFFECTS = {
       const half = q.side > 0 ? [C.GOAL_W + 20, C.W / 2] : [C.W / 2, C.W - C.GOAL_W - 20];
       while (e.t >= e.next && e.next < e.life - 0.5) {
         const x = clamp(q.x + COIN_OFFSETS[e.n++ % COIN_OFFSETS.length], half[0], half[1]);
-        e.coins.push({ x, y: C.CEIL_Y + 10, vy: 40 });
+        e.coins.push({ x, y: C.SKY_Y + 10, vy: 40 });
         e.next += e.every;
       }
       const hr = kit.headR(m, q), hy = kit.headY(q);
@@ -340,7 +340,7 @@ const EFFECTS = {
       if (e.onGround && coming && Math.abs(b.x - e.x) < 150 && b.y < hy - 14) {
         e.vy = -C.JUMP_V * 1.02; e.onGround = false;
       }
-      e.vy += C.PLAYER_GRAV * (e.vy > 0 ? C.FALL_MULT : 1) * dt;
+      e.vy += C.PLAYER_GRAV * dt;
       e.y += e.vy * dt;
       if (e.y >= C.GROUND_Y) { e.y = C.GROUND_Y; e.vy = 0; e.onGround = true; }
     },
@@ -543,7 +543,7 @@ export const POWERS = {
         const S = shotSpeed(pw.k);
         if (pw.phase === 0) {
           b.vx = pw.dir * S * 0.3; b.vy = -S * 1.25;
-          if (b.y <= C.CEIL_Y + 60 || pw.t > 0.55) {
+          if (b.y <= C.SKY_Y + 60 || pw.t > 0.55) {
             pw.phase = 1;
             const v = aimAt(b, attackLine(pw.dir) + pw.dir * 16, C.GROUND_Y - C.GOAL_H * 0.45, S * 1.1);
             pw.dvx = v.vx; pw.dvy = v.vy;

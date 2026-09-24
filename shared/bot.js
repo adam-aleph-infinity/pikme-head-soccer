@@ -179,9 +179,9 @@ function botInputRaw(bot, m, index, dt) {
       // against a ball moving at 2000px/s is a miss. The first version had this backwards and
       // the strong bot blocked nine to the weak bot's twenty-four.
       const lead = 0.18 + d.aim * 0.16;
-      // HOLD the jump, do not tap it. Jump height is variable here — JUMP_CUT takes a tap to
-      // 45% of a held jump's rise — and with the jump now set just under the crossbar there is
-      // no headroom left to throw away. Measured: one block across sixteen matches before this.
+      // HOLD the jump for a beat. It used to matter for height (JUMP_CUT took a tap to 45% of a
+      // held jump); HS's jump is one fixed impulse, so now it only has to cover the takeoff tick.
+      // 14 ticks is well inside the 0.79s airtime, so the hold never becomes HS's re-jump.
       if (p.onGround && b.y < headY(p) - C.HEAD_R * 0.4 && eta < lead) bot.holdJump = 14;
       out.jump = bot.holdJump > 0;
       if (bot.holdJump > 0) bot.holdJump--;
@@ -338,9 +338,8 @@ function botInputRaw(bot, m, index, dt) {
   const bh = b.y - headY(p);
   // How much higher a jump actually puts the head, derived rather than typed: the apex of the
   // rise, plus the head's own radius, because the crown meets the ball. This was a flat -170,
-  // authored against a jump that rose 150px; the jump is now tied to GOAL_H and rises 55, and a
-  // bot leaping at a ball 170px over its head is a bot jumping at nothing. Ratio of two paced
-  // values, so PACE leaves it alone.
+  // authored against a jump that rose 150px; the jump is HS's measured 46px now, and a bot
+  // leaping at a ball 170px over its head is a bot jumping at nothing.
   const jumpGain = (C.JUMP_V * C.JUMP_V) / (2 * C.PLAYER_GRAV) + C.HEAD_R;
   out.jump = bot.wantJump || (p.onGround && adxb < C.HEAD_R * 2 && bh < -30 && bh > -jumpGain);
   if (out.jump) bot.wantJump = false;

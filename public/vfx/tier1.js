@@ -1550,7 +1550,7 @@ export default {
         g.closePath(); g.fill();
       }
       g.globalCompositeOperation = 'source-over';
-      field(g, s, 14, { vy: -60, x0: x - (away0 > 0 ? 20 : 240), x1: x + (away0 > 0 ? 240 : 20), top: C.CEIL_Y, bot, seed: 31 }, (g, fx0, fy, i) => {
+      field(g, s, 14, { vy: -60, x0: x - (away0 > 0 ? 20 : 240), x1: x + (away0 > 0 ? 240 : 20), top: C.SKY_Y, bot, seed: 31 }, (g, fx0, fy, i) => {
         g.globalAlpha = k * (0.5 + 0.5 * Math.sin(s.t * 6 + i));
         g.fillStyle = i % 2 ? '#ffd166' : '#fff6d8';
         g.beginPath(); g.moveTo(fx0, fy - 5); g.lineTo(fx0 + 3, fy); g.lineTo(fx0, fy + 5); g.lineTo(fx0 - 3, fy); g.closePath(); g.fill();
@@ -1838,7 +1838,7 @@ export default {
         g.fillStyle = i % 2 ? '#ffc400' : '#b8860b'; g.beginPath(); g.ellipse(cx, cy - 1, 8, 3.5, 0, 0, TAU); g.fill();
       }
       for (const c of e.coins) {
-        const k = clamp01((c.y - C.CEIL_Y) / (C.GROUND_Y - C.CEIL_Y));
+        const k = clamp01((c.y - C.SKY_Y) / (C.GROUND_Y - C.SKY_Y));
         const d = s.depth(c.x, C.GROUND_Y + 2);
         s.fx.drawGlow(g, d.x, d.y - 2, 14 + 18 * k, '#1f8f4e', 0.5 * k);
         g.globalAlpha = 0.4 + 0.45 * k;
@@ -1856,9 +1856,9 @@ export default {
       const k = envOf(e, 0.2, 0.4);
       g.save();
       // a gold wash at the top of the pitch
-      g.globalAlpha = 0.14 * k; g.fillStyle = '#ffc400'; g.fillRect(0, 0, C.W, C.CEIL_Y + 60);
+      g.globalAlpha = 0.14 * k; g.fillStyle = '#ffc400'; g.fillRect(0, 0, C.W, C.SKY_Y + 60);
       // the slot-machine marquee over the target, bulbs chasing along it
-      const mx = Math.max(170, Math.min(C.W - 170, q.x)), my = C.CEIL_Y + 46, mw = 320 * k, mh = 40;
+      const mx = Math.max(170, Math.min(C.W - 170, q.x)), my = C.SKY_Y + 46, mw = 320 * k, mh = 40;
       // two casino spotlights swinging down out of the marquee onto the opponent
       const gy = s.depth(q.x, C.GROUND_Y).y;
       g.globalCompositeOperation = 'lighter';
@@ -1912,7 +1912,7 @@ export default {
         fx.emit({ shape: 'star', x: c.x + fx.rand(-8, 8), y: c.y + fx.rand(-8, 8), r: 5, spin: 8, life: 0.25, color: '#fff3b0', blend: 'lighter' });
       }
       if (Math.random() < 0.2) {
-        fx.emit({ shape: 'star', x: fx.rand(0, C.W), y: C.CEIL_Y + fx.rand(0, 40), vy: 60, r: 3, spin: 4, life: 1.2, color: '#ffc400', blend: 'lighter' });
+        fx.emit({ shape: 'star', x: fx.rand(0, C.W), y: C.SKY_Y + fx.rand(0, 40), vy: 60, r: 3, spin: 4, life: 1.2, color: '#ffc400', blend: 'lighter' });
       }
     },
 
@@ -1920,9 +1920,9 @@ export default {
       const { fx } = s;
       const q = ev.e && ev.e.target != null ? s.M.players[ev.e.target] : s.foe;
       if (ev.kind === 'land') {
-        fx.burst(q.x, s.C.CEIL_Y + 12, 14, { shape: 'star', speed: 150, r: 6, spin: 8, life: 0.5, color: '#fff3b0', blend: 'lighter' });
-        fx.rays(q.x, s.C.CEIL_Y + 14, { color: '#ffc400', color2: '#d7263d', r1: 220, n: 12, life: 0.7, alpha: 0.45 });
-        fx.glyph(q.x, s.C.CEIL_Y + 34, '$', { color: '#1f8f4e', r: 26, vy: 30, life: 0.8 });
+        fx.burst(q.x, s.C.SKY_Y + 12, 14, { shape: 'star', speed: 150, r: 6, spin: 8, life: 0.5, color: '#fff3b0', blend: 'lighter' });
+        fx.rays(q.x, s.C.SKY_Y + 14, { color: '#ffc400', color2: '#d7263d', r1: 220, n: 12, life: 0.7, alpha: 0.45 });
+        fx.glyph(q.x, s.C.SKY_Y + 34, '$', { color: '#1f8f4e', r: 26, vy: 30, life: 0.8 });
         return;
       }
       const x = q.x, y = s.headY(q) - s.headR(q);
@@ -2332,7 +2332,7 @@ export default {
       // nuts and bolts tumbling in through the air
       g.save();
       for (let i = 0; i < 36; i++) {
-        const bx = hashy(i + 61) * C.W, by = C.CEIL_Y + hashy(i + 67) * (C.GROUND_Y - C.CEIL_Y);
+        const bx = hashy(i + 61) * C.W, by = C.SKY_Y + hashy(i + 67) * (C.GROUND_Y - C.SKY_Y);
         const u = (s.t * (0.25 + hashy(i) * 0.2) + hashy(i + 3)) % 1, f = u * 0.85;
         const fx0 = bx + (P.x - bx) * f, fy0 = by + (P.y - by) * f;
         const a = Math.atan2(P.y - fy0, P.x - fx0), q = s.depth(fx0, fy0);
@@ -2344,7 +2344,7 @@ export default {
       }
       g.lineWidth = 3;
       for (let i = 0; i < 5; i++) {
-        const bx = hashy(i + 91) * C.W, by = C.CEIL_Y + 20 + hashy(i + 97) * 200;
+        const bx = hashy(i + 91) * C.W, by = C.SKY_Y + 20 + hashy(i + 97) * 200;
         const u = (s.t * 0.35 + i / 5) % 1, f = u * u * 0.95;
         const q = s.depth(bx + (P.x - bx) * f, by + (P.y - by) * f);
         g.globalAlpha = k * Math.min(1, (1 - u) * 5);
@@ -2588,7 +2588,7 @@ export default {
       for (let i = 0; i <= 30; i++) { const x = (i / 30) * C.W; const y = g0 - 12 + Math.sin(i * 0.9 + s.t * 5 * dir + 2) * 7; if (i) g.lineTo(x, y); else g.moveTo(x, y); }
       g.stroke();
       g.lineWidth = 2;
-      field(g, s, 14, { vy: -110, vx: 10, seed: 71, top: C.CEIL_Y, bot: C.GROUND_Y }, (g, x, y, i) => {
+      field(g, s, 14, { vy: -110, vx: 10, seed: 71, top: C.SKY_Y, bot: C.GROUND_Y }, (g, x, y, i) => {
         g.globalAlpha = 0.7; g.strokeStyle = i % 2 ? '#ffe4ec' : '#ff9ab5';
         g.beginPath(); g.arc(x, y, 3 + (i % 3) * 2, 0, TAU); g.stroke();
       });

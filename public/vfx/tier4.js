@@ -801,7 +801,7 @@ export default {
       fx.emit({ shape: 'streak', x: b.x + b.vx / sp * 66, y: b.y + b.vy / sp * 66, vx: fx.rand(-240, 240), vy: fx.rand(-300, 40), grav: 700, w: 3, r: 3, life: 0.32, color: '#ffc861', color2: '#ffffff', blend: 'lighter' });
       if (Math.random() < 0.5) fx.emit({ shape: 'shard', x: b.x, y: b.y, vx: fx.rand(-60, 60), vy: fx.rand(-140, -40), grav: 900, spin: 25, r: 5, life: 0.5, color: '#dfe6ee' });
       // the mine shakes: rocks rain off the ceiling across the whole pitch
-      if (Math.random() < 0.7) fx.emit({ shape: 'shard', x: fx.rand(0, s.C.W), y: s.C.CEIL_Y + 30, vx: fx.rand(-20, 20), vy: fx.rand(40, 140), grav: 900, spin: fx.rand(-12, 12), r: fx.rand(4, 8), life: 0.9, color: '#7a6a58', color2: '#1d1a16', layer: 'back' });
+      if (Math.random() < 0.7) fx.emit({ shape: 'shard', x: fx.rand(0, s.C.W), y: s.C.SKY_Y + 30, vx: fx.rand(-20, 20), vy: fx.rand(40, 140), grav: 900, spin: fx.rand(-12, 12), r: fx.rand(4, 8), life: 0.9, color: '#7a6a58', color2: '#1d1a16', layer: 'back' });
     },
 
     impact(s, ev) {
@@ -1297,7 +1297,7 @@ export default {
       g.lineCap = 'round';
       g.setLineDash([22, 18]); g.lineDashOffset = s.t * 420 * dir;
       for (let i = 0; i < 8; i++) {
-        const y = s.C.CEIL_Y + 40 + i * 44;
+        const y = s.C.SKY_Y + 40 + i * 44;
         const path = () => { g.beginPath(); g.moveTo(edge, y); g.bezierCurveTo((edge + mx) / 2, y + Math.sin(s.t * 3 + i) * 20, mx - dir * 120, my + (i - 3.5) * 30, mx - dir * 20, my + (i - 3.5) * 5); };
         g.globalAlpha = 0.35 * k; path(); g.strokeStyle = '#1e3a36'; g.lineWidth = 7; g.stroke();
         g.globalAlpha = 0.75 * k; path(); g.strokeStyle = i % 2 ? '#f2efe6' : '#9fd8cb'; g.lineWidth = 3; g.stroke();
@@ -1797,7 +1797,7 @@ export default {
       for (let i = 0; i < 3; i++) twinkle(g, cx - 50 + i * 50, cy - 60 + (i % 2) * 34, 8 + Math.sin(s.t * 8 + i * 2) * 4, '#ffffff');
       // coin rain: the pre-placed stars, reused as coins
       for (let i = 0; i < 26; i++) {
-        const st = STARS[i], y = C.CEIL_Y + ((st.y * 420 + s.t * 150 * st.v) % 420);
+        const st = STARS[i], y = C.SKY_Y + ((st.y * 420 + s.t * 150 * st.v) % 420);
         drawCoin(g, st.x * C.W, y, 7 + st.v * 3, s.t * 6 * st.v + i);
       }
       g.restore();
@@ -2521,15 +2521,15 @@ export default {
       const p2a = s.t * 0.6;
       drawPlanet(g, C.W * 0.62 + Math.cos(p2a) * 40, 70 + Math.sin(p2a) * 12, 18, '#d6ffe0', '#5fd38a', '#1d6b45');
       // a violet gravity column rising from the ball to the ceiling: "it falls UP"
-      const col = g.createLinearGradient(0, C.CEIL_Y, 0, bd.y);
+      const col = g.createLinearGradient(0, C.SKY_Y, 0, bd.y);
       col.addColorStop(0, 'rgba(123,77,219,0)'); col.addColorStop(1, 'rgba(184,156,255,0.9)');
       g.globalAlpha = 0.45 * k; g.fillStyle = col;
-      g.fillRect(bd.x - b.r * 1.6, C.CEIL_Y, b.r * 3.2, Math.max(0, bd.y - C.CEIL_Y));
+      g.fillRect(bd.x - b.r * 1.6, C.SKY_Y, b.r * 3.2, Math.max(0, bd.y - C.SKY_Y));
       // the starfield, streaming upward: space has turned over. Streaks, not specks — a speck
       // is lost in the crowd; a rising streak reads as "everything is falling up".
-      const H = C.GROUND_Y - C.CEIL_Y;
+      const H = C.GROUND_Y - C.SKY_Y;
       for (const st of STARS) {
-        const y = C.CEIL_Y + (((st.y * H - s.t * 120 * st.v) % H) + H) % H;
+        const y = C.SKY_Y + (((st.y * H - s.t * 120 * st.v) % H) + H) % H;
         g.globalAlpha = Math.min(1, 0.9 * st.v + 0.2) * k;
         g.fillStyle = st.s > 2 ? '#ff8fc8' : '#f3ecff';
         g.fillRect(st.x * C.W, y, st.s + 2, 14 + st.v * 16);
@@ -2567,7 +2567,7 @@ export default {
       // big stars twinkling, and the ball glowing violet
       for (let i = 0; i < 8; i++) {
         const st = STARS[i];
-        s.fx.drawGlow(g, st.x * C.W, C.CEIL_Y + st.y * (H * 0.6), 26, '#f3ecff', (0.5 + 0.4 * Math.sin(s.t * 4 + i * 1.7)) * k);
+        s.fx.drawGlow(g, st.x * C.W, C.SKY_Y + st.y * (H * 0.6), 26, '#f3ecff', (0.5 + 0.4 * Math.sin(s.t * 4 + i * 1.7)) * k);
       }
       s.fx.drawGlow(g, gx, gy, 150, '#b89cff', 0.5 * k);
       s.fx.drawGlow(g, gx, gy, 34, '#ffffff', 0.6 * k);
@@ -2630,7 +2630,7 @@ export default {
       fx.glow(s.C.W * 0.8, 128, 160, '#3a86ff', { life: 1.4, alpha: 0.5 });
       fx.ring(b.x, b.y, { color: '#f3ecff', r: 6, r1: 160, life: 0.8, w: 5 });
       stampAt(s, b.x, b.y - 90, 'נופל!', { r: 48, color: '#b89cff', edge: '#1a1147', life: 0.8 });
-      for (let i = 0; i < fx.n(14); i++) fx.emit({ shape: 'star', x: fx.rand(80, s.C.W - 80), y: s.C.CEIL_Y + fx.rand(0, 80), vy: fx.rand(60, 140), grav: 400, spin: 4, r: 5, life: 1.2, color: '#f3ecff', color2: '#7b4ddb' });
+      for (let i = 0; i < fx.n(14); i++) fx.emit({ shape: 'star', x: fx.rand(80, s.C.W - 80), y: s.C.SKY_Y + fx.rand(0, 80), vy: fx.rand(60, 140), grav: 400, spin: 4, r: 5, life: 1.2, color: '#f3ecff', color2: '#7b4ddb' });
     },
   },
 };

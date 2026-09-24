@@ -357,9 +357,10 @@ function arm(m, i) {
   m.ball.x = C.W - C.GOAL_W - C.BALL_R - 2; m.ball.y = C.GROUND_Y - 30; m.ball.vx = 700;
   for (let i = 0; i < 20 && m.score[0] === 0; i++) { m.hitStop = 0; step(m, NONE); }
   ok('(scored, still armed)', m.score[0] === 1 && p.armed > 0);
-  // Ride out the whole goal freeze. The arm has no clock, so none of this costs it anything.
-  for (let i = 0; i < 200 && m.phase !== 'play'; i++) { m.hitStop = 0; step(m, NONE); }
-  ok('(play has resumed)', m.phase === 'play');
+  // Ride out the whole goal freeze — and the beat after it before the ball drops back in at the
+  // centre (GOAL_BALL_DELAY, HS). The arm has no clock, so none of this costs it anything.
+  for (let i = 0; i < 250 && (m.phase !== 'play' || m.ballWait > 0); i++) { m.hitStop = 0; step(m, NONE); }
+  ok('(play has resumed, with a ball)', m.phase === 'play' && m.ballWait === 0);
   ok('still armed after the restart', p.armed > 0);
   ok('and the meter is still full', p.gauge >= 1, `gauge=${p.gauge}`);
   let shots = 0;

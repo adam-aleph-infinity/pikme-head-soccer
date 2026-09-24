@@ -536,7 +536,7 @@ export default {
       g.fillStyle = '#f0dcff';
       for (let i = 0; i < 18; i++) {
         const x = hash(e.seq * 13 + i) * C.W, sp = 60 + hash(i * 5.1) * 80;
-        const y = C.CEIL_Y + ((hash(i * 2.7) * 400 + s.t * sp) % (C.GROUND_Y - C.CEIL_Y));
+        const y = C.SKY_Y + ((hash(i * 2.7) * 400 + s.t * sp) % (C.GROUND_Y - C.SKY_Y));
         const z = 2 + (i % 3);
         g.globalAlpha = k * (0.4 + 0.5 * Math.sin(s.t * 5 + i));
         g.fillStyle = i % 3 ? '#f0dcff' : '#ff4de1';
@@ -571,10 +571,10 @@ export default {
         }
       }
       // a violet spotlight from the sky pinning the shrunken head
-      const spot = g.createLinearGradient(0, s.C.CEIL_Y, 0, d.y + hr);
+      const spot = g.createLinearGradient(0, s.C.SKY_Y, 0, d.y + hr);
       spot.addColorStop(0, 'rgba(157,77,255,0)'); spot.addColorStop(1, 'rgba(255,77,225,0.45)');
       g.globalAlpha = 0.8 * k; g.fillStyle = spot;
-      g.beginPath(); g.moveTo(d.x - 18, s.C.CEIL_Y); g.lineTo(d.x + 18, s.C.CEIL_Y); g.lineTo(d.x + hr * 3, d.y + hr); g.lineTo(d.x - hr * 3, d.y + hr); g.closePath(); g.fill();
+      g.beginPath(); g.moveTo(d.x - 18, s.C.SKY_Y); g.lineTo(d.x + 18, s.C.SKY_Y); g.lineTo(d.x + hr * 3, d.y + hr); g.lineTo(d.x - hr * 3, d.y + hr); g.closePath(); g.fill();
       // target rings collapsing inward, forever — dark-keyed so they read on a bright stage
       for (let i = 0; i < 4; i++) {
         const f = (s.t * 0.9 + i / 4) % 1, R = hr + 6 + f * 130;
@@ -795,7 +795,7 @@ export default {
       g.fillStyle = '#e9ecf2';
       const bright = [];
       for (let i = 0; i < 26; i++) {
-        const x = hash(e.seq * 31 + i) * C.W, y = C.CEIL_Y + hash(e.seq * 17 + i * 3) * (C.GROUND_Y - C.GOAL_H - 60);
+        const x = hash(e.seq * 31 + i) * C.W, y = C.SKY_Y + hash(e.seq * 17 + i * 3) * (C.GROUND_Y - C.GOAL_H - 60);
         const tw = 0.5 + 0.5 * Math.sin(s.t * 3 + i);
         g.globalAlpha = k * (0.35 + 0.55 * tw);
         const z = i % 5 === 0 ? 3 : 1;
@@ -806,7 +806,7 @@ export default {
       const ph = (s.t * 0.6 + e.seq * 0.37) % 1;
       let shoot = null;
       if (ph < 0.22) {
-        const u = ph / 0.22, sx = C.W * (0.15 + hash(Math.floor(s.t * 0.6) + e.seq) * 0.7), sy = C.CEIL_Y + 30;
+        const u = ph / 0.22, sx = C.W * (0.15 + hash(Math.floor(s.t * 0.6) + e.seq) * 0.7), sy = C.SKY_Y + 30;
         const x = sx + u * 220, y = sy + u * 90;
         g.globalAlpha = k * Math.sin(u * Math.PI); g.strokeStyle = '#e9ecf2'; g.lineWidth = 2; g.lineCap = 'round';
         g.beginPath(); g.moveTo(x, y); g.lineTo(x - 60, y - 25); g.stroke();
@@ -833,7 +833,7 @@ export default {
       // moon rocks floating up past the stands, slow as balloons
       for (let i = 0; i < 9; i++) {
         const x = C.GOAL_W + hash(e.seq * 5 + i * 1.3) * (C.W - C.GOAL_W * 2);
-        const span = C.GROUND_Y - C.CEIL_Y;
+        const span = C.GROUND_Y - C.SKY_Y;
         const y = C.GROUND_Y - ((hash(i * 3.3) * span + s.t * (18 + hash(i) * 20)) % span);
         const r = 7 + hash(i * 7.1) * 9, rot = s.t * (hash(i * 2) - 0.5) * 2;
         g.save(); g.translate(x, y); g.rotate(rot);
@@ -1244,7 +1244,7 @@ export default {
       for (let i = 0; i < 14; i++) {
         const sp = 900 + hash(i) * 900, len = 60 + hash(i + 3) * 120;
         const x = ((hash(i + 9) * (C.W + len) - s.t * sp * dir) % (C.W + len) + C.W + len) % (C.W + len) - len / 2;
-        const y = C.CEIL_Y + 40 + hash(i + 5) * (C.GROUND_Y - C.CEIL_Y - 60);
+        const y = C.SKY_Y + 40 + hash(i + 5) * (C.GROUND_Y - C.SKY_Y - 60);
         g.globalAlpha = 0.7 * k;
         g.beginPath(); g.moveTo(x, y); g.lineTo(x + dir * len, y);
         keyed(g, '#111111', i % 3 ? '#b8f7ff' : '#00e5ff', 2 + (i % 3));
@@ -1447,7 +1447,7 @@ export default {
       const x = owner.x, y = s.headY(owner);
       const fy = s.headY(foe), fr = s.headR(foe);
       pop(fx, x, y, '#c0c6d0', '#d8343f', { g: 140, R: 320, spin: 0.9 });
-      fx.beam(foe.x, C.CEIL_Y, foe.x, fy - fr - 6, { color: '#d8343f', color2: '#c0c6d0', w: 26, life: 0.45 });
+      fx.beam(foe.x, C.SKY_Y, foe.x, fy - fr - 6, { color: '#d8343f', color2: '#c0c6d0', w: 26, life: 0.45 });
       fx.glow(foe.x, fy, 110, '#d8343f', { life: 0.6 });
       fx.burst(x, y, 30, { shape: 'shard', speed: 320, r: 6, spin: 12, grav: 900, life: 0.8, color: pick(['#3a3f47', '#1f2227']) });
       fx.ring(x, y, { color: '#c0c6d0', r1: 120, life: 0.35, w: 6, layer: 'front' });
@@ -1957,7 +1957,7 @@ export default {
       fx.confetti(at.x, at.y, 18, ['#b5471f', '#d9a02b', '#c2331f', '#7a4a26'], { grav: 160, vx: dir * 200 });
       // a wall of leaves blown in from the whole upwind edge of the stadium at once
       for (let i = 0, n = fx.n(28); i < n; i++) {
-        fx.emit({ shape: 'shard', x: dir > 0 ? fx.rand(-40, 60) : s.C.W + fx.rand(-60, 40), y: fx.rand(s.C.CEIL_Y + 20, s.C.GROUND_Y - 10), vx: dir * fx.rand(380, 620), vy: fx.rand(-60, 60), r: fx.rand(10, 16), spin: fx.rand(-10, 10), life: 2.4, color: pick(['#b5471f', '#d9a02b', '#c2331f', '#7a4a26']) });
+        fx.emit({ shape: 'shard', x: dir > 0 ? fx.rand(-40, 60) : s.C.W + fx.rand(-60, 40), y: fx.rand(s.C.SKY_Y + 20, s.C.GROUND_Y - 10), vx: dir * fx.rand(380, 620), vy: fx.rand(-60, 60), r: fx.rand(10, 16), spin: fx.rand(-10, 10), life: 2.4, color: pick(['#b5471f', '#d9a02b', '#c2331f', '#7a4a26']) });
       }
       fx.rays(at.x, at.y, { color: '#d9a02b', color2: '#e8fff4', n: 10, r1: 380, life: 0.9, spin: -dir * 2, alpha: 0.35 });
       fx.stamp(at.x, top(at.y - 80), 'סופה!', { r: 74, color: '#d9a02b', edge: '#7a4a26' });
@@ -1969,11 +1969,11 @@ export default {
     back(g, e, s) {
       const C = s.C, q = who(s, e);
       const k = fade(e, 0.4, 0.7), dir = Math.sign(e.ax) || 1;
-      const qy = q.y - 40, span = C.GROUND_Y - C.CEIL_Y - 50;
+      const qy = q.y - 40, span = C.GROUND_Y - C.SKY_Y - 50;
       g.save();
       g.lineCap = 'round'; g.lineJoin = 'round';
       for (let i = 0; i < 9; i++) {
-        const base = C.CEIL_Y + 30 + (i / 8) * span;
+        const base = C.SKY_Y + 30 + (i / 8) * span;
         for (let j = 0; j < 3; j++) {
           const off = ((s.t * 520 + i * 137 + j * 380) % (C.W + 380)) - 190;
           const x0 = dir > 0 ? off : C.W - off;
@@ -1995,7 +1995,7 @@ export default {
       const heads = [];
       for (let i = 0; i < 3; i++) {
         const off = ((s.t * 300 + i * (C.W + 300) / 3) % (C.W + 300)) - 150;
-        const x = dir > 0 ? off : C.W - off, y = C.CEIL_Y + 80 + i * 90 + Math.sin(s.t * 2 + i) * 20;
+        const x = dir > 0 ? off : C.W - off, y = C.SKY_Y + 80 + i * 90 + Math.sin(s.t * 2 + i) * 20;
         g.globalAlpha = 0.85 * k;
         g.beginPath();
         for (let n = 0; n <= 22; n++) { const a = -dir * (s.t * 4 + n * 0.5), r = 56 - n * 2.2; g.lineTo(x - dir * n * 6 + Math.cos(a) * r, y + Math.sin(a) * r * 0.7); }
@@ -2004,7 +2004,7 @@ export default {
       }
       // the storm cloud itself hangs upwind under the roof for the whole gale, cheeks puffed, blowing
       const puff = 1 + Math.sin(s.t * 6) * 0.05, R = 46 * puff;
-      const cx0 = dir > 0 ? 150 : C.W - 150, cy0 = C.CEIL_Y + 130 + Math.sin(s.t * 1.5) * 6;
+      const cx0 = dir > 0 ? 150 : C.W - 150, cy0 = C.SKY_Y + 130 + Math.sin(s.t * 1.5) * 6;
       const puffs = [[0, 0, 1], [-0.9, 0.2, 0.7], [0.8, 0.25, 0.65], [-0.4, -0.6, 0.7], [0.4, -0.55, 0.6]];
       g.globalAlpha = 0.95 * k;
       g.strokeStyle = '#3d5247'; g.lineWidth = 6;
@@ -2055,7 +2055,7 @@ export default {
       const dir = Math.sign(e.ax) || 1, q = who(s, e);
       for (let i = 0; i < 2; i++) {
         if (Math.random() > 0.45) continue;
-        fx.emit({ shape: 'shard', x: dir > 0 ? -10 : C.W + 10, y: fx.rand(C.CEIL_Y + 20, C.GROUND_Y - 10), vx: dir * fx.rand(260, 420), vy: fx.rand(-40, 50), r: fx.rand(10, 16), spin: fx.rand(-9, 9), life: 3.8, color: pick(['#b5471f', '#d9a02b', '#c2331f', '#7a4a26']), layer: i ? 'front' : 'back' });
+        fx.emit({ shape: 'shard', x: dir > 0 ? -10 : C.W + 10, y: fx.rand(C.SKY_Y + 20, C.GROUND_Y - 10), vx: dir * fx.rand(260, 420), vy: fx.rand(-40, 50), r: fx.rand(10, 16), spin: fx.rand(-9, 9), life: 3.8, color: pick(['#b5471f', '#d9a02b', '#c2331f', '#7a4a26']), layer: i ? 'front' : 'back' });
       }
       // dust torn off the feet of the one walking into it
       if (q.onGround && Math.abs(q.vx) > 20 && Math.sign(q.vx) === -dir && Math.random() < 0.5) {
@@ -2077,7 +2077,7 @@ export default {
       const q = info.e ? who(s, info.e) : s.foe;
       fx.glow(q.x, s.headY(q), 80, '#e8fff4', { life: 0.9, alpha: 0.5 });
       for (let i = 0; i < fx.n(12); i++) {
-        fx.emit({ shape: 'shard', x: fx.rand(C.GOAL_W, C.W - C.GOAL_W), y: fx.rand(C.CEIL_Y + 40, C.GROUND_Y - 150), vx: fx.rand(-40, 40), vy: 30, grav: 160, drag: 1, r: 6, spin: fx.rand(-6, 6), life: 2, color: pick(['#b5471f', '#d9a02b', '#7a4a26']), layer: 'back' });
+        fx.emit({ shape: 'shard', x: fx.rand(C.GOAL_W, C.W - C.GOAL_W), y: fx.rand(C.SKY_Y + 40, C.GROUND_Y - 150), vx: fx.rand(-40, 40), vy: 30, grav: 160, drag: 1, r: 6, spin: fx.rand(-6, 6), life: 2, color: pick(['#b5471f', '#d9a02b', '#7a4a26']), layer: 'back' });
       }
     },
   },
@@ -2173,10 +2173,10 @@ export default {
 
     fire(s, at) {
       const { fx, C } = s;
-      fx.beam(at.x, C.CEIL_Y, at.x, at.y, { color: '#7b5cff', color2: '#eef3ff', w: 30, life: 0.35 });
-      fx.bolt(at.x + fx.rand(-30, 30), C.CEIL_Y, at.x, at.y, { color: '#eef3ff', w: 6, life: 0.25, blend: 'lighter' });
-      fx.bolt(at.x + fx.rand(-90, -40), C.CEIL_Y, at.x, at.y, { color: '#7b5cff', w: 4, life: 0.2 });
-      fx.bolt(at.x + fx.rand(40, 90), C.CEIL_Y, at.x, at.y, { color: '#b8a6ff', w: 3, life: 0.18 });
+      fx.beam(at.x, C.SKY_Y, at.x, at.y, { color: '#7b5cff', color2: '#eef3ff', w: 30, life: 0.35 });
+      fx.bolt(at.x + fx.rand(-30, 30), C.SKY_Y, at.x, at.y, { color: '#eef3ff', w: 6, life: 0.25, blend: 'lighter' });
+      fx.bolt(at.x + fx.rand(-90, -40), C.SKY_Y, at.x, at.y, { color: '#7b5cff', w: 4, life: 0.2 });
+      fx.bolt(at.x + fx.rand(40, 90), C.SKY_Y, at.x, at.y, { color: '#b8a6ff', w: 3, life: 0.18 });
       pop(fx, at.x, at.y, '#b8a6ff', '#7b5cff', { g: 160, R: 360, spin: 2 });
       fx.emit({ shape: 'star', x: at.x, y: at.y, r: 18, r1: 54, life: 0.2, color: '#eef3ff', color2: '#b8a6ff', blend: 'lighter' });
       fx.ring(at.x, at.y, { color: '#b8a6ff', r1: 170, life: 0.4, w: 6 });
@@ -2185,7 +2185,7 @@ export default {
       // the whole sky answers: bolts stabbing down all over the pitch, and a static ring on the grass
       for (let i = 0; i < 5; i++) {
         const x = C.GOAL_W + Math.random() * (C.W - C.GOAL_W * 2);
-        fx.bolt(x, C.CEIL_Y, x + fx.rand(-60, 60), C.GROUND_Y, { color: i % 2 ? '#b8a6ff' : '#eef3ff', w: 4, life: 0.2 + i * 0.05, blend: 'lighter' });
+        fx.bolt(x, C.SKY_Y, x + fx.rand(-60, 60), C.GROUND_Y, { color: i % 2 ? '#b8a6ff' : '#eef3ff', w: 4, life: 0.2 + i * 0.05, blend: 'lighter' });
       }
       fx.ring(at.x, C.GROUND_Y, { color: '#5ad1ff', r1: 340, life: 0.6, w: 8 });
       fx.burst(at.x, at.y, 20, { shape: 'streak', speed: 700, color: '#eef3ff', life: 0.3, w: 3 });
@@ -2203,7 +2203,7 @@ export default {
       // the storm rides above the shot: a thundercloud under the roof following the ball, and a
       // bolt forking down out of it onto the ball every other frame
       g.save();
-      const cy = C.CEIL_Y + 26;
+      const cy = C.SKY_Y + 26;
       g.globalAlpha = 0.9; g.fillStyle = '#231a4d'; g.strokeStyle = '#7b5cff'; g.lineWidth = 3;
       const cl = [[-110, 6, 30], [-60, -6, 40], [0, -10, 46], [60, -4, 40], [115, 6, 30], [-20, 12, 34], [40, 14, 32]];
       for (const [dx, dy, cr] of cl) { g.beginPath(); g.arc(d.x + dx, cy + dy, cr, 0, TAU); g.stroke(); }
@@ -2255,7 +2255,7 @@ export default {
       fx.emit({ shape: 'sq', x: b.x - dir * 10, y: b.y + fx.rand(-8, 8), vx: -b.vx * 0.15, vy: fx.rand(-100, 100), r: 3, life: 0.22, color: '#5ad1ff' });
       if (Math.random() < 0.3) fx.glow(b.x - dir * 30, b.y, 30, '#7b5cff', { life: 0.25, alpha: 0.6 });
       // now and then a bolt left burning in the air behind it, from the roof to the grass
-      if (Math.random() < 0.08) { const x = b.x - dir * fx.rand(40, 120); fx.bolt(x, s.C.CEIL_Y + 30, x + fx.rand(-40, 40), s.C.GROUND_Y, { color: '#b8a6ff', w: 3, life: 0.16, blend: 'lighter' }); }
+      if (Math.random() < 0.08) { const x = b.x - dir * fx.rand(40, 120); fx.bolt(x, s.C.SKY_Y + 30, x + fx.rand(-40, 40), s.C.GROUND_Y, { color: '#b8a6ff', w: 3, life: 0.16, blend: 'lighter' }); }
     },
 
     impact(s, ev) {
@@ -2267,8 +2267,8 @@ export default {
         fx.burst(ev.x, ev.y, 12, { shape: 'sq', speed: 220, r: 3, life: 0.35, color: '#b8a6ff' });
         return;
       }
-      fx.beam(ev.x + fx.rand(-20, 20), C.CEIL_Y, ev.x, ev.y, { color: '#7b5cff', color2: '#eef3ff', w: 26, life: 0.3 });
-      fx.bolt(ev.x + fx.rand(-40, 40), C.CEIL_Y, ev.x, ev.y, { color: '#eef3ff', w: 6, life: 0.22, blend: 'lighter' });
+      fx.beam(ev.x + fx.rand(-20, 20), C.SKY_Y, ev.x, ev.y, { color: '#7b5cff', color2: '#eef3ff', w: 26, life: 0.3 });
+      fx.bolt(ev.x + fx.rand(-40, 40), C.SKY_Y, ev.x, ev.y, { color: '#eef3ff', w: 6, life: 0.22, blend: 'lighter' });
       fx.bolt(ev.x, ev.y, ev.x + fx.rand(-100, 100), ev.y + fx.rand(-70, 70), { color: '#7b5cff', w: 3, life: 0.18 });
       pop(fx, ev.x, ev.y, '#7b5cff', '#5ad1ff', { g: 170, R: 380, spin: -2 });
       fx.ring(ev.x, ev.y, { color: '#7b5cff', r1: 190, life: 0.5, w: 8 });
@@ -2295,7 +2295,7 @@ export default {
       // the sky keeps striking him: a bolt from the roof onto his head, re-rolled every frame
       g.beginPath();
       {
-        const n = 7, x1 = h.x + (hash(seed) - 0.5) * 60, y1 = C.CEIL_Y, y2 = h.y - hr;
+        const n = 7, x1 = h.x + (hash(seed) - 0.5) * 60, y1 = C.SKY_Y, y2 = h.y - hr;
         g.moveTo(x1, y1);
         for (let i = 1; i < n; i++) g.lineTo(x1 + (h.x - x1) * (i / n) + (hash(seed + i * 3.7) - 0.5) * 40, y1 + (y2 - y1) * (i / n));
         g.lineTo(h.x, y2);
