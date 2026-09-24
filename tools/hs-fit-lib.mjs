@@ -720,23 +720,154 @@ function apexAfter(doc, type, note = null) {
 // Share of LIVE play (percent) the ball's centre is above the top edge of the picture. Live:
 // from each ball-in (ready_off) to the next goal, less the power-shot cut-ins. The top edge is
 // calib.viewTop (world y), or for a video calibration the frame's own top (groundY - y0·scale).
-function offscreenFrac(doc) {
-  const c = doc.calib || {};
-  const top = c.viewTop ?? (c.y0 != null && c.scale != null ? c.groundY - c.y0 * c.scale : null);
+// LIVE play: from each ball-in (ready_off) to the next goal, less the power-shot cut-ins.
+function liveIntervals(doc) {
   const starts = tagT(doc, 'ready_off');
-  if (top == null || !starts.length) return NONE;
+  if (!starts.length) return null;
   const goals = tagT(doc, 'goal'), cutOn = tagT(doc, 'cutin_on'), cutOff = tagT(doc, 'cutin_off');
   const end = endT(doc) ?? 0;
   const live = starts.map((s) => [s, goals.find((g) => g > s) ?? end + 1]);
   const cuts = cutOn.map((s) => [s, cutOff.find((e) => e > s) ?? end + 1]);
   const inAny = (t, iv) => iv.some(([a, b]) => t >= a && t < b);
+  return { isLive: (t) => inAny(t, live) && !inAny(t, cuts) };
+}
+
+function offscreenFrac(doc) {
+  const c = doc.calib || {};
+  const top = c.viewTop ?? (c.y0 != null && c.scale != null ? c.groundY - c.y0 * c.scale : null);
+  const L = liveIntervals(doc);
+  if (top == null || !L) return NONE;
   let n = 0, off = 0;
   for (const f of doc.frames) {
-    if (f.dup || !inAny(f.t, live) || inAny(f.t, cuts)) continue;
+    if (f.dup || !L.isLive(f.t)) continue;
     n++;
     if (f.ball && f.ball.y < top) off++;
   }
   return n ? { value: (100 * off) / n, sd: 0.5, n: 1 } : NONE;
+}
+
+// ── THE CPU (player 1, the right-hand side) over a whole match: docs/hs-estimates.json cpu.* ──
+// Measured only on a track that follows the CPU — one with cpu_* tags (hs-scenarios `cpu`, or a
+// video pass that tags them) — so a match track without them reads NONE, not zero.
+const followsCpu = (doc) => doc.tags.some((t) => t.type.startsWith('cpu_') || (t.type === 'attempt' && hasWord(t.note, 'cpu')));
+function cpuLive(doc) {
+  const L = followsCpu(doc) ? liveIntervals(doc) : null;
+  if (!L) return null;
+  const frames = doc.frames.filter((f) => !f.dup && L.isLive(f.t));
+  const minutes = (frames.length * dtOf(doc)) / 60;
+  return minutes > 0 ? { ...L, frames, minutes } : null;
+}
+// THE CPU'S TOUCHES, COUNTED THE WAY THE CAMERA COUNTS THEM. Not from the sim's own contact
+// events: a video pass cannot see those. It sees a ball that flies free parabolas and changes
+// flight — and it LOSES the ball while it overlaps a player's blob or is above the picture, which
+// is exactly when a body touch happens. Calibrated on our own matches (tier 5 and tier 0 bots
+// rendered into the tracker's format and put through the same pass), the camera counts 78% of
+// the five-star bot's touches and 48% of the weakest one's — so comparing the sim's true count
+// with the video's camera count would compare two different things. Both sides run this.
+//
+//   visible   the ball, less the frames the tracker loses it: within 30px + the ball (+5 blur)
+//             of a head centre sideways and below its crown, or above the top of the picture
+//   flights   greedy free parabolas under the ball's gravity (583 px/s², HS M4) through the
+//             visible points; a point more than 7px (+20 px per second of gap) off the fit ends one
+//   contacts  between two flights of 4+ points less than 0.6 s apart whose velocities differ by
+//             120 px/s or more, at the moment the two parabolas come closest; the grass (a clean
+//             bounce: vy flips at 0.35–0.85 of itself, vx kept), a side wall, the ceiling, then
+//             the nearer player within 60px (inside the blob box ±25px counts as 0)
+//   episodes  one player's contacts less than 0.2 s apart are one touch
+const HEAD_R_PX = 26.4, BLOB_HALF = 30, BALL_G = 583;
+function cameraContacts(doc, L) {
+  const c = doc.calib || {};
+  const gy = c.groundY, W = c.W ?? 1060, top = c.viewTop ?? -Infinity;
+  const hidden = (f) => [f.p0, f.p1].some((h) => h && Math.abs(f.ball.x - h.x) < BLOB_HALF + f.ball.r + 5 && f.ball.y > h.y - HEAD_R_PX - f.ball.r - 5);
+  const pts = doc.frames.filter((f) => f.ball && !f.dup && L.isLive(f.t) && f.ball.y > top + 8 && !hidden(f)).map((f) => ({ t: f.t, x: f.ball.x, y: f.ball.y }));
+  const fit = (fl) => {
+    const t0 = fl[0].t; let n = fl.length, su = 0, suu = 0, sx = 0, sux = 0, sy = 0, suy = 0;
+    for (const p of fl) { const u = p.t - t0, yy = p.y - 0.5 * BALL_G * u * u; su += u; suu += u * u; sx += p.x; sux += u * p.x; sy += yy; suy += u * yy; }
+    const den = n * suu - su * su || 1e-9;
+    const b = (n * sux - su * sx) / den, a = (sx - b * su) / n, d = (n * suy - su * sy) / den, cc = (sy - d * su) / n;
+    return { x: (t) => a + b * (t - t0), y: (t) => cc + d * (t - t0) + 0.5 * BALL_G * (t - t0) ** 2, vx: b, vy: (t) => d + BALL_G * (t - t0) };
+  };
+  const flights = []; let fl = [];
+  for (const p of pts) {
+    if (fl.length && p.t - fl[fl.length - 1].t > 0.5) { flights.push(fl); fl = []; }
+    if (fl.length >= 3) { const F = fit(fl); if (Math.hypot(F.x(p.t) - p.x, F.y(p.t) - p.y) > 7 + 20 * (p.t - fl[fl.length - 1].t)) { flights.push(fl); fl = []; } }
+    fl.push(p);
+  }
+  if (fl.length) flights.push(fl);
+  const good = flights.filter((q) => q.length >= 4);
+  const at = (t, key) => { let best = null, bd = 0.1; for (const f of doc.frames) { const dd = Math.abs(f.t - t); if (dd < bd && f[key]) { bd = dd; best = f[key]; } if (f.t > t + 0.1) break; } return best; };
+  const out = [];
+  for (let k = 1; k < good.length; k++) {
+    const A = good[k - 1], B = good[k], a = A[A.length - 1], b = B[0];
+    if (b.t - a.t > 0.6) continue;
+    const FA = fit(A), FB = fit(B);
+    let tc = a.t, best = Infinity;
+    for (let t = a.t; t <= b.t + 1e-6; t += 1 / 120) { const dd = Math.hypot(FA.x(t) - FB.x(t), FA.y(t) - FB.y(t)); if (dd < best) { best = dd; tc = t; } }
+    const cx = FA.x(tc), cy = FA.y(tc), vin = [FA.vx, FA.vy(tc)], vout = [FB.vx, FB.vy(tc)];
+    if (Math.hypot(vout[0] - vin[0], vout[1] - vin[1]) < 120) continue;
+    const dist = (h) => {
+      if (!h) return Infinity;
+      const tp = h.y - HEAD_R_PX;
+      if (cx > h.x - BLOB_HALF - 25 && cx < h.x + BLOB_HALF + 25 && cy > tp - 40) return 0;
+      return Math.hypot(cx - h.x, cy - Math.min(gy - 40, tp + 30));
+    };
+    const dC = dist(at(tc, 'p1')), dP = dist(at(tc, 'p0'));
+    const grass = cy > gy - 29 && vin[1] > 60 && vout[1] < 0 && Math.abs(vout[0] - vin[0]) < 150 && -vout[1] / vin[1] > 0.35 && -vout[1] / vin[1] < 0.85;
+    const wall = (cx < 30 || cx > W - 30) && Math.sign(vout[0]) !== Math.sign(vin[0]) && Math.abs(vin[0]) > 60;
+    let who = 'other';
+    if (grass) who = 'ground';
+    else if (wall && Math.min(dC, dP) > 0) who = 'wall';
+    else if (cy < top + 15) who = 'ceiling';
+    else if (dC < 60 || dP < 60) who = dC <= dP ? 'cpu' : 'foe';
+    out.push({ t: tc, who });
+  }
+  return out;
+}
+function cpuTouches(doc, L) {
+  const out = [];
+  for (const { t } of cameraContacts(doc, L).filter((q) => q.who === 'cpu')) {
+    if (out.length && t - out[out.length - 1].end < 0.2) out[out.length - 1].end = t; else out.push({ t, end: t });
+  }
+  return out;
+}
+const cpuRate = (type) => (doc) => {
+  const L = cpuLive(doc); if (!L) return NONE;
+  const n = type === 'cpu_touch' ? cpuTouches(doc, L).length : tagT(doc, type).filter(L.isLive).length;
+  return { value: n / L.minutes, sd: Math.sqrt(Math.max(1, n)) / L.minutes, n: 1 };
+};
+// How deep it plays: the CPU's mean distance from its OWN goal wall (the right one), live frames.
+function cpuDepth(doc) {
+  const L = cpuLive(doc); const W = doc.calib?.W;
+  if (!L || W == null) return NONE;
+  const xs = L.frames.filter((f) => f.p1).map((f) => W - f.p1.x);
+  return xs.length ? { value: mean(xs), sd: sampleSd(xs) / Math.sqrt(xs.length), n: 1 } : NONE;
+}
+// How often a ball that reaches it gets played: the ball comes within 110 px of the CPU's head
+// (from outside, at most one entry per 0.5 s) and the CPU touches it within 1 s.
+function cpuRangeConv(doc) {
+  const L = cpuLive(doc); if (!L) return NONE;
+  const touches = cpuTouches(doc, L);
+  let inside = false, last = -9, entries = 0, conv = 0;
+  const top = doc.calib?.viewTop ?? -Infinity;
+  for (const f of L.frames) {
+    if (!f.ball || !f.p1 || f.ball.y < top + 8) continue;
+    // …the ball as the camera has it: lost inside a blob (see cameraContacts).
+    if ([f.p0, f.p1].some((h) => h && Math.abs(f.ball.x - h.x) < BLOB_HALF + f.ball.r + 5 && f.ball.y > h.y - HEAD_R_PX - f.ball.r - 5)) continue;
+    const d = Math.hypot(f.ball.x - f.p1.x, f.ball.y - f.p1.y);
+    if (d < 110 && !inside && f.t - last > 0.5) {
+      entries++; last = f.t;
+      if (touches.some((c) => c.t >= f.t - 0.02 && c.t <= f.t + 1)) conv++;
+    }
+    inside = d < 110;
+  }
+  return entries ? { value: conv / entries, sd: Math.sqrt(conv * (entries - conv) / entries) / entries, n: 1 } : NONE;
+}
+// Gauge full → the power shot goes off (the cut-in), each time the CPU fires one.
+function cpuPowerDelay(doc) {
+  if (!followsCpu(doc)) return NONE;
+  const full = tagT(doc, 'cpu_gauge_full'), fire = tagT(doc, 'cpu_fire');
+  const v = fire.map((t) => t - Math.max(...full.filter((q) => q < t), -Infinity)).filter(Number.isFinite);
+  return summarise(v, 0.1);
 }
 
 const calibCheck = (key) => (doc) => {
@@ -895,6 +1026,18 @@ export const METRICS = [
     fit: (d) => ({ value: d.tags.filter((t) => t.type === 'goal').length, sd: 0, n: 1 }) },
   // …and how much of the live play the ball spends off the top of the picture.
   { id: 'ball.offscreenFrac', unit: '%', clips: ['M*'], scenario: 'botLong', fit: offscreenFrac },
+
+  // M — the CPU (player 1) over whole matches, against the five-star CPU of M3. The weaker CPUs
+  // of M4 are variant rows in docs/hs-estimates.json (`metric` + scenario cpuWeak).
+  { id: 'cpu.touchesPerMin', unit: '/min', clips: ['M*'], scenario: 'cpuStrong', fit: cpuRate('cpu_touch') },
+  { id: 'cpu.jumpsPerMin', unit: '/min', clips: ['M*'], scenario: 'cpuStrong', fit: cpuRate('cpu_jump') },
+  { id: 'cpu.kicksPerMin', unit: '/min', clips: ['M*'], scenario: 'cpuStrong', fit: cpuRate('cpu_kick') },
+  { id: 'cpu.dashesPerMin', unit: '/min', clips: ['M*'], scenario: 'cpuStrong', fit: cpuRate('cpu_dash') },
+  { id: 'cpu.meanDepth', unit: 'px', clips: ['M*'], scenario: 'cpuStrong', fit: cpuDepth },
+  { id: 'cpu.rangeConv', unit: '', clips: ['M*'], scenario: 'cpuStrong', fit: cpuRangeConv },
+  { id: 'cpu.powerDelay', unit: 's', clips: ['M*'], scenario: 'cpuStrong', fit: cpuPowerDelay },
+  { id: 'cpu.goals', unit: 'goals', clips: ['M*'], scenario: 'cpuStrong',
+    fit: (d) => (followsCpu(d) ? { value: d.tags.filter((t) => t.type === 'goal' && hasWord(t.note, 'cpu')).length, sd: 0, n: 1 } : NONE) },
 ];
 
 export const METRIC_BY_ID = new Map(METRICS.map((m) => [m.id, m]));

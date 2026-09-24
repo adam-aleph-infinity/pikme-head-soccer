@@ -229,10 +229,14 @@ export const SCENARIOS = {
 
   // C17 — a goal and the restart after it.
   goalReset: { clip: 'C17', ticks: 60 * 5, setup: (m) => { openPlay(m); place(m.ball, C.W - 150, C.GROUND_Y - 60, 600, 0); }, input: () => ({}) },
-  // C19 — a whole bot-vs-bot match.
-  botMatch: { clip: 'M', ticks: 60 * 200, setup: () => {},
+  // C19 — whole bot-vs-bot matches, EIGHT of them (`seeds`), and every row that reads these
+  // is the mean over the eight. One seeded match is a coin toss: the same bots score 1 on one
+  // seed and 7 on the next, so a single match could neither pass nor fail match.goals honestly.
+  // The video side is the same shape — each recorded match is a take, and a row is the mean
+  // over its takes (_hs-fit.mjs) — so "8 takes of our sim" is compared with "3 takes of HS".
+  botMatch: { clip: 'M', ticks: 60 * 200, seeds: 8, setup: () => {},
     input: (i, m, ctx) => {
-      ctx.bots ??= [createBot(2, rng(11)), createBot(2, rng(23))];
+      ctx.bots ??= [createBot(3, rng(11 + 101 * ctx.seed)), createBot(3, rng(23 + 101 * ctx.seed))];
       return [botInput(ctx.bots[0], m, 0, C.TICK), botInput(ctx.bots[1], m, 1, C.TICK)];
     } },
   // Ten minutes of bot-vs-bot on one clock, for shares of play time (a 60 s match is a handful
@@ -242,7 +246,22 @@ export const SCENARIOS = {
       ctx.bots ??= [createBot(2, rng(11)), createBot(2, rng(23))];
       return [botInput(ctx.bots[0], m, 0, C.TICK), botInput(ctx.bots[1], m, 1, C.TICK)];
     } },
+  // THE HS CPU (docs/hs-estimates.json cpu.*): the bot in slot 1 — the RIGHT side, where the
+  // CPU plays in every recording — against the tier-3 bot standing in for the human, eight
+  // seeded matches each. `cpu` turns on the player-1 tags (cpu_jump, cpu_kick, cpu_dash,
+  // cpu_touch, cpu_gauge_full, cpu_fire) the cpu.* metrics read. cpuStrong is the top tier
+  // against M3's five-star CPU; cpuWeak the tier-1 bot against M4's two weaker CPUs.
+  cpuStrong: cpuMatch(5),
+  cpuWeak: cpuMatch(0),
 };
+
+function cpuMatch(level, standIn = +(globalThis.process?.env?.STANDIN ?? 3)) {
+  return { clip: 'M', ticks: 60 * 200, seeds: 8, cpu: true, setup: () => {},
+    input: (i, m, ctx) => {
+      ctx.bots ??= [createBot(standIn, rng(31 + 101 * ctx.seed)), createBot(level, rng(47 + 101 * ctx.seed))];
+      return [botInput(ctx.bots[0], m, 0, C.TICK), botInput(ctx.bots[1], m, 1, C.TICK)];
+    } };
+}
 
 // A small seeded generator, so the bot match is the same match on every run.
 function rng(seed) {
@@ -266,8 +285,15 @@ function standing(up, lo) {
   return up.stand === lo.index && up.y < C.GROUND_Y - 2 && Math.abs(up.vy) < 40;
 }
 
-// Run one scenario and return its tracks document.
-export function runScenario(name) {
+// Every take of a scenario: one document, or one per seed for a scenario with `seeds`.
+export function runTakes(name) {
+  const sc = SCENARIOS[name];
+  if (!sc) throw new Error(`unknown scenario '${name}'`);
+  return Array.from({ length: sc.seeds ?? 1 }, (_, seed) => runScenario(name, seed));
+}
+
+// Run one scenario (one seed of it) and return its tracks document.
+export function runScenario(name, seed = 0) {
   const sc = SCENARIOS[name];
   if (!sc) throw new Error(`unknown scenario '${name}'`);
   const m = createMatch(CHAR_A, CHAR_B, {});
@@ -275,7 +301,7 @@ export function runScenario(name) {
   // constants are fitted as that baseline; our rarity spread (legendary +6% speed, +5% jump…)
   // is the arcade's stat ladder, which Phase D maps onto HS's. So both bodies play at 1x here.
   for (const p of m.players) p.stats = { speed: 1, jump: 1, kick: 1 };
-  const ctx = {};
+  const ctx = { seed };
   sc.setup(m, ctx);
   const frames = [], tags = [];
   const T = (i) => +(i * C.TICK).toFixed(6);
@@ -290,7 +316,7 @@ export function runScenario(name) {
   const [up, lo] = sc.stand ?? [0, 1];
   const st = {
     phase: m.phase, vy: m.ball.vy, vx: m.ball.vx, air: !m.players[0].onGround, dir: 0,
-    gauge: m.players[0].gauge, armed: m.players[0].armed, kickT: 0, stand: false, stuck: 0, cut: false, lastStrike: {},
+    gauge: m.players[0].gauge, armed: m.players[0].armed, cpuGauge: m.players[1].gauge, kickT: 0, stand: false, stuck: 0, cut: false, lastStrike: {},
   };
   for (let i = 1; i <= sc.ticks; i++) {
     m.events.length = 0;
@@ -307,9 +333,17 @@ export function runScenario(name) {
     if (st.phase !== 'play' && m.phase === 'play') { tag(i, 'resume'); if (!(m.ballWait > 0)) tag(i, 'ready_off'); }
     st.phase = m.phase;
 
+    let cpuStruck = false;
     for (const e of m.events) {
       const who = e.player ?? e.by;
-      if (e.type === 'goal') { tag(i, 'goal'); continue; }
+      if (sc.cpu && who === 1) {
+        if (e.type === 'jump') tag(i, 'cpu_jump');
+        else if (e.type === 'dash') tag(i, 'cpu_dash');
+        else if (e.type === 'kick' || (e.type === 'strike' && e.aimed)) tag(i, 'cpu_kick');
+        if (e.type === 'strike') cpuStruck = true;
+        if (e.type === 'powershot') tag(i, 'cpu_fire');
+      }
+      if (e.type === 'goal') { tag(i, 'goal', e.player === 1 ? 'cpu' : undefined); continue; }
       if (e.type === 'ballDrop') { tag(i, 'ready_off'); continue; }
       if (e.type === 'bannerOff') { tag(i, 'banner_off'); continue; }
       if (e.type === 'powershot') { tag(i, 'cutin_on'); st.cut = true; if (who === 0 && e.countered) tag(i, 'counter'); continue; }
@@ -362,6 +396,20 @@ export function runScenario(name) {
     }
     if (st.vy < -30 && b.vy >= 0 && b.y <= C.CEIL_Y + b.r + 2) tag(i, 'bounce', 'ceiling');
     if (Math.abs(st.vx) > 30 && Math.sign(b.vx) !== Math.sign(st.vx) && (b.x <= b.r + C.POST_R + 2 || b.x >= C.W - b.r - C.POST_R - 2)) tag(i, 'bounce', 'wall');
+    // The CPU's touches, as the video counts them (docs/hs-estimates.json cpu.touchesPerMin):
+    // any change in the ball's flight made by player 1's body — a strike, or a passive bounce off
+    // the head or torso — and not by the grass, a wall or the other player.
+    if (sc.cpu) {
+      const z = m.players[1];
+      const dv = Math.hypot(b.vx - st.vx, b.vy - st.vy);
+      const nearOf = (p) => Math.hypot(b.x - p.x, b.y - headY(p)) < C.HEAD_R + b.r + 10 ||
+        (Math.abs(b.x - p.x) < C.HEAD_R + b.r + 8 && b.y > headY(p) && b.y < p.y + 4);
+      const grass = b.y >= GROUND_BALL_Y() - 2 && st.vy > 60 && b.vy <= 0 && Math.abs(b.vx - st.vx) < 100;
+      const dz = Math.abs(b.x - z.x) + Math.abs(b.y - headY(z)), da = Math.abs(b.x - a.x) + Math.abs(b.y - headY(a));
+      if (cpuStruck || (dv > 150 && !grass && nearOf(z) && dz < da)) tag(i, 'cpu_touch', b.y < headY(z) ? 'head' : undefined);
+      if (st.cpuGauge < 1 && z.gauge >= 1) tag(i, 'cpu_gauge_full');
+      st.cpuGauge = z.gauge;
+    }
     st.vy = b.vy; st.vx = b.vx;
     // Landing, and standing on a head (held three ticks before it counts, as a person would).
     const air = !a.onGround;

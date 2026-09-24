@@ -21,7 +21,7 @@
 // is green.
 import fs from 'node:fs';
 import * as C from './shared/constants.js';
-import { runScenario, SCENARIOS } from './hs-scenarios.mjs';
+import { runTakes, SCENARIOS } from './hs-scenarios.mjs';
 import { measureTracks, METRIC_BY_ID } from './tools/hs-fit-lib.mjs';
 
 const STRICT = process.env.HS_PARITY_STRICT === '1';
@@ -40,15 +40,22 @@ try { ref = JSON.parse(fs.readFileSync(REF_PATH, 'utf8')); }
 catch (err) { console.log(`test-hs-parity: docs/hs-reference.json unreadable: ${err.message}`); process.exit(STRICT ? 1 : 0); }
 if (!Array.isArray(ref)) ref = ref.entries || Object.values(ref);
 
-// One run per scenario, however many rows read it.
+// One run per scenario, however many rows read it. A scenario with `seeds` (the whole-match
+// ones: botMatch, cpuStrong, cpuWeak) is several takes — one seeded match each — and its value
+// is the MEAN over the takes, each measured on its own, exactly as _hs-fit.mjs averages the
+// video's takes. One seeded bot match is a coin toss (1 goal on one seed, 7 on the next).
 const tracks = new Map();
 const tracksFor = (name) => {
   if (!tracks.has(name)) {
-    let doc = null;
-    try { doc = SCENARIOS[name] ? runScenario(name) : null; } catch (err) { console.log(`  scenario ${name}: ${err.message}`); }
-    tracks.set(name, doc);
+    let docs = null;
+    try { docs = SCENARIOS[name] ? runTakes(name) : null; } catch (err) { console.log(`  scenario ${name}: ${err.message}`); }
+    tracks.set(name, docs);
   }
   return tracks.get(name);
+};
+const measureTakes = (docs, metric) => {
+  const vals = docs.map((d) => measureTracks(d, [metric])[metric].value).filter((v) => v != null && Number.isFinite(v));
+  return vals.length ? vals.reduce((a, v) => a + v, 0) / vals.length : null;
 };
 
 const rows = [];
@@ -60,12 +67,12 @@ for (const e of ref) {
   if (!METRIC_BY_ID.has(metric)) why = 'no metric';
   else if (!e.scenario || !SCENARIOS[e.scenario]) why = `no scenario ${e.scenario ?? ''}`.trim();
   else {
-    const doc = tracksFor(e.scenario);
-    if (!doc) why = 'scenario failed';
+    const docs = tracksFor(e.scenario);
+    if (!docs) why = 'scenario failed';
     else {
-      const r = measureTracks(doc, [metric])[metric];
-      if (r.value == null || !Number.isFinite(r.value)) why = 'not seen in sim';
-      else sim = Math.abs(r.value) < 1e-6 ? 0 : r.value;
+      const v = measureTakes(docs, metric);
+      if (v == null) why = 'not seen in sim';
+      else sim = Math.abs(v) < 1e-6 ? 0 : v;
     }
   }
   const hs = e.value, tol = e.tol ?? 0;
@@ -81,7 +88,7 @@ for (const e of ref) {
   rows.push([e.id, `${hsStr} ${e.unit ?? ''}`.trim(), fmt(sim), diff, fmt(tol), good ? 'ok' : `OFF${why ? ` (${why})` : ''}`]);
 }
 
-const W = [26, 16, 10, 9, 8];
+const W = [28, 16, 10, 9, 8];
 console.log(`test-hs-parity: our sim (HS=${C.HS}) vs docs/hs-reference.json, fit: tools/hs-fit-lib.mjs measureTracks`);
 console.log('  ' + ['id', 'HS value', 'our sim', 'diff %', 'tol', 'ok/OFF'].map((c, k) => (k < W.length ? pad(c, W[k]) : c)).join(' | '));
 for (const r of rows) console.log('  ' + r.map((c, k) => (k < W.length ? pad(c, W[k]) : c)).join(' | '));
