@@ -163,6 +163,14 @@ body.safedemo { --safe-l: 44px; --safe-r: 44px; --safe-b: 21px; --safe-t: 12px; 
     radial-gradient(ellipse 34% 26% at 38% 26%, #ffffff3d, #ffffff00),
     radial-gradient(ellipse 72% 70% at 50% 36%, #0c061800 70%, #0c061866 100%);
 }
+/* A DRAWN CHARACTER (characters.js, docs/CHARACTERS.md): the SVG brings its own keyline, cel
+   shading and HS silhouette, so the keyline and shading layers stand down and the art is not
+   clipped — its hair breaks the outline. game.js (paintPitchChar) sizes <i> past the box. */
+.head.char::before, .head.char::after { display: none; }
+.head.char > i {
+  -webkit-clip-path: none; clip-path: none; filter: none;
+  background: transparent no-repeat 0 0 / 100% 100%;
+}
 /* A dash afterimage: a see-through copy of the head (opacity set per frame by drawHeadGhosts). */
 .head.ghost { will-change: transform, opacity; }
 
@@ -1162,6 +1170,16 @@ body.editing .pad .btn .grip {
   background: #05070de8; backdrop-filter: blur(4px);
 }
 .over h2 { margin: 0; font-size: 44px; font-weight: 900; }
+/* HS's result screen: both heads either side of the score, the loser's greyed out. A drawn
+   character also pulls a face (happy / sad); a photo card is just its crop. */
+.over-faces { display: flex; align-items: center; justify-content: center; gap: 18px; direction: ltr; }
+.ov-face {
+  display: block; width: 84px; height: 84px; border-radius: 50%;
+  background: #1a2238 no-repeat; box-shadow: 0 4px 14px #0008;
+}
+.ov-face.char-face { background-color: transparent; box-shadow: none; }
+.ov-face.lost { filter: grayscale(1) brightness(.5); }
+@media (max-height: 420px) { .ov-face { width: 64px; height: 64px; } }
 .over p { margin: 0; color: var(--dim); font-size: 20px; font-variant-numeric: tabular-nums; }
 .over-btns { display: flex; gap: 10px; justify-content: center; margin-top: 12px; }
 .over-btns button {
@@ -1236,15 +1254,11 @@ body.editing .pad .btn .grip {
 /* NO DAMAGE LOOK. The .head.hurt1..4 bruise tiers that sat here were the only readout of a
    hidden health bar; Head Soccer has no health, so both are gone. */
 
-/* ARMED: the press empties the bar and hides the button (HS M4 36.49 s); the head glows in
-   the bar's own gold until the touch fires the shot. */
-/* ARMED: the full power bar's gold, on the head. --glow is set by drawHeads. */
-.head.armed { animation: armedGlow .5s infinite alternate; }
-/* A drop-shadow, not a box-shadow: the head is a shape, and a box-shadow glows round its box. */
-@keyframes armedGlow {
-  from { filter: drop-shadow(0 0 0 transparent); }
-  to   { filter: drop-shadow(0 0 9px var(--glow, #ffc400)); }
-}
+/* ARMED: the press empties the bar and hides the button (HS M4 36.49 s); the head wears Head
+   Soccer's thin bright rim until the touch fires the shot (docs/HS-POWER-SHOTS.md §1) — a rim,
+   not a pulse. A drop-shadow, not a box-shadow: the head is a shape, and a box-shadow glows round
+   its box. The crackling tongues are drawn over it by champ-vfx.js drawArmed. */
+.head.armed { animation: none; filter: drop-shadow(0 0 1.5px #fff6c0) drop-shadow(0 0 1.5px #fff6c0) drop-shadow(0 0 5px var(--glow, #ffc400)); }
 
 /* ─── KEYS ─────────────────────────────────────────────────────────────── */
 

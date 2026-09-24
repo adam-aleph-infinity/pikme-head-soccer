@@ -138,34 +138,32 @@ catalogue and the star rating climbs. The names, powers and art are ours.
 **It is the same game.** Same sim, same controls, same meter, same goal. A champion's ultimate
 uses the trigger this game already has: fill the meter, press POWER to arm, and the next time
 your head or body touches the ball the power goes off. The only change is what that touch does.
-`launchPowerShot()` is replaced by the champion's own power from `shared/powers.js`. You play
-your own card, and a legendary card fires its champion power as well.
+The touch fires the champion's Head Soccer power shot (`shared/hs-powers.js`). You play your own
+card, and a legendary card fires its champion shot as well.
 
-**45 powers, and they are 45 different things.** Nine per tier, from one plain effect up to
-several moving parts:
+**Every champion is a Head Soccer power shot, and nothing else** (the approved map,
+`docs/HS-CHAMPION-MAP.md`): one of HS's eleven shot **families** — Straight, Ground, Downward,
+Destructive, Aerial, Delay, Grab, Multi-Ball, Up-and-Down, Ailment, Critical — an optional
+**ailment** it leaves on the player it hits (reverse `???`, shock, freeze, beheaded, burn, stars),
+an arming **aura** (none / stun / push / reverse / freeze within a radius that grows with the tier),
+HS's five 1–10 **stats** and a star rating. The old non-shot powers (giant head, wind, clones, time
+stop…) are gone; the theme survives in how the shot flies, the ailment and the name.
 
-| tier | stages | e.g. |
-|---|---|---|
-| שכונה | 1-9 | a cannon shot that throws the blocker back, tentacles (no jumping), a goal wall, coin rain |
-| ליגה | 10-18 | a giant head, their head shrunk, moon gravity, a skipping shot, wind, a paralysing strike |
-| נבחרת | 19-27 | reversed controls, a freeze, a meteor, meter theft, an earthquake, ice, a portal |
-| אלופים | 28-36 | a boomerang, a drill through the block, the goal as a magnet, a vampire, gravity upside down |
-| אגדות | 37-45 | a mirror, a teleporting shot, a ball glued to the boot, a ghost shot, slow motion, a clone keeper, a three-way split, a tornado, time stop |
+How a power shot plays is Head Soccer's, as filmed (`docs/HS-POWER-SHOTS.md`): the press arms you
+(a crackling gold rim), the next touch fires, the screen darkens 1.34s round the shooter and the
+ball leaves 0.97s in at 2150 px/s (the Straight comet), flying under the dark. At the other player:
+**armed** → he counters with his own shot; **kicking** → he blocks it (0.8s grinding on the boot,
+0.4s dead, then it fires back as his); **standing** → he is knocked back, dazed 0.5s with three
+stars, the ailment lands, and the ball bounces off him. Ground cannot be blocked, Critical goes through a
+block, a Grab carries a defender who does not kick it toward his own goal.
 
-A power is either a **champion shot** or an **effect**. A champion shot is an ordinary power
-ball: blockable by a body (it deflects off them), counterable by a timed kick. It just
-has its own flight, and sometimes its own answer to being blocked. An effect is a timed record
-that changes the rules through a small, fixed set of seams: player mods (speed, jump, head size,
-controls), the ball's field (gravity, bounce, wind, pulls), barriers, and a per-tick step for
-anything that moves by itself. A goal ends every effect in play. Arms and meters follow the
-ordinary rules.
-
-**Online 1v1 is untouched, and that is enforced, not promised.** Champions are opt-in on the
-match (`createMatch(a, b, { champions: true })`), and only the arcade passes that option. Every
-seam in `sim.js` is skipped without it, or multiplies by exactly 1. `test-arcade.mjs` carries a
+**Online 1v1 is fair, and that is enforced, not promised.** Champions are opt-in on the match
+(`createMatch(a, b, { champions: true })`), and only the arcade passes that option. Online, every
+card fires its family at the same middle intensity on EQUAL stats (HS's online rule), so a card's
+shot is its identity, never its advantage. `test-arcade.mjs` carries a
 SHA-256 of three whole bot-vs-bot matches (every snapshot field and every event), recorded before
-any arcade code existed. It was re-recorded exactly once, on purpose, when the Head Soccer parity
-pass removed health and the tackle/concede meter from the ordinary sim; nothing arcade-only moved it.
+any arcade code existed, and re-recorded on purpose for each Head Soccer parity pass that changed
+the ordinary sim (health removed, HS movement, HS power shots).
 
 **The difficulty ladder is measured, and it had to be built on two sets of dials.** The bot's own
 dials go from stage 1 = קל מאוד to stage 45 = just short of אגדי: reaction, misread, aim,
@@ -194,28 +192,18 @@ return used to be aimed before its swing, so it cleared the bar and never scored
 aimed at mid-mouth rather than under the bar: the version that scored under the bar measured +0.96,
 the hardest stage of its tier by far. It is +0.48 now.
 
-**Every power has its own look and sound**, in `public/vfx/tier1.js` … `tier5.js`, run by
-`public/champ-vfx.js`. Six phases per power: *anticipation* (a tell drawn while the champion is
-armed), *activation* (the burst on the touch), *main* (its own projectile, or whatever its effect
-leaves on the pitch, drawn from the live `m.champ` state), *impact* (blocked, scored, saved, or the
-effect taking hold), *aftermath*, and *cleanup*. The toolkit is shared: typed particles, rings,
-lightning, glyphs, light blobs, sunburst rays, energy beams, confetti, comic-book impact words
-("בום!"), screen shake, flash, a colour grade, an edge glow, and synthesised sound recipes through
-`audio.js` `synth()`. No two powers share a look. Every power opens with a **super cut-in**,
-fighting-game style: the match holds for 0.42s, the pitch dims, light bursts out of the champion,
-and a band with their name and the power's icon sweeps across, with the power's own signature drawn
-into it. This happens in the arcade only. Online matches have no `m.champ`, and game.js steps the
-sim as before. While any power is on, the stadium backdrop dims to night so the effects read on
-even the brightest stage. Bodies, ball, nets and heads are drawn above that dim. `test-vfx.mjs` fires all 45 in the real sim, in both seats,
-against an idle, an absent and a chasing defender. It runs every hook on a recording canvas and
-fails on a hook that is never reached, throws, draws NaN, writes to the match, blows the particle
-or frame budget, falls back to the plain fireball, or shares 80% of its colours with another power.
-It also fails on a power that is merely correct. Each one needs a 50+ particle burst on the touch,
-at least three of the light and spectacle shapes, a lit main effect, and a cut-in that holds and
-lets go within a second.
-The VFX layer only watches the match, so it cannot reach the sim, the bot or an online room.
-**`docs/CHAMPIONS.md`** is the design book: the 45-row uniqueness matrix, the difficulty ladder,
-and the 13-point design of every champion. It is generated from that data by `node
+**The shots look like Head Soccer's, and only like that** (`public/champ-vfx.js`,
+`public/vfx/families.js`, `public/vfx/ailments.js`, all our own canvas drawing): the armed rim, the
+cut-in (dark, a white disc and gold halo behind the shooter's head, 8 gold and 8 white rays, no
+text), the comet on each family's path (the Aerial's warning streaks and the Grab's claw are the
+two extras HS itself shows), the block's spark burst, the hit's red droplets and after-images, the
+three stars. No shakes, flashes, banners or confetti — every element is traceable to a timestamped
+frame in `docs/HS-POWER-SHOTS.md`. `node _vfx-shots.mjs` photographs each family frame-exactly for
+side-by-side comparison with the footage; `test-vfx.mjs` fires every family in both seats against a
+recording canvas and fails on a renderer that throws, draws NaN, uses shadowBlur, writes to the
+match or blows the frame budget.
+**`docs/CHAMPIONS.md`** is the design book: the families, the 45 champions with their shots,
+stats and stars, the ailments and auras, and the bot ladder. It is generated from that data by `node
 scripts/champions-doc.mjs`, and test-vfx fails when it is stale.
 
 **Progress** lives in `localStorage` under its own key, `hs.arcade.v1`, as a single number
@@ -454,11 +442,11 @@ mechanics that actually define it, not just the look:
   and the *next* ball contact fires your shot. The refill starts on the press, so it is already
   climbing while you walk to the ball; the button comes back when the bar is full again (a
   second arm waits until the first shot has fired).
-- **Five shot families** from the wiki's taxonomy — `straight`, `arc`, `trap`, `wave`,
-  `homing` — see [`shared/powershots.js`](shared/powershots.js). A body in the way blocks
-  it, and the ball deflects back off them.
-- **Counter attacks.** Kick a live power ball at the right moment and it reverses *and you
-  inherit their shot*. That's the skill ceiling.
+- **Eleven shot families** from Head Soccer — see [`shared/hs-powers.js`](shared/hs-powers.js)
+  and [`docs/HS-POWER-SHOTS.md`](docs/HS-POWER-SHOTS.md). Kick into one to block it (it grinds
+  on your boot and fires back as yours); stand in its way and it knocks you flat and bounces off you.
+- **Counter attacks.** Touch a live power ball while armed and your own shot goes back instead,
+  with your own cut-in. That's the skill ceiling.
 - **Sudden death** on a draw, with both gauges frozen — so overtime is decided by play.
 
 ## The card → head pipeline
@@ -711,12 +699,12 @@ transport would break it — so the canary is testing something real.
 shared/constants.js    every tunable number, live-bindable (see the tuner below)
 shared/sim.js          authoritative physics + rules. Pure, no DOM, no timers.
 shared/goalbox.js      the goal as a room: its corners, its walls, and the depth it is drawn at
-shared/powershots.js   the five shot behaviours + the card→shot mapping
+shared/hs-powers.js    HS power shots: the 11 families, ailments, arming aura, card→shot, stats
+shared/hs-champion-map.js  the approved champion map (generated from docs/hs-champion-map.json)
 shared/bot.js          the opponent. Emits the same input a human does.
 shared/champions.js    the arcade's 45 champions: stage order, titles, the difficulty ladder
-shared/powers.js       the 45 champion powers and the small engine they run on
 shared/arcade.js       arcade progress: locked / open / beaten, load and save. Pure, no DOM.
-public/champ-vfx.js    how the 45 powers look and sound: six phases, one entry each in public/vfx/
+public/champ-vfx.js    how a power shot looks: aura, cut-in, comet, ailments (public/vfx/families.js, ailments.js)
 shared/rooms.js        private-room registry: codes, join, leave. Pure, no sockets.
 shared/net.js          wire format + the ordered input FIFO. Pure.
 public/                pick screen, lobby, renderer, input, tuner

@@ -699,7 +699,11 @@ function blockRebound(doc) {
   if (b == null) return NONE;
   const pts = ball(doc);
   const v = (s) => { const f = s.length >= 2 ? polyfit(s.map((p) => p.t), s.map((p) => p.x), 1) : null; return f ? f.c[1] : 0; };
-  const vb = v(pts.filter((p) => p.t < b).slice(-4)), va = v(pts.filter((p) => p.t > b + 0.1).slice(0, 4));
+  // "After" is once the ball is moving again: HS's block grinds the ball on the boot for ~0.8s and
+  // lets it sit dead ~0.4s before it goes back (docs/HS-POWER-SHOTS.md §4), so a window pinned to
+  // the block's first 0.1s would read a ball that has not left yet.
+  const moving = pts.filter((p, i) => p.t > b + 0.1 && i > 0 && Math.abs(p.x - pts[i - 1].x) > 3);
+  const vb = v(pts.filter((p) => p.t < b).slice(-4)), va = v(moving.slice(0, 4));
   return { value: vb && va && Math.sign(va) !== Math.sign(vb) ? 1 : 0, sd: 0, n: 1 };
 }
 

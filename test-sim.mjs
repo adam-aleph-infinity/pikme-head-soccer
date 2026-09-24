@@ -2,9 +2,8 @@
 import * as C from './shared/constants.js';
 import { createMatch, step, headY, headR, stun, serialize, restore, playerContact } from './shared/sim.js';
 import { walkBounds, barY } from './shared/goalbox.js';
-import { shotFor, SHOTS } from './shared/powershots.js';
+import { shotFor, shotById, FAMILY_ORDER } from './shared/hs-powers.js';
 import { CHAMPIONS } from './shared/champions.js';
-import { POWERS } from './shared/powers.js';
 
 let pass = 0, fail = 0;
 const ok = (name, cond, extra = '') => {
@@ -304,105 +303,90 @@ const scoreOn = (m, left, y = C.GROUND_Y - 60, speed = 600) => {
   ok('and the meter refills while it waits', Math.abs(p.gauge - 600 * C.TICK * C.GAUGE_PASSIVE) < 1e-9, `gauge=${p.gauge}`);
 }
 {
-  // a straight power shot ignores gravity
+  // a straight power shot is DEAD FLAT (HS M4 43.07–43.33 s: level from release to the defender)
   const m = fresh();
-  const p = m.players[0];
-  p.shot = SHOTS.blaze;
+  m.players[0].shot = shotById('straight');
   firePower(m, 0);
   const y0 = m.ball.y;
   run(m, 12);
-  ok('straight power shot holds its line', Math.abs(m.ball.y - y0) < 30, `dy=${(m.ball.y - y0).toFixed(1)}`);
+  ok('a straight power shot holds its line', Math.abs(m.ball.y - y0) < 2, `dy=${(m.ball.y - y0).toFixed(1)}`);
+}
+
+// Walk a live shot onto player `i`, pressing KICK once when it is `reach` px away — the block.
+function kickInto(m, i, reach = 130, ticks = 90) {
+  const q = m.players[i];
+  let pressed = false;
+  const log = [];
+  for (let t = 0; t < ticks; t++) {
+    const near = !pressed && m.ball.power && m.ball.power.owner !== i && Math.abs(m.ball.x - q.x) < reach;
+    if (near) pressed = true;
+    const inputs = [{}, {}]; inputs[i] = { kick: near };
+    step(m, inputs);
+    log.push(...m.events);
+    m.events.length = 0;
+  }
+  return log;
 }
 {
-  // A BLOCKED POWER SHOT DEFLECTS AND DAZES YOU — FOR HALF A SECOND, AND THAT IS ALL.
-  //
-  // This block used to assert `b.knocked > 0` (the old signature lockout) and then that the
-  // block took half a hidden health bar; after that, that it cost nothing at all. HS M4 (60.16 s,
-  // 78.36 s): the ball comes back off the body and the unarmed defender is dazed ~0.5s, then
-  // plays on — POWER_BLOCK_STUN, no health, no lockout.
+  // THE BLOCK IS A KICK (HS M4 61.45 s, 79.55 s — Kick lit both times). The ball grinds on the boot,
+  // the blocker is dazed for POWER_BLOCK_STUN and only that, and nothing is scored off it.
   const m = fresh();
   const a = m.players[0], b = m.players[1];
-  a.shot = SHOTS.blaze;
+  a.shot = shotById('straight');
   b.x = a.x + 300;
   firePower(m, 0);
-  // AFTER the volley is away, not before: the wind-up is half a second long and gravity puts
-  // a defender back on the grass inside it, so a defender parked in the air before the press
-  // is standing again by the time the ball arrives. This is the position a jumping one is in
-  // as it passes — standing is safe from this shot, which is the entire point of the move.
-  inLine(m, b);
-  run(m, 30);
-  ok('a defender in its line blocks the power shot', m.events.some((e) => e.type === 'blocked' && e.player === 1)
-     && m.score[0] === 0, m.events.map((e) => e.type).join(','));
-  const blockAt = m.events.findIndex((e) => e.type === 'blocked');
-  ok('and the block dazes the defender, and only for POWER_BLOCK_STUN',
-     m.events.some((e, k) => k >= blockAt && e.type === 'stunned' && e.player === 1 && Math.abs(e.time - C.POWER_BLOCK_STUN) < 1e-9)
-     && !('hp' in b), `stunned=${b.stunned}`);
-  // Let the daze run out. The old test proved the defender was frozen by comparing them against
-  // a control that was given no input; same comparison, and once the half second is up a hit
-  // player plays again.
+  const log = kickInto(m, 1, 130, 20);
+  ok('a defender who kicks into the power shot blocks it', log.some((e) => e.type === 'blocked' && e.player === 1) && m.score[0] === 0,
+     log.map((e) => e.type).join(','));
+  ok('and the block dazes him, for POWER_BLOCK_STUN',
+     log.some((e) => e.type === 'stunned' && e.player === 1 && Math.abs(e.time - C.POWER_BLOCK_STUN) < 1e-9) && !('hp' in b), `stunned=${b.stunned}`);
   run(m, Math.ceil(C.POWER_BLOCK_STUN / C.TICK) + 1);
   ok('…and the daze runs out', b.stunned === 0, `stunned=${b.stunned}`);
-  const ctrl = fresh();
-  const ca = ctrl.players[0], cb = ctrl.players[1];
-  ca.shot = SHOTS.blaze;
-  cb.x = ca.x + 300;
-  firePower(ctrl, 0);
-  inLine(ctrl, cb);
-  run(ctrl, 30 + Math.ceil(C.POWER_BLOCK_STUN / C.TICK) + 1);
-  run(m, 5, [{}, { right: true }]);      // held right
-  run(ctrl, 5, [{}, {}]);                // held nothing
-  ok('a defender who blocked still answers the controls', Math.abs(b.vx - cb.vx) > 20,
-     `input ${b.vx.toFixed(1)} vs no input ${cb.vx.toFixed(1)}`);
-}
-{
-  // …and nothing about which character fired it locks the defender down. `tentacles` used to
-  // ROOT whoever blocked it — the total lockout, the one the old comments called the hardest
-  // in the game. Every shot lands the same consequence now — a deflection — so this asserts
-  // what it must never do again: take a player's legs away.
-  const m = fresh();
-  const a = m.players[0], b = m.players[1];
-  a.shot = SHOTS.tentacles;
-  firePower(m, 0);
-  // Wait for the shot to actually ARRIVE rather than for a fixed 40 ticks — at a slower
-  // PACE the ball had not reached the defender yet. And hold the defender on the volley's
-  // line every tick: it flies above a standing head by design, and gravity pulls a defender
-  // out of its path in a handful of frames.
-  for (let i = 0; i < 240 && m.ball.power; i++) { inLine(m, b); step(m, NONE); }
-  ok('tentacles are blocked like anything else', m.events.some((e) => e.type === 'blocked' && e.player === 1),
-     m.events.map((e) => e.type).join(','));
-  // Out of the half-second daze every block now leaves (POWER_BLOCK_STUN) — and then walking.
-  run(m, Math.ceil(C.POWER_BLOCK_STUN / C.TICK) + 1);
   const x0 = b.x;
-  run(m, 20, [{}, { left: true }]);
-  ok('and the defender can still walk away', Math.abs(b.x - x0) > 10,
-     `moved ${Math.abs(b.x - x0).toFixed(1)}px`);
+  run(m, 5, [{}, { left: true }]);
+  ok('a defender who blocked still answers the controls', Math.abs(b.x - x0) > 5, `moved ${Math.abs(b.x - x0).toFixed(1)}px`);
 }
 {
-  // counter: kicking a live enemy power ball flips ownership and direction
+  // …AND THE BLOCKED BALL GOES BACK AS HIS SHOT: 0.8s grinding, 0.4s dead at his feet, then it
+  // fires at the shooter's goal (M4 62.75 s, 80.75 s).
   const m = fresh();
   const a = m.players[0], b = m.players[1];
-  a.shot = SHOTS.blaze;
+  a.shot = shotById('straight');
+  b.x = a.x + 300;
   firePower(m, 0);
-  ok('power ball exists before the counter', !!m.ball.power);
-  // Firing a power shot sets hit-stop, and a frozen step ignores input by design. Clear it
-  // so this test is about the COUNTER and not about the freeze.
-  m.hitStop = 0;
-  m.ball.x = b.x - 40; m.ball.y = headY(b);
-  step(m, [{}, { kick: true }]);
-  ok('countering flips ownership', m.ball.power && m.ball.power.owner === 1, `owner=${m.ball.power?.owner}`);
-  ok('countering flips direction', m.ball.power && m.ball.power.dir === b.side);
-  ok('the countered ball travels back', m.ball.vx * b.side > 0);
+  const log = kickInto(m, 1, 130, 20);
+  ok('(blocked)', log.some((e) => e.type === 'blocked'));
+  const back = [];
+  for (let t = 0; t < 90 && !back.some((e) => e.type === 'rebound'); t++) { step(m, NONE); back.push(...m.events); m.events.length = 0; }
+  ok('the block fires back as the blocker\'s own power shot', back.some((e) => e.type === 'rebound' && e.player === 1) &&
+     m.ball.power && m.ball.power.owner === 1 && m.ball.vx * b.side > 0, JSON.stringify(m.ball.power && { o: m.ball.power.owner, vx: m.ball.vx }));
 }
 {
-  // a counter kick from too far away does nothing
+  // STANDING IN ITS PATH IS NOT A BLOCK (M3 38.25 s, M4 43.33 s): the defender is knocked back
+  // toward his own net, dazed with three stars, and the ball bounces off him.
   const m = fresh();
   const a = m.players[0], b = m.players[1];
-  a.shot = SHOTS.blaze;
+  a.shot = shotById('straight');
+  b.x = a.x + 300;
+  firePower(m, 0);
+  const log = [];
+  for (let t = 0; t < 20; t++) { step(m, NONE); log.push(...m.events); m.events.length = 0; }
+  ok('a standing defender is hit, not blocking', log.some((e) => e.type === 'powerHit' && e.player === 1) && !log.some((e) => e.type === 'blocked'));
+  ok('he is thrown toward his own goal', b.vx * b.side < 0 || b.x > a.x + 300, `vx=${b.vx.toFixed(0)}`);
+  ok('dazed for POWER_BLOCK_STUN, with the stars', log.some((e) => e.type === 'stunned' && e.player === 1 && Math.abs(e.time - C.POWER_BLOCK_STUN) < 1e-9) && b.ail === 'stars');
+  ok('and the ball bounces off him, no longer the shot', !m.ball.power, `vx=${m.ball.vx.toFixed(0)}`);
+}
+{
+  // Head Soccer has no unarmed COUNTER: a kick from out of reach does nothing to a power ball.
+  const m = fresh();
+  const b = m.players[1];
+  m.players[0].shot = shotById('straight');
   firePower(m, 0);
   m.hitStop = 0;
   m.ball.x = C.W / 2; m.ball.y = 200;
   step(m, [{}, { kick: true }]);
-  ok('an out-of-range kick does not counter', m.ball.power.owner === 0);
+  ok('an out-of-reach kick changes nothing', m.ball.power && m.ball.power.owner === 0 && m.ball.power.ph === 'fly');
+  void b;
 }
 
 // --- the ultimate: the button ARMS, the TOUCH fires -------------------------
@@ -419,31 +403,12 @@ const scoreOn = (m, left, y = C.GROUND_Y - 60, speed = 600) => {
   ok('and leaves the refill alone', p.gauge > 0 && p.gauge < 0.05, `gauge=${p.gauge}`);
 }
 {
-  // Blockable, not a battering ram: getting in the way has to save the goal, or the
-  // defender has nothing to do and every power shot is an automatic goal.
-  const m = fresh();
-  const a = m.players[0], b = m.players[1];
-  a.shot = SHOTS.blaze;
-  m.hitStop = 0;
-  b.x = a.x + 260;
-  firePower(m, 0);
-  inLine(m, b);                       // where a jumping defender is; standing is safe by design
-  m.hitStop = 0;
-  run(m, 30);
-  ok('a defender in the path blocks it', m.events.some((e) => e.type === 'blocked') || !m.ball.power,
-     'shot went through');
-  ok('a blocked shot comes back out', m.ball.vx <= 0 || !m.ball.power, `vx=${m.ball.vx.toFixed(0)}`);
-  // It used to cost the blocker health here ("but the blocker pays for it"). No health now:
-  // the block costs the blocker HS's half-second daze and nothing that lasts.
-  ok('and the blocker is only dazed by it', b.stunned > 0 && b.stunned <= C.POWER_BLOCK_STUN, `stunned=${b.stunned}`);
-}
-{
   // ARMED BEATS INCOMING: a defender who is ALSO armed and gets hit by the incoming shot does
   // not just block it and take the damage — the touch fires their own ultimate instead, same
   // as any other touch on the ball while armed. Their shot replaces the incoming one entirely.
   const m = fresh();
   const a = m.players[0], b = m.players[1];
-  a.shot = SHOTS.blaze; b.shot = SHOTS.wave;
+  a.shot = shotById('straight'); b.shot = shotById('updown');
   firePower(m, 0, 1);                 // a's shot, flying toward b
   ok('the incoming shot is a\'s', m.ball.power && m.ball.power.owner === 0);
   ok('b starts unarmed', b.armed === 0);
@@ -454,38 +419,13 @@ const scoreOn = (m, left, y = C.GROUND_Y - 60, speed = 600) => {
   m.events.length = 0;
   step(m, [{}, {}]);
   ok('b was not knocked down', b.stunned === 0, `stunned=${b.stunned}`);
-  ok('the touch fired b\'s own shot, not a\'s', m.ball.power && m.ball.power.shot.id === 'wave',
-     `shot=${m.ball.power?.shot.id}`);
+  ok('the touch fired b\'s own shot, not a\'s', m.ball.power && m.ball.power.fam === 'updown',
+     `shot=${m.ball.power?.fam}`);
   ok('ownership moved to b', m.ball.power && m.ball.power.owner === 1);
   ok('b\'s arm is spent (the press already spent its gauge)', b.armed === 0 && b.gauge < 0.05);
   ok('the event says it was a counter', m.events.some((e) => e.type === 'powershot' && e.countered),
      JSON.stringify(m.events));
 }
-{
-  // EVERY CHARACTER'S POWER LANDS THE SAME CONSEQUENCE, and that is the change. This used to
-  // assert the opposite — that the five shots produced at least three DIFFERENT effects — back
-  // when each one left its own lockout on whoever blocked it. The lockouts are gone, so what
-  // is left to differ is speed and colour, and the consequence — a deflection — is the same.
-  for (const id of Object.keys(SHOTS)) {
-    const shot = SHOTS[id];
-    ok(`${id} no longer carries a signature effect`, shot.effect === undefined);
-    ok(`${id} still has its own speed and colour`, shot.speed > 0 && /^#/.test(shot.color));
-  }
-  const dmg = Object.keys(SHOTS).map((id) => {
-    const m = fresh();
-    const a = m.players[0], d = m.players[1];
-    a.shot = SHOTS[id];
-    d.x = a.x + 300;
-    firePower(m, 0);
-    inLine(m, d);
-    run(m, 30);
-    // What each shot leaves on the blocker: the same POWER_BLOCK_STUN daze, whoever fired it.
-    const daze = m.events.filter((e) => e.type === 'stunned' && e.player === 1).map((e) => e.time);
-    return `${m.events.some((e) => e.type === 'blocked' && e.player === 1)}|${daze.join('+')}`;
-  });
-  ok('and every one of them is blocked the same way', new Set(dmg).size === 1 && dmg[0] === `true|${C.POWER_BLOCK_STUN}`, dmg.join(','));
-}
-
 // --- the head bounces, the chest deadens ---------------------------------------
 {
   // HS M4: the passive head touch is a restitution bounce (HEAD_BOUNCE, ~0.75 relative to the
@@ -878,13 +818,14 @@ const jumpArc = (input) => {
   const seen = new Set();
   for (const r of ['common', 'rare', 'epic', 'legendary']) {
     for (let n = 1; n <= 45; n++) {
-      const s = shotFor(r, n);
-      ok(`every card has a shot (${r}_${n})`, !!s && !!s.id && s.speed > 0);
-      seen.add(s.id);
+      const s = shotFor({ rarity: r, number: n });
+      ok(`every card has a family (${r}_${n})`, !!s && FAMILY_ORDER.includes(s.family));
+      seen.add(s.family);
     }
   }
-  ok('all five shot kinds are reachable', seen.size === 5, [...seen].join(','));
-  ok('featured cards get their themed shot', shotFor('legendary', 3).id === 'blaze' && shotFor('legendary', 2).id === 'tentacles');
+  ok('every one of the eleven families is on some card', FAMILY_ORDER.every((f) => seen.has(f)), [...seen].join(','));
+  ok('champion cards fire their mapped shot', shotFor({ rarity: 'legendary', number: 3 }).family === 'straight' &&
+     shotFor({ rarity: 'legendary', number: 3 }).ailment === 'burn' && shotFor({ rarity: 'legendary', number: 2 }).family === 'grab');
 }
 
 // --- determinism ------------------------------------------------------------
@@ -918,27 +859,32 @@ const jumpArc = (input) => {
 {
   const m = fresh();
   const a = m.players[0], b = m.players[1];
-  a.shot = SHOTS.blaze;
+  a.shot = shotById('straight');
   firePower(m, 0, undefined, true);
-  ok('firing a power shot starts a cut-in', m.cutin > 0 && m.cutinBy === 0 && m.hitStop >= C.POWER_CUTIN - C.TICK,
-     `cutin=${m.cutin} by=${m.cutinBy}`);
+  // 1.34s of dark (POWER_CUTIN), of which the first 0.97s is a hold: the ball leaves then and play
+  // runs under the last POWER_RELEASE (M4 40.44 → 41.41 → 41.78 s).
+  const HOLD = C.POWER_CUTIN - C.POWER_RELEASE;
+  ok('firing a power shot starts a cut-in', m.cutin === C.POWER_CUTIN && m.cutinBy === 0 && Math.abs(m.hitStop - HOLD) < C.TICK,
+     `cutin=${m.cutin} hitStop=${m.hitStop} by=${m.cutinBy}`);
   b.stunned = 0.4;
   const before = JSON.stringify([m.ball.x, m.ball.y, a.x, a.y, b.x, b.y, m.clock]);
   const snap = serialize(m);
-  const ticks = Math.round(C.POWER_CUTIN / C.TICK) - 2;
+  const ticks = Math.round(HOLD / C.TICK) - 2;
   run(m, ticks, [{ right: true, jump: true }, { left: true }]);
-  ok('the whole match holds under it — both bodies, the ball, the clock',
+  ok('the whole match holds for the first 0.97s — both bodies, the ball, the clock',
      JSON.stringify([m.ball.x, m.ball.y, a.x, a.y, b.x, b.y, m.clock]) === before);
-  ok('and a daze is not run down under it', b.stunned === 0.4, `stunned=${b.stunned}`);
+  ok('and a daze is not run down under the hold', b.stunned === 0.4, `stunned=${b.stunned}`);
   run(m, 4, NONE);
-  ok('it lifts after POWER_CUTIN, with the shot in flight', m.cutin === 0 && m.hitStop <= 0 && !!m.ball.power && m.ball.x !== JSON.parse(before)[0]);
+  ok('then the shot flies while it is still dark', m.cutin > 0 && m.hitStop <= 0 && !!m.ball.power && m.ball.x !== JSON.parse(before)[0], `cutin=${m.cutin}`);
+  run(m, Math.round(C.POWER_RELEASE / C.TICK), NONE);
+  ok('and the dark lifts at POWER_CUTIN', m.cutin === 0 && m.cutinBy === -1);
   // Restore mid-cut-in into two fresh matches and play both on: they have to agree tick for tick.
   const r = fresh(), q = fresh();
-  r.players[0].shot = SHOTS.blaze; q.players[0].shot = SHOTS.blaze;
+  r.players[0].shot = shotById('straight'); q.players[0].shot = shotById('straight');
   restore(r, snap); restore(q, snap);
   run(r, ticks + 4, NONE); run(q, ticks + 4, NONE);
   ok('a snapshot taken inside the cut-in carries it', snap.cutin > 0 && snap.cutinBy === 0 &&
-     JSON.stringify(serialize(r)) === JSON.stringify(serialize(q)) && r.cutin === 0 && !!r.ball.power);
+     JSON.stringify(serialize(r)) === JSON.stringify(serialize(q)) && r.hitStop <= 0 && !!r.ball.power);
 }
 
 // --- HS restarts ---------------------------------------------------------------
@@ -1191,26 +1137,21 @@ const jumpArc = (input) => {
      `gauge ${p.gauge}`);
 }
 {
-  // 5. IT IS STILL BLOCKABLE. The ultimate leaves from wherever the body met the ball rather
-  // than from a fixed height now, so "get in its way" is the answer instead of "jump to one
-  // known line" — but it has to remain an answer, or the shot is an automatic goal again.
+  // 5. IT IS STILL BLOCKABLE — by a KICK (HS M4 61.45 s). The ultimate leaves from wherever the
+  // body met the ball, so the answer is to meet it with the boot wherever it arrives; it has to
+  // remain an answer, or the shot is an automatic goal again.
   const m = fresh();
   const [a, d] = m.players;
   a.x = 300; a.facing = 1;
+  a.shot = shotById('straight');
   firePower(m, 0);
   ok('(the ultimate is away)', !!m.ball.power);
   d.x = m.ball.x + 200; d.y = C.GROUND_Y; d.vy = 0; d.onGround = true;
-  let blocked = false;
-  for (let i = 0; i < 240 && !blocked; i++) {
-    m.hitStop = 0;
-    step(m, NONE);
-    blocked = m.events.some((e) => e.type === 'blocked');
-    m.events.length = 0;
-    if (m.score[0] > 0) break;
-  }
-  ok('a body in its path blocks it', blocked, `score ${m.score[0]}`);
-  // A deflection and HS's half-second daze (POWER_BLOCK_STUN) — not a knockdown.
-  ok('and the block dazes, it does not knock down', d.stunned > 0 && d.stunned <= C.POWER_BLOCK_STUN, `stunned=${d.stunned}`);
+  const log = kickInto(m, 1, 130, 30);
+  const blocked = log.some((e) => e.type === 'blocked');
+  ok('a boot in its path blocks it', blocked && m.score[0] === 0, `score ${m.score[0]}`);
+  // HS's half-second daze (POWER_BLOCK_STUN) — not a knockdown.
+  ok('and the block dazes, it does not knock down', log.some((e) => e.type === 'stunned' && e.player === 1 && e.time === C.POWER_BLOCK_STUN));
 }
 {
   // 6. YOU CANNOT ARM WITHOUT THE METER, OR TWICE OFF ONE PRESS.
@@ -2166,7 +2107,7 @@ const jumpArc = (input) => {
       const evs = m.events.map((e) => e.type).join(',');
       m.events.length = 0;
       m.players.forEach((p, i) => {
-        const rate = m.champ ? (p.mods.meterLock ? 0 : p.meterRate) : 1;
+        const rate = m.champ ? p.meterRate || 1 : 1;
         const d = p.gauge - before[i];
         if (d > C.TICK * C.GAUGE_PASSIVE * rate + 1e-9 || d < -1e-9) {
           if (!bad++) first = `P${i + 1} tick ${k}: ${before[i].toFixed(4)} -> ${p.gauge.toFixed(4)} [${evs}]`;
@@ -2180,30 +2121,8 @@ const jumpArc = (input) => {
   }
 }
 
-// …and the arcade's drain, the last power that PAID a meter: it empties the victim's and gives
-// the champion none of it (it used to bank 60%).
-{
-  const champ = CHAMPIONS.find((c) => c.power === 'drain');
-  const m = createMatch(champ.card, CB, { champions: true });
-  m.freeze = 0; m.phase = 'play'; m.banner = null; m.bannerT = 0; m.gaugeLead = 0;
-  const [p, q] = m.players;
-  armPower(m, 0);
-  q.gauge = 0.9;
-  let drained = null, t = 0;
-  // The real path: armed, and the ball walked into the champion until the touch fires it.
-  for (; t < 40 && !drained; t++) {
-    m.hitStop = 0;
-    m.ball.x = p.x; m.ball.y = headY(p); m.ball.vx = 0; m.ball.vy = 0;
-    step(m, [{}, {}]);
-    drained = m.events.find((e) => e.type === 'drained');
-    m.events.length = 0;
-  }
-  ok('drain fires off the touch', !!drained && POWERS.drain.id === 'drain');
-  ok('drain empties the victim', q.gauge === 0, `${q.gauge}`);
-  // Spent to 0 on the touch; at most one tick of clock since.
-  ok('drain pays the champion nothing', p.gauge <= C.TICK * C.GAUGE_PASSIVE * p.meterRate + 1e-9,
-     `${p.gauge.toFixed(4)} (it used to bank 60% of the 0.9: 0.54)`);
-}
+// (The arcade's drain — the last power that touched a meter — went with shared/powers.js: every
+// champion is only its Head Soccer shot now, and no shot pays or takes a gauge.)
 
 // --- players are solid to each other (HS M4: standing on heads, pinned on a shoulder) -------
 {

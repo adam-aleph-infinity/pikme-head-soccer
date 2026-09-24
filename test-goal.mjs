@@ -495,10 +495,11 @@ C.tune({ JUMP_V: freeCrownJump(BAR - C.HEAD_R) });
   // nerfing every jump on the pitch, and it is what keeps a defender able to meet a lob.
   const far = jumpAt(C.W / 2);
   const past = jumpAt(C.GOAL_W + CLEAR + 4);
-  // "Untouched" means the free jump is well clear of the bar's height, so a clamp would show.
-  // A clear head above it, in the game's own units — it used to be a bare 40px, which was a
-  // sixth of the old goal and a quarter of this one.
-  ok('a jump out on the pitch is untouched', far.crown < BAR - C.HEAD_R, `crown ${far.crown.toFixed(1)}`);
+  // "Untouched" means the free jump reaches exactly the ballistic crown headReach() predicts, and
+  // that crown is above the bar's height, so a clamp would show. (It used to demand a whole head of
+  // daylight, which only held while a legendary card jumped 5% higher; HS stats are EQUAL now.)
+  ok('a jump out on the pitch is untouched', Math.abs(far.crown - (C.GROUND_Y - C.headReach())) < 3 && far.crown < BAR - C.POST_R,
+     `crown ${far.crown.toFixed(1)} vs free ${(C.GROUND_Y - C.headReach()).toFixed(1)}`);
   ok('…and so is one a head clear of the post', Math.abs(past.crown - far.crown) < 0.51,
      `${past.crown.toFixed(1)} vs ${far.crown.toFixed(1)}`);
   ok('the bar reaches exactly a head past the post', barCeiling(C.GOAL_W + CLEAR + 0.01, C.HEAD_R) === -Infinity);

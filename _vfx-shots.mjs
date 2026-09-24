@@ -1,31 +1,31 @@
-// Photograph ONE TIER of champion powers in the live client, closely — for working on their looks.
+// Photograph every POWER-SHOT FAMILY in the live client at 844×390, frame-exactly.
 //
-// _arcade-shots.mjs plays the whole arcade flow and takes three frames a power; this takes only
-// the nine powers of one tier (or the ones you name) and more frames of each, and it runs on its
-// own port, browser and folder, so five of them can run side by side — one per tier.
+// The match is held (window.SIM_HOLD) and stepped from here tick by tick, so each picture is the
+// same moment every run and can be laid next to the Head Soccer frame it is meant to match
+// (docs/HS-POWER-SHOTS.md; _hs-compare.mjs builds those strips).
 //
-//   node _vfx-shots.mjs 3                 → .shots/vfx/tier3/*.png
-//   node _vfx-shots.mjs 3 meteor quake    → just those two
+//   node _vfx-shots.mjs                    → .shots/vfx/<family>-<moment>.png, all 11 families
+//   node _vfx-shots.mjs straight aerial    → just those
 //
-// Frames per power (player on the left fires; the last one the champion bot on the right does):
-//   a-armed  the tell, before the touch      b-cut    the super cut-in, match held
-//   c-burst  just after the hold              d-main   0.5s in       e-late   1.3s in
-//   f-foe    the champion on the right firing it back at the player
+// Moments per family (player on the left fires at the one on the right):
+//   a-armed   the press: the rim and the tongues, before the touch
+//   b-cut     0.2s into the cut-in          c-cut2   1.0s into it
+//   d-fly     0.12s after the ball leaves     e-fly    0.18s       f-fly    0.29s
+//   g-hit     the shot meeting the standing defender (knocked back, stars)
+// …and for `straight` also h-block (the defender kicks into it: the grind) and the six ailments
+// (ail-<name>) on a standing player.
 import { spawn } from 'node:child_process';
 import { mkdirSync, rmSync, writeFileSync } from 'node:fs';
 import { setTimeout as sleep } from 'node:timers/promises';
 import { chromePath } from './_chrome.mjs';
 import { ensureServer } from './_serve.mjs';
-import { POWER_ORDER } from './shared/powers.js';
+import { FAMILY_ORDER, AILMENT_ORDER } from './shared/hs-powers.js';
 
-const TIER = Number(process.argv[2]);
-if (!(TIER >= 1 && TIER <= 5)) { console.log('usage: node _vfx-shots.mjs <tier 1-5> [power ...]'); process.exit(2); }
-const names = process.argv.slice(3);
-const POWERS = POWER_ORDER.map((p, i) => [p, i + 1]).filter(([p, n]) => (names.length ? names.includes(p) : Math.ceil(n / 9) === TIER));
-
-const PORT = 3100 + TIER, CDP = 9500 + TIER;
+const want = process.argv.slice(2);
+const FAMS = want.length ? FAMILY_ORDER.filter((f) => want.includes(f)) : FAMILY_ORDER;
+const PORT = 3131, CDP = 9531;
 const server = await ensureServer(PORT);
-const OUT = `${import.meta.dirname}/.shots/vfx/tier${TIER}`;
+const OUT = `${import.meta.dirname}/.shots/vfx`;
 mkdirSync(OUT, { recursive: true });
 rmSync(`${OUT}/prof`, { recursive: true, force: true });
 const chrome = spawn(chromePath(), [
@@ -49,48 +49,110 @@ ws.onmessage = (ev) => {
   if (m.method === 'Runtime.exceptionThrown') errs.push(m.params.exceptionDetails?.exception?.description || m.params.exceptionDetails?.text);
 };
 const send = (method, params = {}) => new Promise((r) => { pend.set(++id, r); ws.send(JSON.stringify({ id, method, params })); });
-const js = async (expr) => (await send('Runtime.evaluate', { expression: expr, returnByValue: true, awaitPromise: true }))?.result?.value;
+const js = async (expr) => {
+  const r = await send('Runtime.evaluate', { expression: expr, returnByValue: true, awaitPromise: true });
+  if (r?.exceptionDetails) errs.push(r.exceptionDetails.exception?.description || r.exceptionDetails.text);
+  return r?.result?.value;
+};
+// Two animation frames so draw() has run on the state we just made, then the picture.
 const shot = async (name) => {
+  await js('new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)))');
   const s = await send('Page.captureScreenshot', { format: 'png' });
   if (s?.data) writeFileSync(`${OUT}/${name}.png`, Buffer.from(s.data, 'base64'));
 };
-const go = async (q) => { await send('Page.navigate', { url: `http://127.0.0.1:${PORT}/${q}` }); await sleep(1600); };
 
 await send('Page.enable');
 await send('Runtime.enable');
 await send('Emulation.setDeviceMetricsOverride', { width: 844, height: 390, deviceScaleFactor: 2, mobile: true });
-await go('');
-await js(`localStorage.setItem('hs.arcade.v1', JSON.stringify({ v: 1, cleared: 44, record: {} }))`);
 
-// Arm player `i` and put the ball on their head: the next tick is the touch.
-const arm = (i) => js(`(() => { const p = MATCH.players[${i}]; MATCH.phase = 'play'; MATCH.freeze = 0; MATCH.hitStop = 0;
-  p.gauge = 1; p.armed = 1; MATCH.ball.x = 530; MATCH.ball.y = 120; MATCH.ball.vx = MATCH.ball.vy = 0; MATCH.ball.power = null; })()`);
-const touch = (i) => js(`(() => { const p = MATCH.players[${i}]; MATCH.hitStop = 0; MATCH.ball.x = p.x; MATCH.ball.y = p.y - C.BODY_H - C.HEAD_R + 8;
-  MATCH.ball.vx = MATCH.ball.vy = 0; MATCH.ball.power = null; EVENTS.length = 0; })()`);
-const fired = (power) => js(`EVENTS.some(e => e.type === 'powershot' && e.champ === '${power}')`);
+// The in-page helpers: step the held match n ticks, feeding the renderer its events.
+const HELPERS = `(async () => {
+  window.SIM_HOLD = true;
+  const S = await import('/shared/sim.js'), HP = await import('/shared/hs-powers.js');
+  window.__HP = HP;
+  window.__tick = (n, inputs) => {
+    for (let i = 0; i < n; i++) {
+      S.step(MATCH, typeof inputs === 'function' ? inputs(i) : (inputs || [{}, {}]), C.TICK);
+      for (const e of MATCH.events) { VFXR.onEvent(e); EVENTS.push(e); }
+      MATCH.events.length = 0;
+      VFXR.update(C.TICK);
+    }
+  };
+  window.__open = (fam) => {
+    const m = MATCH;
+    m.phase = 'play'; m.freeze = 0; m.banner = null; m.bannerT = 0; m.ballWait = 0; m.gaugeLead = 0; m.hitStop = 0; m.cutin = 0;
+    m.clock = 60;
+    const [a, z] = m.players;
+    a.shot = HP.shotById(fam); z.shot = HP.shotById('straight');
+    a.x = 290; z.x = 790; a.y = z.y = C.GROUND_Y; a.vx = z.vx = 0; a.vy = z.vy = 0;
+    for (const p of m.players) { p.stunned = 0; p.ail = ''; p.ailT = 0; p.kickT = 0; p.kickCd = 0; p.armed = 0; p.gauge = 0; p.prev = {}; }
+    m.ball.power = null; m.xballs.length = 0;
+    EVENTS.length = 0;
+    VFXR.reset();
+  };
+  return 'ok';
+})()`;
+
+async function openMatch() {
+  await send('Page.navigate', { url: `http://127.0.0.1:${PORT}/?me=legendary_8&foe=legendary_9&play=1&solo=1&stage=japan` });
+  await sleep(1800);
+  await js(HELPERS);
+}
 
 let bad = 0;
-for (const [power, n] of POWERS) {
-  const tag = `${String(n).padStart(2, '0')}-${power}`;
-  await go(`?me=legendary_${n}&solo=1&arcade=${n}`);
-  await sleep(500);
-  await js(`MATCH.players[0].x = 330`);
-  await arm(0); await sleep(300); await shot(`${tag}-a-armed`);
-  await touch(0); await sleep(200); await shot(`${tag}-b-cut`);
-  await sleep(330); await shot(`${tag}-c-burst`);
-  await sleep(400); await shot(`${tag}-d-main`);
-  await sleep(800); await shot(`${tag}-e-late`);
-  const ok = await fired(power);
-  // Back to kickoff positions, then the champion on the right fires it at the player.
-  await go(`?me=legendary_${n}&solo=1&arcade=${n}`);
-  await sleep(500);
-  await js(`MATCH.players[1].x = 730`);
-  await arm(1); await sleep(150); await touch(1); await sleep(1000); await shot(`${tag}-f-foe`);
-  const ok2 = await fired(power);
-  console.log(`  ${ok && ok2 ? '✓' : '✗'} ${tag}`);
-  if (!ok || !ok2) bad++;
+await openMatch();
+for (const fam of FAMS) {
+  await js(`__open('${fam}')`);
+  // the press
+  await js(`(() => { const a = MATCH.players[0]; a.gauge = 1; MATCH.ball.x = 530; MATCH.ball.y = 140; MATCH.ball.vx = MATCH.ball.vy = 0; __tick(1, [{ power: true }, {}]); MATCH.ball.x = 530; MATCH.ball.y = 140; MATCH.ball.vy = 0; })()`);
+  await shot(`${fam}-a-armed`);
+  // the touch: the ball on the armed head, then into the cut-in
+  await js(`(() => { const a = MATCH.players[0]; MATCH.ball.x = a.x + 8; MATCH.ball.y = a.y - C.BODY_H - C.HEAD_R * 2 + 6; MATCH.ball.vx = MATCH.ball.vy = 0; __tick(1); __tick(12); })()`);
+  await shot(`${fam}-b-cut`);
+  await js('__tick(48)');
+  await shot(`${fam}-c-cut2`);
+  // The ball leaves POWER_RELEASE before the cut-in lifts and flies under the dark (§2); the three
+  // flight pictures are 0.12, 0.18 and 0.29s after it leaves — M4 43.07, 43.13 and 43.24 s.
+  await js(`(() => { let g = 0; while (MATCH.cutin > C.POWER_RELEASE && g++ < 200) __tick(1); __tick(7); })()`);
+  await shot(`${fam}-d-fly`);
+  await js('__tick(4)');
+  await shot(`${fam}-e-fly`);
+  await js('__tick(7)');
+  await shot(`${fam}-f-fly`);
+  // the Aerial's own moments: the warning streaks (half way through its wait) and the dive
+  if (fam === 'aerial') {
+    await js(`(() => { let g = 0; while (g++ < 200 && !(MATCH.ball.power && MATCH.ball.power.ph === 'wait' && MATCH.ball.power.k > 0.5)) __tick(1); })()`);
+    await shot('aerial-w-warn');
+    await js(`(() => { let g = 0; while (g++ < 200 && !(MATCH.ball.power && MATCH.ball.power.ph === 'dive')) __tick(1); __tick(10); })()`);
+    await shot('aerial-x-dive');
+  }
+  // on to the defender (the Aerial and the Delay take their time), then just after it lands
+  const hit = await js(`(() => { let g = 0, seen = null;
+    while (g++ < 240 && !seen) { __tick(1); seen = EVENTS.slice(-6).find((e) => e.type === 'powerHit' || e.type === 'grabbed' || e.type === 'blocked' || e.type === 'goal'); }
+    __tick(3); return seen ? seen.type : null; })()`);
+  await shot(`${fam}-g-hit`);
+  if (!hit) { console.log(`  ✗ ${fam}: never reached the defender`); bad++; } else console.log(`  ✓ ${fam}: ${hit}`);
 }
-if (errs.length) { console.log('page exceptions:', errs.slice(0, 3).join(' | ')); bad++; }
+
+// The block, and the ailments, on the straight shot.
+if (!want.length || want.includes('straight')) {
+  await js(`__open('straight')`);
+  await js(`(() => { const a = MATCH.players[0]; a.gauge = 1; __tick(1, [{ power: true }, {}]);
+    MATCH.ball.x = a.x + 8; MATCH.ball.y = a.y - C.BODY_H - C.HEAD_R * 2 + 6; MATCH.ball.vx = MATCH.ball.vy = 0; __tick(1);
+    let g = 0; while (MATCH.hitStop > 0 && g++ < 200) __tick(1);
+    const z = MATCH.players[1]; let pressed = false; g = 0;
+    while (g++ < 120 && !EVENTS.slice(-4).some((e) => e.type === 'blocked')) {
+      const near = Math.abs(MATCH.ball.x - z.x) < 180 && !pressed; if (near) pressed = true;
+      __tick(1, [{}, { kick: near }]);
+    }
+    __tick(20); })()`);
+  await shot('straight-h-block');
+  for (const ail of AILMENT_ORDER) {
+    await js(`__open('straight'); (() => { const z = MATCH.players[1]; z.ail = '${ail}'; z.ailT = 2; MATCH.ball.x = 530; MATCH.ball.y = 200; __tick(1); MATCH.ball.x = 530; MATCH.ball.y = 200; })()`);
+    await shot(`ail-${ail}`);
+  }
+}
+if (errs.length) { console.log('page exceptions:', errs.slice(0, 4).join(' | ')); bad++; }
 ws.close(); chrome.kill(); server.stop();
-console.log(`_vfx-shots tier ${TIER}: ${POWERS.length} powers → ${OUT}${bad ? `, ${bad} PROBLEMS` : ', all fired, no exceptions'}`);
+console.log(`_vfx-shots: ${FAMS.length} families → ${OUT}${bad ? `, ${bad} PROBLEMS` : ', all fired, no exceptions'}`);
 process.exit(bad ? 1 : 0);

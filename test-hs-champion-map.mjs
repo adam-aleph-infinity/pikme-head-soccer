@@ -1,5 +1,5 @@
-// Validates docs/hs-champion-map.json, the Phase D draft that maps each arcade champion onto a
-// Head Soccer power-shot family. Nothing in the game reads it yet; this keeps it well-formed.
+// Validates docs/hs-champion-map.json, the approved map of each arcade champion onto a Head Soccer
+// power-shot family — and that shared/hs-champion-map.js, the copy the game reads, is exactly it.
 import fs from 'node:fs';
 import assert from 'node:assert/strict';
 
@@ -46,5 +46,14 @@ for (const r of rows) {
 assert.ok(rows[44].statTotal > rows[0].statTotal, 'totals climb overall');
 assert.deepEqual(rows.filter((r) => r.gentle).map((r) => r.stage), [2, 6], 'gentle rows are stages 2 and 6');
 for (const f of FAMILIES) assert.ok(counts[f] >= 3 && counts[f] <= 6, `family ${f}: ${counts[f]}`);
+
+// The game reads the module, not the JSON (a phone cannot fetch docs/): it must be the JSON's copy.
+const { renderMap, MAP_MODULE } = await import('./scripts/champions-doc.mjs');
+assert.equal(fs.readFileSync(MAP_MODULE, 'utf8'), renderMap(), 'shared/hs-champion-map.js is stale — run node scripts/champions-doc.mjs');
+const { HS_MAP } = await import('./shared/hs-champion-map.js');
+for (const r of rows) {
+  const g = HS_MAP[r.stage - 1];
+  assert.ok(g && g.family === r.family && g.ailment === r.ailment && g.aura === r.aura && g.intensity === r.intensity, `module row ${r.stage}`);
+}
 
 console.log('test-hs-champion-map: ok');

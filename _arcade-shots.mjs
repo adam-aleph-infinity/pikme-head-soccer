@@ -3,7 +3,8 @@
 // The unit tests prove the rules; this proves a thumb can get through them. It plays the flow
 // the way a player does — card, «שחק», the mode page, a room, the board, a locked stage that
 // refuses to start, a win that unlocks the next, a reload that remembers it, a loss and a retry —
-// and fires a spread of champion powers in the live renderer so the effects can be looked at.
+// and fires one champion of every Head Soccer shot family in the live renderer so the shots can be
+// looked at (_vfx-shots.mjs photographs each family frame-exactly).
 //
 //   node _arcade-shots.mjs            → PNGs in .shots/arcade, exit 1 on any failed check
 //   PORT=3027 node _arcade-shots.mjs
@@ -12,7 +13,7 @@ import { mkdirSync, writeFileSync, rmSync } from 'node:fs';
 import { setTimeout as sleep } from 'node:timers/promises';
 import { chromePath } from './_chrome.mjs';
 import { ensureServer } from './_serve.mjs';
-import { POWER_ORDER } from './shared/powers.js';
+import { CHAMPIONS } from './shared/champions.js';
 
 const PORT = process.env.PORT || 3027;
 await ensureServer(PORT);
@@ -134,7 +135,7 @@ check('the HUD names the champion powers', await js(`document.querySelector('.ga
 await js(`(() => { const p = MATCH.players[0]; window.BOT_OFF = true; MATCH.phase = 'play'; MATCH.freeze = 0; MATCH.hitStop = 0;
   p.gauge = 1; p.armed = 1; MATCH.ball.x = p.x; MATCH.ball.y = p.y - C.BODY_H - C.HEAD_R + 8; MATCH.ball.vx = MATCH.ball.vy = 0; MATCH.ball.power = null; EVENTS.length = 0; })()`);
 await sleep(250);
-check('touching the ball fires my champion power', await js(`EVENTS.some(e => e.type === 'powershot' && e.player === 0 && e.champ === 'blaze')`));
+check('touching the ball fires my champion power', await js(`EVENTS.some(e => e.type === 'powershot' && e.player === 0 && e.champ === 'legendary_3' && e.fam === 'straight' && e.ail === 'burn')`));
 await shot('08-power-blaze');
 
 // ── 6. win → next stage unlocks, and the result says so ──────────────────
@@ -168,31 +169,28 @@ await click('#quit'); await sleep(300);
 const s3 = await tileStates();
 check('the loss unlocked nothing, and quitting recorded nothing', s3 === 'DO' + 'L'.repeat(43), s3);
 
-// ── 9. the powers, looked at ─────────────────────────────────────────────
-// Unlock the board by hand so any stage can be opened, then fire a spread of powers from the
-// player's seat and photograph what each one leaves on the pitch.
+// ── 9. the power shots, looked at ────────────────────────────────────────
+// Unlock the board by hand so any stage can be opened, then fire the first champion of each of
+// the eleven families from the player's seat and photograph it: armed, under the cut-in, in flight.
 await js(`localStorage.setItem('hs.arcade.v1', JSON.stringify({ v: 1, cleared: 44, record: {} }))`);
-// All 45: each champion's power fired from the player's seat, photographed three times — the
-// super cut-in, the burst just after it, and the main effect a beat later — with the armed tell photographed on
-// the way in. The VFX review reads these.
-const early = { meteor: 450, split: 330, tornado: 700, stutter: 380, boomerang: 420 };
-for (const [k, power] of POWER_ORDER.entries()) {
-  const n = k + 1, tag = `${String(n).padStart(2, '0')}-${power}`;
+const firstOfFamily = [...new Map(CHAMPIONS.map((c) => [c.hs.family, c])).values()];
+for (const c of firstOfFamily) {
+  const n = c.stage, tag = `${String(n).padStart(2, '0')}-${c.hs.family}`;
   await go(`?me=legendary_${n}&solo=1&arcade=${n}`);
   await sleep(700);
   await js(`(() => { const p = MATCH.players[0]; MATCH.phase = 'play'; MATCH.freeze = 0; MATCH.hitStop = 0;
     p.x = 330; p.gauge = 1; p.armed = 1; MATCH.ball.x = 530; MATCH.ball.y = 120; MATCH.ball.vx = MATCH.ball.vy = 0; })()`);
   await sleep(250);
-  if (n % 5 === 1) await shot(`20-power-${tag}-0armed`);
+  await shot(`20-power-${tag}-0armed`);
   await js(`(() => { const p = MATCH.players[0]; MATCH.hitStop = 0; MATCH.ball.x = p.x; MATCH.ball.y = p.y - C.BODY_H - C.HEAD_R + 8;
     MATCH.ball.vx = MATCH.ball.vy = 0; MATCH.ball.power = null; EVENTS.length = 0; })()`);
-  await sleep(220);
-  await shot(`20-power-${tag}-0cut`);                 // the super cut-in, holding the match
-  await sleep(240 + (early[power] || 260));           // …past the hold, into the power itself
+  await sleep(400);
+  await shot(`20-power-${tag}-0cut`);                 // the cut-in, holding the match
+  await sleep(700);                                    // …past the 0.97s hold, the shot in flight
   await shot(`20-power-${tag}-1`);
-  await sleep(650);
+  await sleep(500);
   await shot(`20-power-${tag}-2`);
-  check(`${power}: fires in the live client`, await js(`EVENTS.some(e => e.type === 'powershot' && e.champ === '${power}')`));
+  check(`${c.hs.family} (stage ${n}): fires in the live client`, await js(`EVENTS.some(e => e.type === 'powershot' && e.champ === '${c.id}' && e.fam === '${c.hs.family}')`));
 }
 
 // ── 10. the smallest phone, and an album ─────────────────────────────────
