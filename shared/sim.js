@@ -54,6 +54,9 @@ function makePlayer(index, char) {
     kickT: 0, kickCd: 0, kickLob: false, kickDir: 0,
     dashT: 0, dashCd: 0, dashDir: 0,
     tapDir: 0, tapT: 0,
+    // Whose body is holding this one up — standing on its head, or pinned against it by a
+    // push (resolvePlayers) — or -1 for the grass / the air. Rebuilt every tick.
+    stand: -1,
     // THE ULTIMATE, in two numbers and nothing else.
     //   gauge — the power meter, 0..1, filled by the clock (see GAUGE_PASSIVE).
     //   armed — seconds of ARMED left. > 0 means "glowing, waiting for a touch on the ball".
@@ -208,7 +211,7 @@ function resetPositions(m, towards) {
   m.idle = 0;
   for (const p of m.players) {
     p.x = C.SPAWN_X[p.index]; p.y = C.GROUND_Y;
-    p.vx = 0; p.vy = 0; p.onGround = true; p.facing = p.side;
+    p.vx = 0; p.vy = 0; p.onGround = true; p.facing = p.side; p.stand = -1;
     p.kickT = 0; p.kickCd = 0; p.dashT = 0; p.dashCd = 0;
     p.shoved = 0;
     p.tackleImmune = 0; p.coyote = 0; p.jumpBuf = 0; p.landT = 1;
@@ -318,7 +321,7 @@ export function step(m, inputs, dt = C.TICK, fx = NO_FX) {
     if (m.champ && m.players[i].mods.stopped) latchPlayer(m.players[i], inputs[i] || {});
     else stepPlayer(m, m.players[i], inputs[i] || {}, dt, fx);
   }
-  separatePlayers(m);
+  resolvePlayers(m);
 
   // NO BALL YET. After a goal the players get GOAL_BALL_DELAY of play before the ball drops in
   // at the centre (HS: players move 2.24s after the goal, the ball appears at 2.795s). It is
@@ -626,9 +629,13 @@ function integrate(p, dt, gm = 1, maxJumps = C.MAX_JUMPS, hr = C.HEAD_R) {
     if (p.vy > 0) p.vy = 0;
     if (!p.onGround) { p.jumps = maxJumps; p.landT = 0; }
     p.onGround = true;
-  } else {
+  } else if (p.stand < 0) {
     p.onGround = false;
   }
+  // …else STANDING ON A HEAD: the support is the other body, not GROUND_Y, and it is only known
+  // once both bodies have moved — resolvePlayers() puts this body back on the crown it sank
+  // into by a tick of gravity, stops its fall, and decides whether it is still standing. Until
+  // then it keeps its footing (a jump has already cleared `onGround` above, in stepPlayer).
   applyBounds(p, hr);
 }
 
@@ -672,19 +679,188 @@ function applyBounds(p, hr = C.HEAD_R) {
   if (p.x > hi) { p.x = hi; if (p.vx > 0) p.vx = 0; }
 }
 
-function separatePlayers(m) {
+// ---------------------------------------------------------------------------
+// PLAYERS ARE SOLID TO EACH OTHER (HS M4). Each is a head circle on a body box — the same two
+// shapes the ball meets — and all four pairs collide. That replaces separatePlayers, which only
+// ever pushed two feet lines apart sideways: a player could not stand on a head, lean on one,
+// or be anywhere but beside the other.
+//
+// Contacts come in two kinds, by the contact normal:
+//
+//   ON TOP   the normal is within 45° of vertical. The UPPER body takes the whole correction —
+//            the lower one has the grass under it — and may not move INTO the lower one (only
+//            the approach along the normal is removed, so on a slope it slides). It is standing:
+//            `stand` = the lower one's index, `onGround` so it can jump off, jumps back.
+//            Nothing carries it sideways: HS M4 53.00–53.40 s, the CPU walked ~30px under a
+//            player standing on its head and the player stayed where he was (x 886–888).
+//   BESIDE   anything shallower. Split half and half, as the old push was; a body walking into
+//            the other shoves it. BODY_GRIP then lets the push hold an airborne body UP (never
+//            down, never sideways): HS M4 66.40–66.78 s, the dasher kept pushing and the CPU
+//            hung on his shoulder instead of falling. `stand` marks that too; `onGround` not.
+//
+// Swept, like the ball: both bodies are walked along their tick in slices no longer than 4px
+// of relative motion, so a 30px-a-tick dash meets the other body where it first touches it
+// (the side of the box) rather than 20px deep, where the shortest way out can point straight
+// up — which would be the dash-under launch HS does not have (M4 66.36 s: no launch).
+//
+// applyBounds() runs after every push, so no correction can put a body through the back of
+// the net or up through the crossbar; when the bar stops the upper body going up, it goes
+// sideways instead, out of the mouth (see the ceiling fallback below), so two players can
+// never wedge under the bar.
+const STACK_SLICE = 4;
+
+// Deepest overlap of circle (cx,cy,r) with box [l,rt]×[t,bt]: {d, nx, ny}, n out of the box.
+function circleBox(cx, cy, r, l, rt, t, bt) {
+  const qx = clamp(cx, l, rt), qy = clamp(cy, t, bt);
+  const dx = cx - qx, dy = cy - qy, dist = Math.hypot(dx, dy);
+  if (dist > 1e-9) return dist < r ? { d: r - dist, nx: dx / dist, ny: dy / dist } : null;
+  // Centre inside the box: out through the nearest face.
+  const fl = cx - l, fr = rt - cx, ft = cy - t, fb = bt - cy, f = Math.min(fl, fr, ft, fb);
+  if (f === ft) return { d: r + ft, nx: 0, ny: -1 };
+  if (f === fb) return { d: r + fb, nx: 0, ny: 1 };
+  return f === fl ? { d: r + fl, nx: -1, ny: 0 } : { d: r + fr, nx: 1, ny: 0 };
+}
+
+// The deepest of the four shape pairs between players a and b, n pointing from b toward a
+// (the way to move a). `skin` counts a gap that small as touching. null when apart.
+export function playerContact(m, a, b, skin = 0) {
+  const ra = headR(m, a), rb = headR(m, b);
+  const ahx = a.x, ahy = headYAt(a.y), bhx = b.x, bhy = headYAt(b.y);
+  const hw = C.BODY_W / 2;
+  // The box's top sits under the head (they overlap by NECK); its bottom is the boots.
+  const aT = bodyTopAt(a.y), aB = a.y, bT = bodyTopAt(b.y), bB = b.y;
+  let best = null;
+  const take = (c) => { if (c && (!best || c.d > best.d)) best = c; };
+  { // head – head
+    const dx = ahx - bhx, dy = ahy - bhy, dist = Math.hypot(dx, dy);
+    if (dist < ra + rb + skin) take(dist > 1e-9 ? { d: ra + rb - dist, nx: dx / dist, ny: dy / dist } : { d: ra + rb, nx: 0, ny: -1 });
+  }
+  { // a's head – b's body
+    const c = circleBox(ahx, ahy, ra + skin, bhx - hw, bhx + hw, bT, bB);
+    if (c) take({ ...c, d: c.d - skin });
+  }
+  { // a's body – b's head (flip the normal: it came out pointing at b)
+    const c = circleBox(bhx, bhy, rb + skin, ahx - hw, ahx + hw, aT, aB);
+    if (c) take({ d: c.d - skin, nx: -c.nx, ny: -c.ny });
+  }
+  { // body – body
+    const ox = Math.min(ahx, bhx) + hw - (Math.max(ahx, bhx) - hw) + skin;
+    const oy = Math.min(aB, bB) - Math.max(aT, bT) + skin;
+    if (ox > 0 && oy > 0) {
+      take(ox < oy ? { d: ox - skin, nx: ahx >= bhx ? 1 : -1, ny: 0 } : { d: oy - skin, nx: 0, ny: a.y <= b.y ? -1 : 1 });
+    }
+  }
+  return best && best.d > -skin ? best : null;
+}
+
+// |ny| at or past this: one body is ON TOP of the other — within 45° of vertical — and standing
+// on it. Anything steeper is the side of a head: pushed apart sideways, falling freely, so a body
+// that ends up there slides off rather than creeping down the curve.
+const ON_TOP = Math.SQRT1_2;
+
+// One positional push apart along the contact, then both bodies back inside their bounds.
+function pushApart(m, a, b, c) {
+  let wa = 0.5, wb = 0.5;
+  if (Math.abs(c.ny) >= ON_TOP) { if (c.ny < 0) { wa = 1; wb = 0; } else { wa = 0; wb = 1; } }
+  const ay = a.y, by = b.y;
+  if (wa === 0.5) {
+    // BESIDE: straight apart, sideways only — as far sideways as clears the overlap along n.
+    // A shove never lifts: a body walked into the side of an airborne one (a dash under it)
+    // must not ride it up the curve of a head, which is the launch HS does not have.
+    const sx = (c.d / Math.max(Math.abs(c.nx), 0.5)) * Math.sign(c.nx) * 0.5;
+    a.x += sx; b.x -= sx;
+  } else {
+    a.x += c.nx * c.d * wa; a.y += c.ny * c.d * wa;
+    b.x -= c.nx * c.d * wb; b.y -= c.ny * c.d * wb;
+  }
+  // Never below the grass (the lower body takes no share of an on-top push, but a sideways one
+  // with a sliver of down in it must not sink a boot).
+  if (a.y > C.GROUND_Y) a.y = C.GROUND_Y;
+  if (b.y > C.GROUND_Y) b.y = C.GROUND_Y;
+  applyBounds(a, headR(m, a)); applyBounds(b, headR(m, b));
+  // THE CEILING FALLBACK. The bar stopped the upper body going up (applyBounds pulled it back
+  // down), so the stack cannot resolve upward: slide the upper body out sideways instead, away
+  // from the goal it is under. Without this the push up and the bar's push down cancel every
+  // tick and the two bodies stay wedged inside each other under the crossbar.
+  const up = wa === 1 ? a : wb === 1 ? b : null;
+  if (up) {
+    const wanted = up === a ? ay + c.ny * c.d : by - c.ny * c.d;
+    if (up.y > wanted + 0.5) {
+      const dir = up.x < C.W / 2 ? 1 : -1;
+      up.x += dir * (up.y - wanted);
+      applyBounds(up, headR(m, up));
+    }
+  }
+}
+
+function resolvePlayers(m) {
   const [a, b] = m.players;
-  const min = C.BODY_W * 0.92;
-  const d = b.x - a.x;
-  const ad = Math.abs(d);
-  if (ad < min && ad > 0.0001) {
-    const push = (min - ad) / 2 * Math.sign(d);
-    a.x -= push; b.x += push;
-    // …and back inside the world. The push happens after both players have already been
-    // bounded, so two bodies jammed into the same corner used to be shoved half a body width
-    // THROUGH the back of the net. They stay overlapped for a tick instead, which nobody can
-    // see, rather than standing behind the goal, which everybody can.
-    applyBounds(a, headR(m, a)); applyBounds(b, headR(m, b));
+  const was = [a.stand, b.stand];
+  a.stand = -1; b.stand = -1;
+  contactPlayers(m, a, b);
+  // Stepped off, or the head walked away: in the air again (integrate() kept `onGround` for a
+  // body that was standing on a head — see there — so it is cleared here, where it is known).
+  for (const p of m.players) {
+    if (was[p.index] >= 0 && p.stand < 0 && p.y < C.GROUND_Y) p.onGround = false;
+  }
+}
+
+function contactPlayers(m, a, b) {
+  const ax0 = a.x0 ?? a.x, ay0 = a.y0 ?? a.y, bx0 = b.x0 ?? b.x, by0 = b.y0 ?? b.y;
+  const reach = headR(m, a) + headR(m, b) + 4;
+  // Far apart for the whole tick (and never crossed): nothing to do.
+  if (Math.min(Math.abs(a.x - b.x), Math.abs(ax0 - bx0)) > reach && Math.sign(a.x - b.x) === Math.sign(ax0 - bx0)) return;
+
+  // Walk both along their tick. `dA`/`dB` are the corrections so far, carried into every
+  // later slice so a body pushed at slice k stays pushed.
+  const ax1 = a.x, ay1 = a.y, bx1 = b.x, by1 = b.y;
+  const rel = Math.hypot((ax1 - ax0) - (bx1 - bx0), (ay1 - ay0) - (by1 - by0));
+  const slices = Math.max(1, Math.min(12, Math.ceil(rel / STACK_SLICE)));
+  let dAx = 0, dAy = 0, dBx = 0, dBy = 0;
+  for (let k = 1; k <= slices; k++) {
+    const f = k / slices;
+    a.x = ax0 + (ax1 - ax0) * f + dAx; a.y = Math.min(C.GROUND_Y, ay0 + (ay1 - ay0) * f + dAy);
+    b.x = bx0 + (bx1 - bx0) * f + dBx; b.y = Math.min(C.GROUND_Y, by0 + (by1 - by0) * f + dBy);
+    const pax = a.x, pay = a.y, pbx = b.x, pby = b.y;
+    for (let it = 0; it < 3; it++) {
+      const c = playerContact(m, a, b);
+      if (!c || c.d < 1e-3) break;
+      pushApart(m, a, b, c);
+    }
+    dAx += a.x - pax; dAy += a.y - pay; dBx += b.x - pbx; dBy += b.y - pby;
+  }
+
+  // Velocities, off the contact they end the tick in (touching within half a pixel).
+  const c = playerContact(m, a, b, 0.5);
+  if (!c) return;
+  if (Math.abs(c.ny) >= ON_TOP) {
+    const up = c.ny < 0 ? a : b, lo = up === a ? b : a;
+    const ux = up === a ? c.nx : -c.nx, uy = up === a ? c.ny : -c.ny;   // n, lower -> upper
+    // Its motion INTO the lower body stops; along the surface it keeps going, so a body on the
+    // steep side of a head slides off it rather than hanging there.
+    const vn = (up.vx - lo.vx) * ux + (up.vy - lo.vy) * uy;
+    if (vn < 0) { up.vx -= vn * ux; up.vy -= vn * uy; }
+    if (!up.onGround) {                             // a landing, as on the grass
+      up.jumps = C.MAX_JUMPS + (m.champ ? up.mods.airJumps : 0);
+      up.landT = 0;
+    }
+    up.onGround = true;
+    up.stand = lo.index;
+    return;
+  }
+  // Beside: the approach along the normal is cancelled, half each (the walk re-sets vx next
+  // tick anyway — this is what a shove IS for that one tick).
+  const vn = (a.vx - b.vx) * c.nx + (a.vy - b.vy) * c.ny;
+  if (vn >= 0) return;
+  a.vx -= 0.5 * vn * c.nx; b.vx += 0.5 * vn * c.nx;
+  // BODY_GRIP: the push can hold an airborne body up against the one pushing it. One way —
+  // it only ever slows a body FALLING relative to the other, so a jump beside somebody is never
+  // damped, and nothing here moves anybody sideways.
+  const grip = C.BODY_GRIP * -vn;
+  for (const [p, q] of [[a, b], [b, a]]) {
+    if (p.onGround || p.y >= C.GROUND_Y - 0.5) continue;
+    const fall = p.vy - q.vy;
+    if (fall > 0) { p.vy -= Math.min(fall, grip); if (p.vy - q.vy < 1e-6) p.stand = q.index; }
   }
 }
 
@@ -996,7 +1172,7 @@ function tryCounter(m, p, fx) {
 //
 // Resolved on the kick's rising edge, not per-frame, so one press is one tackle.
 // A deliberate header: the ball is at your head and you pressed kick. Distinct from the
-// PASSIVE head touch in stepBall, which cushions — see HEAD_DEADEN. This one is a shot.
+// PASSIVE head touch in resolveBallPlayers, which bounces — see HEAD_BOUNCE. This one is a shot.
 function tryHeader(m, p, fx) {
   const b = m.ball;
   if (b.power) return false;                       // a live power shot is not headable
@@ -1122,7 +1298,8 @@ function tryTackle(m, p, fx) {
 
 // ONE contact response for every surface a player has. `nx,ny` is the unit normal pointing
 // out of the player toward the ball; `keep` is how much of the ball's pace survives the
-// touch (HEAD_DEADEN or BODY_DEADEN) and `carry` how much of the player's run it picks up.
+// touch (BODY_DEADEN) and `carry` how much of the player's run it picks up. (The head used to
+// come through here too, with HEAD_DEADEN; it bounces now — bounceOffHead.)
 // Returns whether this was an IMPACT, so the caller can add the extras that only belong to
 // one (a jump's lift, a strike event).
 //
@@ -1161,6 +1338,27 @@ function contactResponse(b, p, nx, ny, keep, carry, spinKeep) {
   return impact;
 }
 
+// THE PASSIVE HEAD TOUCH IS A BOUNCE (HS M4, see HEAD_BOUNCE). An impulse along the normal on
+// the ball's velocity RELATIVE to the head: what closed at `vn` leaves at HEAD_BOUNCE·vn, on top
+// of the head's own velocity. That is the whole of it — no deaden, no nudge, no extra lift: a
+// head still rising from its jump is simply a surface moving up, so it returns the ball harder,
+// and one falling back returns it softer, the way M4's headers do.
+//
+// Tangentially the touch is frictionless: M4's contacts keep their sideways speed within the
+// noise of the head-velocity estimate (99.71 s: 49 → 57 px/s across the normal), so spin stays
+// what it was — decoration, damped a little by the knock.
+//
+// Returns the closing speed (0 when the ball was already leaving), so the caller can tell a
+// touch from a ball resting on the crown.
+function bounceOffHead(b, p, nx, ny) {
+  const vn = (b.vx - p.vx) * nx + (b.vy - p.vy) * ny;
+  if (vn >= 0) return 0;
+  const j = -(1 + C.HEAD_BOUNCE) * vn;
+  b.vx += j * nx; b.vy += j * ny;
+  b.spin *= 0.6;
+  return -vn;
+}
+
 function resolveBallPlayers(m, fx, alpha = 1) {
   const b = m.ball;
   for (const p of m.players) {
@@ -1180,10 +1378,10 @@ function resolveBallPlayers(m, fx, alpha = 1) {
     const hy = headYAt(py);
 
     // ---- kick hitbox (only while the leg is out) ----
-    // NOTE the boot does NOT fire the ultimate any more. This circle hangs KICK_REACH px out
-    // in front of the body, so firing off it is firing at a distance — the ball is struck by
-    // a phantom sphere beside the player rather than by the player. The ultimate wants a real
-    // touch, so it lives on the head and torso below, where the silhouette actually is.
+    // The boot fires the ultimate too. It used not to (the circle hangs KICK_REACH px out, so
+    // a boot touch was called "firing at a distance"), but Head Soccer fires the armed shot on
+    // the next touch of ANY kind — kick, header or body (headsoccer.wiki.gg/wiki/Controls; Idan's
+    // M3/M4 footage) — and an armed player whose kicks did nothing read as "the power is broken".
     if (p.kickT > 0) {
       const dir = p.kickDir || p.side;              // the aim, as latched at the swing
       const kx = px + dir * C.KICK_REACH;
@@ -1194,6 +1392,8 @@ function resolveBallPlayers(m, fx, alpha = 1) {
       const ky = py - C.BODY_H * 0.5;
       if (Math.hypot(b.x - kx, b.y - ky) < C.KICK_R + b.r) {
         if (!b.power) {
+          // ARMED: this touch is the one that spends it (see the note above the hitbox).
+          if (p.armed > 0 && fireUltimateOnContact(m, p, b, fx)) { p.kickT = 0; return; }
           const mult = p.stats.kick * (m.champ ? p.mods.kick : 1);
           const drive = p.kickLob ? C.LOB_DRIVE : 1;
           const lift = p.kickLob ? C.LOB_LIFT : 1;
@@ -1319,31 +1519,19 @@ function resolveBallPlayers(m, fx, alpha = 1) {
         m.idle = 0;
         contactResponse(b, p, nx, ny, C.BODY_DEADEN, 0.22, 0.5);
         fx.hit(b.x, b.y, '#cfd8ea', 0.4);
-      } else {
-        // A HEAD DEADENS, like the chest, only livelier. It used to REFLECT — (1 + HEAD_POWER)
-        // times the approach speed, back out — which made a head the hardest surface on the
-        // pitch and heading beat playing. Dropping HEAD_POWER twice (1.14 -> 0.80 -> 0.52)
-        // made it a weaker trampoline, not a different thing; this makes it a different thing.
-        //
-        // Cancel the approach, keep a fraction of the pace. The fraction is HEAD_DEADEN
-        // against the body's 0.18 — about twice as lively, and still dead. Hitting the ball
-        // hard is now always a deliberate act: the boot, or the kick button pressed at head
-        // height (tryHeader).
-        if (contactResponse(b, p, nx, ny, C.HEAD_DEADEN, 0.30, 0.6)) {
-          b.vy += Math.min(0, p.vy) * 0.35;                  // a jump still lifts it a little
-        }
+      } else if (bounceOffHead(b, p, nx, ny) > C.CONTACT_IMPACT_V) {
+        // A real touch, not a ball resting on the crown. Only a touch counts as play for the
+        // idle reset, so a ball somehow held on a head nobody moves cannot hold the match.
         m.idle = 0;
         m.events.push({ type: 'strike', player: p.index, x: b.x, y: b.y, head: true });
         fx.hit(b.x, b.y, '#ffffff', 0.7);
-      }
-
-      // NOTHING COMES TO REST ON A HEAD. Land a ball dead on the crown and it sits at the one
-      // point where the contact normal is straight up: gravity has no sideways component to
-      // roll it off with, so it balances there for the rest of the match with its physics
-      // apparently switched off. Same hang the crossbar had at (939, 215), same answer —
-      // anything slow enough to settle gets nudged off toward the middle of the pitch.
-      if (ny < -0.94 && Math.hypot(b.vx - p.vx, b.vy - p.vy) < 60) {
-        b.vx += (Math.sign(nx) || (px < C.W / 2 ? 1 : -1)) * 70;
+      } else if (nx * nx < 4e-4 && Math.hypot(b.vx - p.vx, b.vy - p.vy) < 20) {
+        // Settled DEAD on top of a head — the one point of a round head gravity cannot roll
+        // a ball off, and one only a scripted drop ever finds exactly. A float's worth of
+        // asymmetry is all a real ball on a real head needs, so it gets that: 4px/s toward the
+        // middle of the pitch, and the curve of the head does the rest. (It used to be a
+        // 70px/s shove off anything slow on the crown; the bounce made that unnecessary.)
+        b.vx += (px < C.W / 2 ? 1 : -1) * 4;
       }
       // NO `continue` HERE. The head's lower arc is narrower than the torso plus the ball —
       // 19.9px of clearance at grass level against the 28px the box wants — so resolving a
@@ -1604,6 +1792,9 @@ const P_FIELDS = [
   // `stunned` has to travel: it decides whether input is read at all, and the renderer draws
   // the slump off it. (`hp` sat next to it until the hidden health was removed.)
   'stunned',
+  // Whose head (or shoulder) holds this body up, -1 for none (resolvePlayers). Rebuilt every
+  // tick from the geometry, but the renderer and the bot read it between ticks.
+  'stand',
 ];
 
 export function serialize(m) {

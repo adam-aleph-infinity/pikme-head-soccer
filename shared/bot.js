@@ -353,7 +353,11 @@ function botInputRaw(bot, m, index, dt) {
   // authored against a jump that rose 150px; the jump is HS's measured 46px now, and a bot
   // leaping at a ball 170px over its head is a bot jumping at nothing.
   const jumpGain = (C.JUMP_V * C.JUMP_V) / (2 * C.PLAYER_GRAV) + C.HEAD_R;
-  out.jump = bot.wantJump || (p.onGround && adxb < C.HEAD_R * 2 && bh < -30 && bh > -jumpGain);
+  // …and only when the ball is on the goal side of the head (or on top of it). The head is
+  // springy now (HS M4, HEAD_BOUNCE): a jump into a ball sitting BEHIND the crown heads it
+  // back over your own shoulder, where the old dead head just dropped it. Measured over six
+  // bot-vs-bot seeds: 3.5 goals a match without this, 4.3 with it (5.3 before the bounce).
+  out.jump = bot.wantJump || (p.onGround && adxb < C.HEAD_R * 2 && dxb * p.side > -C.HEAD_R * 0.25 && bh < -30 && bh > -jumpGain);
   if (out.jump) bot.wantJump = false;
 
   // IS THE BALL EVEN IN FRONT OF ME? The single biggest thing that separates the tiers now,

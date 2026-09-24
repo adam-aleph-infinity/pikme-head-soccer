@@ -197,7 +197,9 @@ function weighted(per) {
 //   at:  evaluate only these contacts (say, the ones tagged "wall"), while every contact in
 //        contactTimes still bounds the flights — a ground bounce next to a wall bounce must
 //        not leak into the wall bounce's fit.
-export function fitRestitution(pts, contactTimes = null, { axis = 'y', win = 10, minPts = 3, at = null } = {}) {
+//   surface: (t) => the struck surface's own velocity along `axis` at t — a head rising from
+//        its jump, say. e is then RELATIVE to it: −(v_after − v_s) / (v_before − v_s).
+export function fitRestitution(pts, contactTimes = null, { axis = 'y', win = 10, minPts = 3, at = null, surface = null } = {}) {
   // A contact the track shows a frame away from where it was TAGGED is the same contact (the
   // bounce lands between frames, and the eye and the velocity jump pick neighbouring ones), so
   // a cut within 1.5 frames of an evaluated contact is dropped rather than left to starve it.
@@ -217,7 +219,8 @@ export function fitRestitution(pts, contactTimes = null, { axis = 'y', win = 10,
     const fb = fit(before), fa = fit(after);
     if (!fb || !fa) continue;
     const tc = meetTime(fb, fa, before[before.length - 1].t, after[0].t) ?? tc0;
-    const vb = evalVel(fb, tc), va = evalVel(fa, tc);
+    const vs = surface ? surface(tc) : 0;
+    const vb = evalVel(fb, tc) - vs, va = evalVel(fa, tc) - vs;
     if (Math.abs(vb) < 1e-6 || Math.sign(va) === Math.sign(vb)) continue;
     const e = -va / vb;
     const sd = Math.abs(e) * Math.hypot(velSd(fa, tc) / va, velSd(fb, tc) / vb);
@@ -812,6 +815,23 @@ export const METRICS = [
     fit: (d) => { const pts = ball(d); const at = tagT(d, 'touch', { not: 'jump' }); return at.length ? fitRestitution(pts, allCuts(d, pts), { at }) : NONE; } },
   { id: 'header.speed', unit: 'px/s', clips: ['C8'], scenario: 'header', fit: (d) => fitLaunchSpeed(ball(d), tagT(d, 'touch', { note: 'jump' })) },
   { id: 'header.angle', unit: 'deg', clips: ['C8'], scenario: 'header', fit: (d) => fitLaunchAngle(ball(d), tagT(d, 'touch', { note: 'jump' })) },
+
+  // HS M4 passive heads (no KICK): the bounce off a still head, off a head still rising from its
+  // jump (relative to the head — its velocity off the toucher's own track, frame to frame across
+  // the contact), and how fast a passive jumping header leaves.
+  { id: 'head.restitution.standing', unit: '', clips: ['C8'], scenario: 'headDrop',
+    fit: (d) => { const pts = ball(d); const at = tagT(d, 'touch', { not: 'jump' }); return at.length ? fitRestitution(pts, allCuts(d, pts), { at }) : NONE; } },
+  { id: 'head.restitution.jumping', unit: '', clips: ['C8'], scenario: 'headerPassive',
+    fit: (d) => {
+      const pts = ball(d), head = p0(d), at = tagT(d, 'touch', { note: 'jump' });
+      if (!at.length || head.length < 2) return NONE;
+      const surface = (t) => {
+        const k = Math.max(0, Math.min(head.length - 2, head.findIndex((q) => q.t > t) - 1));
+        return (head[k + 1].y - head[k].y) / (head[k + 1].t - head[k].t);
+      };
+      return fitRestitution(pts, allCuts(d, pts), { at, surface });
+    } },
+  { id: 'header.passive.launch', unit: 'px/s', clips: ['C8'], scenario: 'headerPassive', fit: (d) => fitLaunchSpeed(ball(d), tagT(d, 'touch', { note: 'jump' })) },
 
   // C8 again, headed ON PURPOSE (jump into the drop, KICK as it reaches the head — tag 'kick',
   // note 'header'): how fast it leaves and how high it goes. These are the numbers that decide

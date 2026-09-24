@@ -523,8 +523,10 @@ function arm(m, i) {
   }
   ok('the rival does arm, given a full meter and time', sawArm);
   ok('the rival never fires without having been armed first', !shotWhileUnarmed);
-  if (sawShot) ok('and when it fires, the meter is spent', p.gauge === 0, `gauge=${p.gauge}`);
-  else ok('and when it fires, the meter is spent', true, '(no shot inside the window)');
+  // The press emptied the meter and the refill started there (HS M4 36.49 s), so at the shot
+  // the arm is what has been spent and the meter is on its way back up — never still full.
+  if (sawShot) ok('and when it fires, the arm is spent and the meter is refilling', p.armed === 0 && p.gauge < 1, `armed=${p.armed} gauge=${p.gauge}`);
+  else ok('and when it fires, the arm is spent and the meter is refilling', true, '(no shot inside the window)');
 }
 {
   // THE RIVAL CANNOT SHORTCUT THE TOUCH. Armed, with the ball pinned out of reach for ten

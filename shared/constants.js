@@ -102,6 +102,17 @@ export let HEAD_R = 26.4;
 export const BODY_W = 28;
 export const BODY_H = 24;
 export const NECK = 7;
+// PLAYERS ARE SOLID TO EACH OTHER (HS M4): head circle + body box against head circle + body
+// box, so a player can stand on the other's head, lean on its shoulder, and be pinned there.
+// Standing on a crown puts the boots BODY_H + 2·HEAD_R − NECK = 69.8px up, which is HS's own
+// (M4 52.95–53.43 s: the upper head sits 70px above a standing one), so the shapes need no fudge.
+//   BODY_GRIP  friction between two bodies, one way only: it can hold an airborne body UP
+//              against the one pushing into it (HS M4 66.40–66.78 s, the CPU hung on the
+//              dasher's shoulder while he kept pushing; 53.75 and 159.3 s the same). It never
+//              slows a body going up, and it never carries anybody sideways — a player
+//              standing on a head stays put while the head walks away under it (M4
+//              53.00–53.40 s). Unmeasured as a number; 0.5 holds a walk-speed push.
+export let BODY_GRIP = 0.5;
 // HS M4 21.05–29.4 s, 10 standstill jumps: the head's path is ONE parabola, 595 px/s² on the
 // way up and the way down alike (fit rmse < 0.8px). There is no heavier fall — the FALL_MULT
 // 1.55 that sat here was a platformer's trick, and HS does not use it.
@@ -200,13 +211,22 @@ export let LOB_DRIVE = 0.62;
 // Body contact KILLS the ball's pace (Adam: 'if it dosnt kick, the ball kinda stops and
 // rolles'). The head still bounces — that is the aerial tool — but your torso deadens.
 export let BODY_DEADEN = 0.18;
-// A HEAD is a body part, not a trampoline. It now deadens the ball the same way the chest
-// does — cancel the approach, keep a fraction of the pace — just a little more of it, so a
-// header is still the livelier touch of the two without being a bounce. Anything that hits
-// the ball HARD is now a deliberate act: the boot, or the kick button pressed at head height.
-export let HEAD_DEADEN = 0.58;       // vs the body's 0.18. Started at 0.34, which read as dead
-                                     // rather than as a touch; at 0.58 a header keeps most of
-                                     // the pace and still cannot be used as a trampoline.
+// A HEAD IS SPRINGY (HS M4). The passive touch — no KICK — is a restitution bounce off the
+// head, measured RELATIVE to the head: the ball leaves along the normal at HEAD_BOUNCE times
+// the speed it closed at, plus the head's own speed. So a standing head sends a 466px/s drop
+// back up at ~0.75 of it, and a head still rising from its jump sends it back FASTER than it
+// came — M4's passive jumping headers leave at a median ~720px/s off a ~580px/s arrival.
+//   standing   M4 52.76 s (a player standing on the other's head, still): 466 in, 367 out = 0.79
+//   jumping    M4 84.96 / 86.98 / 99.71 / 131.85 / 133.94 / 167.89 s: 0.78 0.62 0.64 0.68 0.74 0.71
+//              (head speed from the jump's own kinematics — takeoff 235, g 595 — off the frame
+//              the jump started; the human's KICK button was dark on every one of his touches)
+// One number for both, 0.75 — between the two, and near the ball's own off the grass (0.65) and
+// the goal top (0.67): Box2D mixes restitution as the max of the pair, so a ball of ~0.7 reads
+// ~0.7 off everything. Measured back off our sim the way the video was (hs-scenarios headDrop,
+// headerPassive): 0.74 standing, 0.70 jumping, a passive header leaving at 735px/s (HS 717).
+// It replaced HEAD_DEADEN (0.58 of the pace kept, approach cancelled — a dead cushion: a jump
+// into a falling ball left at ~170px/s where HS's leaves at ~700).
+export let HEAD_BOUNCE = 0.75;
 // Where the header ends and the chest begins, as the vertical component of the contact
 // normal. 0.35 puts the split a bit below the head's equator.
 export let DEADEN_ZONE = 0.35;
@@ -491,7 +511,8 @@ const SETTERS = {
   DEADEN_ZONE: (v) => { DEADEN_ZONE = v; },
   CONTACT_IMPACT_V: (v) => { CONTACT_IMPACT_V = v; },
   BODY_DEADEN: (v) => { BODY_DEADEN = v; },
-  HEAD_DEADEN: (v) => { HEAD_DEADEN = v; },
+  HEAD_BOUNCE: (v) => { HEAD_BOUNCE = v; },
+  BODY_GRIP: (v) => { BODY_GRIP = v; },
   LOB_LIFT: (v) => { LOB_LIFT = v; },
   LOB_DRIVE: (v) => { LOB_DRIVE = v; },
   BALL_IDLE_RESET: (v) => { BALL_IDLE_RESET = v; },
@@ -571,6 +592,8 @@ export function snapshot() {
     DEADEN_ZONE,
     CONTACT_IMPACT_V,
     BODY_DEADEN,
+    HEAD_BOUNCE,
+    BODY_GRIP,
     LOB_LIFT,
     LOB_DRIVE,
     BALL_IDLE_RESET,

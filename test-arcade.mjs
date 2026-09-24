@@ -791,7 +791,12 @@ const CHECKS = {
   // empties the gauge and the refill starts there (HS M4 36.49 s), the fill is 1/15 of PLAY time
   // with no head start, and it stops through a goal's restart. A gauge change, so every bot's
   // arming moves; no arcade power changed.
-  const GOLDEN = '2ed6109417280f05b328942244ff5dbd22e04e89d28b93358d14adec45131e21';
+  // AND AGAIN for the contact bodies (hs/contact-bodies, Phase C2/C3): the passive head touch is
+  // a springy bounce (HEAD_BOUNCE) instead of a dead cushion, players are solid to each other
+  // (head + body against head + body, standing on heads; `stand` joined the snapshot), and the
+  // bot only jumps into a ball on the goal side of its head. All non-arcade.
+  // AND the merge of both (plus the boot firing an armed ultimate, as HS's does): re-recorded.
+  const GOLDEN = 'a0addb997ed38b2b0a283a9ce2788ee2d4d3b40c381616bc33eb687b340d4357';
   const h = createHash('sha256');
   const cases = [
     [{ rarity: 'legendary', number: 3 }, { rarity: 'legendary', number: 2 }, 3, 3, 11],
@@ -823,9 +828,10 @@ const CHECKS = {
     return m.ball.power && !m.ball.power.champ && m.events.some((e) => e.type === 'powershot' && !e.champ);
   })());
   // The HS restart and cut-in state joined the snapshot in the same pass (cutin … gaugeLead, and
-  // landT on each player): every one of them decides what a future tick does.
+  // landT on each player): every one of them decides what a future tick does. `stand` (whose
+  // head holds this player up) joined with the contact bodies.
   ok('the snapshot schema is unchanged', JSON.stringify(Object.keys(serialize(m))) === JSON.stringify(['t', 'clock', 'phase', 'freeze', 'hitStop', 'idle', 'cutin', 'cutinBy', 'banner', 'bannerT', 'ballWait', 'gaugeLead', 'score', 'golden', 'lastScorer', 'p', 'b']) &&
-     serialize(m).p[0].length === 25);
+     serialize(m).p[0].length === 26);
   ok('an ordinary bot is still exactly its tier', createBot(3).d === DIFFICULTIES[3]);
 }
 
