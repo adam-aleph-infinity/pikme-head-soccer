@@ -9,6 +9,14 @@
 
 import { serialize } from './sim.js';
 
+// Wire-protocol version. `hello` carries it as `v`, and the server refuses `create`/`join`
+// from any other value with error `stale` (a missing `v` counts as 0 — every page cached
+// before this existed). Bump it whenever the rules or the wire change in a way two builds
+// cannot share a match across: a cached old page would otherwise join a room and run a
+// DIFFERENT sim than the server, and rollback would fight it forever. The new client
+// answers `stale` by reloading; see onError in public/game.js.
+export const PROTOCOL = 1;
+
 // Eight buttons, one byte. The three cards are inputs exactly like the other five — same
 // queue, same edge discipline — because an ability delivered on a different path than the
 // jump button is an ability that desyncs the first time the two paths disagree.

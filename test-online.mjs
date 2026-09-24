@@ -3,7 +3,7 @@
 // convergence run lives in `_soak.mjs`, which is too slow to sit in `npm test`.
 import { spawn } from 'node:child_process';
 import { setTimeout as sleep } from 'node:timers/promises';
-import { unpackInput, packInput, decodeSnapshot } from './shared/net.js';
+import { unpackInput, packInput, decodeSnapshot, PROTOCOL } from './shared/net.js';
 
 let PORT;
 let pass = 0, fail = 0;
@@ -33,12 +33,13 @@ process.on('uncaughtException', (e) => { console.log('  ✗ threw:', e.message);
 // --- a tiny client: same wire protocol the browser speaks -------------------
 function client(name, card) {
   const ws = new WebSocket(`ws://127.0.0.1:${PORT}/ws`);
-  const c = { ws, name, card, id: null, room: null, started: null, snaps: [], over: null, oppLeft: false, tick: 0, msgs: [] };
+  const c = { ws, name, card, id: null, room: null, started: null, snaps: [], over: null, oppLeft: false, tick: 0, msgs: [], errors: [] };
   ws.onmessage = (ev) => {
     const m = JSON.parse(ev.data);
     if (m.type) c.msgs.push(m.type);
     if (m.type === 'welcome') c.id = m.id;
     else if (m.type === 'room') c.room = m;
+    else if (m.type === 'error') c.errors.push(m.code);
     else if (m.type === 'start') c.started = m;
     else if (m.type === 'over') c.over = m;
     else if (m.type === 'opponentLeft') c.oppLeft = true;
@@ -68,13 +69,13 @@ await until(() => A.id && B.id);
 ok('each gets an id', !!A.id && !!B.id && A.id !== B.id, `${A.id} / ${B.id}`);
 
 // --- create + join ----------------------------------------------------------
-A.send({ type: 'hello', name: A.name, card: A.card });
+A.send({ type: 'hello', name: A.name, card: A.card, v: PROTOCOL });
 A.send({ type: 'create' });
 ok('host gets a room', await until(() => A.room), 'no room message');
 const code = A.room?.code;
 ok('the code is 4 chars', code?.length === 4, code);
 
-B.send({ type: 'hello', name: B.name, card: B.card });
+B.send({ type: 'hello', name: B.name, card: B.card, v: PROTOCOL });
 B.send({ type: 'join', code });
 ok('the guest joins by code', await until(() => B.room?.members?.length === 2), JSON.stringify(B.room));
 ok('the host is told someone joined', await until(() => A.room?.members?.length === 2));
@@ -87,11 +88,35 @@ ok('the host is the creator', A.room.hostId === A.id);
 {
   const C3 = client('ג', { rarity: 'rare', number: 1 });
   await C3.open;
+  C3.send({ type: 'hello', name: C3.name, card: C3.card, v: PROTOCOL });
   C3.send({ type: 'join', code: 'ZZZZ' });
   ok('an unknown code errors', await until(() => C3.msgs.includes('error')));
   C3.send({ type: 'join', code });
   ok('a third player is refused', await until(() => C3.msgs.filter((t) => t === 'error').length >= 2));
+  ok('…as not-found and full, not stale', C3.errors.join() === 'not-found,full', C3.errors.join());
   C3.ws.close();
+}
+
+// --- a stale build (PROTOCOL, shared/net.js) --------------------------------
+// A page cached before `v` existed sends a hello without it; one from another build sends a
+// different number. Neither may hold a room or take a seat — both are told `stale`, which the
+// current client answers by reloading.
+{
+  const old = client('ישן', { rarity: 'rare', number: 1 });
+  const odd = client('אחר', { rarity: 'rare', number: 2 });
+  await Promise.all([old.open, odd.open]);
+  old.send({ type: 'hello', name: old.name, card: old.card });          // no v at all
+  old.send({ type: 'create' });
+  old.send({ type: 'join', code });
+  odd.send({ type: 'hello', name: odd.name, card: odd.card, v: PROTOCOL + 1 });
+  odd.send({ type: 'join', code });
+  ok('a hello without v is stale on create and join', await until(() => old.errors.length >= 2) &&
+     old.errors.join() === 'stale,stale', old.errors.join());
+  ok('a mismatched v is stale on join', await until(() => odd.errors.length >= 1) && odd.errors[0] === 'stale',
+     odd.errors.join());
+  ok('a stale client never gets a room', !old.room && !odd.room);
+  ok('…and never lands in ours', A.room.members.length === 2);
+  old.ws.close(); odd.ws.close();
 }
 
 // --- ready → start ----------------------------------------------------------

@@ -11,10 +11,13 @@ import * as C from './shared/constants.js';
 import { createMatch, step, serialize } from './shared/sim.js';
 import { createBot, botInput } from './shared/bot.js';
 import { createRegistry, createRoom, joinRoom, leave, setReady, bothReady, roomOf } from './shared/rooms.js';
-import { createInputQueue, ingest, takeNext, unpackInput, encodeSnapshot } from './shared/net.js';
+import { createInputQueue, ingest, takeNext, unpackInput, encodeSnapshot, PROTOCOL } from './shared/net.js';
 
 const ROOT = path.dirname(fileURLToPath(import.meta.url));
 const PORT = Number(process.env.PORT ?? 3020);
+// HS_RULES=1 — run the Head Soccer ruleset (C.HS, shared/constants.js), so a LAN dev server
+// can host online matches under it. Pair with ?hs=1 on the clients: both sides must agree.
+if (process.env.HS_RULES === '1') C.setHS(true);
 
 const TYPES = {
   '.html': 'text/html; charset=utf-8',
@@ -181,7 +184,9 @@ setInterval(() => {
 }, 8);
 
 wss.on('connection', (ws) => {
-  const member = { id: 'p' + (nextId++), ws, name: 'שחקן', card: DEFAULT_CARD, index: 0, queue: createInputQueue() };
+  // `v` is the client's PROTOCOL, from its hello. 0 until one says otherwise: a page cached
+  // before the field existed never sends it, and must not be seated in a room.
+  const member = { id: 'p' + (nextId++), ws, name: 'שחקן', card: DEFAULT_CARD, index: 0, queue: createInputQueue(), v: 0 };
   send(ws, { type: 'welcome', id: member.id });
 
   ws.on('message', (raw) => {
@@ -193,10 +198,15 @@ wss.on('connection', (ws) => {
       case 'hello':
         member.name = String(msg.name || 'שחקן').slice(0, 24);
         member.card = sanitizeCard(msg.card);
+        member.v = Number.isInteger(msg.v) ? msg.v : 0;
         if (room) broadcast(room, roomView(room));
         break;
 
       case 'create': {
+        // A stale build is turned away at the door, before it holds a room or a seat. The
+        // check lives on create/join rather than hello so an old page that never says hello
+        // is caught too.
+        if (member.v !== PROTOCOL) { send(ws, { type: 'error', code: 'stale' }); break; }
         const r = createRoom(reg, member);
         if (r.error) { send(ws, { type: 'error', code: r.error }); break; }
         member.index = 0;
@@ -205,6 +215,7 @@ wss.on('connection', (ws) => {
       }
 
       case 'join': {
+        if (member.v !== PROTOCOL) { send(ws, { type: 'error', code: 'stale' }); break; }
         const r = joinRoom(reg, member, msg.code);
         if (r.error) { send(ws, { type: 'error', code: r.error }); break; }
         // Seat by position: members[0] defends the left goal, members[1] the right.

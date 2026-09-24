@@ -772,6 +772,13 @@ function net() {
     onOver: () => { /* the local sim reaches full time too; endMatch already ran */ },
     onOpponentLeft: () => banner('היריב עזב — בוט נכנס', '#ffb800'),
     onError: (code) => {
+      // `stale`: the server runs a newer protocol than this cached page (see PROTOCOL in
+      // shared/net.js). Nothing here can fix that, so say so and fetch the new build.
+      if (code === 'stale') {
+        $('#lobbyHint').textContent = 'גרסה חדשה — טוען מחדש…';
+        setTimeout(() => location.reload(), 1000);
+        return;
+      }
       $('#lobbyHint').textContent = {
         'not-found': 'לא נמצא חדר עם הקוד הזה',
         full: 'החדר מלא',
@@ -2495,6 +2502,10 @@ $('#tunerCopy').onclick = async () => {
   // This Mac, or a phone on its Wi-Fi (npm start's «phone» address): localhost and the private
   // address ranges. Production is a public hostname, so it is never one.
   const DEV_HOST = /^(localhost|\[::1\]|[\w-]+\.local|(127|10)(\.\d{1,3}){3}|192\.168(\.\d{1,3}){2}|172\.(1[6-9]|2\d|3[01])(\.\d{1,3}){2})$/.test(location.hostname);
+  // ?hs=1 — the Head Soccer ruleset switch (C.HS, see shared/constants.js), for trying the
+  // migration on a phone. Dev hosts only, like ?unlockall: on production a URL must not be
+  // able to change the rules. Set here at boot, before any match is created.
+  if (DEV_HOST && q.has('hs')) C.setHS(q.get('hs') !== '0');
   for (const [key, who] of [['me', 'me'], ['foe', 'foe']]) {
     const v = q.get(key);
     if (!v) continue;

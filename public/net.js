@@ -12,7 +12,7 @@
 
 import * as C from '../shared/constants.js';
 import { createMatch, step, restore } from '../shared/sim.js';
-import { packInput, unpackInput, decodeSnapshot } from '../shared/net.js';
+import { packInput, unpackInput, decodeSnapshot, PROTOCOL } from '../shared/net.js';
 
 const BUFFER = 240;             // ticks of local input kept for replay (~4s)
 const SEND_HZ = 30;
@@ -156,7 +156,7 @@ export function createNet({ onRoom, onStart, onOver, onError, onStatus, onOppone
 
   Object.assign(net, {
     connect,
-    hello: (name, card) => sendMsg({ type: 'hello', name, card }),
+    hello: (name, card) => sendMsg({ type: 'hello', name, card, v: PROTOCOL }),
     create: () => sendMsg({ type: 'create' }),
     join: (code) => sendMsg({ type: 'join', code }),
     setCard: (card) => sendMsg({ type: 'card', card }),

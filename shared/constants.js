@@ -465,6 +465,15 @@ export function setPace(k) {
   tune(patch);
 }
 
+// ---- Head Soccer ruleset switch ----------------------------------------------
+// The migration flag for the Head Soccer parity work: off is today's game, on will be the
+// measured HS rules. NOTHING reads it yet — it exists first so the switch can ship (and be
+// flipped on a dev box) before any behaviour hangs off it. Flipped by `?hs=1` on a dev host
+// (public/game.js) or `HS_RULES=1` for the server (server.js); always at boot, before a
+// match exists. A boolean, so it sits outside tune(), whose setters are numeric sliders.
+export let HS = false;
+export function setHS(on) { HS = !!on; }
+
 // ---- Live tuning -----------------------------------------------------------
 // The whole point of a feel mock is that the numbers get argued with while playing, not
 // between restarts. These are `let` so the debug panel can move them mid-match; `import *`
