@@ -334,11 +334,20 @@ export let TACKLE_IMMUNE = 1.1;      // s before the same player can be tackled 
 export let STUN_TIME = 1.25;         // s a power that "knocks down" takes the controls away for
 
 // ---- Impact ----------------------------------------------------------------
-// Hit-stop: freeze the whole sim for a few frames on a heavy connect. Costs nothing and is
-// most of what makes a hit feel like it has weight.
-export let HIT_STOP_KICK = 0.035;
+// Hit-stop: freeze the whole sim for a few frames on a heavy connect.
+//
+// NOT ON AN ORDINARY TOUCH ANY MORE — Head Soccer has none. Kicks and headers used to freeze the
+// whole game for 0.035s, which on 60Hz ticks is THREE frozen frames (50ms), and a boot into the
+// opponent froze it for 0.06s (four frames). A bot match makes ~85 ball touches, so the game
+// stopped dead ~85 times a match, and the kick cooldown did not run under those stops (0.349s
+// became ~0.40s after every touch). That is the "the game feels a little bit stuck" report. HS M3's
+// ball track (docs/hs-clips/M3-*.tracks.json) has 93 contact impulses and only 5 with a still
+// frame anywhere in the 3 frames before them; with the old hit-stop every one of ours had three.
+// A tackle has no footage; it goes to zero with the kick, the same engine with no reason to differ.
+// A BLOCKED power shot keeps its short stop (rare, ~0.3 a match) and a fired one is POWER_CUTIN.
+export let HIT_STOP_KICK = 0;
 export let HIT_STOP_POWER = 0.085;  // a BLOCKED power shot; a fired one is POWER_CUTIN
-export let HIT_STOP_TACKLE = 0.06;
+export let HIT_STOP_TACKLE = 0;
 
 // ---- Power shots -----------------------------------------------------------
 // THE GAUGE FILLS OVER TIME, and only over time — Head Soccer's rule. It used to be earned off

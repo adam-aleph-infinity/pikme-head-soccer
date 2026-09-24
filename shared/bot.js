@@ -31,6 +31,15 @@ export const DIFFICULTIES = [
   { name: 'קשה מאוד', react: 0.08, error: 15, counter: 0.48, aggression: 0.38, aim: 0.90, powerHold: 0.4 },
   { name: 'אגדי',     react: 0.04, error: 7,  counter: 0.66, aggression: 0.38, aim: 0.98, powerHold: 0.2 },
 ];
+// HOW LONG A FULL GAUGE SITS BEFORE THE BOT ARMS IT. `powerHold` was compared with bot.t, the
+// bot's lifetime clock, which passes 2.2s two seconds into its first match — so every tier armed
+// the tick its gauge filled and fired at the first touch after: 2.4–2.8s from full to cut-in
+// (median, level 3), 4.5 power shots a match from one bot. The HS CPU in M4 (weakest tier) fires
+// 5.2, 6.8, 5.2, 10.5, 14.7 and 8.3s after its gauge fills (mean 8.5s: kickoff/cut-in times in
+// docs/hs-estimates.json against the measured 15.0s fill and 13.0s refill), about 3 a match.
+// Every one of those cut-ins is a 1.34s freeze of the whole game, so an eager bot is felt as a
+// game that keeps stopping. The hold is now time spent FULL, and the tiers keep their order.
+const FULL_HOLD = 3.3;               // s, added to each tier's powerHold (0.2–2.2s)
 // `profile` is an arcade champion's bot (shared/champions.js botProfile): the same dials as a
 // DIFFICULTIES row, placed anywhere on the line between them, plus how the champion plays its
 // own power. Without one, a bot is exactly the tier `level` names, as it always was.
@@ -92,6 +101,9 @@ function botInputRaw(bot, m, index, dt) {
   const out = bot.out;
   const d = bot.d;
   bot.t += dt;
+  // How long the gauge has sat FULL and unarmed, on the wall clock (the bot runs through every
+  // pause). What `powerHold` was always meant to gate — see FULL_HOLD.
+  bot.fullT = p.gauge >= 1 && p.armed <= 0 ? (bot.fullT || 0) + dt : 0;
 
   // Stunned is the only state that takes the controls away now — `knocked` is gone with the
   // rest of the signature effects. Pressing buttons at a stunned player does nothing anyway;
@@ -445,7 +457,7 @@ function botInputRaw(bot, m, index, dt) {
   const wantPower = m.phase === 'play' &&
                     played > armDelay &&
                     p.gauge >= 1 && p.armed <= 0 && b.power == null &&
-                    bot.t > d.powerHold &&
+                    bot.fullT > FULL_HOLD + d.powerHold &&
                     (foe.x - p.x) * p.side > -80 &&   // the goal I am shooting at is ahead
                     armMoment(d, p, b);
   out.power = wantPower;

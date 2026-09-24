@@ -548,7 +548,8 @@ const scoreOn = (m, left, y = C.GROUND_Y - 60, speed = 600) => {
   // is +x — here that is also away from the tackler, which the next block pulls apart.
   ok('toward their own goal', Math.sign(b.vx) === -b.side, `vx=${b.vx.toFixed(0)} side=${b.side}`);
   ok('a tackle grants immunity', b.tackleImmune > 0);
-  ok('a tackle causes hit-stop', m.hitStop > 0);
+  // HS has no hit-stop on a touch (HIT_STOP_TACKLE, constants.js): the game does not stop.
+  ok('a tackle does not freeze the game', m.hitStop === 0, `hitStop=${m.hitStop}`);
 }
 {
   // Stun-locking someone out of the match would be the obvious abuse.
@@ -770,10 +771,17 @@ const jumpArc = (input) => {
   const p = m.players[0];
   m.ball.x = p.x + C.KICK_REACH; m.ball.y = p.y - C.BODY_H * 0.45; m.ball.vx = 0; m.ball.vy = 0;
   step(m, [{ kick: true }, {}]);
-  ok('a solid kick causes hit-stop', m.hitStop > 0);
+  // HS has no hit-stop on a touch: ~85 of them a match each froze the game for 3 frames, which
+  // is what "the game feels a little bit stuck" was (HIT_STOP_KICK, constants.js).
+  ok('a solid kick does not freeze the game', m.hitStop === 0, `hitStop=${m.hitStop}`);
   const bx = m.ball.x;
   step(m, [{}, {}]);
-  ok('the world is frozen during hit-stop', Math.abs(m.ball.x - bx) < 0.001);
+  ok('the kicked ball flies on the very next tick', Math.abs(m.ball.x - bx) > 1, `dx=${(m.ball.x - bx).toFixed(2)}`);
+  // The mechanism stays, for the blocked power shot (HIT_STOP_POWER).
+  m.hitStop = C.HIT_STOP_POWER;
+  const fx = m.ball.x;
+  step(m, [{}, {}]);
+  ok('the world is frozen during hit-stop', Math.abs(m.ball.x - fx) < 0.001);
   run(m, 12);
   ok('hit-stop always clears', m.hitStop <= 0);
 }
