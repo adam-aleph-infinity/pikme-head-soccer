@@ -13,8 +13,8 @@
 // cannot be run, or whose metric comes back empty on our sim, is OFF — "we cannot even show
 // this" is a parity failure, not a pass.
 //
-// Our sim runs at PACE 0.68, and nothing here reads a constant: every number is measured off
-// the sim's own per-tick state, so it is the per-second behaviour a player actually sees.
+// Nothing here reads a constant: every number is measured off the sim's own per-tick state, so it
+// is the per-second behaviour a player actually sees.
 //
 // Always exits 0, so it can sit in `npm test` while the numbers are still being measured.
 // HS_PARITY_STRICT=1 turns any OFF row into exit 1 — that is the switch CI flips once parity
@@ -82,7 +82,7 @@ for (const e of ref) {
 }
 
 const W = [26, 16, 10, 9, 8];
-console.log(`test-hs-parity: our sim (PACE ${C.PACE}, HS=${C.HS}) vs docs/hs-reference.json, fit: tools/hs-fit-lib.mjs measureTracks`);
+console.log(`test-hs-parity: our sim (HS=${C.HS}) vs docs/hs-reference.json, fit: tools/hs-fit-lib.mjs measureTracks`);
 console.log('  ' + ['id', 'HS value', 'our sim', 'diff %', 'tol', 'ok/OFF'].map((c, k) => (k < W.length ? pad(c, W[k]) : c)).join(' | '));
 for (const r of rows) console.log('  ' + r.map((c, k) => (k < W.length ? pad(c, W[k]) : c)).join(' | '));
 console.log(`test-hs-parity: ${ok + off} compared, ${ok} ok, ${off} OFF, ${skipped} unmeasured skipped` +

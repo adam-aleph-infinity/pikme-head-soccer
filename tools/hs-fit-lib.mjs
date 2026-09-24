@@ -612,7 +612,10 @@ function reverseTime(doc) {
   const top = fitTopSpeed(pts.filter((p) => p.t <= rv));
   if (top.value == null) return NONE;
   const sp = speeds(pts, 'x', 1);
-  const before = Math.sign(sp.filter((s) => s.t <= rv).pop()?.v || 0);
+  // The direction BEFORE the press: the last sample strictly ahead of it. A body that turns on
+  // the very frame the button lights (a sim with no input lag) already reads the NEW direction
+  // at the tag's own frame, and taking that as "before" looked for a turn that had happened.
+  const before = Math.sign(sp.filter((s) => s.t < rv - 1e-9).pop()?.v || 0);
   const hit = sp.find((s) => s.t > rv && Math.sign(s.v) === -before && Math.abs(s.v) >= 0.9 * top.value);
   return hit ? { value: hit.t - rv, sd: dtOf(doc), n: 1 } : NONE;
 }

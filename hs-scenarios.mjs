@@ -17,8 +17,8 @@
 // sim's own events where it has one (jump, dash, kick, strike, goal, armed, powershot, blocked,
 // stunned) plus ones a person would tag by eye from the picture (ready, bounce + surface, land,
 // release, reverse, standing on a head). Nothing here changes gameplay: every scenario reads the
-// sim exactly as it ships — PACE included, so every number is the sim's real per-second
-// behaviour and never a constant read out of constants.js.
+// sim exactly as it ships, so every number is the sim's real per-second behaviour off its own
+// per-tick state, and never a constant read out of constants.js.
 
 import * as C from './shared/constants.js';
 import { createMatch, step, headY } from './shared/sim.js';
@@ -69,16 +69,20 @@ export const SCENARIOS = {
   kickoff: { clip: 'C1', ticks: 180, setup: () => {}, input: () => ({}) },
   drop: { clip: 'C1', ticks: 480, setup: () => {}, input: () => ({}) },
 
-  // C2 — run from standstill, release. And a reversal at full speed.
-  run: { clip: 'C2', ticks: 150, setup: (m) => { openPlay(m); parkBall(m); }, input: (i) => (i < 60 ? { right: true } : {}) },
+  // C2 — run from standstill, release. And a reversal at full speed. The run starts from a
+  // standstill of 10 ticks, as the shot list asks of the clip (1s still at the start): the
+  // 10–90% rise needs frames at rest to rise FROM, and an instant start has none otherwise.
+  run: { clip: 'C2', ticks: 160, setup: (m) => { openPlay(m); parkBall(m); }, input: (i) => (i >= 10 && i < 70 ? { right: true } : {}) },
   runReverse: { clip: 'C2', ticks: 120, setup: (m) => { openPlay(m); parkBall(m); },
     input: (i) => (i < 50 ? { right: true } : i < 100 ? { left: true } : {}) },
 
-  // C3 — tap jumps (one tick of JUMP) and a held one (held through the landing).
-  jumpTap: { clip: 'C3', ticks: 150, jumpKind: 'tap', setup: (m) => { openPlay(m); parkBall(m); },
-    input: (i) => (i === 5 || i === 75 ? { jump: true } : {}) },
-  jumpHold: { clip: 'C3', ticks: 160, jumpKind: 'hold', setup: (m) => { openPlay(m); parkBall(m); },
-    input: (i) => (i >= 5 && i < 150 ? { jump: true } : {}) },
+  // C3 — tap jumps (one tick of JUMP) and a held one (held through the landing). Both after 15
+  // ticks standing: the fit's standing line is the median of the first 10 frames, and a jump
+  // inside them lifts that line 2px and shaves every height and time measured from it.
+  jumpTap: { clip: 'C3', ticks: 165, jumpKind: 'tap', setup: (m) => { openPlay(m); parkBall(m); },
+    input: (i) => (i === 15 || i === 85 ? { jump: true } : {}) },
+  jumpHold: { clip: 'C3', ticks: 170, jumpKind: 'hold', setup: (m) => { openPlay(m); parkBall(m); },
+    input: (i) => (i >= 15 && i < 160 ? { jump: true } : {}) },
   // C4 — a running jump.
   runJump: { clip: 'C4', ticks: 110, setup: (m) => { openPlay(m); parkBall(m); m.players[0].x = 150; parkP1(m); },
     input: (i) => ({ right: i < 100, jump: i === 40 }) },
@@ -174,7 +178,7 @@ export const SCENARIOS = {
     input: (i, m, ctx) => ({ power: i === ctx.armAt }) },
   gaugeHold: { clip: 'C13', ticks: 60 * 92, setup: () => {}, input: () => ({}) },
   // C14 — arm, then touch the ball: the pause a power shot's launch makes.
-  powerCutin: { clip: 'C14', ticks: 60,
+  powerCutin: { clip: 'C14', ticks: 150,
     setup: (m) => { openPlay(m); armP0(m); parkBall(m); },
     during: (m, i) => { if (i === 4) { const p = m.players[0]; place(m.ball, p.x, headY(p) - C.HEAD_R - C.BALL_R + 3); } },
     input: (i) => ({ power: i === 2 }) },
@@ -225,6 +229,10 @@ export function runScenario(name) {
   const sc = SCENARIOS[name];
   if (!sc) throw new Error(`unknown scenario '${name}'`);
   const m = createMatch(CHAR_A, CHAR_B, {});
+  // THE STARTER'S STATS. Every HS number was measured on the starter character, and the
+  // constants are fitted as that baseline; our rarity spread (legendary +6% speed, +5% jump…)
+  // is the arcade's stat ladder, which Phase D maps onto HS's. So both bodies play at 1x here.
+  for (const p of m.players) p.stats = { speed: 1, jump: 1, kick: 1 };
   const ctx = {};
   sc.setup(m, ctx);
   const frames = [], tags = [];
@@ -251,13 +259,17 @@ export function runScenario(name) {
     snap(i);
     const a = m.players[0], b = m.ball;
 
-    // The restart: kickoff or goal freeze over, play resumes (and the ball is live again).
-    if (st.phase !== 'play' && m.phase === 'play') { tag(i, 'ready_off'); tag(i, 'resume'); }
+    // The restart: kickoff or goal freeze over, the players move again ('resume'). The ball is
+    // live then too after a kickoff; after a goal it drops in a beat later (m.ballWait), and
+    // 'ready_off' is the ball appearing — which is what a person tags it from on video.
+    if (st.phase !== 'play' && m.phase === 'play') { tag(i, 'resume'); if (!(m.ballWait > 0)) tag(i, 'ready_off'); }
     st.phase = m.phase;
 
     for (const e of m.events) {
       const who = e.player ?? e.by;
       if (e.type === 'goal') { tag(i, 'goal'); continue; }
+      if (e.type === 'ballDrop') { tag(i, 'ready_off'); continue; }
+      if (e.type === 'bannerOff') { tag(i, 'banner_off'); continue; }
       if (e.type === 'powershot') { tag(i, 'cutin_on'); st.cut = true; if (who === 0 && e.countered) tag(i, 'counter'); continue; }
       if (who !== 0) continue;
       if (e.type === 'jump') tag(i, sc.jumpKind === 'hold' ? 'jump_hold' : 'jump_tap');
@@ -295,9 +307,12 @@ export function runScenario(name) {
     if (st.dir !== 0 && d === 0) tag(i, 'release');
     if (st.dir !== 0 && d === -st.dir) tag(i, 'reverse');
     st.dir = d;
-    // Bounces, as a person tags them: the ball's travel reverses against a surface.
+    // Bounces, as a person tags them: the ball's travel reverses against a surface — and visibly.
+    // A ball arriving under 60 px/s rises back 3px at most, which nobody tags off a video (and is
+    // the sim's own settle cutoff on the grass); counting those put a settling ball's last
+    // twitches into a restitution fit as bounces of 0.2.
     const nearBar = (b.x < C.GOAL_W + C.POST_R + b.r || b.x > C.W - C.GOAL_W - C.POST_R - b.r) && b.y < BAR_Y();
-    if (st.vy > 30 && b.vy <= 0) {
+    if (st.vy > 60 && b.vy <= 0) {
       if (b.y >= GROUND_BALL_Y() - 2) tag(i, 'bounce', 'ground');
       else if (nearBar) tag(i, 'bounce', sc.surface ?? 'top');
     }
