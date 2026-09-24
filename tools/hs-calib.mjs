@@ -26,6 +26,8 @@ export const CALIB_POINTS = [
   { key: 'goalFront',  axis: 'x', label: 'goal mouth front (left goal)' },
   { key: 'headTop',    axis: 'y', label: 'head top (a standing player)' },
   { key: 'headBottom', axis: 'y', label: 'head bottom (same player)' },
+  // Not part of the mapping: the tracker only re-finds a lost ball below this line.
+  { key: 'hudBottom',  axis: 'y', label: 'HUD bottom (optional: below the POWER bars)' },
 ];
 
 // clicks: { wallL:{x,y}, wallR:{x,y}, ground:{x,y}, ... } in source-video pixels.

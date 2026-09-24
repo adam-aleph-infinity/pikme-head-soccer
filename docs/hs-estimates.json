@@ -1,0 +1,37 @@
+[
+  {
+    "id": "ball.gravity", "value": 561, "unit": "px/s²", "sd": 10, "n": 8, "clips": ["M3"],
+    "source": "M3 ball falls after each respawn: 6.92, 14.16, 31.96, 41.82, 48.55, 53.95, 62.23, 87.92 s",
+    "note": "One parabola per fall, 30–45 frames each, fit rmse ≈ 1 px. The ball in HS falls far slower than a head jumps."
+  },
+  {
+    "id": "ball.groundRestitution", "value": 0.65, "unit": "", "sd": 0.05, "n": 5, "clips": ["M3"],
+    "source": "M3 ground bounces at 7.67, 9.15, 17.29, 58.82, 87.26 s",
+    "note": "Low confidence: auto-tracked, and some bounces may have been touched. The single values were 0.62, 0.70, 0.58, 0.64 and 0.70."
+  },
+  {
+    "id": "ball.spawnHeight", "value": 302, "unit": "px", "sd": 2, "n": 7, "clips": ["M3"],
+    "source": "M3 respawn after every goal: 14.16, 31.97, 41.85, 48.60, 54.00, 62.30, 88.03 s",
+    "note": "The ball centre, above the ground line. The ball appears at the pitch centre with vy ≈ 0 and drifts ±138 px/s sideways."
+  },
+  {
+    "id": "player.topSpeed", "value": 260, "unit": "px/s", "sd": 35, "n": 6, "clips": ["M3"],
+    "source": "M3 6.66–11.42 s: the left player walks back and forth; six runs of 0.5–0.8 s",
+    "note": "Low confidence: an auto head track, and the runs may be too short to reach top speed."
+  },
+  {
+    "id": "goal.bannerTime", "value": 2.05, "unit": "s", "sd": 0.1, "n": 7, "clips": ["M3"], "scenario": "goalReset",
+    "source": "M3 goals at 11.37, 29.15, 39.01, 45.74, 51.13, 59.42, 85.11 s",
+    "note": "From the GOAL! banner appearing to the screen clearing. The ball respawns 0.75 s after that (see goal.toPlayTime)."
+  },
+  {
+    "id": "jump.apex.match", "value": 45, "unit": "px", "sd": 3, "n": 2, "clips": ["M3"], "scenario": "jumpTap",
+    "source": "M3 13.43–14.13 s and 15.16–15.66 s: the left player jumps in place",
+    "note": "The head's rise above standing. Tap or hold is unknown. The top is FLAT for ≈ 0.2 s (12 frames), not a parabola."
+  },
+  {
+    "id": "jump.airtime.match", "value": 0.70, "unit": "s", "sd": 0.03, "n": 1, "clips": ["M3"], "scenario": "jumpTap",
+    "source": "M3 13.43–14.13 s",
+    "note": "Takeoff to landing. Tap or hold is unknown."
+  }
+]

@@ -158,7 +158,10 @@ export function solve3(A, b) {
 //   reacquire the ball was lost (off the top of the screen, behind the HUD): search the whole
 //             window for ONE clean, round blob of about expectR, ignoring distance. More than
 //             one candidate → null; the tracker would rather wait a frame than guess.
-export function findBlob(gray, bg, { at, searchR = 40, thr = 30, minArea = 6, expectR = null, maxGrow = 1.6, polarity = 0, reacquire = false } = {}) {
+//   minY      reacquire only: ignore candidates above this y. The HUD's POWER gauge fills
+//             with a bright, slowly advancing edge that is exactly "a small white thing that
+//             was not in the background" — on M3 the ball was 'reacquired' on it for seconds.
+export function findBlob(gray, bg, { at, searchR = 40, thr = 30, minArea = 6, expectR = null, maxGrow = 1.6, polarity = 0, reacquire = false, minY = -Infinity } = {}) {
   let nCand = 0;
   const { w, h } = gray;
   const x0 = Math.max(0, Math.floor(at.x - searchR)), x1 = Math.min(w - 1, Math.ceil(at.x + searchR));
@@ -220,7 +223,7 @@ export function findBlob(gray, bg, { at, searchR = 40, thr = 30, minArea = 6, ex
     }
     // How much of the fitted disc the blob fills: ~1 for a ball, far less for a digit or a line.
     const round = cells.length / (Math.PI * c.r * c.r);
-    if (reacquire && (merged || round < 0.6 || round > 1.4 || Math.abs(Math.log(c.r / expectR)) > 0.35)) continue;
+    if (reacquire && (c.y < minY || merged || round < 0.6 || round > 1.4 || Math.abs(Math.log(c.r / expectR)) > 0.35)) continue;
     const d = reacquire ? 0 : Math.hypot(c.x - at.x, c.y - at.y);
     const sizePenalty = expectR && !merged ? Math.abs(Math.log(c.r / expectR)) * expectR * 4 : 0;
     // A merged fit is a guess about a hidden edge: prefer a clean blob at the same distance.

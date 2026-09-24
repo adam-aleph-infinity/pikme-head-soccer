@@ -322,7 +322,8 @@ async function autoTrack() {
       const lp = S.pos[o].get(lastSeen), dt = fr.t - S.frames[lastSeen].t;
       if (dt > 3) { status(`${o} gone for 3 s at #${next} — click it and press T again`, true); break; }
       b = findBlob(g, bg, { at: { x: lp.x / S.f, y: lp.y / S.f }, searchR: (3 * R0 + 1.5 * width * dt) / S.f,
-        thr: L.thr(), polarity: L.polarity, expectR: R0 / S.f, reacquire: true });
+        thr: L.thr(), polarity: L.polarity, expectR: R0 / S.f, reacquire: true,
+        minY: S.clicks.hudBottom ? S.clicks.hudBottom.y / S.f : -Infinity });
     }
     if (!b) { S.pos[o].delete(next); gaps++; continue; }
     S.pos[o].set(next, { x: b.x * S.f, y: b.y * S.f, r: o === 'ball' && !b.merged ? b.r * S.f : R0 });
