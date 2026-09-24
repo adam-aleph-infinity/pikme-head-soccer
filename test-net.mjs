@@ -194,5 +194,39 @@ const CH = { rarity: 'legendary', number: 3 };
   ok('every combination of the eight buttons survives the wire', bad === 0, `${bad} of 256 wrong`);
 }
 
+// THE POWER-SHOT STATE OVER THE WIRE. A power shot in flight, a block grinding, a Multi-Ball's
+// extra balls, an ailment and the aura's effect on a player all decide future ticks, so a
+// snapshot taken in the middle of them — through the real JSON wire — must restore into a sim
+// that then plays on in lockstep.
+{
+  const mk = () => createMatch({ rarity: 'legendary', number: 43 }, { rarity: 'legendary', number: 20 }, {});
+  const m = mk();
+  m.phase = 'play'; m.freeze = 0; m.banner = null; m.bannerT = 0; m.gaugeLead = 0;
+  const [a, z] = m.players;
+  // player 1's aura (legendary 20: freeze, 105px) lands on player 0 as it is pressed…
+  z.gauge = 1; z.prev = {}; z.x = a.x + 80;
+  step(m, [{}, { power: true }]);
+  ok('(the freeze aura landed)', a.ail === 'freeze' && z.armed > 0, a.ail);
+  // …and player 0 (legendary 43: Multi-Ball) fires once the ice is gone.
+  for (let i = 0; i < 200 && a.ail; i++) step(m, [{}, {}]);
+  z.x = C.W - 120;
+  a.gauge = 1; a.prev = {};
+  step(m, [{ power: true }, {}]);
+  m.ball.x = a.x; m.ball.y = a.y - C.BODY_H - C.HEAD_R; m.ball.vx = m.ball.vy = 0;
+  for (let i = 0; i < 64; i++) step(m, [{}, {}]);
+  m.events.length = 0;
+  ok('(a Multi-Ball is in flight with its extras)', !!m.ball.power && m.xballs.length > 0);
+  a.ail = 'reverse'; a.ailT = 1.5;
+  const snap = decodeSnapshot(JSON.parse(JSON.stringify(encodeSnapshot(m, 7))));
+  const r = mk();
+  restore(r, snap.state);
+  ok('the power ball, its extras and the ailment come through the wire',
+     JSON.stringify(r.ball.power) === JSON.stringify(m.ball.power) && r.xballs.length === m.xballs.length &&
+     r.players[0].ail === 'reverse' && r.players[0].ailT === 1.5 && r.players[1].armed === m.players[1].armed);
+  const seq = (i) => [{ right: i % 30 < 15, jump: i % 23 === 0, kick: i % 11 === 0 }, { left: i % 19 < 9, kick: i % 13 === 0 }];
+  for (let i = 0; i < 180; i++) { step(m, seq(i)); step(r, seq(i)); m.events.length = 0; r.events.length = 0; }
+  ok('and the restored sim plays on in lockstep through the whole shot', JSON.stringify(serialize(m)) === JSON.stringify(serialize(r)));
+}
+
 console.log(`test-net: ${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);

@@ -6,7 +6,6 @@
 
 import * as C from './constants.js';
 import { headY } from './sim.js';
-import { carrying, activeEffect } from './powers.js';
 
 // `aggression` runs BACKWARDS on purpose. Measured over 10 headless matches per setting,
 // it is the single dominant term in the scoreline — 0.00 → 0.0 goals a match, 0.15 → 8.3,
@@ -75,11 +74,11 @@ function armMoment(d, p, b) {
 
 export function botInput(bot, m, index, dt) {
   const out = botInputRaw(bot, m, index, dt);
-  // A champion that has had its own controls reversed on it. The sim swaps them after the bot
-  // has chosen, so an able bot chooses the other way round; a weak one runs the wrong way, the
-  // same as a person does.
+  // A bot that has had its own controls reversed on it (the `reverse` ailment, ???). The sim swaps
+  // them after the bot has chosen, so an able bot chooses the other way round; a weak one runs the
+  // wrong way, the same as a person does.
   const p = m.players[index];
-  if (m.champ && bot.d.adapt && p.mods.reverse) {
+  if (bot.d.adapt && p.ail === 'reverse') {
     const l = out.left; out.left = out.right; out.right = l;
   }
   return out;
@@ -99,25 +98,6 @@ function botInputRaw(bot, m, index, dt) {
   // gets back up.
   if (p.stunned > 0 || m.phase === 'over') {
     out.left = out.right = out.jump = out.kick = out.power = false;
-    return out;
-  }
-
-  // ---- TIME HAS STOPPED, and this bot stopped it (the arcade's עצירת זמן) --------------
-  // The ball hangs where it was touched and the other player is a statue. Walk up behind the
-  // ball and head it at their goal once; the strike is banked and goes off when time restarts.
-  // Then stand off it, so a stray shoulder does not nudge the banked shot.
-  const stop = m.champ ? activeEffect(m, 'timestop') : null;
-  if (stop && stop.owner === index) {
-    const spot = b.x - p.side * 34;
-    out.jump = false; out.power = false;
-    if (stop.stored) {
-      out.left = p.side > 0; out.right = p.side < 0; out.kick = false;
-      return out;
-    }
-    out.left = p.x > spot + 5; out.right = p.x < spot - 5;
-    const reach = Math.hypot(b.x - p.x, b.y - headY(p));
-    out.kick = (b.x - p.x) * p.side > 0 && reach < C.HEAD_R + C.BALL_R + C.HEADER_R - 3 && p.kickCd <= 0 && !bot.stopKick;
-    bot.stopKick = out.kick;                             // one press, not a held button
     return out;
   }
 
@@ -151,7 +131,9 @@ function botInputRaw(bot, m, index, dt) {
 
   if (b.power && b.power.owner !== index) {
     const dist = Math.hypot(b.x - p.x, b.y - headY(p));
-    const incoming = (b.x - p.x) * p.side < 0;      // heading at me, not away
+    // Flying at my goal and not yet past me. (This was `(b.x - p.x) * p.side < 0`, which is the
+    // ball being BEHIND me — the one case a block can no longer help.)
+    const incoming = b.vx * p.side < 0 && (b.x - p.x) * p.side > -C.BODY_W;
 
     if (bot.powerPlan == null) {
       // Decide ONCE per shot: counter (hardest), block (default), or fluff it.
@@ -185,10 +167,12 @@ function botInputRaw(bot, m, index, dt) {
       if (p.onGround && b.y < headY(p) - C.HEAD_R * 0.4 && eta < lead) bot.holdJump = 14;
       out.jump = bot.holdJump > 0;
       if (bot.holdJump > 0) bot.holdJump--;
-      // The counter is a kick timed into the block, not a substitute for it.
-      out.kick = bot.powerPlan === 'counter'
-        ? dist < C.COUNTER_WINDOW * 0.82
-        : dist < C.KICK_REACH;
+      // THE BLOCK IS A KICK (docs/HS-POWER-SHOTS.md §4): standing in its path only gets you
+      // knocked into your own net with it. So kick on TIME-TO-ARRIVAL — a power shot crosses the
+      // pitch in half a second, and a kick pressed on distance lands after the ball has. A better
+      // bot presses earlier and surer; a 'counter' plan (armed or not) swings just as early.
+      const kickEta = bot.powerPlan === 'counter' ? 0.16 : 0.07 + d.aim * 0.08;
+      out.kick = (eta < kickEta && dist < 320) || dist < C.KICK_REACH;
       out.power = false;
       return out;
     }
@@ -270,8 +254,6 @@ function botInputRaw(bot, m, index, dt) {
     // the whole of the bot's "use the ultimate". It walks into the ball like a player does;
     // there is no path here that reaches the shot any other way.
     if (p.armed > 0) bot.aim = b.x;
-    // CARRYING THE BALL (the arcade's דבק): walk it at their goal.
-    if (m.champ && carrying(m, index)) bot.aim = (p.side > 0 ? C.W - C.GOAL_W : C.GOAL_W) - p.side * 150;
 
     // Never chase past the ball toward their goal while it's mine to defend, and never
     // abandon my half entirely — the two ways a chasing bot gifts an open net.
@@ -402,19 +384,6 @@ function botInputRaw(bot, m, index, dt) {
     const driven = bot.rng() < d.aim;
     const want = atFoe ? (Math.sign(foe.x - p.x) || p.facing) : (driven ? p.side : -p.side);
     out.left = want < 0; out.right = want > 0;
-  }
-
-  // …and a carried ball is released with a kick, which should come close enough to the goal to
-  // count. Until then: keep running, no swings, no jumps.
-  if (m.champ && carrying(m, index)) {
-    const toGoal = ((p.side > 0 ? C.W - C.GOAL_W : C.GOAL_W) - p.x) * p.side;
-    const c = activeEffect(m, 'carry');
-    // Let it go close in, or when the other player is about to take it off the boot, or just
-    // before the glue runs out — never simply the moment it is in range.
-    const blocked = (foe.x - p.x) * p.side > 0 && (foe.x - p.x) * p.side < 110;
-    out.kick = (toGoal < 230 || blocked || (c && c.life - c.t < 0.35)) && p.kickCd <= 0;
-    out.jump = false;
-    out.left = p.side < 0; out.right = p.side > 0;
   }
 
   // ---- power: ARM, on exactly the player's terms ----------------------------

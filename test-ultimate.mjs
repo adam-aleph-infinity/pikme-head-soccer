@@ -14,11 +14,18 @@
 //      real if nothing can bring it back, so the last section plays whole matches out and
 //      asserts nothing spawns, nothing bends the ball, and no dial exists to switch one on.
 //
+//   4. ARM → FIRE → THE FAMILY'S FLIGHT → THE DEFENDER → THE AILMENT (sections 11–15): Head
+//      Soccer's power shots as filmed (docs/HS-POWER-SHOTS.md) — eleven families, a kick that
+//      blocks, a stand that gets you hit, an armed touch that counters, the ailments, the arming
+//      aura, and all of it surviving a snapshot.
+//
 // Kept apart from test-sim.mjs deliberately: that file is the physics, this file is one
 // mechanic and one deletion, and it should be readable as the answer to the report.
+import { readFileSync } from 'node:fs';
 import * as C from './shared/constants.js';
-import { createMatch, step, headY, resetPositions, clearUltimate } from './shared/sim.js';
+import { createMatch, step, headY, resetPositions, clearUltimate, serialize, restore } from './shared/sim.js';
 import { createBot, botInput } from './shared/bot.js';
+import { shotById, applyAilment, wave, FAMILY_ORDER } from './shared/hs-powers.js';
 
 let pass = 0, fail = 0;
 const ok = (name, cond, extra = '') => {
@@ -516,6 +523,290 @@ function arm(m, i) {
     m.events.length = 0;
   }
   ok('a rival that never reaches the ball never fires', !fired);
+}
+
+// ═══ 11. FIRE → THE FAMILY'S FLIGHT ═════════════════════════════════════════
+//
+// The eleven Head Soccer families (shared/hs-powers.js). The straight comet is measured (M4:
+// 2150 px/s, dead flat — docs/HS-POWER-SHOTS.md §3); the rest fly a path of their own at a
+// multiple of it. Each is fired by a real armed touch and followed with the defender parked out
+// of the way, so what is measured is the flight and nothing else.
+const TICK_S = (s) => Math.round(s / C.TICK);
+function fireFam(fam, o = {}) {
+  const m = fresh();
+  const a = m.players[0], z = m.players[1];
+  a.shot = shotById(fam, o);
+  a.x = 260;
+  z.x = C.W - 40; z.y = C.GROUND_Y;                     // parked in his own goal mouth, out of the path
+  m.gaugeLead = 0; m.banner = null; m.bannerT = 0;
+  arm(m, 0);
+  m.ball.x = a.x; m.ball.y = headY(a); m.ball.vx = 0; m.ball.vy = 0;
+  step(m, NONE);
+  const ev = [...m.events]; m.events.length = 0;
+  // past the cut-in's hold (the dark outlasts it, and the ball is away under it)
+  while (m.hitStop > 0) step(m, NONE);
+  return { m, a, z, ev };
+}
+// The ball's path for `s` seconds, as {t, x, y, vx, vy, ph}.
+function track(m, s, inputs = NONE) {
+  const out = [];
+  for (let i = 0; i < TICK_S(s) && m.phase === 'play'; i++) {
+    step(m, inputs);
+    const b = m.ball;
+    out.push({ x: b.x, y: b.y, vx: b.vx, vy: b.vy, ph: b.power ? b.power.ph : null, pw: !!b.power });
+    m.events.length = 0;
+  }
+  return out;
+}
+{
+  const { m, ev } = fireFam('straight');
+  ok('an armed touch fires the family\'s shot', ev.some((e) => e.type === 'powershot' && e.fam === 'straight') && m.ball.power && m.ball.power.fam === 'straight');
+  const p = track(m, 0.2).filter((q) => q.pw);
+  const vx = (p[p.length - 1].x - p[0].x) / ((p.length - 1) * C.TICK);
+  ok('STRAIGHT: the measured comet, 2150 px/s', Math.abs(vx - 2150) < 2150 * 0.03, `${vx.toFixed(0)} px/s`);
+  ok('STRAIGHT: dead flat', p.every((q) => Math.abs(q.y - p[0].y) < 0.5));
+}
+{
+  const { m } = fireFam('ground');
+  const p = track(m, 0.4);
+  const rolling = p.filter((q) => q.ph === 'roll');
+  ok('GROUND: drops to the turf and rolls along it', rolling.length > 5 && rolling.every((q) => Math.abs(q.y - (C.GROUND_Y - C.BALL_R)) < 0.5) &&
+     rolling[rolling.length - 1].x > rolling[0].x + 100, `${rolling.length} rolling ticks`);
+}
+{
+  const { m } = fireFam('downward');
+  const y0 = m.ball.y;
+  const p = track(m, 0.8);
+  const top = Math.min(...p.map((q) => q.y));
+  ok('DOWNWARD: hops up first', top < y0 - 40, `rose ${(y0 - top).toFixed(0)}px`);
+  const fall = p.filter((q) => q.pw && q.ph === 'fly');
+  ok('DOWNWARD: then drives straight down at the foot of the goal', fall.length > 3 && fall.slice(0, 4).every((q) => q.vy > 0 && q.vx > 0));
+}
+{
+  const s = fireFam('straight'), d = fireFam('destructive'), c = fireFam('critical'), g = fireFam('grab');
+  const speed = (f) => { const p = track(f.m, 0.1).filter((q) => q.pw); return (p[p.length - 1].x - p[0].x) / ((p.length - 1) * C.TICK); };
+  const vs = speed(s), vd = speed(d), vc = speed(c), vg = speed(g);
+  ok('CRITICAL is the fastest, DESTRUCTIVE and GRAB slower than the comet', vc > vs * 1.2 && vd < vs && vg < vs,
+     `straight ${vs.toFixed(0)} critical ${vc.toFixed(0)} destructive ${vd.toFixed(0)} grab ${vg.toFixed(0)}`);
+}
+{
+  const { m } = fireFam('aerial');
+  const p = track(m, 2.0);
+  const up = p.findIndex((q) => q.ph === 'wait');
+  const waits = p.filter((q) => q.ph === 'wait');
+  const dive = p.filter((q) => q.ph === 'dive');
+  ok('AERIAL: straight up and off the top of the screen (M2 42.7 s)', up > 0 && p.slice(0, up).every((q) => q.vx === 0 && q.vy < 0) && waits[0].y < 0);
+  ok('AERIAL: waits out of sight about a second (M2 43.2–44.2 s)', waits.length * C.TICK > 0.7 && waits.length * C.TICK < 1.3 && waits.every((q) => q.x === waits[0].x),
+     `${(waits.length * C.TICK).toFixed(2)}s`);
+  ok('AERIAL: then dives in at the goal mouth', dive.length > 3 && dive.every((q) => q.vx > 0 && q.vy > 0));
+}
+{
+  const { m } = fireFam('delay');
+  const p = track(m, 1.6);
+  const hold = p.filter((q) => q.ph === 'hold');
+  const after = p.slice(p.findIndex((q) => q.ph === 'hold') + hold.length).filter((q) => q.pw);
+  ok('DELAY: flies a beat, then hangs dead in the air', hold.length * C.TICK >= 0.45 && hold.every((q) => q.vx === 0 && q.vy === 0 && q.x === hold[0].x));
+  ok('DELAY: then bursts on at the goal', after.length > 2 && Math.hypot(after[1].vx, after[1].vy) > C.POWER_SHOT_SPEED);
+}
+{
+  const { m } = fireFam('multiball');
+  ok('MULTI-BALL: extra balls on the pitch, each a power ball of the shooter\'s', m.xballs.length >= 1 && m.xballs.every((e) => e.power && e.power.owner === 0 && e.power.extra));
+  track(m, 0.15);
+  ok('MULTI-BALL: fanned off the first', m.xballs.length === 0 || m.xballs.every((e) => Math.abs(e.y - m.ball.y) > 8));
+  const gentle = fireFam('multiball', { gentle: true, intensity: 0.1 });
+  ok('MULTI-BALL (gentle, stage 6): exactly one extra, slower than the main shot',
+     gentle.m.xballs.length === 1 && Math.abs(gentle.m.xballs[0].power.vx0) < Math.abs(gentle.m.ball.vx) * 0.8);
+}
+{
+  const { m } = fireFam('updown');
+  const p = track(m, 0.45).filter((q) => q.pw);
+  const ys = p.map((q) => q.y), lo = Math.min(...ys), hi = Math.max(...ys);
+  let turns = 0;
+  for (let i = 2; i < p.length; i++) if (Math.sign(p[i].vy) !== Math.sign(p[i - 1].vy) && Math.abs(p[i].vy) > 1) turns++;
+  ok('UP-AND-DOWN: rises and falls as it goes', hi - lo > 80 && turns >= 2, `${(hi - lo).toFixed(0)}px swing, ${turns} turns`);
+}
+{
+  const { m } = fireFam('ailment', { ailment: 'freeze' });
+  ok('AILMENT: the shot carries its ailment', m.ball.power.ail === 'freeze');
+}
+{
+  // ROLLBACK DETERMINISM: no engine-dependent transcendental in the sim's power code — the wave
+  // is a literal table — and a family flown twice from the same state lands on the same numbers.
+  const src = readFileSync(new URL('./shared/hs-powers.js', import.meta.url), 'utf8').replace(/\/\/.*$/gm, '');
+  ok('hs-powers.js uses no Math.sin / cos / tan / random', !/Math\.(sin|cos|tan|random)\b/.test(src));
+  ok('the Up-and-Down table is one period (0 → 1 → 0 → −1)', Math.abs(wave(0)) < 1e-9 && Math.abs(wave(0.25) - 1) < 1e-9 && Math.abs(wave(0.75) + 1) < 1e-9);
+  const r = FAMILY_ORDER.map((f) => { const x = fireFam(f), y = fireFam(f); track(x.m, 1.2); track(y.m, 1.2); return JSON.stringify(serialize(x.m)) === JSON.stringify(serialize(y.m)); });
+  ok('every family flies the same twice', r.every(Boolean), FAMILY_ORDER.filter((f, i) => !r[i]).join(','));
+}
+
+// ═══ 12. THE SHOT MEETS THE DEFENDER: BLOCK, HIT, COUNTER ═════════════════════
+// docs/HS-POWER-SHOTS.md §4 — three outcomes, from what the defender is doing when it arrives.
+function atDefender(fam, o = {}, { kick = false, armed = false, gap = 320 } = {}) {
+  const m = fresh();
+  const a = m.players[0], z = m.players[1];
+  a.shot = shotById(fam, o); z.shot = shotById('updown');
+  a.x = 260; z.x = a.x + gap;
+  m.gaugeLead = 0; m.banner = null; m.bannerT = 0;
+  if (armed) arm(m, 1);
+  arm(m, 0);
+  m.ball.x = a.x; m.ball.y = headY(a); m.ball.vx = 0; m.ball.vy = 0;
+  step(m, NONE); m.events.length = 0;
+  const log = [];
+  let pressed = false;
+  for (let i = 0; i < 240 && m.phase === 'play'; i++) {
+    const b = m.ball;
+    const near = kick && !pressed && b.power && b.power.owner === 0 && Math.abs(b.x - z.x) < 140 && m.hitStop <= 0;
+    if (near) pressed = true;
+    step(m, [{}, { kick: near }]);
+    log.push(...m.events); m.events.length = 0;
+    if (log.some((e) => ['blocked', 'powerHit', 'grabbed'].includes(e.type) || (e.type === 'powershot' && e.player === 1))) break;
+  }
+  return { m, a, z, log };
+}
+{
+  const { m, z, log } = atDefender('straight', {}, { kick: true });
+  ok('KICKING into it BLOCKS it: pinned on the boot', log.some((e) => e.type === 'blocked' && e.player === 1) && m.ball.power.ph === 'grind');
+  const x0 = z.x;
+  track(m, 0.4);
+  ok('…grinding, the blocker pushed back a few px', m.ball.power && m.ball.power.ph === 'grind' && z.x * z.side < x0 * z.side + 1 && Math.abs(z.x - x0) < 25);
+  track(m, 0.62);
+  ok('…then dead at his feet', m.ball.power && m.ball.power.ph === 'rest' && m.ball.y === C.GROUND_Y - C.BALL_R);
+  track(m, 0.4);
+  ok('…then back out as HIS power shot, at the shooter\'s goal', m.ball.power && m.ball.power.owner === 1 && m.ball.power.rb === 1 && m.ball.vx * z.side > 0);
+}
+{
+  const { m, z, log } = atDefender('straight');
+  const hit = log.find((e) => e.type === 'powerHit');
+  ok('STANDING in its path is a HIT', hit && hit.player === 1 && hit.how === 'hit');
+  ok('…he is thrown back toward his own net with it, dazed, three stars', z.vx * z.side < 0 && z.stunned > 0 && z.ail === 'stars');
+  ok('…and the ball carries on as the shot, slower and falling', m.ball.power && m.ball.power.hit === 1 && m.ball.vx > 0 && m.ball.vx < C.POWER_SHOT_SPEED);
+}
+{
+  const { m, log } = atDefender('straight', {}, { armed: true });
+  const c = log.find((e) => e.type === 'powershot' && e.player === 1);
+  ok('ARMED, touching it COUNTERS it: his own cut-in and his own shot back (M4 41.77 s)',
+     c && c.countered && m.ball.power && m.ball.power.owner === 1 && m.ball.power.fam === 'updown' && m.cutinBy === 1);
+  ok('…and the counter spends his arm and his meter', m.players[1].armed === 0 && m.players[1].gauge === 0);
+}
+{
+  const { m, z, log } = atDefender('ground', {}, { kick: true });
+  const h = log.find((e) => e.type === 'powerHit');
+  ok('GROUND cannot be blocked: a kick does not stop it, it trips him and rolls on', h && h.how === 'pass' && !log.some((e) => e.type === 'blocked') && m.ball.power && m.ball.power.ph === 'roll');
+  track(m, 0.1);
+  ok('…through where he stood', m.ball.x > z.x);
+}
+{
+  const { m, log } = atDefender('critical', {}, { kick: true });
+  ok('CRITICAL goes THROUGH a block, still the shot at full pace', log.some((e) => e.type === 'powerHit' && e.how === 'through') && m.ball.power && !m.ball.power.hit);
+  const d = atDefender('destructive', {}, { kick: true });
+  ok('DESTRUCTIVE smashes a block aside', d.log.some((e) => e.type === 'powerHit' && e.how === 'smash'));
+}
+{
+  const { m, z, log } = atDefender('grab');
+  ok('GRAB seizes a defender who does not kick it (M3 74.1 s): stars at once', log.some((e) => e.type === 'grabbed' && e.player === 1) && z.ail === 'stars' && m.ball.power.ph === 'grab');
+  const x0 = z.x;
+  const rel = [];
+  for (let i = 0; i < 240 && m.phase === 'play' && !rel.length; i++) { step(m, NONE); rel.push(...m.events.filter((e) => e.type === 'released')); m.events.length = 0; }
+  ok('…and carries him toward his own goal', (z.x - x0) * z.side < -100 || m.phase !== 'play', `moved ${(z.x - x0).toFixed(0)}`);
+  const k = atDefender('grab', {}, { kick: true });
+  ok('…but a KICK blocks the claw like any other shot', k.log.some((e) => e.type === 'blocked'));
+}
+{
+  // Stage 2's gentle Grab (the approved decision): dragged a third of the way, and a jump breaks it.
+  const { m, z } = atDefender('grab', { gentle: true, intensity: 0.1 });
+  ok('(gentle grab has hold)', m.ball.power && m.ball.power.ph === 'grab' && z.stunned === 0);
+  step(m, [{}, { jump: true }]);
+  const log = [...m.events]; m.events.length = 0;
+  for (let i = 0; i < 5; i++) { step(m, NONE); log.push(...m.events); m.events.length = 0; }
+  ok('a JUMP breaks a gentle grab', log.some((e) => e.type === 'released' && e.broke) && !m.ball.power);
+  const g = atDefender('grab', { gentle: true, intensity: 0.1 });
+  const x0 = g.z.x, line = C.W - C.GOAL_W;
+  for (let i = 0; i < 300 && g.m.ball.power; i++) { step(g.m, NONE); g.m.events.length = 0; }
+  ok('a gentle grab drags him only about a third of the way to his line', Math.abs(g.z.x - x0) < Math.abs(line - x0) / 3 + 20 && Math.abs(g.z.x - x0) > 20,
+     `${Math.abs(g.z.x - x0).toFixed(0)} of ${Math.abs(line - x0).toFixed(0)}`);
+}
+{
+  const { m, z } = fireFam('multiball');
+  const e = m.xballs[0];
+  z.x = e.x + 60; z.y = C.GROUND_Y; e.y = headY(z);
+  const log = [];
+  for (let i = 0; i < 10; i++) { step(m, NONE); log.push(...m.events); m.events.length = 0; }
+  ok('a Multi-Ball extra is knocked dead by one touch, and leaves the pitch', log.some((q) => q.type === 'blocked' && q.extra) && !m.xballs.includes(e));
+}
+
+// ═══ 13. AILMENTS ════════════════════════════════════════════════════════════
+// reverse (???), shock (half speed, no jump), freeze (no control), beheaded (no head), burn (no
+// kick), stars (dazed). In player state as two scalars, `ail` and `ailT`, on the wall clock.
+{
+  const on = (ail) => { const m = fresh(); const p = m.players[0]; applyAilment(m, p, ail, 2); m.events.length = 0; return { m, p }; };
+  { const { m, p } = on('reverse'); step(m, [{ right: true }, {}]); ok('REVERSE: right runs left', p.vx < 0, `vx ${p.vx}`); }
+  { const { m, p } = on('shock'); step(m, [{ right: true }, {}]); const vx = p.vx; step(m, [{ jump: true }, {}]);
+    ok('SHOCK: half speed, and no jump', Math.abs(vx - C.PLAYER_SPEED * 0.5) < 1 && p.onGround, `vx ${vx}`); }
+  { const { m, p } = on('freeze'); const x = p.x; run(m, 10, [{ right: true, jump: true }, {}]); ok('FREEZE: frozen solid', Math.abs(p.x - x) < 0.5 && p.onGround); }
+  { const { m, p } = on('stars'); const x = p.x; run(m, 10, [{ left: true }, {}]); ok('STARS: dazed, no control', Math.abs(p.x - x) < 0.5); }
+  { const { m, p } = on('burn'); m.ball.x = p.x + C.KICK_REACH; m.ball.y = p.y - C.BODY_H * 0.5; step(m, [{ kick: true }, {}]); ok('BURN: the boot does nothing', p.kickT === 0 && m.ball.vx === 0); }
+  { const { m, p } = on('beheaded'); m.ball.x = p.x; m.ball.y = headY(p); m.ball.vx = 0; m.ball.vy = 0; step(m, NONE);
+    ok('BEHEADED: the ball passes where the head was', Math.abs(m.ball.x - p.x) < 1 && !m.events.some((e) => e.type === 'strike')); }
+  { const { m, p } = on('shock'); run(m, TICK_S(2) + 2);
+    ok('an ailment ends on its clock', p.ail === '' && p.ailT === 0); }
+  { const { m, p } = on('freeze'); ok('a shorter ailment does not replace a longer one', !applyAilment(m, p, 'reverse', 1) && p.ail === 'freeze'); }
+  // …and a shot's ailment lands on the player it hits: legendary 3's straight shot BURNS.
+  const m = fresh();
+  const [a, z] = m.players;
+  ok('(legendary 3 fires a burning straight shot)', a.shot.family === 'straight' && a.shot.ailment === 'burn');
+  z.x = a.x + 300; m.gaugeLead = 0;
+  arm(m, 0); m.ball.x = a.x; m.ball.y = headY(a); step(m, NONE);
+  for (let i = 0; i < 120 && z.ail !== 'burn'; i++) { step(m, NONE); m.events.length = 0; }
+  ok('the shot\'s ailment lands on the player it hits', z.ail === 'burn' && z.ailT > 1.5);
+}
+
+// ═══ 14. THE PRESS: THE ARMING AURA ═════════════════════════════════════════
+{
+  const aura = (kind, gap) => {
+    const m = fresh();
+    const [a, z] = m.players;
+    a.shot = shotById('straight', { aura: kind, auraRadius: 105 });
+    z.x = a.x + gap;
+    a.gauge = 1; a.prev = {};
+    step(m, [{ power: true }, {}]);
+    return { m, a, z, ev: m.events.find((e) => e.type === 'aura') };
+  };
+  const push = aura('push', 80);
+  ok('PUSH: the press throws a close opponent away', push.ev && push.ev.hit && push.z.vx > 200 && push.a.armed > 0);
+  const far = aura('push', 200);
+  ok('…not one outside the radius', far.ev && !far.ev.hit && Math.abs(far.z.vx) < 1);
+  ok('FREEZE: the press freezes a close opponent', aura('freeze', 80).z.ail === 'freeze');
+  ok('REVERSE: …reverses his controls', aura('reverse', 80).z.ail === 'reverse');
+  const st = aura('stun', 80);
+  ok('STUN: …dazes him (stars)', st.z.stunned > 0 && st.z.ail === 'stars');
+  const none = aura('none', 20);
+  ok('no aura: the press touches nobody', !none.ev && none.z.vx === 0 && !none.z.ail);
+}
+
+// ═══ 15. THE SNAPSHOT CARRIES ALL OF IT ═════════════════════════════════════
+// Online resyncs from snapshots, so every live power state has to survive serialize → restore
+// and replay identically: a grind, a grab, a Multi-Ball's extras, the Aerial up in the sky, and
+// an ailment on a player.
+{
+  const cases = [
+    ['grind', () => { const r = atDefender('straight', {}, { kick: true }); return r.m; }],
+    ['grab', () => atDefender('grab').m],
+    ['multiball', () => { const r = fireFam('multiball'); track(r.m, 0.05); return r.m; }],
+    ['aerial', () => { const r = fireFam('aerial'); track(r.m, 0.5); return r.m; }],
+    ['ailment', () => { const r = atDefender('straight'); applyAilment(r.m, r.m.players[0], 'reverse', 2); return r.m; }],
+  ];
+  for (const [name, make] of cases) {
+    const m = make();
+    const snap = JSON.parse(JSON.stringify(serialize(m)));
+    const r = createMatch(CA, CB, {}); r.players.forEach((p, i) => { p.shot = m.players[i].shot; });
+    restore(r, snap);
+    const seq = (i) => [{ right: i % 20 < 10, kick: i % 17 === 0 }, { left: i % 25 < 12, jump: i % 31 === 0 }];
+    for (let i = 0; i < 90; i++) { step(m, seq(i)); step(r, seq(i)); m.events.length = 0; r.events.length = 0; }
+    ok(`a snapshot mid-${name} restores and replays identically`, JSON.stringify(serialize(m)) === JSON.stringify(serialize(r)));
+  }
+  const m = fireFam('multiball').m;
+  const s = serialize(m);
+  ok('the snapshot carries the extra balls and the ailment fields', Array.isArray(s.xb) && s.xb.length >= 1 && s.p[0].length >= 27);
 }
 
 // ═══ 9. THE RANDOM MATCH MODIFIERS ARE GONE ══════════════════════════════════

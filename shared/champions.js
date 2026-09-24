@@ -2,8 +2,9 @@
 //
 // The pick screen already shows the אגדי row as legendary 1..45 and that is the only order the
 // repo has ever given them, so it is the arcade's order too: stage n is legendary_n. What a
-// champion DOES is its power (shared/powers.js, POWER_ORDER[n-1]); this file adds who they are
-// on the arcade board and how hard their bot plays.
+// champion DOES is its Head Soccer power shot — family, ailment, aura, 1–10 stats and stars, from
+// the approved map (docs/HS-CHAMPION-MAP.md → shared/hs-champion-map.js); this file adds who they
+// are on the arcade board and how hard their bot plays.
 //
 // Difficulty is a straight line from stage 1 to stage 45, so there is no stage where it jumps,
 // on two sets of dials — and the reason there are two is a measurement, not a preference.
@@ -11,18 +12,16 @@
 //   the bot's own dials — reaction time, misread, aim, counters, how long it sits on a full
 //     meter. Stage 1 is the bot's easiest tier (קל מאוד) and stage 45 just short of its hardest
 //     (אגדי). This is what a PERSON feels: a bot that turns up late and misreads the ball.
-//   the champion's body and nerve — jump, run and boot, and how often it commits forward.
-//     Bot against bot, the dials above barely move a scoreline (test-bot says as much: the
-//     legendary tier does not reliably beat the very-easy one), while these do: 10% off the
-//     jump cost 50 goals over 64 matches, because most goals go over the defender's head, and
-//     aggression was the biggest single term the README ever measured. So the ladder climbs on
-//     both — early champions are a step slow and a little earthbound, late ones are not.
+//   the champion's body — Head Soccer's five 1–10 stats (speed, jump, kick, dash, power), which
+//     climb from a total of 12 at stage 1 to 45 at stage 45 (the map). Bot against bot the dials
+//     above barely move a scoreline while the body does — 10% off the jump cost 50 goals over 64
+//     matches — so the body is the ladder's other half. The POWER stat is how fast the gauge fills.
 //
-// The powers climb alongside it: one clean effect in the first tier, several moving parts in
-// the last. Hard at 45, still beatable: every number stays inside what a human player's own
-// legendary card already has.
+// The shots climb alongside it: the plain families first, Critical, Grab, Multi-Ball and Delay
+// late. The player's own card always plays on equal stats.
 
-import { POWERS, POWER_ORDER } from './powers.js';
+import { HS_MAP } from './hs-champion-map.js';
+import { FAMILIES, AILMENTS } from './hs-powers.js';
 
 export const CHAMPION_COUNT = 45;
 
@@ -60,29 +59,42 @@ export function stageDifficulty(stage) {
     // the climb: the middle tier's powers already take the opponent's controls away, the last
     // tiers' mostly do not, and the scoreline showed it — measured, _ladder in the README.
     aggression: round(0.16 + 0.5 * t ** 1.5, 4),   // how often it presses    0.16 → 0.66
-    meterRate: round(1 + 0.9 * t ** 1.5, 4),       // its meter fills         1.0  → 1.9 × the clock
-    // The body, as a multiple of its legendary card's own stats (1.05 jump, 1.06 run, 1.08
-    // boot). Stage 45 tops out just past parity with a legendary card of the player's.
-    body: {
-      speed: round(0.9 + 0.14 * t, 4),       // 0.90 → 1.04
-      jump: round(0.84 + 0.2 * t, 4),        // 0.84 → 1.04 — the one that matters most
-      kick: round(0.88 + 0.16 * t, 4),       // 0.88 → 1.04
-    },
     stars: 1 + Math.round(t * 8) / 2,        // 1 → 5, in halves
     t,
   };
 }
 
-export const CHAMPIONS = Object.freeze(POWER_ORDER.map((powerId, i) => {
+// A bot style per stat profile: the strikers push, the tanks hang back, the tricky ones barge.
+const PROFILE_STYLE = { power: 'striker', kicker: 'striker', fast: 'brawler', tricky: 'brawler', tank: 'keeper', jumper: 'striker', balanced: 'striker' };
+
+// What the arcade board says a champion's shot does, in Hebrew: family · ailment · aura.
+const AURA_NAME = { stun: 'הלם', push: 'הדיפה', reverse: 'בלבול', freeze: 'הקפאה' };
+export function shotText(hs) {
+  const parts = [FAMILIES[hs.family].name];
+  if (hs.ailment) parts.push(AILMENTS[hs.ailment].name);
+  if (hs.aura !== 'none') parts.push(`הילת ${AURA_NAME[hs.aura]}`);
+  return parts.join(' · ');
+}
+
+export const CHAMPIONS = Object.freeze(HS_MAP.map((row, i) => {
   const stage = i + 1;
+  const hs = Object.freeze({
+    family: row.family, ailment: row.ailment, aura: row.aura, auraRadius: row.auraRadius,
+    intensity: row.intensity, gentle: row.gentle, stats: row.stats, stars: row.stars, profile: row.profile,
+  });
   return Object.freeze({
     id: `legendary_${stage}`,
     stage,
     card: Object.freeze({ rarity: 'legendary', number: stage }),
     title: TITLES[i],
-    power: powerId,
+    // The theme the champion is named for (its old power's id, name and icon); what the shot DOES
+    // is `hs`. Kept so the board's icons and saved progress read the same as before.
+    power: row.power.id, powerName: row.power.name, icon: row.power.icon,
+    color: FAMILIES[row.family].color,
+    desc: shotText(hs),
+    hs,
     tier: Math.floor(i / PER_TIER),
-    style: POWERS[powerId].style,
+    style: PROFILE_STYLE[row.profile] || 'striker',
     difficulty: Object.freeze(stageDifficulty(stage)),
     arena: i,                                // which backdrop; the client wraps it round its pool
   });
@@ -113,7 +125,7 @@ export function botProfile(champ) {
     react: d.react, error: d.error, counter: d.counter, aim: d.aim, powerHold: d.powerHold,
     aggression: round(d.aggression + s.aggression, 4),
     tackle: s.tackle,
-    arm: POWERS[champ.power].arm,
+    arm: 'attack',                           // every Head Soccer power is a shot at the goal
     smart: d.aim >= 0.55,
     adapt: d.t >= 0.5,                       // reads its own reversed controls and corrects them
   };
@@ -126,11 +138,10 @@ export function stageConfig(stage) {
   return {
     stage, champ,
     bot: botProfile(champ),
-    // Player 0 is the human (1.0, always); player 1 is the champion.
+    // Player 0 is the human (equal stats, always); player 1 is the champion on its HS stats.
     matchOpts: {
       champions: true,
-      meterRate: [1, champ.difficulty.meterRate],
-      statScale: [null, champ.difficulty.body],
+      stats: [null, champ.hs.stats],
     },
   };
 }

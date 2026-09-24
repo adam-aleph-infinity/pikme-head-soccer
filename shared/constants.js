@@ -397,19 +397,22 @@ export const headReach = () => (JUMP_V * JUMP_V) / (2 * PLAYER_GRAV) + BODY_H + 
 // pause (m.hitStop, and m.cutin says whose), not a client effect, so an online match freezes on
 // the same tick on both phones; the renderer only draws the spotlight over it.
 export let POWER_CUTIN = 1.34;
-// HS M4 60.16 s and 78.36 s: a power shot that hits a player who is NOT armed dazes them for
-// ~0.5s, and the ball comes back off them.
+// …but only the first 0.97s of it is a freeze: the ball leaves then and play runs under the last
+// 0.37s of the dark — the defender at M4 61.45 s kicks and blocks before it lifts (40.44 → 41.41 s,
+// 41.97 → 42.95 s).
+export const POWER_RELEASE = 0.37;
+// HS M4 43.33 s and 80.85 s: a power shot that hits a player who is NOT armed dazes them for
+// ~0.5s (three gold stars over the head).
 export let POWER_BLOCK_STUN = 0.5;
-export let POWER_SHOT_SPEED = 680;    // 1000 x the old PACE 0.68. Ball-only slowdown pass. NOTE the reference here had ALREADY
-                                      // been cut 2100 -> 1250 by another session before I touched it;
-                                      // I briefly raised it to 1750 while "slowing the ball down",
-                                      // which is what happens when you tune against a number you
-                                      // remember instead of the one in the file. Still roughly 2x a
-                                      // normal kick, so it stays the threat — but blockable.
-export let POWER_SHOT_LIFE = 2.35;    // s before a power ball reverts to an ordinary one (1.6 / 0.68)
-export let POWER_SHOT_SAG = 0.12;     // a touch of gravity so a high shot still comes down
-export let POWER_BLOCK_REBOUND = 0.42; // pace a blocked shot keeps as it comes back off you
-export let COUNTER_WINDOW = 130;    // px: kick within this of an incoming power ball to counter
+// THE COMET: HS M4 41.50–41.77 s and 43.07–43.33 s, 0.135 of the pitch per 1/15 s — 2.03 pitch
+// widths a second, dead flat (docs/HS-POWER-SHOTS.md §3). A power shot crosses the whole pitch in
+// half a second, 2.6x the hardest kick. Each family flies a multiple of it (shared/hs-powers.js).
+export let POWER_SHOT_SPEED = 2150;
+export let POWER_SHOT_LIFE = 2.0;     // s of flight before a power ball reverts to an ordinary one
+export let POWER_BLOCK_REBOUND = 0.55; // pace a HIT ball keeps as it carries on past the defender
+// The bot's reach for a kick-block (shared/bot.js). HS has no unarmed counter, so this is no
+// longer a counter radius in the sim: a kick BLOCKS (hs-powers contact / earlyBlock).
+export let COUNTER_WINDOW = 130;
 
 // ---- REMOVED: the random match modifiers -----------------------------------
 // Wind, low gravity, meteors, robot mode (the SPECTACLE scheduler), the crates that used
@@ -526,7 +529,6 @@ const SETTERS = {
   POWER_CUTIN: (v) => { POWER_CUTIN = v; },
   POWER_BLOCK_STUN: (v) => { POWER_BLOCK_STUN = v; },
   POWER_SHOT_LIFE: (v) => { POWER_SHOT_LIFE = v; },
-  POWER_SHOT_SAG: (v) => { POWER_SHOT_SAG = v; },
   POWER_BLOCK_REBOUND: (v) => { POWER_BLOCK_REBOUND = v; },
   POWER_SHOT_SPEED: (v) => { POWER_SHOT_SPEED = v; },
   COUNTER_WINDOW: (v) => { COUNTER_WINDOW = v; },
@@ -585,7 +587,6 @@ export function snapshot() {
     KICK_POWER,
     KICK_LIFT,
     POWER_SHOT_LIFE,
-    POWER_SHOT_SAG,
     POWER_BLOCK_REBOUND,
     POWER_SHOT_SPEED,
     GAUGE_PASSIVE,

@@ -22,7 +22,7 @@
 
 import * as C from './shared/constants.js';
 import { createMatch, step, headY } from './shared/sim.js';
-import { launchPowerShot } from './shared/powershots.js';
+import { launch as launchPower, shotById } from './shared/hs-powers.js';
 import { createBot, botInput } from './shared/bot.js';
 
 const CHAR_A = { rarity: 'legendary', number: 3 };
@@ -187,12 +187,13 @@ export const SCENARIOS = {
   // C15 — player 1's power shot flies at player 0: armed (the counter), and unarmed (the block).
   armedCounter: { clip: 'C15', ticks: 60, attempt: 'armedcounter',
     setup: (m) => { openPlay(m); armP0(m); },
-    during: (m, i) => { if (i === 4) { const [a, z] = m.players; place(m.ball, a.x + 220, headY(a)); launchPowerShot(m.ball, z, z.shot, -1); } },
+    during: (m, i) => { if (i === 4) { const [a, z] = m.players; place(m.ball, a.x + 220, headY(a)); z.shot = shotById('straight'); launchPower(m, m.ball, z, null, { shockwave() {}, hit() {} }); } },
     input: (i) => ({ power: i === 2 }) },
-  powerBlock: { clip: 'C15', ticks: 120, attempt: 'powerblock',
+  // …the BLOCK is a kick into it (docs/HS-POWER-SHOTS.md §4: Kick lit at M4 61.45 s and 79.55 s).
+  powerBlock: { clip: 'C15', ticks: 150, attempt: 'powerblock',
     setup: (m) => openPlay(m),
-    during: (m, i) => { if (i === 4) { const [a, z] = m.players; place(m.ball, a.x + 220, headY(a)); launchPowerShot(m.ball, z, z.shot, -1); } },
-    input: () => ({}) },
+    during: (m, i) => { if (i === 4) { const [a, z] = m.players; place(m.ball, a.x + 220, headY(a)); z.shot = shotById('straight'); launchPower(m, m.ball, z, null, { shockwave() {}, hit() {} }); } },
+    input: (i) => ({ kick: i === 5 }) },
 
   // C17 — a goal and the restart after it.
   goalReset: { clip: 'C17', ticks: 60 * 5, setup: (m) => { openPlay(m); place(m.ball, C.W - 150, C.GROUND_Y - 60, 600, 0); }, input: () => ({}) },
@@ -295,8 +296,8 @@ export function runScenario(name) {
     // The leg back in.
     if (st.kickT > 0 && a.kickT <= 0) tag(i, 'kick_end');
     st.kickT = a.kickT;
-    // The cut-in (the power shot's pause) ends when play moves again.
-    if (st.cut && m.hitStop <= 0) { tag(i, 'cutin_off'); st.cut = false; }
+    // The cut-in ends when the dark lifts — 0.37s after play moves again (POWER_RELEASE).
+    if (st.cut && !(m.cutin > 0)) { tag(i, 'cutin_off'); st.cut = false; }   // the dark lifting (it outlasts the freeze)
     // The gauge and the arm, as the HUD shows them.
     if (st.gauge < 1 && a.gauge >= 1) tag(i, 'gauge_full');
     if (st.gauge >= 1 && a.gauge < 1 && a.armed <= 0 && st.armed <= 0) tag(i, 'gauge_drop');
