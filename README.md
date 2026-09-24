@@ -480,9 +480,12 @@ fit over our sim. There is no platformer dressing left on it:
 
 Coyote time and the jump buffer are kept but cut to 3 frames: HS shows no input lag at all.
 
-**Hit-stop** freezes the whole sim for a few frames on a heavy connect, with a couple of
-pixels of screen shake underneath. Input held across the freeze is not lost — the sim's edge
-detection sees it the moment play resumes.
+**Hit-stop** freezes the whole sim for a few frames, with a couple of pixels of screen shake
+underneath — but only when a power shot is BLOCKED. A kick, header or tackle does not stop the
+game: HS has no hit-stop on a touch (M3's ball track), and ours froze three frames on each of
+~85 touches a match, which is what "the game feels a little bit stuck" was. Input held across a
+freeze is not lost — the sim's edge detection sees it the moment play resumes — and a tap that
+comes and goes between two ticks is remembered until a tick has seen it (tickInput, game.js).
 
 **The cut-in** is the same freeze, 1.34s long, the moment a power shot fires (HS M4): both
 players, the ball and the clock hold while the pitch darkens and rays fan out of the shooter.
