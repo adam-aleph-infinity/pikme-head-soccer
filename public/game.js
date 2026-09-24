@@ -430,7 +430,24 @@ $('#diffName').textContent = DIFFICULTIES[pick.level].name;
 // ═══════════════════════════════════════════════════════════════════════════
 // INPUT
 // ═══════════════════════════════════════════════════════════════════════════
-const held = { left: false, right: false, jump: false, kick: false, power: false };
+const heldNow = { left: false, right: false, jump: false, kick: false, power: false };
+// A PRESS IS NEVER LOST BETWEEN TWO TICKS. The sim samples `held` once per 1/60s tick, and
+// only on the frames that run a tick at all — none at all on half the frames of a 120Hz
+// screen, none under a frame that ran zero steps. A tap whose down and up both landed between
+// two samples (iOS can deliver a quick tap's touchstart and touchend in the same frame) was
+// simply never seen. So every press is also remembered until a tick has consumed it: the next
+// tick sees the button down at least once, and the sim's own edge test does the rest. Writers
+// still just set held[k] = true/false; the Proxy is what notices the press.
+const tapped = {};
+const held = new Proxy(heldNow, {
+  set(t, k, v) { if (v && !t[k]) tapped[k] = true; t[k] = v; return true; },
+});
+// The input one tick steps with: what is down now, plus anything pressed since the last tick.
+function tickInput() {
+  const inp = { ...heldNow };
+  for (const k in tapped) { inp[k] = true; delete tapped[k]; }
+  return inp;
+}
 
 // Bindings are DATA, not a frozen map. Two slots per action so the arrow cluster and the
 // letter cluster can both live.
@@ -905,6 +922,7 @@ function beginLocal(me, foe, opts, bot) {
   BOT = bot;
   parts.length = 0;
   acc = 0; last = performance.now(); running = true;
+  vsSlack = 0; for (const k in tapped) delete tapped[k];   // nothing carried in from the menus
 
   show('match');
   $('#over').classList.add('hidden');
@@ -1064,6 +1082,25 @@ let flashT = 0, flashCol = '#fff', flashLife = 0.2;
 function flash(col, life) { flashT = life; flashLife = life; flashCol = col; }
 
 // ---- loop ------------------------------------------------------------------
+// VSYNC SNAP. The sim ticks at exactly 60Hz and the screen refreshes at ~60 (or 120), so the
+// fixed-step accumulator sits at a constant phase — unless the frame timestamps jitter. Safari
+// coarsens them to 1ms (16, 17, 17, 16…), and whenever that phase sits within a jitter of a tick
+// boundary the loop runs 0 steps on one frame and 2 on the next: the same picture twice, then a
+// jump. Modelled with 1ms-quantised stamps that is ~50 such hitches a minute at 60Hz and ~170 at
+// 120Hz (headless Chrome on main showed 77 in 15s); snapped, ~1. A frame within 4ms of a whole
+// number of ticks (or half a tick, for 120Hz) counts as exactly that. What the snap takes away
+// is kept in `vsSlack` and paid back once it reaches half a tick, so the clock never drifts —
+// the jitter cancels out by itself, and only a real refresh rate that is not 60 costs a step.
+let vsSlack = 0;
+function vsyncDt(dt) {
+  for (const k of [0.5, 1, 2, 3]) {
+    const q = C.TICK * k;
+    if (Math.abs(dt - q) < Math.min(0.004, q / 4)) { vsSlack += dt - q; dt = q; break; }
+  }
+  if (Math.abs(vsSlack) >= C.TICK / 2) { dt = Math.max(0, dt + vsSlack); vsSlack = 0; }
+  return dt;
+}
+
 function frame(now) {
   raf = requestAnimationFrame(frame);
   const dt = Math.min(0.25, (now - last) / 1000);
@@ -1071,13 +1108,14 @@ function frame(now) {
   if (!M) return;
 
   if (running) {
+    const simDt = vsyncDt(dt);
     if (ONLINE) {
       // The net module owns the tick clock online: it has to replay from whatever tick a
       // snapshot lands on, so a second accumulator here would fight it.
-      const m = NET.advance(dt, held, fx);
+      const m = NET.advance(simDt, tickInput, fx);
       if (m) { M = m; drainEvents(); }
     } else {
-      acc += dt;
+      acc += simDt;
       // A champion's super cut-in holds the match for a beat (arcade only; see champ-vfx.js).
       // The SIM now holds every fired power shot itself (m.cutin, 1.34s), so this client-side
       // beat only runs when the sim is not already cutting in — never twice over.
@@ -1089,7 +1127,7 @@ function frame(now) {
       // harness deterministic — every probe there was racing a bot that could score,
       // freeze the match and reset positions between one await and the next.
       const foe = window.BOT_OFF ? {} : botInput(BOT, M, 1, C.TICK);
-        step(M, [{ ...held }, foe], C.TICK, fx);
+        step(M, [tickInput(), foe], C.TICK, fx);
         acc -= C.TICK;
         drainEvents();
         if (!running) break;
