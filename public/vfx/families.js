@@ -142,10 +142,10 @@ export const FAMILY_VFX = {
       for (let i = 0; i < 3; i++) {
         const f = fa + ((s.now * 1.1 + i / 3) % 1) * (fb - fa);
         const px = x0 + dx * f, py = y0 + dy * f;
-        g.globalAlpha = 0.85; g.strokeStyle = '#ff2a10'; g.lineWidth = 5;
-        g.beginPath(); g.moveTo(px, py); g.lineTo(px - ux * 90, py - uy * 90); g.stroke();
-        g.globalAlpha = 0.9; g.strokeStyle = '#ffd080'; g.lineWidth = 2;
-        g.beginPath(); g.moveTo(px, py); g.lineTo(px - ux * 60, py - uy * 60); g.stroke();
+        g.globalAlpha = 0.85; g.strokeStyle = '#ff2a10'; g.lineWidth = 9;       // M2 43.7 s: two or three
+        g.beginPath(); g.moveTo(px, py); g.lineTo(px - ux * 150, py - uy * 150); g.stroke();  // fat red streaks
+        g.globalAlpha = 0.95; g.strokeStyle = '#ffb040'; g.lineWidth = 3.5;
+        g.beginPath(); g.moveTo(px, py); g.lineTo(px - ux * 110, py - uy * 110); g.stroke();
       }
       g.restore();
     },
@@ -185,8 +185,8 @@ function drawClaw(g, x, y, ux, uy, r, t, closed) {
   g.rotate(Math.atan2(uy, ux));
   // Big: the filmed hand is about four heads long, the ball in its palm, the fingers reaching on
   // ahead of it (M3 73.93 s).
-  const R = r * 2.6;
-  g.translate(R * 1.6, 0);
+  const R = r * 3.6;
+  g.translate(R * 1.45, 0);
   g.globalAlpha = 0.9;
   g.fillStyle = '#16266e'; g.strokeStyle = '#8fb0ff'; g.lineWidth = 2; g.lineJoin = 'round';
   // the speed streaks behind it (§3: "blue speed streaks behind it")

@@ -34,7 +34,7 @@ export const SHOTS = [
     note: 'over the standing keeper, goal' },
   { id: 'm4-150.59', video: 'M4-gaps', hs: [150.35, 151.2, 151.72, 151.85, 152.2], shooter: 1, sx: 560, jump: true, fam: 'straight', dx: 100, does: 'stand',
     note: 'over the standing keeper, goal' },
-  { id: 'm4-171.91', video: 'M4-gaps', hs: [171.7, 172.5, 173.02, 173.2, 173.5], shooter: 1, sx: 400, jump: true, fam: 'straight', dx: 150, does: 'kick',
+  { id: 'm4-171.91', video: 'M4-gaps', hs: [171.7, 172.5, 173.02, 173.2, 173.5], shooter: 1, sx: 560, jump: true, fam: 'straight', dx: 190, does: 'kick',
     note: 'kick-block at the goal line, grind' },
   { id: 'm3-37.2', video: 'M3-airdrop-full', hs: [36.95, 37.6, 38.15, 38.25, 38.45], shooter: 0, sx: 800, jump: false, fam: 'straight', dx: 930, does: 'stand',
     note: 'hits the standing keeper square on, bounces straight back' },
@@ -162,7 +162,8 @@ for (const sc of LIST) {
   }
   await shot(`${OUT}/${sc.id}-ours-${flyAt}.png`);                                // flight
   const met = await js(`(() => { const sc = window.__sc; let g = 0, seen = null;
-    const from = sc.log.length;
+    // from the shot itself: a close one can land before the flight picture was taken
+    const from = sc.log.findIndex((e) => e.type === 'powershot') + 1;
     while (g++ < 300 && !seen) { __tick(1); seen = sc.log.slice(from).find((e) => ['powerHit', 'blocked', 'grabbed', 'goal'].includes(e.type) || (e.type === 'powershot' && e.countered)); }
     __tick(2); return seen ? seen.type + (seen.how ? ':' + seen.how : '') + (seen.y ? ' @' + seen.x.toFixed(0) + ',' + seen.y.toFixed(0) : '') : null; })()`);
   await shot(`${OUT}/${sc.id}-ours-3.png`);                                       // impact
