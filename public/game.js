@@ -131,7 +131,7 @@ const bestOwned = () => {
 const pick = {
   // The app injects these before the page boots, exactly as it does for football.
   name: (typeof window !== 'undefined' && window.SALTIZ_NAME) || new URLSearchParams(location.search).get('name') || 'שחקן',
-  me: bestOwned() || { rarity: 'legendary', number: 3 },
+  me: bestOwned() || { rarity: 'legendary', number: 1 },   // the first two cards have drawn HS-style characters
   foe: { rarity: 'legendary', number: 2 },
   target: 'me',
   rarity: (bestOwned() || { rarity: 'legendary' }).rarity,
