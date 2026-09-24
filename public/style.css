@@ -1251,29 +1251,6 @@ body.editing .pad .btn .grip {
 .play[disabled] { opacity: .4; box-shadow: none; }
 .scoreboard .rtt { font-style: normal; font-size: 10px; color: var(--dim); min-width: 34px; }
 
-/* THE BRUISE (drawHeads sets .hurt1..3 off the sim's `hurt`, one tier per HURT this match —
-   the knockout's every-fifth kick, not health). HS keeps a red nose on a hurt player, through
-   goals and after the stars (M4 116.7–121.3 s). Ours: a faint flush, then a red nose, then the
-   nose and a darker cheek. On the card layer (<i>), so the head's clip-path clips it too. */
-.head.hurt1 > i::after, .head.hurt2 > i::after, .head.hurt3 > i::after {
-  content: ''; position: absolute; inset: 0; pointer-events: none;
-  background:
-    radial-gradient(ellipse 13% 9% at 30% 63%, #ff2438aa, #ff243800),
-    radial-gradient(ellipse 13% 9% at 70% 63%, #ff2438aa, #ff243800);
-}
-.head.hurt2 > i::after {
-  background:
-    radial-gradient(ellipse 11% 9% at 50% 58%, #f0182ad0 40%, #f0182a00),
-    radial-gradient(ellipse 13% 9% at 30% 63%, #ff2438aa, #ff243800),
-    radial-gradient(ellipse 13% 9% at 70% 63%, #ff2438aa, #ff243800);
-}
-.head.hurt3 > i::after {
-  background:
-    radial-gradient(ellipse 11% 9% at 50% 58%, #f0182ad0 40%, #f0182a00),
-    radial-gradient(ellipse 14% 11% at 34% 45%, #3a0a3ccc 35%, #3a0a3c00),
-    radial-gradient(ellipse 13% 9% at 70% 63%, #ff2438aa, #ff243800);
-}
-
 /* ARMED: the press empties the bar (HS M4 36.49 s) and the refill climbs in the same ramp,
    with a white-hot sheen over it while the arm waits for a touch. No pulse — the bar is not
    ready, the head's glow is what says armed. */
