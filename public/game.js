@@ -49,13 +49,13 @@ const anchorFor = (r, n) => ANCHORS.heads[`${r}_${n}`] || DEFAULT_ANCHOR;
 // window onto it — positioned from a face box detected offline (Vision.framework) and
 // baked into head-anchors.json. Painted as a CSS background on a DOM node, never blitted
 // into the canvas: canvas-drawn card art comes back blank inside WKWebView.
-function paintHead(el, r, n, sizePx) {
+function paintHead(el, r, n, sizePx, opts) {
   // The maths lives in head-crop.js so test-heads.mjs can run it over all 180 anchors. It
   // CLAMPS the window to the card, which the old inline version did not: twenty of the
   // anchors were measured asking for a window bigger than the card or too near an edge, and
   // an unclamped crop shows the card's edge and blank space beyond it — which is why some
   // faces sat off centre on a phone.
-  const c = headCrop(anchorFor(r, n), ANCHORS.cardW, ANCHORS.cardH, sizePx);
+  const c = headCrop(anchorFor(r, n), ANCHORS.cardW, ANCHORS.cardH, sizePx, opts);
   el.style.backgroundImage = `url("${cardUrl(r, n)}")`;
   el.style.backgroundSize = `${c.width}px ${c.height}px`;
   el.style.backgroundPosition = `${c.x}px ${c.y}px`;
@@ -1573,9 +1573,9 @@ function drawHeadNet() {
   ctxNet.clearRect(0, -SKY_TOP, C.W, SKY_TOP + C.H + BLEED);
   for (const p of M.players) {
     const h = depthPoint(p.x, headY(p));
-    // Exactly the head's own disc. Wider and the wash would land on pixels the main canvas
+    // Exactly the head's own shape. Wider and the wash would land on pixels the main canvas
     // has already washed, and a second 10% would ring the head in a darker halo.
-    const r = headR(M, p) * HEAD_DRAW;
+    const rx = headR(M, p) * HEAD_W, ry = headR(M, p) * HEAD_H, r = rx;
     for (const left of [true, false]) {
       const box = goalBox(left);
       // The whole box, all four uprights: the near pair sit at wallX/lineX and the far pair
@@ -1584,7 +1584,8 @@ function drawHeadNet() {
       if (h.x + r < Math.min(...xs) || h.x - r > Math.max(...xs) || h.y + r < box.top + box.wy) continue;
       ctxNet.save();
       ctxNet.beginPath();
-      ctxNet.arc(h.x, h.y, r, 0, 6.2832);
+      for (const [u, v] of HEAD_SHAPE) ctxNet.lineTo(h.x + (u - 0.5) * 2 * rx, h.y + (v - 0.5) * 2 * ry);
+      ctxNet.closePath();                                  // the drawn head's own outline
       ctxNet.clip();
       drawGoalFront(ctxNet, left, true);   // net only — see drawGoalFront
       ctxNet.restore();
@@ -2133,8 +2134,8 @@ function drawBody(g, p, ghost = false) {
   g.fillRect(face > 0 ? 3 : -11, top + 8, 8, h - 10);
   g.fillStyle = trim;                                        // rim light on the back
   g.fillRect(face > 0 ? -SUIT_W / 2 + 1 : SUIT_W / 2 - 3, top + 7, 2, h - 10);
-  // The collar, just under the chin: the head is drawn 8% over its hitbox (HEAD_DRAW), so the
-  // chin is 15 px off the grass and the collar sits in the first texels below it.
+  // The collar, just under the chin: the head is drawn 7% taller than its hitbox (HEAD_H), so
+  // the chin is 15 px off the grass and the collar sits in the first texels below it.
   g.fillStyle = kit.collarDark;
   g.fillRect(-9, top + 8, 18, 6);
   g.fillStyle = kit.collar;
@@ -2499,27 +2500,60 @@ const HUD = {
 };
 
 // ---- DOM heads -------------------------------------------------------------
-// THE HEAD IS DRAWN 8% OVER ITS HITBOX, as Head Soccer's is. HS's head sprite, hair included, is
-// 56-57 px tall and 62 wide on the 1280 frame (M3 6.8 s, M4 29.98 s, full resolution) around a
-// 52.8 px head; drawn at exactly the hitbox, ours showed 17 px of body under the chin (head to
-// body 3.1:1) where HS shows 15 (3.8:1). The sim never sees this — it is the picture only, the
-// same couple of pixels of overhang HS's hair and cheeks have.
-const HEAD_DRAW = 1.08;
+// THE HEAD IS A HEAD SOCCER SHAPE, NOT A COIN. HS's head sprite is 62 px wide and 56-57 tall on
+// the 1280 frame (M3 6.8 s, M4 29.98 s, full resolution) around a 52.8 px head: a wide cartoon
+// head — dome on top, full cheeks, a flat chin sitting on the collar — with one thick near-black
+// keyline round it. So ours is drawn HEAD_W x HEAD_H of the hitbox diameter, in that silhouette
+// (the polygon in style.css), with the card face zoomed until face and hair FILL it. The sim
+// never sees any of this: its head is still the 26.4 circle, and the drawn one overhangs it a
+// few px at the cheeks and chin exactly as HS's hair and cheeks overhang its own.
+// Drawn at exactly the hitbox, the body showed 17 px under the chin (3.1:1 head to body) where
+// HS shows 15 (3.8:1); a 1.07 height puts the chin 15 px off the grass.
+const HEAD_W = 1.17, HEAD_H = 1.07;
+// The silhouette, as points in a unit box (0..1 across, 0..1 down): a superellipse that is
+// ROUND on top (exponent 2.1, a dome) and squarer below (2.9: full cheeks and a flat chin),
+// widest a little below the middle, the jaw drawn in a touch at the bottom corners. One list, two users: the CSS clip-path on
+// the DOM head (--head-shape) and the canvas path the near net is clipped to (drawHeadNet).
+const HEAD_SHAPE = (() => {
+  const pts = [];
+  for (let i = 0; i < 48; i++) {
+    const t = (i / 48) * 2 * Math.PI, c = Math.cos(t), s = Math.sin(t);
+    const n = s < 0 ? 2.1 : 2.9;
+    let x = Math.sign(c) * Math.abs(c) ** (2 / n);
+    const y = Math.sign(s) * Math.abs(s) ** (2 / n);
+    x *= 1 - 0.1 * Math.max(0, y) ** 2;
+    // the widest line sits BELOW the middle: a tall dome, then the cheeks and a short flat jaw
+    pts.push([0.5 + x / 2, 0.56 + y * (y < 0 ? 0.56 : 0.44)]);
+  }
+  return pts;
+})();
+document.documentElement.style.setProperty('--head-shape',
+  `polygon(${HEAD_SHAPE.map(([x, y]) => `${(x * 100).toFixed(1)}% ${(y * 100).toFixed(1)}%`).join(',')})`);
+// The crop for that shape (head-crop.js opts): 1.35x tighter than the measured head, and the
+// window lifted a tenth of a head so there is hair over the brow and the chin reaches the flat
+// bottom. Chosen on a lineup of the album (_charshots.mjs → heads-lineup.png).
+const HEAD_CROP = { zoom: 1.3, lift: -0.06 };
+function headBox(p) {
+  const d = headR(M, p) * 2 * SC;
+  return { w: d * HEAD_W, h: d * HEAD_H };
+}
 function drawHeads() {
   for (let i = 0; i < 2; i++) {
     const p = M.players[i];
     // The head is a DOM node, so a big-head pickup is a CSS size change, not a canvas one.
     // The card art is repainted at the new size rather than transform-scaled: a scaled-up
     // background is a blurry card, and the whole hook is being able to tell who it is.
-    const size = headR(M, p) * 2 * HEAD_DRAW * SC;
+    const { w, h } = headBox(p);
     const el = HUD.head[i];
-    const key = `${p.char.rarity}_${p.char.number}_${Math.round(size)}`;
+    const key = `${p.char.rarity}_${p.char.number}_${Math.round(w)}`;
     if (el.dataset.card !== key) {
-      paintHead(el.firstElementChild, p.char.rarity, p.char.number, size);
-      el.style.width = el.style.height = size + 'px';
-      // the keyline is one texel of the half-res canvas, whatever size the head is drawn at
-      el.style.setProperty('--ol', Math.max(1.5, size * 0.045).toFixed(1) + 'px');
-      el.style.setProperty('--trim', TRIM[p.char.rarity] || TRIM.legendary);
+      // the keyline is about one texel of the half-res canvas, whatever size the head is
+      const ol = Math.max(1.5, h * 0.05);
+      el.style.width = w + 'px';
+      el.style.height = h + 'px';
+      el.style.setProperty('--ol', ol.toFixed(1) + 'px');
+      // The card is painted into the box INSIDE the keyline, so it is cropped for that box.
+      paintHead(el.firstElementChild, p.char.rarity, p.char.number, w - 2 * ol, { ...HEAD_CROP, h: h - 2 * ol });
       el.dataset.card = key;
     }
     // Through the same projection as the body, or a player walking into the goal leaves their
@@ -2529,8 +2563,8 @@ function drawHeads() {
     // UPRIGHT. An HS head does not lean into a run — it rides level on the feet paddling under
     // it — and only tips back, with the body (drawBody), when a hit knocks the player back.
     const tilt = p.stunned > 0 ? -p.side * 0.45 : 0;
-    el.style.transform = `translate(${x - size / 2}px, ${y - size / 2}px) rotate(${tilt}rad)`;
-    drawHeadGhosts(i, el, size);
+    el.style.transform = `translate(${x - w / 2}px, ${y - h / 2}px) rotate(${tilt}rad)`;
+    drawHeadGhosts(i, el, w, h);
     // ARMED: THE PLAYER GLOWS LIKE A FULL POWER BAR.
     //
     // Deliberately the BAR's gold and not the character's shot colour, which is what this
@@ -2548,7 +2582,7 @@ function drawHeads() {
 // body ghosts were drawn (GHOSTS, filled by draw). Cloned once per card and hidden the rest of
 // the time, so a match without a dash costs one `hidden` check per copy per frame.
 const HEAD_GHOSTS = [[], []];
-function drawHeadGhosts(i, el, size) {
+function drawHeadGhosts(i, el, w, h) {
   const want = GHOSTS[i], pool = HEAD_GHOSTS[i];
   if (!want.length && !pool.length) return;
   if (pool.key !== el.dataset.card) {                 // new card or size: re-clone
@@ -2569,7 +2603,7 @@ function drawHeadGhosts(i, el, size) {
     const d = depthPoint(q.x, headY(q));
     gh.hidden = false;
     gh.style.opacity = q.alpha.toFixed(2);
-    gh.style.transform = `translate(${OX + d.x * SC - size / 2}px, ${OY + d.y * SC - size / 2}px)`;
+    gh.style.transform = `translate(${OX + d.x * SC - w / 2}px, ${OY + d.y * SC - h / 2}px)`;
   }
 }
 
@@ -2871,7 +2905,7 @@ Object.assign(window, { goalBox, goalAt, depthPoint, INSIDE_Z });
 // drawBody, for looking at the sprite itself at a zoom a 79px body can be judged at. The
 // boots are 23px long on screen and no screenshot of a match will ever settle whether one
 // reads as a football boot — see _bootshots.mjs, which calls this.
-Object.assign(window, { drawBody });
+Object.assign(window, { drawBody, HEAD_CROP, HEAD_W, HEAD_H });
 Object.assign(window, { C, startMatch, pick, SHOTS, paintHead, callout });
 // The arcade, for the harness: the same entry points the buttons use, and the live progress.
 Object.assign(window, { startArcadeStage, openArcade, openModes, selectStage, POWERS, CHAMPIONS });

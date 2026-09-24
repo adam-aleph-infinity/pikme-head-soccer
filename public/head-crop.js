@@ -28,38 +28,51 @@
 // always the right part of the card even when the size was nonsense.
 const MAX_D = 0.55;
 
-export function headCrop(anchor, cardW, cardH, sizePx) {
+// `opts` is for the heads on the PITCH, which are Head Soccer shapes rather than circles:
+//   h     the element's height in px when it is not square (HS heads are wider than tall)
+//   zoom  how much closer than the measured head to crop (>1 = tighter), so the face and hair
+//         FILL the shape the way a cartoon head does instead of floating in a coin
+//   lift  how far to move the window UP, in head diameters, so there is hair over the brow and
+//         the chin sits on the shape's flat bottom (the anchor is the face's centre)
+// With no opts every number is what it always was — the pick screen, the cards under the
+// pitch and the scoreboard portraits are unchanged.
+export function headCrop(anchor, cardW, cardH, sizePx, opts = {}) {
   const ratio = cardH / cardW;
-  // The window, in card-normalised units: `d` wide, and the same number of PIXELS tall, which
-  // is fewer normalised units because a card is taller than it is wide.
-  const d = Math.min(MAX_D, Math.max(0.05, anchor.d || 0.6));
+  const hPx = opts.h || sizePx;
+  const zoom = opts.zoom || 1;
+  // The window, in card-normalised units: `d` wide, and `hPx/sizePx` of that in PIXELS tall,
+  // which is fewer normalised units because a card is taller than it is wide.
+  const d0 = Math.min(MAX_D, Math.max(0.05, anchor.d || 0.6));
+  const d = d0 / zoom;
   const halfW = d / 2;
-  const halfH = halfW / ratio;
+  const halfH = (d * hPx / sizePx) / 2 / ratio;
+  const want = { x: anchor.cx, y: anchor.cy - (opts.lift || 0) * d0 / ratio };
 
   // Clamp the centre so the window stays on the card. If the window is wider (or taller) than
   // the card itself, there is nothing to clamp to — centre it and show the whole card.
-  const cx = halfW * 2 >= 1 ? 0.5 : Math.min(1 - halfW, Math.max(halfW, anchor.cx));
-  const cy = halfH * 2 >= 1 ? 0.5 : Math.min(1 - halfH, Math.max(halfH, anchor.cy));
+  const cx = halfW * 2 >= 1 ? 0.5 : Math.min(1 - halfW, Math.max(halfW, want.x));
+  const cy = halfH * 2 >= 1 ? 0.5 : Math.min(1 - halfH, Math.max(halfH, want.y));
 
   const rendered = sizePx / d;                      // card width at this zoom
   return {
     width: rendered,
     height: rendered * ratio,
     x: sizePx / 2 - cx * rendered,
-    y: sizePx / 2 - cy * rendered * ratio,
+    y: hPx / 2 - cy * rendered * ratio,
     // What was moved, so a tool can report the badly-measured anchors rather than hide them.
-    shiftX: cx - anchor.cx,
-    shiftY: cy - anchor.cy,
+    shiftX: cx - want.x,
+    shiftY: cy - want.y,
     // How much the head size had to be cut back, so a tool can list the failed measurements.
     zoom: (anchor.d || 0.6) / d,
   };
 }
 
 // Does this window sit entirely on the card? The property the clamp exists to guarantee.
-export function cropOnCard(anchor, cardW, cardH) {
-  const c = headCrop(anchor, cardW, cardH, 100);
+export function cropOnCard(anchor, cardW, cardH, opts = {}) {
+  const hPx = opts.h ? opts.h * 100 : 100;          // opts.h here is height / width
+  const c = headCrop(anchor, cardW, cardH, 100, { ...opts, h: hPx });
   // Re-derive the normalised window from the returned geometry and check all four edges.
   const left = -c.x / c.width, right = (100 - c.x) / c.width;
-  const top = -c.y / c.height, bottom = (100 - c.y) / c.height;
+  const top = -c.y / c.height, bottom = (hPx - c.y) / c.height;
   return left >= -1e-9 && top >= -1e-9 && right <= 1 + 1e-9 && bottom <= 1 + 1e-9;
 }
