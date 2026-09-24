@@ -781,7 +781,11 @@ const CHECKS = {
   // measured one, the cut-in freezes the sim, and a blocked shot dazes — all non-arcade changes,
   // so the digest had to move. The arcade's own powers were touched only where they read a
   // removed constant (FALL_MULT, and CEIL_Y for effects, now SKY_Y).
-  const GOLDEN = '94bed903514b447413e531b81d1ed2d03872adb642dd15d6698587fa7d618114';
+  //
+  // AND AGAIN for "the game feels a little bit stuck" (hs/fix-stuck): no hit-stop on a kick,
+  // header or tackle (HS has none), and the bot holds a full gauge before arming it (FULL_HOLD
+  // in bot.js) instead of arming the tick it fills. Both non-arcade; no arcade power changed.
+  const GOLDEN = 'c94c7f8893814787726324eebed7dd6be587f06bab67ca3f443de16dbf9718ba';
   const h = createHash('sha256');
   const cases = [
     [{ rarity: 'legendary', number: 3 }, { rarity: 'legendary', number: 2 }, 3, 3, 11],
