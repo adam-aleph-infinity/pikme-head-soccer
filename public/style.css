@@ -124,41 +124,47 @@ body.safedemo { --safe-l: 44px; --safe-r: 44px; --safe-b: 21px; --safe-t: 12px; 
 }
 #cvnet { pointer-events: none; }
 
-/* The big head. Sized + moved from JS in stage pixels. */
-/* HEAD SOCCER'S HEAD (docs/HS-CHARACTER-LOOK.md): one thick near-black keyline round the whole
-   head (--ol, ~4.5% of the diameter, set by drawHeads — the same one native pixel HS draws), a
-   thin rim light on the BACK of the head in the card's rarity colour (--trim), and cel-style
-   volume over the face — a soft highlight up front, the edge falling into shade. No drop shadow
-   and no team ring: HS keeps the head clean, puts its shadow on the grass (drawShadow) and its
-   team colour on the collar. */
+/* The big head. Sized + moved from JS in stage pixels.
+   HEAD SOCCER'S HEAD (docs/HS-CHARACTER-LOOK.md): a wide cartoon silhouette — dome on top, full
+   cheeks, a flat chin — not a coin. --head-shape is that outline as a polygon, set once by
+   game.js (HEAD_SHAPE) so the canvas can trace the very same path. Three layers, all clipped to
+   it: the keyline (::before, the whole box in near-black), the card (<i>, inset by the keyline
+   width --ol so an even band of black shows round it) and the cel shading (::after). No ring,
+   no rim light, no drop shadow: HS keeps the head clean and puts its team colour on the collar.
+   The clip is on the LAYERS rather than on .head itself so a filter on .head (the armed glow)
+   is not clipped away. */
 .head {
   position: absolute; left: 0; top: 0;
-  border-radius: 50%; overflow: hidden;
   will-change: transform; pointer-events: none;
-  outline: var(--ol, 2px) solid #140c08;
 }
+.head::before, .head > i, .head::after {
+  position: absolute; display: block;
+  -webkit-clip-path: var(--head-shape, ellipse(50% 50%));   /* older iOS WebKit */
+  clip-path: var(--head-shape, ellipse(50% 50%));
+}
+.head::before { content: ''; inset: 0; background: #140c08; }
+.head > i {
+  inset: var(--ol, 2px);
+  background: #0b1020 no-repeat;         /* size/position set per card from the anchor table */
+  /* The photo pushed toward a cartoon: flatter, punchier colour. Only the cheap CSS filter
+     functions (GPU in WebKit too) — see docs/HS-CHARACTER-LOOK.md for what was measured. */
+  filter: saturate(1.35) contrast(1.12) brightness(1.04);
+}
+/* Cel volume: a lit patch up front and the lower edge falling into shade — two flat-ish tones
+   rather than a glossy ball. Facing mirrors it for player two. */
 .head::after {
-  content: ''; position: absolute; inset: 0; border-radius: 50%; pointer-events: none;
+  content: ''; inset: var(--ol, 2px); pointer-events: none;
   background:
-    radial-gradient(circle at 64% 27%, #ffffff47, #ffffff00 36%),
-    radial-gradient(circle at 50% 40%, #0c061800 58%, #0c06186b 100%);
-  box-shadow: inset calc(var(--ol, 2px) * 0.9) calc(var(--ol, 2px) * 0.9) 0 var(--trim, #ffcc33);
+    radial-gradient(ellipse 34% 26% at 62% 26%, #ffffff3d, #ffffff00),
+    radial-gradient(ellipse 72% 70% at 50% 36%, #0c061800 70%, #0c061866 100%);
 }
 .head.p1::after, .head.ghost.g1::after {
   background:
-    radial-gradient(circle at 36% 27%, #ffffff47, #ffffff00 36%),
-    radial-gradient(circle at 50% 40%, #0c061800 58%, #0c06186b 100%);
-  box-shadow: inset calc(var(--ol, 2px) * -0.9) calc(var(--ol, 2px) * 0.9) 0 var(--trim, #ffcc33);
+    radial-gradient(ellipse 34% 26% at 38% 26%, #ffffff3d, #ffffff00),
+    radial-gradient(ellipse 72% 70% at 50% 36%, #0c061800 70%, #0c061866 100%);
 }
 /* A dash afterimage: a see-through copy of the head (opacity set per frame by drawHeadGhosts). */
-.head.ghost { will-change: transform, opacity; outline: none; clip-path: circle(50%); }
-.head > i {
-  position: absolute; inset: 0; display: block;
-  background: #0b1020 no-repeat;         /* size/position set per card from the anchor table */
-  transform-origin: 50% 50%;
-}
-.head.armed { animation: armed .55s infinite alternate; }
-@keyframes armed { from { box-shadow: 0 0 0 0 #ffb80000; } to { box-shadow: 0 0 22px 6px #ffb800cc; } }
+.head.ghost { will-change: transform, opacity; }
 
 /* ── THE SCOREBOARD ───────────────────────────────────────────────────────────
    Was three numbers on one baseline inside a black box, flanked by two more black boxes
@@ -1239,9 +1245,10 @@ body.editing .pad .btn .grip {
 .pad .power.live { opacity: 1; pointer-events: auto; background: #b23a12d0; animation: gaugeFull .3s infinite alternate; }
 /* ARMED: the full power bar's gold, on the head. --glow is set by drawHeads. */
 .head.armed { animation: armedGlow .5s infinite alternate; }
+/* A drop-shadow, not a box-shadow: the head is a shape, and a box-shadow glows round its box. */
 @keyframes armedGlow {
-  from { box-shadow: 0 0 0 0 transparent; }
-  to   { box-shadow: 0 0 26px 8px var(--glow, #ffc400); }
+  from { filter: drop-shadow(0 0 0 transparent); }
+  to   { filter: drop-shadow(0 0 9px var(--glow, #ffc400)); }
 }
 
 /* ─── KEYS ─────────────────────────────────────────────────────────────── */

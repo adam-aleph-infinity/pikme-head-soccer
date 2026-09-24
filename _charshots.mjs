@@ -80,14 +80,48 @@ for (const [name, a, b, m = {}] of POSES) {
   const full = await send('Page.captureScreenshot', { format: 'png' });
   writeFileSync(`${OUT}/${name}.png`, Buffer.from(full.data, 'base64'));
   const r = await ev(`(() => { const e = document.getElementById('head${name === 'stunned' ? 1 : 0}').getBoundingClientRect(); return { x: e.left, y: e.top, w: e.width, h: e.height }; })()`);
-  // HS framing: a square about 2.6 heads wide, the head in the upper half.
-  const s = r.w * 2.6;
-  const clip = { x: r.x + r.w / 2 - s / 2, y: r.y - r.h * 0.8, width: s, height: s, scale: 400 / s };
+  // HS framing: a square 2.6 HITBOX diameters wide, centred on the head — the drawn head is
+  // HEAD_W of the hitbox wide, so that is divided back out.
+  const s = (r.w / (await ev('HEAD_W'))) * 2.6;
+  const clip = { x: r.x + r.w / 2 - s / 2, y: r.y + r.h / 2 - s / 2, width: s, height: s, scale: 400 / s };
   const zoom = await send('Page.captureScreenshot', { format: 'png', clip });
   writeFileSync(`${OUT}/${name}-zoom.png`, Buffer.from(zoom.data, 'base64'));
   shots.push(name);
 }
 console.log('poses:', shots.join(' '), '→', OUT);
+
+// THE LINEUP: different Saltiz faces in the pitch head's shape and crop, big enough to judge —
+// including the cards whose anchors were mis-measured (common_1 sits far left, common_13 and
+// legendary_34 claimed heads wider than half the card). LINEUP_ZOOMS=1,1.35,1.6 adds a row per
+// crop zoom, for choosing HEAD_CROP; by default one row at the live setting.
+const CARDS = (process.env.LINEUP || 'legendary_3,legendary_2,common_1,common_13,legendary_34,epic_10,rare_20,common_31').split(',');
+const ZOOMS = (process.env.LINEUP_ZOOMS || '').split(',').filter(Boolean).map(Number);
+await ev(`(() => {
+  document.querySelectorAll('.lineup').forEach((e) => e.remove());
+  const wrap = document.createElement('div');
+  wrap.className = 'lineup';
+  wrap.style.cssText = 'position:fixed;inset:0;z-index:99999;background:#2c8a4e;display:flex;flex-direction:column;gap:14px;padding:14px;';
+  const zooms = ${JSON.stringify(ZOOMS)}.length ? ${JSON.stringify(ZOOMS)} : [HEAD_CROP.zoom];
+  for (const z of zooms) {
+    const row = document.createElement('div');
+    row.style.cssText = 'display:flex;gap:14px;align-items:flex-end';
+    for (const id of ${JSON.stringify(CARDS)}) {
+      const [r, n] = id.split('_');
+      const h = 78, w = h * HEAD_W / HEAD_H, ol = h * 0.05;
+      const el = document.createElement('div');
+      el.className = 'head p0';
+      el.style.cssText = 'position:relative;transform:none;width:' + w + 'px;height:' + h + 'px;--ol:' + ol + 'px';
+      el.appendChild(document.createElement('i'));
+      paintHead(el.firstChild, r, +n, w - 2 * ol, { ...HEAD_CROP, zoom: z, h: h - 2 * ol });
+      row.appendChild(el);
+    }
+    wrap.appendChild(row);
+  }
+  document.body.appendChild(wrap);
+})()`);
+await sleep(600);
+writeFileSync(`${OUT}/heads-lineup.png`, Buffer.from((await send('Page.captureScreenshot', { format: 'png' })).data, 'base64'));
+console.log('lineup →', `${OUT}/heads-lineup.png`);
 
 // THE SIDE BY SIDE: the same poses cut out of the HS recording (M4-gaps.mp4, which is not in
 // git — point HS_VIDEO_DIR at the folder holding it), framed the same way — a square 2.6 heads

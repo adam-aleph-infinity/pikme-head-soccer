@@ -33,7 +33,7 @@ Our rule: the heads stay Saltiz card faces, everything else is drawn by us from 
 
 | | Before | Now |
 |---|---|---|
-| Head | Circle exactly the hitbox, 3 px ring in team blue/red, a big soft drop shadow, leaning ±20° with speed | Drawn **8% over the hitbox** (`HEAD_DRAW` 1.08 — HS's hair and cheeks overhang its head the same way; the sim is untouched), one dark keyline of ~4.5% of the diameter (`--ol`), a thin rim light on the back of the head in the card's **rarity colour** (`--trim`), a front highlight and shaded edge (`.head::after`). Upright; no drop shadow. |
+| Head | Circle exactly the hitbox, 3 px ring in team blue/red, a big soft drop shadow, leaning ±20° with speed — a **coin** | HS's **silhouette**: 1.17 × 1.07 of the hitbox (HS 62 × 57), a superellipse that is a dome on top and square-ish below, widest a little under the middle, jaw drawn in (`HEAD_SHAPE` → CSS `--head-shape` polygon, clip-path on the layers; the canvas traces the same points for the net). One near-black keyline (~5% of the height, `--ol`) all round; no ring, no rim light, no drop shadow. The card face is cropped **1.3× tighter** and nudged down (`HEAD_CROP`, head-crop.js `opts`) so face and hair fill the shape, chin on the flat bottom. Cartoon push: `saturate(1.35) contrast(1.12) brightness(1.04)` on the photo, a flat highlight and a shaded lower edge. Upright. The sim head is still the 26.4 circle. |
 | Body | SF2 gi: blue/red torso, belt, arms, legs with socks, long football boots | Dark rounded suit, team-colour collar just under the chin, rarity-colour rim light down its back, two chunky clog boots. Head : body **3.8 : 1** (chin 15 px off the grass). |
 | Kick | A leg pivoting from the hip, extending to the ball | The front boot alone, on HS's arc and timing (`KICK_KEYS`), held high toe-up, plus a faint swoosh while it climbs. The first frame starts at 1.2 R (HS 0.95 R) so the toe reaches the edge of the sim's kick circle. |
 | Jump / run | Arms up, leg tuck / leg swing | Boots splay / boots paddle. |
@@ -42,13 +42,23 @@ Our rule: the heads stay Saltiz card faces, everything else is drawn by us from 
 | Stunned | body flat at 66°, head at 69° | Tipped back 0.45 rad (head and body together, body pivoted at the neck so the feet swing forward), three stars orbiting over the head. |
 | Kickoff | — | "YOU" bubble in the local player's team colour over their head while the KICK OFF banner is up (online: over `NET.you`). |
 
+**Filter cost** (`node _headcost.mjs`: a live match, both heads moving, 844x390, CPU throttled 4x,
+5 s per variant): circle / shape / shape + CSS filter all ran at 16.7 ms median, 0% of frames over
+20 ms. An SVG posterize (`feComponentTransfer`, 6 levels) on top measured 0-1.1% over 20 ms in
+Chrome — and WebKit rasterises `url()` SVG filters on HTML content on the CPU, so on an iPhone it
+would be the expensive one. Not kept. Everything kept is WebKit-safe: `clip-path: polygon()` (also
+`-webkit-` prefixed), CSS filter functions, a `drop-shadow` filter for the armed glow (a
+box-shadow would glow round the box, not the head).
+
 Not taken: HS's red-nose bruise (the repo removed damage looks on purpose — no health in HS
-parity), the face turning to the opponent (our heads are front-facing photos), the loser's grey
-portrait (result screen, separate work).
+parity), the face turning to the opponent (our heads are front-facing photos), hair breaking the
+top of the outline (a photo cannot), the loser's grey portrait (result screen, separate work).
 
 ## Checking it
 
 `node _charshots.mjs` poses both players on a frozen 844x390 phone (stand, run, three kick
 frames, jump, dash, stunned, kickoff) → `.shots/chars/`. With `HS_VIDEO_DIR` pointing at the
 folder holding `M4-gaps.mp4` it also cuts the same poses out of HS at the same framing and writes
-`.shots/chars/side_by_side.png` (HS top row, ours below).
+`.shots/chars/side_by_side.png` (HS top row, ours below), and `heads-lineup.png`: eight Saltiz
+faces in the pitch head's shape and crop, mis-measured anchors included (`LINEUP_ZOOMS=1,1.3,1.6`
+adds a row per crop zoom).
