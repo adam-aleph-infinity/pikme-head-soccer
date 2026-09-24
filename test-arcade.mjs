@@ -400,7 +400,11 @@ function fireChampion(stage, i, gap = 460) {
   // AND for the HS power-shot pass (hs/power-shots): every card now fires its Head Soccer family
   // at the filmed comet's speed, a kick blocks and a stand gets you hit, the cut-in's dark
   // outlasts its hold, and online stats are EQUAL — all non-arcade changes by design.
-  const GOLDEN = 'f6a0c2d0ea4b55b7725d3f04bc585d81896d4bb859368f174e9e90a36ea104c6';
+  // AND AGAIN for the kick knockout (hs/kick-stun): every 5th boot on a player hurts, the 3rd
+  // hurt knocks him out for 2 s (`kicked`, `hurt` joined the snapshot); a standing victim slides
+  // instead of being lifted, and TACKLE_IMMUNE is 0.3 s. All non-arcade; no arcade power changed.
+  // AND the merge of the two (power shots + kick knockout): re-recorded on the combined sim.
+  const GOLDEN = 'a43e2d50eccc91475dd2589caab1550b494d0a0010f0936071a85c8d87623fd3';
   const h = createHash('sha256');
   const cases = [
     [{ rarity: 'legendary', number: 3 }, { rarity: 'legendary', number: 2 }, 3, 3, 11],
@@ -436,9 +440,10 @@ function fireChampion(stage, i, gap = 460) {
   // The HS restart and cut-in state joined the snapshot in one pass (cutin … gaugeLead, landT),
   // `stand` (whose head holds this player up) with the contact bodies, and the HS power shots
   // added the ailment to each player (ail, ailT) and the Multi-Ball's extra balls (xb): every one
-  // of them decides what a future tick does.
+  // of them decides what a future tick does. `kicked` and `hurt` (the kick
+  // knockout's count and the bruise) joined with hs/kick-stun.
   ok('the snapshot schema is the HS one', JSON.stringify(Object.keys(serialize(m))) === JSON.stringify(['t', 'clock', 'phase', 'freeze', 'hitStop', 'idle', 'cutin', 'cutinBy', 'banner', 'bannerT', 'ballWait', 'gaugeLead', 'score', 'golden', 'lastScorer', 'p', 'b', 'xb']) &&
-     serialize(m).p[0].length === 28);
+     serialize(m).p[0].length === 30);
   ok('an ordinary bot is still exactly its tier', createBot(3).d === DIFFICULTIES[3]);
 }
 

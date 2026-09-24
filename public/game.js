@@ -1116,6 +1116,18 @@ function drainEvents() {
       // boot to the shins was the bar "filling when I kick" that Idan reported.
       if (e.by === (ONLINE ? NET.you : 0)) banner('פגיעה!', '#ffd166');
     }
+    // HURT (the knockout's every-fifth kick, kickDamage in sim.js): HS throws a spray of red
+    // drops up off the head (M4 116.9 s, 119.3 s) and the face bruises a tier (drawHeads).
+    else if (e.type === 'hurt') {
+      const p = M.players[e.player];
+      if (p) {
+        const hy = headY(p) - headR(M, p) * 0.5;
+        for (let i = 0; i < 7; i++) {
+          parts.push({ k: 'c', x: p.x, y: hy, vx: (Math.random() - 0.5) * 260 - p.side * 70,
+            vy: -220 - Math.random() * 200, life: 0.75, t: 0, r: 2.5 + Math.random() * 3, color: '#e0202a' });
+        }
+      }
+    }
     else if (e.type === 'ballReset') banner('כדור חדש', '#8ea0be');
     else if (e.type === 'golden') banner('מוות פתאומי', '#ffb800');
     else if (e.type === 'fulltime') { playEvent(e.winner === (ONLINE ? NET.you : 0) ? 'win' : 'lose'); endMatch(); }
@@ -2077,7 +2089,9 @@ function drawBody(g, p, ghost = false) {
   // KNOCKED BACK (HS M4 61.9 s): the whole character tips back ~25° away from the hit, head
   // included, and is carried backwards through the air. Pivoted at the neck so the body stays
   // under the head, which means the boots swing out forward — the "feet taken out" look.
-  if (p.stunned > 0) {
+  // Every kick that lands rocks the victim back like this for the shove (HS M4 102–121 s:
+  // KICK_REEL on the grass), and a knockout holds it under the stars (reeling()).
+  if (reeling(p)) {
     g.translate(0, -C.BODY_H);
     g.rotate(-face * 0.45);
     g.translate(0, C.BODY_H);
@@ -2479,7 +2493,7 @@ function drawHeads() {
     const x = OX + d.x * SC, y = OY + d.y * SC;
     // UPRIGHT. An HS head does not lean into a run — it rides level on the feet paddling under
     // it — and only tips back, with the body (drawBody), when a hit knocks the player back.
-    const tilt = p.stunned > 0 ? -p.side * 0.45 : 0;
+    const tilt = reeling(p) ? -p.side * 0.45 : 0;
     el.style.transform = `translate(${x - w / 2}px, ${y - h / 2}px) rotate(${tilt}rad)`;
     drawHeadGhosts(i, el, w, h);
     // ARMED: THE PLAYER GLOWS LIKE A FULL POWER BAR.
@@ -2493,10 +2507,19 @@ function drawHeads() {
     // BEHEADED (the ailment): no head for its few seconds — champ-vfx draws the empty ring.
     const gone = p.ail === 'beheaded';
     if (el.classList.contains('gone') !== gone) { el.classList.toggle('gone', gone); el.style.visibility = gone ? 'hidden' : ''; }
-    // NO BRUISES. The face used to redden and bruise off a hidden health bar (.head.hurt1..4);
-    // Head Soccer has no health, so the character is drawn the same however often it is hit.
+    // THE BRUISE, one tier per HURT this match (`hurt`, kickDamage in sim.js) — not health:
+    // HS keeps a red nose on a player it has hurt, through goals and after the stars (M4
+    // 116.7–121.3 s; M3 has a black eye too). Our own mark, drawn over the card: .hurt1..3.
+    const hurt = Math.min(3, p.hurt | 0);
+    if (el.dataset.hurt !== String(hurt)) {
+      el.classList.remove('hurt1', 'hurt2', 'hurt3');
+      if (hurt) el.classList.add('hurt' + hurt);
+      el.dataset.hurt = String(hurt);
+    }
   }
 }
+// Rocked back: the knockback of a kick that landed (`shoved`), or down under the stars.
+const reeling = (p) => p.stunned > 0 || p.shoved > 0;
 
 // The head half of a dash afterimage: see-through copies of the head node, placed where the
 // body ghosts were drawn (GHOSTS, filled by draw). Cloned once per card and hidden the rest of

@@ -357,13 +357,42 @@ export let TACKLE_LIFT = 136;        // (200 x old PACE)
 // About the flight time of the lift (2 x 136 / 595 = 0.46s) less the landing, so the shove
 // carries through the air and a short slide, and then the controls are theirs again.
 export let TACKLE_SHOVE = 0.35;
-export let TACKLE_IMMUNE = 1.1;      // s before the same player can be tackled again
+// …BUT ONLY WHEN THE VICTIM IS ALREADY IN THE AIR. HS M4 102–121 s (Idan booting the CPU over
+// and over, docs/hs-estimates.json kick.knockback.*): a player kicked while STANDING stays on
+// his feet, rocks back ~25° for KICK_REEL and slides ~20–60 px toward his own goal; only one
+// kicked mid-jump is carried off, ~110–140 px and up (6299/6345). So the push/lift above is the
+// airborne shove, and a grounded one is this slide — TACKLE_GROUND_PUSH px/s bled off by
+// PLAYER_FRICTION every tick, which comes to ~40 px — with no lift at all.
+export let TACKLE_GROUND_PUSH = 820;
+export let KICK_REEL = 0.2;          // s a grounded victim is rocked back (HS: 8–12 frames a kick)
+// HS lands boots on the same player 0.17–0.6 s apart (M4 6201/6211/6221, 7121/7131/7148), so
+// the old 1.1 s of immunity swallowed most of the kicks Head Soccer counts. It is now only the
+// guard against one swing landing twice; a single kicker's KICK_COOLDOWN (0.349) is the real
+// rate, and the knockout below is what stops a juggle.
+export let TACKLE_IMMUNE = 0.3;      // s before the same player can be tackled again
+
+// ---- THE KNOCKOUT: stars after enough kicks --------------------------------
+// Head Soccer's one "damage" rule (wiki, Power Shot Guide: "if you get damaged three times you
+// will get knocked out, and it resets the three times"), counted off the footage:
+//   * every kick that connects rocks the victim back; most do nothing else;
+//   * every KICK_HURT_EVERY-th one HURTS: red drops fly off the head and the face bruises a tier
+//     (HS M4 106.0 s / 116.7 s on the CPU, the bruise still there after the goal at 117.5 s);
+//   * the KICK_HURTS_TO_KO-th hurt knocks him out: three stars, head tipped back, no controls,
+//     for KICK_KO_TIME (M3 82.60–84.57 s = 1.97 s; M4 119.3 s ran until the goal reset cut it).
+// M4 match 2 took 15 connected kicks from the first to the stars (hurts on the 6th, 9th, 15th):
+// 5 x 3 = 15 is that total as a fixed rule, and HS shows no clock on it — the gap between the 1st
+// and 2nd hurt was 9 s with only three kicks in it. It is not reset by a goal (M4 117.5 s) and
+// is reset by the knockout. The count is kicks, never time, so it is fully deterministic.
+export let KICK_HURT_EVERY = 5;
+export let KICK_HURTS_TO_KO = 3;
+export let KICK_KO_TIME = 2.0;
 
 // ---- REMOVED: hidden health ------------------------------------------------
 // There used to be an invisible health bar here (HP_*, KICK_DAMAGE, POWER_DAMAGE): every boot
 // and every blocked power shot took a slice, the face reddened and bruised through four tiers,
 // and bottoming out stunned you for 1.75s. Head Soccer has none of that — a hit shoves you and
-// a blocked power shot bounces off you, and that is all — so it is gone, bruises included.
+// a blocked power shot bounces off you, and that is all — so it is gone. (What came back is not
+// health: the KNOCKOUT above counts kicks, and its bruise is a tier per hurt, off the footage.)
 // What survives is the generic STUN TIMER (`p.stunned`, stun()/tickStun() in shared/sim.js),
 // because arcade powers still knock people down with it and HS's own ailments will too.
 export let STUN_TIME = 1.25;         // s a power that "knocks down" takes the controls away for
@@ -529,6 +558,11 @@ const SETTERS = {
   TACKLE_PUSH_BACK: (v) => { TACKLE_PUSH_BACK = v; },
   TACKLE_LIFT: (v) => { TACKLE_LIFT = v; },
   TACKLE_IMMUNE: (v) => { TACKLE_IMMUNE = v; },
+  TACKLE_GROUND_PUSH: (v) => { TACKLE_GROUND_PUSH = v; },
+  KICK_REEL: (v) => { KICK_REEL = v; },
+  KICK_HURT_EVERY: (v) => { KICK_HURT_EVERY = v; },
+  KICK_HURTS_TO_KO: (v) => { KICK_HURTS_TO_KO = v; },
+  KICK_KO_TIME: (v) => { KICK_KO_TIME = v; },
   STUN_TIME: (v) => { STUN_TIME = v; },
   HIT_STOP_KICK: (v) => { HIT_STOP_KICK = v; },
   HIT_STOP_POWER: (v) => { HIT_STOP_POWER = v; },
@@ -609,6 +643,11 @@ export function snapshot() {
     TACKLE_PUSH_BACK,
     TACKLE_LIFT,
     TACKLE_IMMUNE,
+    TACKLE_GROUND_PUSH,
+    KICK_REEL,
+    KICK_HURT_EVERY,
+    KICK_HURTS_TO_KO,
+    KICK_KO_TIME,
     STUN_TIME,
     HIT_STOP_KICK,
     HIT_STOP_POWER,

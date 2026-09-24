@@ -707,6 +707,61 @@ function blockRebound(doc) {
   return { value: vb && va && Math.sign(va) !== Math.sign(vb) ? 1 : 0, sd: 0, n: 1 };
 }
 
+// C11 — the KNOCKOUT. `kicked` is player 0 booted by the other player (note 'air' when he was
+// off the grass), `hurt` the red drops off his head, stun_on/stun_off the stars.
+// How many boots it takes to put him down (counting the one that does), and how many hurts.
+const countToStun = (type) => (doc) => {
+  const on = tagT(doc, 'stun_on')[0];
+  if (on == null) return NONE;
+  const n = tagT(doc, type).filter((t) => t <= on + 1e-9).length;
+  return n ? { value: n, sd: 0, n: 1 } : NONE;
+};
+// Boots between one hurt and the next (the first counted from the first boot), averaged.
+function kickedPerHurt(doc) {
+  const k = tagT(doc, 'kicked'), h = tagT(doc, 'hurt');
+  if (!k.length || !h.length) return NONE;
+  const gaps = [];
+  let from = -Infinity;
+  for (const t of h) { gaps.push(k.filter((x) => x > from + 1e-9 && x <= t + 1e-9).length); from = t; }
+  const mean = gaps.reduce((a, b) => a + b, 0) / gaps.length;
+  return { value: mean, sd: Math.sqrt(gaps.reduce((a, b) => a + (b - mean) ** 2, 0) / gaps.length), n: gaps.length };
+}
+// After getting up, does it take the whole count again? 1 = the count restarted at the stars.
+function resetsOnKO(doc) {
+  const on = tagT(doc, 'stun_on'), off = tagT(doc, 'stun_off');
+  if (on.length < 2 || !off.length) return NONE;
+  const k = tagT(doc, 'kicked');
+  const first = k.filter((t) => t <= on[0] + 1e-9).length;
+  const again = k.filter((t) => t > off[0] && t <= on[1] + 1e-9).length;
+  return { value: again === first ? 1 : 0, sd: 0, n: 1 };
+}
+// Does something between the boots (a rest, a goal) cost the count? 1 = it took MORE boots than
+// the plain run's count to put him down, i.e. the count ran down or was cleared. `plain` is that
+// count (the knockout on an unbroken run of boots); only a take tagged as trying it answers.
+const countCleared = (plain) => (doc) => {
+  if (!attempted(doc, 'kickstun')) return NONE;
+  const r = countToStun('kicked')(doc);
+  return r.value == null ? NONE : { value: r.value > plain() ? 1 : 0, sd: 0, n: 1 };
+};
+// How far a boot carries him: head x from the kick to where it settles (standing: 0.6 s later;
+// in the air: the landing after it), taken on the first boot of each kind.
+function knockback(doc, air) {
+  const t = tagT(doc, 'kicked', air ? { note: 'air' } : { not: 'air' })[0];
+  if (t == null) return NONE;
+  const pts = p0(doc);
+  const at = (tt) => pts.reduce((b, p) => (Math.abs(p.t - tt) < Math.abs(b.t - tt) ? p : b), pts[0]);
+  const end = air ? (tagT(doc, 'land').find((l) => l > t) ?? t + 1) : t + 0.6;
+  return { value: Math.abs(at(end).x - at(t).x), sd: 3, n: 1 };
+}
+// How high a STANDING boot lifts him: the head's rise in the half second after it.
+function knockLift(doc) {
+  const t = tagT(doc, 'kicked', { not: 'air' })[0];
+  if (t == null) return NONE;
+  const s = p0(doc).filter((p) => p.t >= t - 0.02 && p.t <= t + 0.5);
+  if (!s.length) return NONE;
+  return { value: Math.max(0, s[0].y - Math.min(...s.map((p) => p.y))), sd: 1, n: 1 };
+}
+
 // How HIGH a struck ball goes: the top of the flight after the first contact tagged `type`
 // (with `note`), as the ball centre's rise above a ball resting on the grass. The flight ends
 // at the next contact the track shows, so a ball stopped by the ceiling reads the ceiling.
@@ -865,6 +920,19 @@ export const METRICS = [
   { id: 'dashUnder.headLandTime', unit: 's', clips: ['C10'], scenario: 'dashUnder', timing: true,
     fit: (d) => (tagT(d, 'stand_on').length ? dur('stand_on', 'stand_off')(d) : attempted(d, 'dashunder') ? { value: 0, sd: 0, n: 1 } : NONE) },
 
+  // C11 — kick the opponent until something happens: the knockout (kickDamage in sim.js).
+  { id: 'kick.stun.hitsToStun', unit: 'kicks', clips: ['C11'], scenario: 'kickStun', fit: countToStun('kicked') },
+  { id: 'kick.stun.hurtsToStun', unit: 'hurts', clips: ['C11'], scenario: 'kickStun', fit: countToStun('hurt') },
+  { id: 'kick.hurt.every', unit: 'kicks', clips: ['C11'], scenario: 'kickStun', fit: kickedPerHurt },
+  { id: 'kick.stun.duration', unit: 's', clips: ['C11'], scenario: 'kickStun', timing: true, fit: dur('stun_on', 'stun_off') },
+  { id: 'kick.stun.resetsOnKO', unit: 'yes/no', clips: ['C11'], scenario: 'kickStun', fit: resetsOnKO },
+  { id: 'kick.stun.decays', unit: 'yes/no', clips: ['C11'], scenario: 'kickStunPause', fit: countCleared(() => KICKS_TO_KO) },
+  { id: 'kick.stun.goalResets', unit: 'yes/no', clips: ['C11'], scenario: 'kickStunGoal', fit: countCleared(() => KICKS_TO_KO) },
+  { id: 'kick.reel', unit: 's', clips: ['C11'], scenario: 'kickStun', timing: true, fit: dur('reel_on', 'reel_off') },
+  { id: 'kick.knockback.ground', unit: 'px', clips: ['C11'], scenario: 'kickKnock', fit: (d) => knockback(d, false) },
+  { id: 'kick.knockback.air', unit: 'px', clips: ['C11'], scenario: 'kickKnock', fit: (d) => knockback(d, true) },
+  { id: 'kick.knockback.lift', unit: 'px', clips: ['C11'], scenario: 'kickKnock', fit: knockLift },
+
   // C12 — hardest kick across the pitch: the fastest launch of each take.
   { id: 'ball.maxSpeed', unit: 'px/s', clips: ['C12'], scenario: 'kickMax',
     fit: (d) => { const ls = tagT(d, 'kick').map((t) => launch(ball(d), t)).filter(Boolean); if (!ls.length) return NONE;
@@ -902,6 +970,9 @@ export const METRICS = [
 ];
 
 export const METRIC_BY_ID = new Map(METRICS.map((m) => [m.id, m]));
+// The unbroken knockout count HS showed (M4 match 2: 15 boots to the stars) — the yardstick
+// for "did the rest / the goal cost the count" (countCleared).
+const KICKS_TO_KO = 15;
 
 // THE SEAM THE PARITY HARNESS USES. One track document in, {id: {value, sd, n}} out, through
 // exactly the fit the video side runs for that id. `metricIds` null means every metric; an id

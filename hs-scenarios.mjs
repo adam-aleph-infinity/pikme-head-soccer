@@ -231,6 +231,42 @@ export const SCENARIOS = {
     during: (m, i) => { if (i === 4) { const [a, z] = m.players; place(m.ball, a.x + 220, headY(a)); z.shot = shotById('straight'); launchPower(m, m.ball, z, null, { shockwave() {}, hit() {} }); } },
     input: (i) => ({ kick: i === 5 }) },
 
+  // C11 — kick the CPU until something happens to it (the knockout). Player 1 is the kicker and
+  // player 0 the victim, so the victim's stun_on/stun_off are the tags the harness already reads.
+  // kickStun: boot him to the stars, keep booting through them (nothing may count), then boot
+  // him to the stars again from zero. The pair is walked back to the right whenever the shoves
+  // have carried them near the left goal.
+  kickStun: { clip: 'C11', ticks: 60 * 22, attempt: 'kickstun',
+    setup: (m) => { openPlay(m); parkBall(m); bootSetup(m); },
+    during: (m) => { stillBall(m); if (m.players[0].x < 260) bootSetup(m); },
+    input: booter() },
+  // …with a 10 s rest after the 4th kick: does the count run down? (HS M4: no.)
+  kickStunPause: { clip: 'C11', ticks: 60 * 22, attempt: 'kickstun',
+    setup: (m) => { openPlay(m); parkBall(m); bootSetup(m); },
+    during: (m) => { stillBall(m); if (m.players[0].x < 260) bootSetup(m); },
+    input: booter({ restAfter: 4, rest: 600 }) },
+  // …with a goal conceded after the 14th kick: does the restart clear the count? (HS M4: no.)
+  kickStunGoal: { clip: 'C11', ticks: 60 * 20, attempt: 'kickstun',
+    setup: (m) => { openPlay(m); parkBall(m); bootSetup(m); },
+    during: (m, i, ctx) => {
+      if (!ctx.scored) stillBall(m);
+      if (ctx.kicks === 14 && !ctx.scored) {
+        ctx.scored = true;
+        place(m.ball, C.GOAL_W + m.ball.r + 2, C.GROUND_Y - 40, -600, 0);
+      }
+    },
+    input: booter() },
+  // One boot on a STANDING victim, then one on a JUMPING one: how far each is carried.
+  kickKnock: { clip: 'C11', ticks: 60 * 3,
+    setup: (m) => { openPlay(m); parkBall(m); bootSetup(m); },
+    during: (m, i) => { if (i === 90) bootSetup(m); },
+    input: (i, m) => {
+      const k = m.players[1];
+      const jump = i >= 96 && i < 100;                   // the victim leaves the grass…
+      const kick = (i === 5) || (i === 106 && k.kickCd <= 0); // …and is booted on the way up
+      return [{ jump }, { kick }];
+    } },
+
   // C17 — a goal and the restart after it.
   goalReset: { clip: 'C17', ticks: 60 * 5, setup: (m) => { openPlay(m); place(m.ball, C.W - 150, C.GROUND_Y - 60, 600, 0); }, input: () => ({}) },
   // C19 — a whole bot-vs-bot match.
@@ -247,6 +283,38 @@ export const SCENARIOS = {
       return [botInput(ctx.bots[0], m, 0, C.TICK), botInput(ctx.bots[1], m, 1, C.TICK)];
     } },
 };
+
+// The ball out of the way for good: re-parked every tick and never idle, so the idle respawn
+// cannot drop one into the fight and have a shoulder knock it into a net.
+function stillBall(m) { parkBall(m); m.idle = 0; }
+// C11: the victim (player 0) standing in open grass, the kicker (player 1) on his boot side.
+// Player 1 attacks the LEFT goal, so his boot swings left: he stands to the victim's right.
+function bootSetup(m) {
+  const [v, k] = m.players;
+  v.x = C.W - 200; v.y = C.GROUND_Y; v.vx = 0; v.vy = 0; v.onGround = true;
+  k.x = v.x + C.KICK_REACH; k.y = C.GROUND_Y; k.vx = 0; k.vy = 0; k.onGround = true;
+}
+// The kicker: keep the victim on the boot and press KICK (a fresh press) whenever it is ready —
+// Idan mashing at the CPU in M4 102–121 s. `restAfter` kicks landed, it stands still `rest` ticks.
+function booter({ restAfter = Infinity, rest = 0 } = {}) {
+  return (i, m, ctx) => {
+    const [v, k] = m.players;
+    // A boot that landed, as the kicker sees it: the victim's immunity window restarting.
+    ctx.kicks ??= 0;
+    if (v.tackleImmune > (ctx.imm ?? 0) + 1e-9) ctx.kicks++;
+    ctx.imm = v.tackleImmune;
+    if (ctx.kicks >= restAfter && ctx.restUntil == null) ctx.restUntil = i + rest;
+    const inp = {};
+    if (ctx.restUntil != null && i < ctx.restUntil) { ctx.prevKick = false; return [{}, inp]; }
+    const gap = k.x - v.x;
+    if (gap > C.KICK_REACH + 6) inp.left = true;
+    else if (gap < C.KICK_REACH - 12) inp.right = true;
+    const ready = k.kickCd <= 0 && Math.abs(gap - C.KICK_REACH) < 18 && m.phase === 'play';
+    inp.kick = ready && !ctx.prevKick;
+    ctx.prevKick = inp.kick;
+    return [{}, inp];
+  };
+}
 
 // A small seeded generator, so the bot match is the same match on every run.
 function rng(seed) {
@@ -314,6 +382,10 @@ export function runScenario(name) {
     for (const e of m.events) {
       const who = e.player ?? e.by;
       if (e.type === 'goal') { tag(i, 'goal'); continue; }
+      // C11: player 0 booted by the other player (note 'air' when he was off the grass), and
+      // the every-fifth kick that HURTS him (red drops on video).
+      if (e.type === 'tackle') { if (e.on === 0) tag(i, 'kicked', st.air ? 'air' : undefined); continue; }
+      if (e.type === 'hurt') { if (e.player === 0) tag(i, 'hurt'); continue; }
       if (e.type === 'ballDrop') { tag(i, 'ready_off'); continue; }
       if (e.type === 'bannerOff') { tag(i, 'banner_off'); continue; }
       if (e.type === 'powershot') { tag(i, 'cutin_on'); st.cut = true; if (who === 0 && e.countered) tag(i, 'counter'); continue; }
@@ -338,6 +410,12 @@ export function runScenario(name) {
         }
       }
     }
+    // Rocked back by a boot (the knockback owns the body: `shoved`), as a person tags the head
+    // tipping back and coming upright again.
+    const reel = m.players[0].shoved > 0;
+    if (reel && !st.reel) tag(i, 'reel_on');
+    if (!reel && st.reel) tag(i, 'reel_off');
+    st.reel = reel;
     // The leg back in.
     if (st.kickT > 0 && a.kickT <= 0) tag(i, 'kick_end');
     st.kickT = a.kickT;

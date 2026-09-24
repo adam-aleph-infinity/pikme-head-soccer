@@ -72,11 +72,17 @@ function makePlayer(index, char) {
     tackleImmune: 0,                // s before the same player can be tackled again
     // `stunned` is the one and only way the controls are ever taken off a player: seconds
     // left on the floor, set by stun() and counted down by tickStun(). There is no health —
-    // Head Soccer has none — so nothing a boot or a blocked shot does ever sets it.
+    // Head Soccer has none. A blocked shot dazes (POWER_BLOCK_STUN) and the KNOCKOUT does.
     stunned: 0,
     // THE AILMENT a power shot or an aura left on this player ('' = none) and its seconds left.
     // Two scalars rather than an object, so the snapshot copies them by value (P_FIELDS).
     ail: '', ailT: 0,
+    // THE KNOCKOUT (KICK_HURT_EVERY, constants.js). `kicked`: connected kicks taken since the
+    // last knockout — every KICK_HURT_EVERY-th one hurts, the KICK_HURTS_TO_KO-th hurt knocks
+    // you out and zeroes it. Counts boots, never time, and a goal does not clear it (HS M4).
+    // `hurt`: the bruise, 0..3 — one tier per hurt this match, for the renderer only. It is
+    // NOT reset by the knockout (HS M4 121.3 s: the red nose is still there after the stars).
+    kicked: 0, hurt: 0,
     prev: {},
     stats_: null,
   };
@@ -1144,8 +1150,8 @@ function tryCounter(m, p, fx) {
   earlyBlock(m, p, KIT, fx);
 }
 
-// Kicking the OPPONENT instead of the ball: knockback and nothing else (see tryTackle). It
-// pays NO gauge — Head Soccer's meter fills on the clock alone (chargeGauge).
+// Kicking the OPPONENT instead of the ball: knockback, and a count toward the knockout (see
+// tryTackle, kickDamage). It pays NO gauge — Head Soccer's meter fills on the clock alone (chargeGauge).
 //
 // Resolved on the kick's rising edge, not per-frame, so one press is one tackle.
 // A deliberate header: the ball is at your head and you pressed kick. Distinct from the
@@ -1256,14 +1262,23 @@ function tryTackle(m, p, fx) {
   // gauge and take a quarter of a hidden health bar; all three are gone.
   //
   // The front/back distinction survives on the shove alone: a hit you never saw shoves you
-  // TACKLE_PUSH_BACK as far. Measured HS values (and any hits->stars knockout) come later.
+  // TACKLE_PUSH_BACK as far. The HS knockout — stars after enough of these — is kickDamage.
   const dir = -foe.side;
   const behind = foe.facing === from;
-  foe.vx = dir * C.TACKLE_PUSH * (behind ? C.TACKLE_PUSH_BACK : 1);
-  foe.vy = Math.min(foe.vy, -C.TACKLE_LIFT * (behind ? C.TACKLE_PUSH_BACK : 1));
-  foe.onGround = false;
+  const k = behind ? C.TACKLE_PUSH_BACK : 1;
+  // AIRBORNE OR STANDING (HS M4 102–121 s). Kicked on your feet you stay on them: rocked back
+  // for KICK_REEL and slid ~40 px (TACKLE_GROUND_PUSH through PLAYER_FRICTION), no lift. Kicked
+  // in the air you are carried off, the full shove and lift below — the far launches in the
+  // footage (6299, 6345) were both of a CPU already off the ground.
+  if (foe.onGround) {
+    foe.vx = dir * C.TACKLE_GROUND_PUSH * k;
+    foe.shoved = C.KICK_REEL;
+  } else {
+    foe.vx = dir * C.TACKLE_PUSH * k;
+    foe.vy = Math.min(foe.vy, -C.TACKLE_LIFT * k);
+    foe.shoved = C.TACKLE_SHOVE;             // the knockback owns the body for a moment
+  }
   foe.dashT = 0;
-  foe.shoved = C.TACKLE_SHOVE;               // the knockback owns the body for a moment
   foe.tackleImmune = C.TACKLE_IMMUNE;
 
   p.kickT = 0;                                   // the boot is spent on them, not the ball
@@ -1271,7 +1286,25 @@ function tryTackle(m, p, fx) {
   m.events.push({ type: 'tackle', by: p.index, on: foe.index, x: kx, y: ky,
                  powered: false, behind, shot: null });
   fx.hit(kx, ky, '#ffd166', 1.6);
+  kickDamage(m, foe, p);
   return true;
+}
+
+// THE KNOCKOUT, counted in boots (KICK_HURT_EVERY, constants.js). Every connected kick counts;
+// every KICK_HURT_EVERY-th HURTS — a `hurt` event (the renderer's red drops) and a tier on the
+// bruise — and the KICK_HURTS_TO_KO-th hurt knocks the victim out for KICK_KO_TIME and starts
+// the count again, as the wiki says HS does. No clock, no randomness: the same kicks give the
+// same knockout on the server and on every client. A player already down is never counted —
+// tryTackle refuses them — so the stars cannot be topped up or chained into a second knockout.
+function kickDamage(m, foe, by) {
+  foe.kicked++;
+  if (foe.kicked % C.KICK_HURT_EVERY !== 0) return;
+  foe.hurt = Math.min(3, foe.hurt + 1);
+  const ko = foe.kicked >= C.KICK_HURT_EVERY * C.KICK_HURTS_TO_KO;
+  m.events.push({ type: 'hurt', player: foe.index, by: by.index, level: foe.hurt, ko });
+  if (!ko) return;
+  foe.kicked = 0;
+  if (stun(m, foe, C.KICK_KO_TIME)) m.events.push({ type: 'knockout', player: foe.index, by: by.index, time: C.KICK_KO_TIME });
 }
 
 // ONE contact response for every surface a player has. `nx,ny` is the unit normal pointing
@@ -1750,6 +1783,9 @@ const P_FIELDS = [
   // Whose head (or shoulder) holds this body up, -1 for none (resolvePlayers). Rebuilt every
   // tick from the geometry, but the renderer and the bot read it between ticks.
   'stand',
+  // The knockout count decides when a future kick knocks out, and the bruise is drawn off
+  // `hurt`: a client restored without them would put the stars on the wrong boot.
+  'kicked', 'hurt',
 ];
 
 export function serialize(m) {
