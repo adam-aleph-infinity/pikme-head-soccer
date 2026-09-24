@@ -1024,7 +1024,8 @@ function drainEvents() {
     // A champion power brings its own sound (champ-vfx.js), in place of the fireball's.
     if (!(e.type === 'powershot' && e.champ)) playEvent(e.type === 'strike' ? (e.head ? 'head' : 'kick') : e.type);
     VFXR.onEvent(e);
-    if (e.type === 'goal') banner(e.power ? 'גול פאוור!' : 'גול!', e.player === 0 ? '#4ea0ff' : '#ff5c7a');
+    // A goal's banner is the sim's GOAL! (drawReady); a power goal still says so here.
+    if (e.type === 'goal') { if (e.power) banner('גול פאוור!', e.player === 0 ? '#4ea0ff' : '#ff5c7a'); }
     else if (e.type === 'counter') banner('קאונטר!', '#ffffff');
     else if (e.type === 'tackle') {
       fx.shockwave(e.x, e.y, '#ffd166');
@@ -1078,7 +1079,9 @@ function frame(now) {
     } else {
       acc += dt;
       // A champion's super cut-in holds the match for a beat (arcade only; see champ-vfx.js).
-      if (M.champ && VFXR.holding()) acc = 0;
+      // The SIM now holds every fired power shot itself (m.cutin, 1.34s), so this client-side
+      // beat only runs when the sim is not already cutting in — never twice over.
+      if (M.champ && VFXR.holding() && !(M.cutin > 0)) acc = 0;
       let guard = 0;
       while (acc >= C.TICK && guard++ < 8) {
         // ?solo=1 (or window.BOT_OFF) leaves the opponent standing still. It exists for two
@@ -1344,7 +1347,8 @@ function draw() {
   g.clearRect(0, 0, C.W, C.H + BLEED);
   // A frozen frame on its own just looks like a dropped frame. A couple of pixels of shake
   // during hit-stop is what turns it into an impact.
-  const shake = M.hitStop > 0 ? M.hitStop * 60 : 0;
+  // Not under a cut-in: that pause is 1.34s long, and 80px of shake is not an impact.
+  const shake = M.hitStop > 0 && !(M.cutin > 0) ? M.hitStop * 60 : 0;
   const kick = VFXR.shakeOffset();           // a champion power's own camera kick
   if (shake > 0 || kick) {
     g.save();
@@ -1378,7 +1382,50 @@ function draw() {
   }
   drawHeads();
   drawHeadNet();                     // …and the near net again, over a head that is in the goal
-  if (M.freeze > 0 && M.phase !== 'over') drawReady(g);
+  drawCutin(ctxNet);                 // over the heads too: the whole screen darkens but the shooter
+  if (M.banner && M.bannerT > 0 && M.phase !== 'over') drawReady(g);
+}
+
+// THE CUT-IN, as a picture. The pause itself is the sim's (m.cutin: 1.34s, HS M4) and an online
+// match takes it on the same tick; this is only what it looks like, and the look is ours: the
+// pitch goes dark, a pool of light stays on the shooter, and slow rays fan out of their head.
+// Drawn on the layer ABOVE the DOM heads, so the other face darkens with the pitch. An arcade
+// champion's power draws its own super cut-in (champ-vfx.js) and is left to it.
+function drawCutin(g) {
+  if (!(M.cutin > 0) || !(M.cutinBy >= 0)) return;
+  const p = M.players[M.cutinBy];
+  if (!p || (M.champ && p.champ)) return;
+  const k = 1 - M.cutin / C.POWER_CUTIN;                  // 0 → 1 across the pause
+  const fade = Math.min(1, k / 0.06) * Math.min(1, (1 - k) / 0.12);
+  const h = depthPoint(p.x, headY(p));
+  const r = headR(M, p);
+  const col = (p.shot && p.shot.color) || '#ffd23c';
+  g.save();
+  const dark = g.createRadialGradient(h.x, h.y, r * 1.3, h.x, h.y, r * 9);
+  dark.addColorStop(0, 'rgba(6,3,14,0)');
+  dark.addColorStop(0.3, 'rgba(6,3,14,0.45)');
+  dark.addColorStop(1, 'rgba(6,3,14,0.8)');
+  g.globalAlpha = fade;
+  g.fillStyle = dark;
+  g.fillRect(0, 0, C.W, C.H);
+  // The rays start clear of the face — the shooter is who the moment is about.
+  g.globalCompositeOperation = 'lighter';
+  g.translate(h.x, h.y);
+  g.rotate(k * 0.8);
+  const L = 560, r0 = r * 1.25;
+  for (let i = 0; i < 14; i++) {
+    const a = (i / 14) * 6.2832, w = i % 2 ? 0.05 : 0.09;
+    g.globalAlpha = (i % 2 ? 0.16 : 0.28) * fade;
+    g.fillStyle = i % 2 ? '#ffffff' : col;
+    g.beginPath();
+    g.moveTo(Math.cos(a - w * 0.4) * r0, Math.sin(a - w * 0.4) * r0);
+    g.lineTo(Math.cos(a - w) * L, Math.sin(a - w) * L);
+    g.lineTo(Math.cos(a + w) * L, Math.sin(a + w) * L);
+    g.lineTo(Math.cos(a + w * 0.4) * r0, Math.sin(a + w * 0.4) * r0);
+    g.closePath();
+    g.fill();
+  }
+  g.restore();
 }
 
 // THE ONE THING THE CANVAS CANNOT REACH.
@@ -2054,6 +2101,8 @@ function drawAura(g, p) {
 }
 
 function drawBall(g, b) {
+  // After a goal the ball is not on the pitch until it drops in (m.ballWait, HS's 0.555s).
+  if (M.ballWait > 0 && b === M.ball) return;
   // Inside a net the ball is drawn one step along the goal's width axis, which is what puts
   // it BETWEEN the two side nets rather than flat against the front of the box. Out on the
   // pitch this is the identity — see shared/goalbox.js.
@@ -2216,16 +2265,42 @@ function drawParts(g, front) {
   }
 }
 
+// THE BANNERS, timed by the sim (m.banner / m.bannerT): KICK OFF for the 2.17s the kickoff
+// holds, GOAL! for the 2.05s after a goal (HS M3/M4). They are presentation, but HS times its
+// restarts off them, so they live on the match clock rather than on a CSS animation.
 function drawReady(g) {
-  // Only the pre-kickoff freeze dims the pitch. Blacking out the post-goal freeze too hid
-  // the one moment the game is showing off — the celebration.
-  if (M.phase === 'goal') return;
+  if (M.banner === 'goal') {
+    // Only the pre-kickoff freeze dims the pitch. Blacking out the post-goal freeze too hid
+    // the one moment the game is showing off — the celebration.
+    const col = M.lastScorer === 0 ? '#4ea0ff' : '#ff5c7a';
+    const t = C.GOAL_BANNER - M.bannerT;                  // seconds since the goal
+    const pop = t < 0.18 ? 0.6 + 0.4 * (t / 0.18) + 0.25 * Math.sin((t / 0.18) * Math.PI) : 1;
+    g.save();
+    g.textAlign = 'center';
+    g.textBaseline = 'middle';
+    // The page is right-to-left (Hebrew), and a canvas inherits that: 'GOAL!' came out '!GOAL'.
+    g.direction = 'ltr';
+    // Under the scoreboard, not on it: at the KICK OFF line a 72px GOAL! sat on the score digits.
+    g.translate(C.W / 2, C.H * 0.35);
+    g.scale(pop, pop);
+    g.font = '900 64px -apple-system, Arial';
+    g.lineJoin = 'round';
+    g.lineWidth = 10;
+    g.strokeStyle = OUTLINE;
+    g.strokeText('GOAL!', 0, 0);
+    g.fillStyle = col;
+    g.fillText('GOAL!', 0, 0);
+    g.restore();
+    return;
+  }
+  if (M.phase !== 'kickoff') return;
   g.save();
   g.fillStyle = '#000000b0';
   g.fillRect(0, 0, C.W, C.H);
   g.textAlign = 'center';
   g.textBaseline = 'middle';
-  const txt = M.freeze > 0.45 ? 'מוכן?' : 'קדימה!';
+  const txt = 'KICK OFF';
+  g.direction = 'ltr';
   g.font = '900 46px -apple-system, Arial';
   g.lineJoin = 'round';
   g.lineWidth = 8;
@@ -2233,6 +2308,7 @@ function drawReady(g) {
   g.strokeText(txt, C.W / 2, C.H * 0.30);
   g.fillStyle = '#ffd23c';
   g.fillText(txt, C.W / 2, C.H * 0.30);
+  g.direction = 'inherit';                 // the Hebrew control rows below keep the page's RTL
 
   // The controls, on the glass, every kickoff. "How do I kick?" should never need a README
   // — and on desktop there is no touch pad to read the answer off.
@@ -2399,40 +2475,41 @@ function syncHud() {
 // TUNER — drag the feel while the match is running
 // ═══════════════════════════════════════════════════════════════════════════
 const RANGES = {
-  PLAYER_SPEED: [120, 900], PLAYER_ACCEL: [800, 8000], PLAYER_AIR_ACCEL: [200, 3000],
-  PLAYER_GRAV: [800, 5000], JUMP_V: [400, 1500], DASH_V: [300, 1800], DASH_TIME: [.05, .5],
+  // Absolute per-second values now — the PACE dial that used to rescale them is gone — so the
+  // ranges sit round Head Soccer's measured numbers (PLAYER_SPEED 228, JUMP_V 240, DASH_V 1790).
+  PLAYER_SPEED: [80, 600], SLIP_ACCEL: [200, 5000],
+  PLAYER_GRAV: [200, 2000], JUMP_V: [120, 600], JUMP_REJUMP: [0, .3], DASH_V: [300, 3000], DASH_TIME: [.016, .3],
   KICK_POWER: [200, 1600], KICK_LIFT: [0, 1400], KICK_REACH: [20, 130], KICK_R: [10, 60],
   KICK_TIME: [.05, .6],
-  BALL_GRAV: [300, 3000], BALL_BOUNCE: [.2, 1], BALL_AIR: [.97, 1], BALL_GROUND_FRICTION: [.9, 1],
-  BALL_MAX_SPEED: [500, 2600],
-  GOAL_H: [90, 300], GOAL_W: [40, 160], HEAD_R: [24, 80], GROUND_Y: [360, 500],
-  GAUGE_PASSIVE: [0, .25], POWER_SHOT_SPEED: [800, 3600],
+  BALL_GRAV: [200, 2000], BALL_BOUNCE: [.2, 1], BALL_AIR: [.97, 1], BALL_GROUND_FRICTION: [.9, 1],
+  BAR_BOUNCE: [0, 1], CEIL_BOUNCE: [0, 1], CEIL_KEEP_X: [0, 1],
+  BALL_MAX_SPEED: [300, 2000],
+  GOAL_H: [90, 300], GOAL_W: [40, 160], HEAD_R: [16, 60], GROUND_Y: [360, 500],
+  GAUGE_PASSIVE: [0, .25], GAUGE_LEAD: [0, 6], POWER_CUTIN: [0, 3], POWER_BLOCK_STUN: [0, 2],
+  POWER_SHOT_SPEED: [300, 2400],
   POWER_SHOT_LIFE: [.4, 4], POWER_SHOT_SAG: [0, 1], POWER_BLOCK_REBOUND: [0, 1],
   BODY_DEADEN: [0, 1],
   COUNTER_WINDOW: [40, 320], MATCH_DURATION: [15, 180],
   // jump feel
-  COYOTE_TIME: [0, .3], JUMP_BUFFER: [0, .3], FALL_MULT: [1, 3],
+  COYOTE_TIME: [0, .3], JUMP_BUFFER: [0, .3],
   // kick shaping
   LOB_LIFT: [1, 3], LOB_DRIVE: [.2, 1],
   // tackling
-  TACKLE_PUSH: [0, 900], TACKLE_LIFT: [0, 600], TACKLE_IMMUNE: [0, 4],
+  TACKLE_PUSH: [0, 900], TACKLE_LIFT: [0, 600], TACKLE_IMMUNE: [0, 4], TACKLE_SHOVE: [0, 1.5],
   // The knockdown a power can cause. The health dials (KICK_DAMAGE, HP_*) that sat here went
   // with the hidden health itself — Head Soccer has none.
   STUN_TIME: [.2, 3],
   // impact
   HIT_STOP_KICK: [0, .2], HIT_STOP_POWER: [0, .3], HIT_STOP_TACKLE: [0, .2],
   BALL_IDLE_RESET: [2, 20],
-  // One dial over all of them: PACE rescales speeds, gravities, drags and durations together
-  // so the match slows down without any trajectory changing shape. 1 = the old pace.
-  PACE: [0.5, 1.3],
 };
 const BASE = C.snapshot();
 
 function buildTuner() {
   const body = $('#tunerBody');
   body.innerHTML = '';
-  // Read the LIVE values, not the boot snapshot: moving PACE rewrites a dozen other numbers,
-  // and a panel still showing their old values is worse than no panel.
+  // Read the LIVE values, not the boot snapshot: a reset moves every row at once, and a panel
+  // still showing their old values is worse than no panel.
   const cur = C.snapshot();
   for (const k of C.TUNABLE) {
     const [lo, hi] = RANGES[k] || [0, BASE[k] * 3 || 1];
@@ -2447,7 +2524,6 @@ function buildTuner() {
       out.textContent = fmt(v);
       C.tune({ [k]: v });
       if (k === 'HEAD_R' || k === 'GROUND_Y') { for (let i = 0; i < 2; i++) $('#head' + i).dataset.card = ''; }
-      if (k === 'PACE') buildTuner();     // it just moved every other row
 
     };
     body.appendChild(row);
@@ -2508,9 +2584,8 @@ $('#tunerCopy').onclick = async () => {
   // (?pickups and ?cards used to switch the two power systems on and off from a URL. Both
   // systems are gone — see archive/README.md — so the flags are gone with them rather than
   // left as links that quietly do nothing.)
-  // ?pace=0.7 — the whole match in slow motion, for arguing about speed on the phone
-  // without a rebuild. Same scale as the PACE row in the tuner.
-  if (q.has('pace')) C.setPace(+q.get('pace'));
+  // (?pace= used to run the whole match in slow motion. The PACE dial is gone — every constant
+  // is Head Soccer's own per-second number now — so the flag went with it.)
   if (q.has('diff')) {
     pick.level = Math.max(0, Math.min(5, +q.get('diff')));
     $('#diff').value = pick.level;
