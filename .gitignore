@@ -2,3 +2,5 @@ node_modules/
 *.log
 .shots/
 .DS_Store
+hs-video/
+uploaded-images/
