@@ -535,18 +535,51 @@
   },
   {
     "id": "gauge.refillTime",
-    "value": 12.98,
+    "value": 15.2,
     "unit": "s",
-    "sd": 0.05,
+    "sd": 0.1,
     "n": 1,
     "clips": [
       "M4"
     ],
     "prefer": true,
-    "source": "M4 41.9 s (power used on the counter) → 54.88 s (POWER plaque back)",
-    "how": "Frames from the gauge emptying to the POWER button reappearing.",
-    "note": "Preferred over M1–M3's 16.3 (see gauge.fillTime)."
+    "source": "M4 36.49 s (POWER pressed; the refill starts here, see gauge.refillStart) → 54.88 s (POWER plaque back) = 18.39 s, less the 3.19 s the bar stands still for the goal restart (goal 43.40 s → ball drop 46.59 s)",
+    "how": "Bar fill traced frame by frame (leftmost fill column of the top-left bar, every 0.25–0.5 s): climbs 17.5 px/s from 36.56 s, flat 43.40–46.59 s across the goal, climbs again to the plaque; the cut-ins at 40.44 s and 41.97 s do not change the rate.",
+    "note": "Timed from the PRESS, where the refill really starts. It used to be 12.98 s timed from the fire (41.9 s), which cut the 5.4 s of refill between press and fire off the front; 15.2 s of play now agrees with gauge.fillTime (15.0 s), so the gauge is one play-time clock at 1/15. M3 (another character) climbs at the same 17.4 px/s and also stops at its goals (39.0 s, 45.7 s, 85.1 s)."
   },
+  {
+    "id": "gauge.emptyOnPress",
+    "value": 0.07,
+    "unit": "s",
+    "sd": 0.02,
+    "n": 2,
+    "bound": "max",
+    "clips": [
+      "M4",
+      "M3"
+    ],
+    "scenario": "armWait",
+    "source": "M4 36.49 s (POWER pressed: the full bar's halo goes) → 36.56 s (bar empty); M3 plaque last seen 33.84 s → empty 33.90 s",
+    "how": "Frames of the top-left POWER bar at 60 fps around the press.",
+    "note": "The bar empties on the PRESS, not on the touch that fires the shot (M4 fires 5.4 s later, at 41.93 s, and the bar is already 1/3 back by then). The press frame is the halo leaving, so this is an upper bound; the sim empties it on the press tick."
+  },
+  {
+    "id": "gauge.refillStart",
+    "value": 0.18,
+    "unit": "s",
+    "sd": 0.05,
+    "n": 2,
+    "bound": "max",
+    "clips": [
+      "M4",
+      "M3"
+    ],
+    "scenario": "armWait",
+    "source": "M4 press 36.49 s → fill visibly climbing at 36.67 s (and 2 more px by 36.79 s), 5.3 s before the shot fires at 41.93 s; M3 empty 33.90 s → climbing 33.99 s, and the bar climbs straight through the player's cut-in at 71.5 s (70.95 → 71.60 s, 2 px per 0.1 s)",
+    "how": "Leftmost fill column of the top-left bar at 60 fps after the press.",
+    "note": "The refill starts at the press, not at the fire. A rise is only visible after ~2 px (0.11 s at 17.5 px/s), so 0.18 s is an upper bound on when it starts; the sim starts it the tick after the press."
+  },
+
   {
     "id": "goal.bannerTime",
     "value": 2.05,

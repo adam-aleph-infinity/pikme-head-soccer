@@ -300,7 +300,8 @@ const scoreOn = (m, left, y = C.GROUND_Y - 60, speed = 600) => {
     step(m, [{}, {}]);
   }
   ok('an arm that never reaches the ball keeps waiting', p.armed > 0, `armed=${p.armed}`);
-  ok('and it costs the meter nothing to wait', p.gauge >= 1, `gauge=${p.gauge}`);
+  // The press spent the meter and it has been refilling since: 600 ticks of the clock's rate.
+  ok('and the meter refills while it waits', Math.abs(p.gauge - 600 * C.TICK * C.GAUGE_PASSIVE) < 1e-9, `gauge=${p.gauge}`);
 }
 {
   // a straight power shot ignores gravity
@@ -414,7 +415,8 @@ const scoreOn = (m, left, y = C.GROUND_Y - 60, speed = 600) => {
   ok('and it flies flat and fast', Math.abs(m.ball.vx) > C.KICK_POWER * 1.5 && Math.abs(m.ball.vy) < 60,
      `v=(${m.ball.vx.toFixed(0)}, ${m.ball.vy.toFixed(0)})`);
   ok('firing spends the arm', p.armed === 0);
-  ok('and the meter with it', p.gauge === 0, `gauge=${p.gauge}`);
+  // …and does NOT touch the meter: the press emptied it and the refill has run since.
+  ok('and leaves the refill alone', p.gauge > 0 && p.gauge < 0.05, `gauge=${p.gauge}`);
 }
 {
   // Blockable, not a battering ram: getting in the way has to save the goal, or the
@@ -455,7 +457,7 @@ const scoreOn = (m, left, y = C.GROUND_Y - 60, speed = 600) => {
   ok('the touch fired b\'s own shot, not a\'s', m.ball.power && m.ball.power.shot.id === 'wave',
      `shot=${m.ball.power?.shot.id}`);
   ok('ownership moved to b', m.ball.power && m.ball.power.owner === 1);
-  ok('b\'s arm and gauge are spent', b.armed === 0 && b.gauge === 0);
+  ok('b\'s arm is spent (the press already spent its gauge)', b.armed === 0 && b.gauge < 0.05);
   ok('the event says it was a counter', m.events.some((e) => e.type === 'powershot' && e.countered),
      JSON.stringify(m.events));
 }
@@ -802,10 +804,10 @@ const jumpArc = (input) => {
 // --- gauge & clock ----------------------------------------------------------
 {
   // THE GAUGE IS A CLOCK (Head Soccer). Nobody touches anything: both meters go from empty to
-  // full in 1 / GAUGE_PASSIVE seconds — 13s, HS M4's refill — and then stay full.
+  // full in 1 / GAUGE_PASSIVE seconds — 15s, HS M4's first fill AND its refill — and stay full.
   const m = fresh();
   const full = 1 / C.GAUGE_PASSIVE;
-  ok('(the fill time is HS\'s 13s)', Math.abs(full - 13) < 1e-9, `${full}s`);
+  ok('(the fill time is HS\'s 15s)', Math.abs(full - 15) < 1e-9, `${full}s`);
   run(m, Math.round((full - 0.5) / C.TICK));
   const [p0, p1] = m.players;
   ok('half a second short of it, the gauge is not yet full', p0.gauge < 1 && p0.gauge > 0.95,
@@ -820,9 +822,9 @@ const jumpArc = (input) => {
   ok('the clock alone arms nobody', p0.armed === 0 && p1.armed === 0);
 }
 {
-  // THE FIRST FILL, FROM A REAL KICKOFF: 15.0s after the KICK OFF banner ends (HS M4), and a
-  // refill 13.0s. One model gives both (see GAUGE_PASSIVE): nothing under the banner, a
-  // GAUGE_LEAD of 2s once play starts, then 1/13 a second.
+  // THE FIRST FILL, FROM A REAL KICKOFF: 15.0s after the KICK OFF banner ends (HS M4), the same
+  // 15s as its refill from the press (see GAUGE_PASSIVE): nothing under the banner, 1/15 a
+  // second of play after it.
   const m = createMatch(CA, CB, {});
   run(m, Math.round(C.KICKOFF_FREEZE / C.TICK) - 2);
   ok('the gauge does not fill under the KICK OFF banner', m.players[0].gauge === 0 && m.phase === 'kickoff');
@@ -832,8 +834,8 @@ const jumpArc = (input) => {
   ok('the first fill takes ~15s from the banner (HS M4 14.99)', Math.abs(t - 15) < 0.1, `${t.toFixed(2)}s`);
 }
 {
-  // …and it is a WALL clock after that: the refill runs straight through a goal's restart and a
-  // cut-in (M4's 13.0s refill had both in it).
+  // It runs straight through a cut-in (HS M4 40.44 s / 41.97 s: same rate under both), and it
+  // STOPS through a goal's restart (M4: still from the goal at 43.40 s to the ball at 46.59 s).
   const m = fresh();
   m.hitStop = 1; m.cutin = 1; m.cutinBy = 0;
   run(m, 30);
@@ -842,7 +844,12 @@ const jumpArc = (input) => {
   scoreOn(n, true);
   const g0 = n.players[0].gauge;
   run(n, 60);
-  ok('and through a goal\'s restart', n.phase === 'goal' && n.players[0].gauge > g0, `${g0} → ${n.players[0].gauge}`);
+  ok('but not through a goal\'s restart', n.phase === 'goal' && n.players[0].gauge === g0, `${g0} → ${n.players[0].gauge}`);
+  while (n.phase === 'goal') step(n, NONE);
+  ok('nor while the ball has still to drop in', n.ballWait > 0 && n.players[0].gauge === g0, `${g0} → ${n.players[0].gauge}`);
+  while (n.ballWait > 0) step(n, NONE);
+  step(n, NONE);
+  ok('it starts again with the ball', n.players[0].gauge > g0, `${g0} → ${n.players[0].gauge}`);
 }
 {
   const m = fresh({ duration: 0.5 });
@@ -1133,9 +1140,9 @@ const jumpArc = (input) => {
      `+${(b.gauge - before[1]).toFixed(4)}`);
 }
 {
-  // 2. PRESSING POWER ONLY ARMS. It fires nothing, it spends nothing, and it does not go
-  // anywhere near the ball — which is the whole change, and the reason the rival can no
-  // longer let one off by existing.
+  // 2. PRESSING POWER ARMS AND EMPTIES THE BAR. It fires nothing, and it does not go anywhere
+  // near the ball — the reason the rival can no longer let one off by existing. The meter IS
+  // spent on the press (HS M4 36.49 s), so the refill runs while the player finds the ball.
   const m = fresh();
   const p = m.players[0];
   p.x = 400; p.facing = 1; p.gauge = 1;
@@ -1146,7 +1153,7 @@ const jumpArc = (input) => {
   const started = m.events.find((e) => e.type === 'armed');
   m.events.length = 0;
   ok('power arms the player', p.armed > 0 && !!started, `armed ${p.armed.toFixed(2)}s`);
-  ok('and does NOT spend the gauge', p.gauge >= 1, `gauge ${p.gauge}`);
+  ok('and empties the gauge on the press', p.gauge === 0, `gauge ${p.gauge}`);
   ok('the ball has not been fired', !m.ball.power);
   // The old wind-up SWEPT the ball sideways to the player and lifted it over their head. So
   // the test for "nothing touched it" is: no sideways movement at all, and it fell rather
@@ -1176,7 +1183,8 @@ const jumpArc = (input) => {
   ok('dead flat', Math.abs(m.ball.vy) < 40, `vy ${m.ball.vy.toFixed(0)}`);
   ok('and towards the other goal', Math.sign(m.ball.vx) === Math.sign(p.side));
   ok('the arm is spent', p.armed === 0);
-  ok('and NOW the gauge is spent', p.gauge === 0, `gauge ${p.gauge}`);
+  ok('and the gauge is the refill since the press, not zeroed again', p.gauge > 20 * C.TICK * C.GAUGE_PASSIVE,
+     `gauge ${p.gauge}`);
 }
 {
   // 5. IT IS STILL BLOCKABLE. The ultimate leaves from wherever the body met the ball rather

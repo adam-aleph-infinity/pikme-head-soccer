@@ -491,7 +491,7 @@ export function posAt(pts, t, axis = 'x') {
 // recorded from our sim by hs-scenarios.mjs. The id is the one name both sides use.
 //
 // Tag vocabulary (video: tagged in tools/hs-measure; sim: emitted by hs-scenarios.mjs):
-//   ready_on ready_off resume goal gauge_full power_press cutin_on cutin_off armed armed_end
+//   ready_on ready_off resume goal gauge_full gauge_empty gauge_rise power_press cutin_on cutin_off armed armed_end
 //   jump_tap jump_hold land dash release reverse kick kick_end touch bounce blocked counter
 //   stun_on stun_off stand_on stand_off attempt
 // `note` carries the variant: a bounce's surface (ground wall bar top ceiling), a kick's
@@ -565,6 +565,15 @@ function firstFill(doc) {
   const a = tagT(doc, 'ready_off')[0], b = tagT(doc, 'gauge_full').find((t) => t > (a ?? Infinity));
   return a != null && b != null ? { value: b - a, sd: dtOf(doc), n: 1 } : NONE;
 }
+
+// From each `a` tag to the first `b` tag at or after it — the same tick counts (0 s), which is
+// what separates "on the press" from "on some later event". A track with no `b` after any `a`
+// is NONE: not seen.
+const sinceTag = (a, b) => (doc) => {
+  const bs = tagT(doc, b);
+  const vals = tagT(doc, a).map((s) => { const e = bs.find((t) => t >= s); return e == null ? null : e - s; }).filter((v) => v != null);
+  return vals.length ? summarise(vals, dtOf(doc)) : NONE;
+};
 
 // How long something held, from its start tag to its end tag — or to the end of the track
 // when it never ended (a LOWER BOUND, which is what the reference row's `bound: 'min'` says).
@@ -840,6 +849,9 @@ export const METRICS = [
   // C13 / M — the power gauge.
   { id: 'gauge.fillTime', unit: 's', clips: ['C13', 'M*'], scenario: 'gauge', timing: true, fit: firstFill },
   { id: 'gauge.refillTime', unit: 's', clips: ['C13', 'M*'], scenario: 'gauge', timing: true, fit: dur('power_press', 'gauge_full') },
+  // The press spends the gauge and the refill starts there (HS M4 36.49 s), not at the fire.
+  { id: 'gauge.emptyOnPress', unit: 's', clips: ['M*'], scenario: 'armWait', timing: true, fit: sinceTag('power_press', 'gauge_empty') },
+  { id: 'gauge.refillStart', unit: 's', clips: ['M*'], scenario: 'armWait', timing: true, fit: sinceTag('power_press', 'gauge_rise') },
   // A full gauge left alone: how long it stays full (a lower bound when it never drains).
   { id: 'gauge.fullHold', unit: 's', clips: ['C13', 'M*'], scenario: 'gaugeHold', timing: true, fit: heldFor('gauge_full', 'gauge_drop', { cancel: 'power_press' }) },
   // The darkened spotlight when a power shot FIRES (on the touch after arming — pressing

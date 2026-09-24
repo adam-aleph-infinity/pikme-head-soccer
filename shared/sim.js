@@ -58,9 +58,9 @@ function makePlayer(index, char) {
     //   gauge — the power meter, 0..1, filled by the clock (see GAUGE_PASSIVE).
     //   armed — seconds of ARMED left. > 0 means "glowing, waiting for a touch on the ball".
     // There is deliberately no third field for "pending", "activating" or "charging": every
-    // one of those was somewhere a previous match's state could hide. Arming writes `armed`,
-    // activating clears it and the gauge in the same statement, and clearUltimate() below
-    // zeroes both. See clearUltimate.
+    // one of those was somewhere a previous match's state could hide. Arming sets `armed` and
+    // empties the gauge in the same statement (the refill starts there, as in HS), the touch
+    // clears `armed`, and clearUltimate() below zeroes both. See clearUltimate.
     gauge: 0, armed: 0,
     shoved: 0,
     coyote: 0, jumpBuf: 0,          // jump forgiveness (see COYOTE_TIME / JUMP_BUFFER)
@@ -257,7 +257,8 @@ export function step(m, inputs, dt = C.TICK, fx = NO_FX) {
     // stopping for a second and a third, and HS's dazed player is still dazed when it lifts —
     // run the stun down under it and a 0.5s daze from the shot before would simply vanish.
     if (!cut) for (const p of m.players) tickStun(m, p, dt);
-    // The gauge is a wall clock (see GAUGE_PASSIVE) and runs through pauses of every kind.
+    // The gauge runs through a cut-in (HS M4 40.44 s and 41.97 s: the bar climbs at the same
+    // rate under both). It is the goal restart that stops it — see chargeGauge.
     for (const p of m.players) chargeGauge(m, p, dt);
     return m;
   }
@@ -265,10 +266,9 @@ export function step(m, inputs, dt = C.TICK, fx = NO_FX) {
   if (m.freeze > 0) {
     m.freeze -= dt;
     if (m.freeze <= 0 && (m.phase === 'kickoff' || m.phase === 'goal')) m.phase = 'play';
-    // Frozen: no physics, no clock. The gauge runs through a GOAL's restart (HS M4's refill had
-    // one in it and still took 13.0s), but not under the KICK OFF banner, which M4 times the
-    // first fill from the end of.
-    if (m.phase !== 'kickoff') for (const p of m.players) chargeGauge(m, p, dt);
+    // Frozen: no physics, no clock, and no gauge — not under the KICK OFF banner (M4 times the
+    // first fill from its end) and not through a GOAL's restart (M4: the bar stands still from
+    // the goal at 43.40 s until the ball drops in at 46.59 s). See chargeGauge.
     latchReleases(m, inputs);
     return m;
   }
@@ -430,6 +430,10 @@ function chargeGauge(m, p, dt) {
   if (m.golden) return;
   // …and it has not started yet: the kickoff's lead (GAUGE_LEAD).
   if (m.gaugeLead > 0) return;
+  // …and a goal's restart is not over until the ball is back. HS M4 stops the bar at the goal
+  // (43.40 s) and restarts it with the ball drop (46.59 s); M3 does the same at 39.0 s and
+  // 45.7 s. The freeze half never calls this; this is the no-ball half (GOAL_BALL_DELAY).
+  if (m.ballWait > 0) return;
   // THE CLOCK IS THE ONLY SOURCE, as in Head Soccer: no tackle, touch or goal adds to it.
   // An arcade champion's meter may run faster (meterRate climbs with the stage), and the
   // arcade's drain power can lock it for a few seconds. Everywhere else it is 1x.
@@ -588,11 +592,19 @@ function stepPlayer(m, p, input, dt, fx) {
   //   armed <= 0    — already armed is already armed. Pressing again is not a second arm and
   //                   is certainly not an activation.
   //
-  // What it does NOT do is as important: it does not touch the gauge, it does not touch the
-  // ball, it creates no attraction and fires no shot. The press is a promise; the ball is
-  // what collects on it. See fireUltimateOnContact.
+  // THE PRESS SPENDS THE METER. HS M4 36.49 s: POWER pressed, the bar is empty by 36.56 s
+  // and already refilling at 36.67 s, 5.4 s before the touch that fires the shot (41.93 s)
+  // — and in M3 the bar climbs straight through the player's cut-in at 71.5 s without a
+  // blink. So the gauge goes to zero HERE and chargeGauge starts the refill on the next
+  // tick; the arm (the glow) is what waits for the ball. A refill that reaches full again
+  // while still armed does not buy a second arm: `armed <= 0` above holds it until the
+  // first one has fired (no footage shows HS stacking them).
+  //
+  // What it still does NOT do: touch the ball, create an attraction or fire a shot. The
+  // press is a promise; the ball is what collects on it. See fireUltimateOnContact.
   if (input.power && !prev.power && p.gauge >= 1 && p.armed <= 0) {
     p.armed = 1;                       // a flag, not a clock — see the note in constants.js
+    p.gauge = 0;                       // spent on the press; the refill starts now
     m.events.push({ type: 'armed', player: p.index, shot: p.shot.id });
   }
 
@@ -1430,8 +1442,10 @@ function resolveBallPlayers(m, fx, alpha = 1) {
 // walks straight past. The caller then returns, which ends this player's contact resolution
 // for the sub-step as well.
 //
-// AND IT IS THE ONLY PLACE THE METER IS SPENT. Arming does not spend it, lapsing does not
-// spend it, tackling does not spend it. A gauge that went down means a power shot exists.
+// IT DOES NOT TOUCH THE METER. The press already spent it (stepPlayer) and the refill has
+// been running since; zeroing it again here would throw away the seconds refilled while
+// the player walked to the ball, which HS does not do (M3: the bar climbs straight through
+// the cut-in at 71.5 s).
 //
 // A live ball can already be someone ELSE's power shot when this runs — the two call sites in
 // resolveBallPlayers try this before hitByPowerShot whenever the toucher is armed. Converting
@@ -1448,7 +1462,6 @@ function fireUltimateOnContact(m, p, b, fx) {
 
   const countered = !!b.power;
   p.armed = 0;
-  p.gauge = 0;
   m.idle = 0;
   // A CHAMPION'S ULTIMATE. Same arm, same touch, same spend — the only thing that differs is
   // what the touch does, and that is the champion's own power (shared/powers.js).

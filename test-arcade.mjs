@@ -107,7 +107,7 @@ function park(c) { const b = c.m.ball; b.x = C.W / 2; b.y = C.SKY_Y + 60; b.vx =
 
 function fire(c) {
   const { m, p } = c;
-  p.gauge = 1; p.armed = 1;
+  p.gauge = 0; p.armed = 1;            // what a press leaves: armed, the meter already spent
   const b = m.ball;
   b.x = p.x + p.side * 4; b.y = headY(p); b.vx = 0; b.vy = 0; b.power = null;
   m.hitStop = 0;
@@ -529,7 +529,7 @@ const CHECKS = {
       const c = setup(champ.stage, seat);
       const ev = fire(c);
       ok(`${who}: the touch fires it`, !!ev && ev.champ === champ.power, JSON.stringify(ev));
-      ok(`${who}: the meter is spent`, c.p.gauge === 0 && c.p.armed === 0);
+      ok(`${who}: the arm is spent`, c.p.armed === 0 && c.p.gauge < 0.01);
       const b = c.m.ball;
       ok(`${who}: no generic fallback`, !b.power || b.power.champ === champ.power);
       let res;
@@ -786,7 +786,12 @@ const CHECKS = {
   // AND AGAIN for "the game feels a little bit stuck" (hs/fix-stuck): no hit-stop on a kick,
   // header or tackle (HS has none), and the bot holds a full gauge before arming it (FULL_HOLD
   // in bot.js) instead of arming the tick it fills. Both non-arcade; no arcade power changed.
-  const GOLDEN = 'c94c7f8893814787726324eebed7dd6be587f06bab67ca3f443de16dbf9718ba';
+  //
+  // AND AGAIN for "the power doesn't reset the bar" (hs/gauge-reset-on-press): the POWER press
+  // empties the gauge and the refill starts there (HS M4 36.49 s), the fill is 1/15 of PLAY time
+  // with no head start, and it stops through a goal's restart. A gauge change, so every bot's
+  // arming moves; no arcade power changed.
+  const GOLDEN = '2ed6109417280f05b328942244ff5dbd22e04e89d28b93358d14adec45131e21';
   const h = createHash('sha256');
   const cases = [
     [{ rarity: 'legendary', number: 3 }, { rarity: 'legendary', number: 2 }, 3, 3, 11],
