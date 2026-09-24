@@ -1218,12 +1218,9 @@ body.editing .pad .btn .grip {
 /* The glow lives on .meter (see there); this rule used to re-point the animation at the bar
    itself, where a clip-path eats it. */
 .pad .power.live { opacity: 1; pointer-events: auto; background: #b23a12d0; animation: gaugeFull .3s infinite alternate; }
-/* ARMED: the full power bar's gold, on the head. --glow is set by drawHeads. */
-.head.armed { animation: armedGlow .5s infinite alternate; }
-@keyframes armedGlow {
-  from { box-shadow: 0 0 0 0 transparent; }
-  to   { box-shadow: 0 0 26px 8px var(--glow, #ffc400); }
-}
+/* ARMED: Head Soccer's thin bright rim hugging the head (docs/HS-POWER-SHOTS.md §1) — not a
+   pulse. The crackling tongues are drawn over it by champ-vfx.js drawArmed. */
+.head.armed { animation: none; box-shadow: 0 0 0 2px #fff6c0, 0 0 6px 3px var(--glow, #ffc400); }
 
 /* ─── KEYS ─────────────────────────────────────────────────────────────── */
 

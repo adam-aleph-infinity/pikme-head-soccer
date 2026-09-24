@@ -4,7 +4,7 @@
 import * as C from '../shared/constants.js';
 import { createMatch, step, headY, headR, NO_FX } from '../shared/sim.js';
 import { createBot, botInput, DIFFICULTIES } from '../shared/bot.js';
-import { shotFor, SHOTS } from '../shared/powershots.js';
+import { shotFor } from '../shared/hs-powers.js';
 import { goalBox, goalAt, depthPoint, INSIDE_Z } from '../shared/goalbox.js';
 import { createEditor, applyLayout, applyOpacity, loadOpacity } from './padlayout.js';
 import { headCrop } from './head-crop.js';
@@ -14,12 +14,12 @@ import { playEvent, SFX, setAudioEnabled, audioEnabled, synth } from './audio.js
 import { STAGES, randomStage, stageById } from './stages.js';
 import { DIRECTIONS } from './art-directions.js';
 import { CHAMPIONS, TIERS, stageConfig, championForStage } from '../shared/champions.js';
-import { POWERS } from '../shared/powers.js';
 import * as ARC from '../shared/arcade.js';
 import { createVfx } from './champ-vfx.js';
 
-// What the 45 champion powers look and sound like. It only watches the match (see champ-vfx.js).
-const VFXR = createVfx({ synth });
+// What a Head Soccer power shot looks like: the aura, the cut-in, the comet, the ailments. It
+// only watches the match (see champ-vfx.js).
+const VFXR = createVfx({ drawBall: (g, b) => drawBall(g, b) });
 
 // The eleven backdrops a match can roll: the seven Street Fighter II homages plus the four
 // original directions. DIRECTIONS uses the identical { id, name, grass, wall, draw(g, s) }
@@ -142,7 +142,7 @@ function renderSlots() {
     const slot = $(who === 'me' ? '#slotMe' : '#slotFoe');
     const c = pick[who];
     paintHead(slot.querySelector('.slot-art'), c.rarity, c.number, 72);
-    const shot = shotFor(c.rarity, c.number);
+    const shot = shotFor(c);
     slot.querySelector('.slot-shot').textContent = shot.name;
     slot.classList.toggle('active', pick.target === who);
   }
@@ -234,24 +234,19 @@ function placeReel(pos) {
   }
 }
 
-// The stat bars under the pitch, 1–10 like Head Soccer's: each champion's number placed
-// between the weakest and the strongest of the 45, so the bars show where it sits on the ladder.
+// The stat bars under the pitch: Head Soccer's own five 1–10 stats, straight from the champion
+// map (docs/HS-CHAMPION-MAP.md) — speed, jump, kick, dash, power.
 const STAT_ROWS = [
-  ['מהירות', (d) => d.body.speed], ['קפיצה', (d) => d.body.jump], ['בעיטה', (d) => d.body.kick],
-  ['תגובה', (d) => -d.react], ['דיוק', (d) => d.aim], ['התקפה', (d) => d.aggression],
+  ['מהירות', (c) => c.hs.stats.speed], ['קפיצה', (c) => c.hs.stats.jump], ['בעיטה', (c) => c.hs.stats.kick],
+  ['דאש', (c) => c.hs.stats.dash], ['כוח', (c) => c.hs.stats.power],
 ];
-const STAT_RANGE = STAT_ROWS.map(([, f]) => {
-  const v = CHAMPIONS.map((c) => f(c.difficulty));
-  return [Math.min(...v), Math.max(...v)];
-});
 function renderStats(c) {
   const box = $('#arcStats');
   if (!box.children.length) {
     box.innerHTML = STAT_ROWS.map(([name]) => `<div class="arc-stat"><span>${name}</span><i>${'<s></s>'.repeat(10)}</i></div>`).join('');
   }
   STAT_ROWS.forEach(([, f], k) => {
-    const [lo, hi] = STAT_RANGE[k];
-    const n = 1 + Math.round(9 * (hi > lo ? (f(c.difficulty) - lo) / (hi - lo) : 1));
+    const n = f(c);
     [...box.children[k].querySelectorAll('s')].forEach((seg, i) => seg.classList.toggle('on', i < n));
   });
 }
@@ -293,7 +288,7 @@ function renderArcade() {
 
   const c = championForStage(ARC_SEL);
   const st = ARC.stageStatus(PROG, ARC_SEL);
-  const pw = POWERS[c.power];
+  const pw = { icon: c.icon, name: c.powerName, color: c.color, desc: c.desc };
   // The reel: built once, then only its classes and its faces change.
   const reel = $('#arcReel');
   if (reel.children.length !== CHAMPIONS.length) {
@@ -320,7 +315,7 @@ function renderArcade() {
   $('#arcCount').textContent = `${c.stage} / ${ARC.STAGE_COUNT}`;
   $('#arcStage').textContent = `שלב ${c.stage} · ${TIERS[c.tier]}`;
   $('#arcTitle').textContent = c.title;
-  $('#arcStars').textContent = starText(c.difficulty.stars);
+  $("#arcStars").textContent = starText(c.hs.stars);
   const badge = $('#arcStatus');
   badge.textContent = st === 'locked' ? '🔒 נעול' : st === 'completed' ? '✓ הושלם' : '⚡ מחכה לך';
   badge.className = `arc-status ${STATUS_CLS[st]}`;
@@ -334,8 +329,8 @@ function renderArcade() {
   const mine = CHAMPIONS.find((x) => x.card.rarity === pick.me.rarity && x.card.number === pick.me.number);
   paintHead($('#arcYouFace'), pick.me.rarity, pick.me.number, $('#arcYouFace').clientWidth || 64);
   $('#arcYou').textContent = mine
-    ? `${mine.title} ${POWERS[mine.power].icon}`
-    : shotFor(pick.me.rarity, pick.me.number).name;
+    ? `${mine.title} ${mine.icon}`
+    : shotFor(pick.me).name;
   const play = $('#arcPlay');
   play.disabled = st === 'locked';
   play.textContent = st === 'locked' ? '🔒 נעול' : st === 'completed' ? 'שחק שוב ▶' : 'שחק ▶';
@@ -921,9 +916,8 @@ function beginLocal(me, foe, opts, bot) {
   raf = requestAnimationFrame(frame);
 }
 
-// What a player's ultimate is called: the champion power in the arcade, the power shot anywhere else.
-const powerOf = (p) => (p.champ ? POWERS[p.champ.power] : null);
-const powerName = (p) => (powerOf(p) ? powerOf(p).name : p.shot.name);
+// What a player's power shot is called (its champion's theme, or its family's name).
+const powerName = (p) => p.shot.name;
 
 function endMatch() {
   running = false;
@@ -1021,36 +1015,16 @@ function drainEvents() {
     if (EVENT_LOG.length > 200) EVENT_LOG.shift();
     // The sim's event names ARE the sound names, so a new event gets audio for free and a
     // missing one is silently ignored rather than throwing mid-frame.
-    // A champion power brings its own sound (champ-vfx.js), in place of the fireball's.
-    if (!(e.type === 'powershot' && e.champ)) playEvent(e.type === 'strike' ? (e.head ? 'head' : 'kick') : e.type);
+    playEvent(e.type === 'strike' ? (e.head ? 'head' : 'kick') : e.type);
     VFXR.onEvent(e);
-    // A goal's banner is the sim's GOAL! (drawReady); a power goal still says so here.
-    if (e.type === 'goal') { if (e.power) banner('גול פאוור!', e.player === 0 ? '#4ea0ff' : '#ff5c7a'); }
-    else if (e.type === 'counter') banner('קאונטר!', '#ffffff');
-    else if (e.type === 'tackle') {
+    // NO WORDS FOR A POWER SHOT. Head Soccer puts no text on the press, the cut-in, the shot, a
+    // block or a counter (docs/HS-POWER-SHOTS.md §2) — the picture says it (champ-vfx.js). The
+    // GOAL! banner is the sim's (drawReady).
+    if (e.type === 'tackle') {
       fx.shockwave(e.x, e.y, '#ffd166');
       if (e.by === (ONLINE ? NET.you : 0)) banner('פגיעה! +כוח', '#ffd166');
     }
-    else if (e.type === 'blocked') {
-      // A block is the defender's big moment — it deserves to read as one.
-      banner('נחסם!', SHOTS[e.shot].color);
-      flash('#ffffff', 0.16);
-    }
-    // ARMED. The banner says the move is loaded, not that it has gone off — the shot's own
-    // banner is `powershot`, below, and it only fires on a touch.
-    else if (e.type === 'armed') { banner(powerName(M.players[e.player]) + ' מוכן!', '#ffc400'); flash('#ffe14a', 0.12); }
     else if (e.type === 'ballReset') banner('כדור חדש', '#8ea0be');
-    else if (e.type === 'powershot') {
-      // A champion's power is announced by its own name and colour; the power shot by its shot's.
-      const P = e.champ ? POWERS[e.champ] : SHOTS[e.shot];
-      banner(`${e.champ ? P.icon + ' ' : ''}${e.countered ? 'קאונטר! ' : ''}${P.name}`, P.color);
-      flash(P.glow, 0.22);
-    }
-    else if (e.type === 'drilled') banner('קידוח!', POWERS.drill.color);
-    else if (e.type === 'mirrored') banner('מראה!', POWERS.mirror.color);
-    else if (e.type === 'saved') banner('הצלה!', e.by === 'clone' ? POWERS.clone.color : POWERS.goalwall.color);
-    else if (e.type === 'stolen') banner('נגנב!', '#ffffff');
-    else if (e.type === 'timeResumes') banner('הזמן חוזר', POWERS.timestop.color);
     else if (e.type === 'golden') banner('מוות פתאומי', '#ffb800');
     else if (e.type === 'fulltime') { playEvent(e.winner === (ONLINE ? NET.you : 0) ? 'win' : 'lose'); endMatch(); }
     else if (e.type === 'ballReset') playEvent('reset');
@@ -1078,10 +1052,8 @@ function frame(now) {
       if (m) { M = m; drainEvents(); }
     } else {
       acc += dt;
-      // A champion's super cut-in holds the match for a beat (arcade only; see champ-vfx.js).
-      // The SIM now holds every fired power shot itself (m.cutin, 1.34s), so this client-side
-      // beat only runs when the sim is not already cutting in — never twice over.
-      if (M.champ && VFXR.holding() && !(M.cutin > 0)) acc = 0;
+      // window.SIM_HOLD: a screenshot harness steps the match itself (_vfx-shots.mjs).
+      if (window.SIM_HOLD) acc = 0;
       let guard = 0;
       while (acc >= C.TICK && guard++ < 8) {
         // ?solo=1 (or window.BOT_OFF) leaves the opponent standing still. It exists for two
@@ -1349,10 +1321,9 @@ function draw() {
   // during hit-stop is what turns it into an impact.
   // Not under a cut-in: that pause is 1.34s long, and 80px of shake is not an impact.
   const shake = M.hitStop > 0 && !(M.cutin > 0) ? M.hitStop * 60 : 0;
-  const kick = VFXR.shakeOffset();           // a champion power's own camera kick
-  if (shake > 0 || kick) {
+  if (shake > 0) {
     g.save();
-    g.translate((Math.random() - .5) * shake + (kick ? kick[0] : 0), (Math.random() - .5) * shake + (kick ? kick[1] : 0));
+    g.translate((Math.random() - .5) * shake, (Math.random() - .5) * shake);
   }
   drawStadium(g);
   paintLetterbox();
@@ -1361,18 +1332,15 @@ function draw() {
   // one. See drawGoalBack / drawGoalFront and shared/goalbox.js.
   drawGoalBack(g, true);
   drawGoalBack(g, false);
-  if (M.champ) drawChampBack(g);
-  for (const p of M.players) { drawAura(g, p); VFXR.drawAura(g, p); }
   for (const p of M.players) drawBody(g, p);
   drawParts(g, false);
   drawBall(g, M.ball);
-  if (M.champ) drawChampFront(g);
+  for (const eb of M.xballs) drawBall(g, eb);      // a Multi-Ball's extras
+  VFXR.drawOver(g);                                // a block's grind, a hit's sparks, the Aerial's warning
   drawParts(g, true);
   drawGoalFront(g, true);            // the net you look through, over whatever is in the goal
   drawGoalFront(g, false);
-  if (M.champ) VFXR.drawEffects(g, 'over');   // a wall stands in FRONT of the mouth, so over the net
-  if (shake > 0 || kick) g.restore();
-  if (M.champ) { VFXR.drawGrade(g); VFXR.drawCutin(g); }
+  if (shake > 0) g.restore();
   if (flashT > 0) {
     g.save();
     g.globalAlpha = (flashT / flashLife) * 0.75;
@@ -1382,50 +1350,12 @@ function draw() {
   }
   drawHeads();
   drawHeadNet();                     // …and the near net again, over a head that is in the goal
-  drawCutin(ctxNet);                 // over the heads too: the whole screen darkens but the shooter
+  // Over the heads (they are DOM nodes under this layer): the armed rim, what a shot left on a
+  // player, and the cut-in — the whole screen darkens but the shooter (champ-vfx.js).
+  for (const p of M.players) VFXR.drawArmed(ctxNet, p);
+  VFXR.drawOverlay(ctxNet);
+  VFXR.drawCutin(ctxNet);
   if (M.banner && M.bannerT > 0 && M.phase !== 'over') drawReady(g);
-}
-
-// THE CUT-IN, as a picture. The pause itself is the sim's (m.cutin: 1.34s, HS M4) and an online
-// match takes it on the same tick; this is only what it looks like, and the look is ours: the
-// pitch goes dark, a pool of light stays on the shooter, and slow rays fan out of their head.
-// Drawn on the layer ABOVE the DOM heads, so the other face darkens with the pitch. An arcade
-// champion's power draws its own super cut-in (champ-vfx.js) and is left to it.
-function drawCutin(g) {
-  if (!(M.cutin > 0) || !(M.cutinBy >= 0)) return;
-  const p = M.players[M.cutinBy];
-  if (!p || (M.champ && p.champ)) return;
-  const k = 1 - M.cutin / C.POWER_CUTIN;                  // 0 → 1 across the pause
-  const fade = Math.min(1, k / 0.06) * Math.min(1, (1 - k) / 0.12);
-  const h = depthPoint(p.x, headY(p));
-  const r = headR(M, p);
-  const col = (p.shot && p.shot.color) || '#ffd23c';
-  g.save();
-  const dark = g.createRadialGradient(h.x, h.y, r * 1.3, h.x, h.y, r * 9);
-  dark.addColorStop(0, 'rgba(6,3,14,0)');
-  dark.addColorStop(0.3, 'rgba(6,3,14,0.45)');
-  dark.addColorStop(1, 'rgba(6,3,14,0.8)');
-  g.globalAlpha = fade;
-  g.fillStyle = dark;
-  g.fillRect(0, 0, C.W, C.H);
-  // The rays start clear of the face — the shooter is who the moment is about.
-  g.globalCompositeOperation = 'lighter';
-  g.translate(h.x, h.y);
-  g.rotate(k * 0.8);
-  const L = 560, r0 = r * 1.25;
-  for (let i = 0; i < 14; i++) {
-    const a = (i / 14) * 6.2832, w = i % 2 ? 0.05 : 0.09;
-    g.globalAlpha = (i % 2 ? 0.16 : 0.28) * fade;
-    g.fillStyle = i % 2 ? '#ffffff' : col;
-    g.beginPath();
-    g.moveTo(Math.cos(a - w * 0.4) * r0, Math.sin(a - w * 0.4) * r0);
-    g.lineTo(Math.cos(a - w) * L, Math.sin(a - w) * L);
-    g.lineTo(Math.cos(a + w) * L, Math.sin(a + w) * L);
-    g.lineTo(Math.cos(a + w * 0.4) * r0, Math.sin(a + w * 0.4) * r0);
-    g.closePath();
-    g.fill();
-  }
-  g.restore();
 }
 
 // THE ONE THING THE CANVAS CANNOT REACH.
@@ -2065,41 +1995,6 @@ function roundRect(g, x, y, w, h, r) {
   g.closePath();
 }
 
-// THE ARMED AURA. SF2 tells you a special is coming before it lands — the character flashes
-// and the air around them moves. That tell matters more than it ever has here: an armed
-// player is going to turn their next touch of the ball into a power shot, and the only
-// defence is to see it and get to the ball first.
-//
-// In the FULL BAR's gold, matching the head's glow and the meter, not in the character's
-// shot colour — one state, one colour, wherever it is drawn.
-function drawAura(g, p) {
-  if (p.armed <= 0) return;
-  const t = performance.now() / 1000;
-  const col = '#ffc400';
-  const d = depthPoint(p.x, p.y);                     // on the body it wraps — see drawBody
-  const hy = depthPoint(p.x, headY(p)).y;
-  g.save();
-  for (let i = 0; i < 3; i++) {
-    const ph = (t * 1.6 + i / 3) % 1;
-    g.globalAlpha = (1 - ph) * 0.55;
-    g.strokeStyle = col;
-    g.lineWidth = 3;
-    g.beginPath();
-    g.ellipse(d.x, (hy + d.y) / 2, headR(M, p) * (0.6 + ph * 1.5), C.BODY_H * 1.6 * (0.6 + ph * 1.2), 0, 0, 6.2832);
-    g.stroke();
-  }
-  // sparks rising off the shoulders
-  g.globalAlpha = 1;
-  for (let i = 0; i < 6; i++) {
-    const ph = (t * 2.4 + i / 6) % 1;
-    const sx = d.x + Math.sin(i * 2.1 + t * 3) * headR(M, p) * 0.9;
-    const sy = d.y - ph * (C.BODY_H + headR(M, p) * 2.2);
-    g.fillStyle = i % 2 ? col : '#ffffff';
-    g.fillRect(Math.round(sx), Math.round(sy), 3, 5);
-  }
-  g.restore();
-}
-
 function drawBall(g, b) {
   // After a goal the ball is not on the pitch until it drops in (m.ballWait, HS's 0.555s).
   if (M.ballWait > 0 && b === M.ball) return;
@@ -2115,43 +2010,13 @@ function drawBall(g, b) {
   g.fill();
   g.restore();
 
-  // A champion's shot is its own projectile (champ-vfx.js) — the teleport's, between its
-  // portals, is no ball at all but the portals themselves.
+  // A POWER BALL is the plain ball at the nose of its family's comet (champ-vfx.js draws the
+  // comet under it, docs/HS-POWER-SHOTS.md §3). An Aerial up off the top of the screen is not drawn.
   if (VFXR.drawBall(g, b)) return;
-  if (b.power && b.power.hidden) return;
   g.save();
   g.translate(d.x, d.y);
   const spin = (b.spin || 0) * .12 + b.x * .012;
   g.rotate(spin);
-  // The ghost shot is drawn as one: the body it is about to pass through should not be able to
-  // tell it apart from a normal power shot by anything but the glow going pale.
-  if (b.power && b.power.phantom) g.globalAlpha = 0.45 + 0.2 * Math.sin(performance.now() / 60);
-  if (b.power) {
-    g.shadowColor = b.power.glow;
-    g.shadowBlur = 26;
-  }
-  if (b.power) {
-    // A fireball, not a coloured football: white-hot core, a saturated shell, and a spinning
-    // ring — the three layers every SF2 projectile is built from.
-    const t = performance.now() / 1000;
-    const sp = b.r * 2.6;
-    g.globalAlpha = .35;
-    g.fillStyle = b.power.glow;
-    g.beginPath(); g.ellipse(0, 0, sp * 1.5, sp * 0.75, 0, 0, 6.2832); g.fill();
-    g.globalAlpha = 1;
-    g.fillStyle = b.power.color;
-    g.beginPath(); g.ellipse(0, 0, sp, sp * 0.8, 0, 0, 6.2832); g.fill();
-    g.fillStyle = b.power.glow;
-    g.beginPath(); g.ellipse(0, 0, sp * 0.62, sp * 0.5, 0, 0, 6.2832); g.fill();
-    g.fillStyle = '#ffffff';
-    g.beginPath(); g.ellipse(0, 0, sp * 0.3, sp * 0.26, 0, 0, 6.2832); g.fill();
-    g.strokeStyle = '#ffffffcc';
-    g.lineWidth = 2;
-    g.beginPath(); g.ellipse(0, 0, sp * 1.05, sp * 0.34, t * 9, 0, 6.2832); g.stroke();
-    g.shadowBlur = 0;
-    g.restore();
-    return;
-  }
   const r = b.r;
   g.fillStyle = '#f6f9ff';
   g.beginPath(); g.arc(0, 0, r, 0, 6.2832); g.fill();
@@ -2194,23 +2059,6 @@ function drawBall(g, b) {
   g.lineWidth = 2;
   g.beginPath(); g.arc(0, 0, r - 1, 0, 6.2832); g.stroke();
   g.restore();
-}
-
-// ═══ CHAMPION POWERS, DRAWN ═══════════════════════════════════════════════
-// Everything a champion leaves on the pitch is drawn by its own entry in public/vfx/ (see
-// champ-vfx.js), read straight off m.champ. Behind the bodies: what stands on the pitch. In
-// front: the extra balls, the effects' front layers, and each head's status ring.
-function drawChampBack(g) {
-  VFXR.drawStageDim(g);
-  VFXR.drawEffects(g, 'back');
-  VFXR.drawParts(g, 'back');
-}
-
-function drawChampFront(g) {
-  for (const eb of M.champ.balls) drawBall(g, eb);
-  VFXR.drawEffects(g, 'front');
-  VFXR.drawParts(g, 'front');
-  VFXR.drawStatus(g);
 }
 
 let ballShadeCache = null;
@@ -2386,6 +2234,9 @@ function drawHeads() {
     // the gaugeReady keyframes in style.css, which this is the head's half of.
     el.classList.toggle('armed', p.armed > 0);
     if (p.armed > 0) el.style.setProperty('--glow', '#ffc400');
+    // BEHEADED (the ailment): no head for its few seconds — champ-vfx draws the empty ring.
+    const gone = p.ail === 'beheaded';
+    if (el.classList.contains('gone') !== gone) { el.classList.toggle('gone', gone); el.style.visibility = gone ? 'hidden' : ''; }
     // NO BRUISES. The face used to redden and bruise off a hidden health bar (.head.hurt1..4);
     // Head Soccer has no health, so the character is drawn the same however often it is hit.
   }
@@ -2486,8 +2337,8 @@ const RANGES = {
   BALL_MAX_SPEED: [300, 2000],
   GOAL_H: [90, 300], GOAL_W: [40, 160], HEAD_R: [16, 60], GROUND_Y: [360, 500],
   GAUGE_PASSIVE: [0, .25], GAUGE_LEAD: [0, 6], POWER_CUTIN: [0, 3], POWER_BLOCK_STUN: [0, 2],
-  POWER_SHOT_SPEED: [300, 2400],
-  POWER_SHOT_LIFE: [.4, 4], POWER_SHOT_SAG: [0, 1], POWER_BLOCK_REBOUND: [0, 1],
+  POWER_SHOT_SPEED: [300, 3200],
+  POWER_SHOT_LIFE: [.4, 4], POWER_BLOCK_REBOUND: [0, 1],
   BODY_DEADEN: [0, 1],
   COUNTER_WINDOW: [40, 320], MATCH_DURATION: [15, 180],
   // jump feel
@@ -2630,9 +2481,9 @@ Object.assign(window, { goalBox, goalAt, depthPoint, INSIDE_Z });
 // boots are 23px long on screen and no screenshot of a match will ever settle whether one
 // reads as a football boot — see _bootshots.mjs, which calls this.
 Object.assign(window, { drawBody });
-Object.assign(window, { C, startMatch, pick, SHOTS, paintHead, callout });
+Object.assign(window, { C, startMatch, pick, paintHead, callout, VFXR });
 // The arcade, for the harness: the same entry points the buttons use, and the live progress.
-Object.assign(window, { startArcadeStage, openArcade, openModes, selectStage, POWERS, CHAMPIONS });
+Object.assign(window, { startArcadeStage, openArcade, openModes, selectStage, CHAMPIONS });
 Object.defineProperty(window, 'ARCADE', { get: () => ARCADE });
 Object.defineProperty(window, 'ARCADE_PROGRESS', { get: () => PROG });
 // The measured head anchors, for the crop tools — see head-crop.js and test-heads.mjs.
