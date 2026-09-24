@@ -1081,7 +1081,9 @@ function drainEvents() {
     else if (e.type === 'counter') banner('קאונטר!', '#ffffff');
     else if (e.type === 'tackle') {
       fx.shockwave(e.x, e.y, '#ffd166');
-      if (e.by === (ONLINE ? NET.you : 0)) banner('פגיעה! +כוח', '#ffd166');
+      // No '+כוח' in it: a tackle pays no power (the gauge is a clock), and saying so on every
+      // boot to the shins was the bar "filling when I kick" that Idan reported.
+      if (e.by === (ONLINE ? NET.you : 0)) banner('פגיעה!', '#ffd166');
     }
     else if (e.type === 'blocked') {
       // A block is the defender's big moment — it deserves to read as one.

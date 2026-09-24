@@ -979,9 +979,8 @@ function tryCounter(m, p, fx) {
   fx.shockwave(b.x, b.y, '#ffffff');
 }
 
-// Kicking the OPPONENT instead of the ball. Pays gauge and slows them, so pressing has a
-// point even when the ball is nowhere near — and it gives a losing player a way to build
-// toward a power shot other than waiting out the clock.
+// Kicking the OPPONENT instead of the ball: knockback and nothing else (see tryTackle). It
+// pays NO gauge — Head Soccer's meter fills on the clock alone (chargeGauge).
 //
 // Resolved on the kick's rising edge, not per-frame, so one press is one tackle.
 // A deliberate header: the ball is at your head and you pressed kick. Distinct from the

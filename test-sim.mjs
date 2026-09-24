@@ -2,6 +2,8 @@
 import * as C from './shared/constants.js';
 import { createMatch, step, headY, headR, stun, serialize, restore } from './shared/sim.js';
 import { shotFor, SHOTS } from './shared/powershots.js';
+import { CHAMPIONS } from './shared/champions.js';
+import { POWERS } from './shared/powers.js';
 
 let pass = 0, fail = 0;
 const ok = (name, cond, extra = '') => {
@@ -2108,6 +2110,83 @@ const jumpArc = (input) => {
        Math.abs(m.ball.x - ctrl.ball.x) < 1e-9 && Math.abs(m.ball.vx - ctrl.ball.vx) < 1e-9,
        `${m.ball.x.toFixed(2)}/${m.ball.vx.toFixed(2)} vs ${ctrl.ball.x.toFixed(2)}/${ctrl.ball.vx.toFixed(2)}`);
   }
+}
+
+// --- the gauge is a clock: kicks, headers, tackles and goals pay NOTHING ---------------
+// Idan, on his phone: "the kicks give power to the power bar". Head Soccer's gauge fills with
+// time alone (GAUGE_PASSIVE; 15.0s first fill, 13.0s refill), so here both players spend a
+// long stretch doing nothing BUT kicking — at the ball, at each other, jumping into headers —
+// with the gauge parked well below full, and every single tick is held to the clock: no tick
+// may add more than dt × GAUGE_PASSIVE (× the champion's meterRate in the arcade), and none
+// may take any away. Plain match and arcade with champions, both seats.
+{
+  const plain = [{ rarity: 'legendary', number: 3 }, { rarity: 'legendary', number: 2 }];
+  const runs = [
+    { name: 'plain', cards: plain, opts: {} },
+    ...[0, 9, 21, 30, 44].map((k) => ({
+      name: `arcade ${CHAMPIONS[k].power} v ${CHAMPIONS[(k + 7) % 45].power}`,
+      cards: [CHAMPIONS[k].card, CHAMPIONS[(k + 7) % 45].card],
+      opts: { champions: true, meterRate: [1, 1.9] },
+    })),
+  ];
+  for (const r of runs) {
+    const m = createMatch(r.cards[0], r.cards[1], r.opts);
+    const n = { kick: 0, tackle: 0, head: 0, goal: 0 };
+    let bad = 0, first = '';
+    for (let k = 0; k < Math.round(40 / C.TICK) && m.phase !== 'over'; k++) {
+      // Parked at 0.3, well short of full: this is about what fills it, not about arming.
+      if (m.players.some((p) => p.gauge > 0.9)) m.players.forEach((p) => { p.gauge = 0.3; });
+      const before = m.players.map((p) => p.gauge);
+      step(m, m.players.map((p, i) => {
+        const tgt = (k % 300 < 150) ? m.ball.x : m.players[1 - i].x;
+        return { left: tgt < p.x - 10, right: tgt > p.x + 10, jump: (k % 37) === i * 5, kick: (k % 6) < 3, power: false };
+      }), C.TICK);
+      for (const e of m.events) {
+        if (e.type === 'kick') n.kick++;
+        if (e.type === 'tackle') n.tackle++;
+        if (e.type === 'goal') n.goal++;
+        if (e.type === 'strike' && e.head) n.head++;
+      }
+      const evs = m.events.map((e) => e.type).join(',');
+      m.events.length = 0;
+      m.players.forEach((p, i) => {
+        const rate = m.champ ? (p.mods.meterLock ? 0 : p.meterRate) : 1;
+        const d = p.gauge - before[i];
+        if (d > C.TICK * C.GAUGE_PASSIVE * rate + 1e-9 || d < -1e-9) {
+          if (!bad++) first = `P${i + 1} tick ${k}: ${before[i].toFixed(4)} -> ${p.gauge.toFixed(4)} [${evs}]`;
+        }
+      });
+    }
+    ok(`${r.name}: the scenario really kicked, tackled and headed`, n.kick > 100 && n.tackle > 10 && n.head > 0,
+       JSON.stringify(n));
+    ok(`${r.name}: no kick, header, tackle or goal moved either gauge off the clock`, bad === 0,
+       `${bad} ticks; first ${first}`);
+  }
+}
+
+// …and the arcade's drain, the last power that PAID a meter: it empties the victim's and gives
+// the champion none of it (it used to bank 60%).
+{
+  const champ = CHAMPIONS.find((c) => c.power === 'drain');
+  const m = createMatch(champ.card, CB, { champions: true });
+  m.freeze = 0; m.phase = 'play'; m.banner = null; m.bannerT = 0; m.gaugeLead = 0;
+  const [p, q] = m.players;
+  armPower(m, 0);
+  q.gauge = 0.9;
+  let drained = null, t = 0;
+  // The real path: armed, and the ball walked into the champion until the touch fires it.
+  for (; t < 40 && !drained; t++) {
+    m.hitStop = 0;
+    m.ball.x = p.x; m.ball.y = headY(p); m.ball.vx = 0; m.ball.vy = 0;
+    step(m, [{}, {}]);
+    drained = m.events.find((e) => e.type === 'drained');
+    m.events.length = 0;
+  }
+  ok('drain fires off the touch', !!drained && POWERS.drain.id === 'drain');
+  ok('drain empties the victim', q.gauge === 0, `${q.gauge}`);
+  // Spent to 0 on the touch; at most one tick of clock since.
+  ok('drain pays the champion nothing', p.gauge <= C.TICK * C.GAUGE_PASSIVE * p.meterRate + 1e-9,
+     `${p.gauge.toFixed(4)} (it used to bank 60% of the 0.9: 0.54)`);
 }
 
 console.log(`test-sim: ${pass} passed, ${fail} failed`);

@@ -332,11 +332,12 @@ const CHECKS = {
     const c = setup(n, i);
     c.q.gauge = 0.9;
     fire(c); run(c, 0.1, { parkBall: true });
-    // 0.54 stolen (a hair more: the victim's meter ticked once before the touch), plus whatever
-    // the clock added to the champion's own meter over the 0.1s after it — GAUGE_PASSIVE × its
-    // meterRate. Bounded generously at twice that. The victim's stays at 0: that is the lock.
+    // The victim's 0.9 goes to 0 and stays there (the lock). The champion gets NONE of it: its
+    // own meter was spent on the touch and holds only what the clock added over the 0.1s
+    // after — GAUGE_PASSIVE × its meterRate, bounded generously at twice that. (It used to
+    // bank 60% of the steal; Head Soccer's gauge fills on the clock alone.)
     const clock = 0.2 * C.GAUGE_PASSIVE * c.p.meterRate + 1e-9;
-    return [c.q.gauge === 0 && c.p.gauge >= 0.54 - 1e-9 && c.p.gauge <= 0.54 + clock && c.q.mods.meterLock === true,
+    return [c.q.gauge === 0 && c.p.gauge <= clock && c.q.mods.meterLock === true,
             `their meter ${c.q.gauge}, mine ${c.p.gauge.toFixed(2)}, lock ${c.q.mods.meterLock}`];
   },
   quake(n, i) {
@@ -528,7 +529,7 @@ const CHECKS = {
       const c = setup(champ.stage, seat);
       const ev = fire(c);
       ok(`${who}: the touch fires it`, !!ev && ev.champ === champ.power, JSON.stringify(ev));
-      ok(`${who}: the meter is spent`, c.p.gauge === 0 && c.p.armed === 0 || champ.power === 'drain');
+      ok(`${who}: the meter is spent`, c.p.gauge === 0 && c.p.armed === 0);
       const b = c.m.ball;
       ok(`${who}: no generic fallback`, !b.power || b.power.champ === champ.power);
       let res;
