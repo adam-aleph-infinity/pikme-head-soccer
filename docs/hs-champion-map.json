@@ -1,0 +1,1172 @@
+[
+  {
+    "stage": 1,
+    "id": "legendary_1",
+    "tier": 1,
+    "tierName": "שכונה",
+    "title": "התותחן",
+    "power": {
+      "id": "cannon",
+      "name": "תותח",
+      "icon": "💥"
+    },
+    "family": "destructive",
+    "ailment": null,
+    "aura": "none",
+    "profile": "power",
+    "stats": {
+      "speed": 2,
+      "jump": 2,
+      "kick": 3,
+      "dash": 2,
+      "power": 3
+    },
+    "statTotal": 12,
+    "stars": 0.5,
+    "rationale": "A cannonball: straight and heavy, the blocker is knocked back — HS Destructive in its plainest form."
+  },
+  {
+    "stage": 2,
+    "id": "legendary_2",
+    "tier": 1,
+    "tierName": "שכונה",
+    "title": "אדון התולעים",
+    "power": {
+      "id": "tentacles",
+      "name": "תולעים",
+      "icon": "🪱"
+    },
+    "family": "grab",
+    "ailment": "shock",
+    "aura": "none",
+    "profile": "tricky",
+    "stats": {
+      "speed": 3,
+      "jump": 3,
+      "kick": 2,
+      "dash": 3,
+      "power": 2
+    },
+    "statTotal": 13,
+    "stars": 0.5,
+    "rationale": "Worms wrap the legs and pull — a Grab; the current slow/no-jump effect is exactly the shock ailment."
+  },
+  {
+    "stage": 3,
+    "id": "legendary_3",
+    "tier": 1,
+    "tierName": "שכונה",
+    "title": "השף הבוער",
+    "power": {
+      "id": "blaze",
+      "name": "מנגל בוער",
+      "icon": "🔥"
+    },
+    "family": "straight",
+    "ailment": "burn",
+    "aura": "none",
+    "profile": "kicker",
+    "stats": {
+      "speed": 2,
+      "jump": 2,
+      "kick": 4,
+      "dash": 2,
+      "power": 4
+    },
+    "statTotal": 14,
+    "stars": 0.5,
+    "rationale": "Fireball down a straight line; the blocker burns, as the current blaze already does."
+  },
+  {
+    "stage": 4,
+    "id": "legendary_4",
+    "tier": 1,
+    "tierName": "שכונה",
+    "title": "מלך הבוץ",
+    "power": {
+      "id": "mud",
+      "name": "בוץ",
+      "icon": "🟤"
+    },
+    "family": "ground",
+    "ailment": "shock",
+    "aura": "none",
+    "profile": "tank",
+    "stats": {
+      "speed": 2,
+      "jump": 3,
+      "kick": 3,
+      "dash": 2,
+      "power": 4
+    },
+    "statTotal": 14,
+    "stars": 1,
+    "rationale": "A mud ball that rolls along the turf; being stuck in the bog = shock (slow, no jump)."
+  },
+  {
+    "stage": 5,
+    "id": "legendary_5",
+    "tier": 1,
+    "tierName": "שכונה",
+    "title": "בונה החומות",
+    "power": {
+      "id": "goalwall",
+      "name": "חומת שער",
+      "icon": "🧱"
+    },
+    "family": "ground",
+    "ailment": null,
+    "aura": "none",
+    "profile": "tank",
+    "stats": {
+      "speed": 2,
+      "jump": 4,
+      "kick": 3,
+      "dash": 2,
+      "power": 4
+    },
+    "statTotal": 15,
+    "stars": 1,
+    "rationale": "A brick wall slides along the ground: can only be countered, never deflected."
+  },
+  {
+    "stage": 6,
+    "id": "legendary_6",
+    "tier": 1,
+    "tierName": "שכונה",
+    "title": "איל ההון",
+    "power": {
+      "id": "coins",
+      "name": "גשם מטבעות",
+      "icon": "🪙"
+    },
+    "family": "multiball",
+    "ailment": null,
+    "aura": "none",
+    "profile": "balanced",
+    "stats": {
+      "speed": 4,
+      "jump": 3,
+      "kick": 3,
+      "dash": 3,
+      "power": 3
+    },
+    "statTotal": 16,
+    "stars": 1,
+    "rationale": "Coin shower becomes a few coin-balls, any of which may score (light early version)."
+  },
+  {
+    "stage": 7,
+    "id": "legendary_7",
+    "tier": 1,
+    "tierName": "שכונה",
+    "title": "הקפצן",
+    "power": {
+      "id": "spring",
+      "name": "קפיץ",
+      "icon": "🌀"
+    },
+    "family": "aerial",
+    "ailment": null,
+    "aura": "none",
+    "profile": "jumper",
+    "stats": {
+      "speed": 3,
+      "jump": 5,
+      "kick": 3,
+      "dash": 3,
+      "power": 3
+    },
+    "statTotal": 17,
+    "stars": 1,
+    "rationale": "Pogo spring: the shot boings up in a high arc."
+  },
+  {
+    "stage": 8,
+    "id": "legendary_8",
+    "tier": 1,
+    "tierName": "שכונה",
+    "title": "האיש המגנטי",
+    "power": {
+      "id": "magnet",
+      "name": "מגנט",
+      "icon": "🧲"
+    },
+    "family": "straight",
+    "ailment": null,
+    "aura": "none",
+    "profile": "kicker",
+    "stats": {
+      "speed": 3,
+      "jump": 2,
+      "kick": 5,
+      "dash": 2,
+      "power": 5
+    },
+    "statTotal": 17,
+    "stars": 1,
+    "rationale": "Magnet-true: the ball flies dead straight at the goal as if on a rail."
+  },
+  {
+    "stage": 9,
+    "id": "legendary_9",
+    "tier": 1,
+    "tierName": "שכונה",
+    "title": "גולש הגלים",
+    "power": {
+      "id": "wave",
+      "name": "גל אדום",
+      "icon": "🌊"
+    },
+    "family": "updown",
+    "ailment": null,
+    "aura": "none",
+    "profile": "balanced",
+    "stats": {
+      "speed": 4,
+      "jump": 4,
+      "kick": 4,
+      "dash": 3,
+      "power": 3
+    },
+    "statTotal": 18,
+    "stars": 1.5,
+    "rationale": "The current red wave already rises and falls — the textbook Up-and-Down."
+  },
+  {
+    "stage": 10,
+    "id": "legendary_10",
+    "tier": 2,
+    "tierName": "ליגה",
+    "title": "הענק",
+    "power": {
+      "id": "giant",
+      "name": "ראש ענק",
+      "icon": "🗿"
+    },
+    "family": "downward",
+    "ailment": null,
+    "aura": "none",
+    "profile": "tank",
+    "stats": {
+      "speed": 3,
+      "jump": 4,
+      "kick": 4,
+      "dash": 3,
+      "power": 5
+    },
+    "statTotal": 19,
+    "stars": 1.5,
+    "rationale": "A giant heads it down from above — Downward Slanting."
+  },
+  {
+    "stage": 11,
+    "id": "legendary_11",
+    "tier": 2,
+    "tierName": "ליגה",
+    "title": "המכווץ",
+    "power": {
+      "id": "shrink",
+      "name": "מכווץ",
+      "icon": "🔻"
+    },
+    "family": "ailment",
+    "ailment": "beheaded",
+    "aura": "none",
+    "profile": "tricky",
+    "stats": {
+      "speed": 5,
+      "jump": 4,
+      "kick": 3,
+      "dash": 4,
+      "power": 4
+    },
+    "statTotal": 20,
+    "stars": 1.5,
+    "rationale": "Shrinking the head, taken to its end: the hit player is briefly beheaded."
+  },
+  {
+    "stage": 12,
+    "id": "legendary_12",
+    "tier": 2,
+    "tierName": "ליגה",
+    "title": "האסטרונאוט",
+    "power": {
+      "id": "lowgrav",
+      "name": "ירח",
+      "icon": "🌙"
+    },
+    "family": "aerial",
+    "ailment": null,
+    "aura": "none",
+    "profile": "jumper",
+    "stats": {
+      "speed": 4,
+      "jump": 6,
+      "kick": 4,
+      "dash": 3,
+      "power": 3
+    },
+    "statTotal": 20,
+    "stars": 1.5,
+    "rationale": "Moon gravity: the ball floats up in a long, slow arc."
+  },
+  {
+    "stage": 13,
+    "id": "legendary_13",
+    "tier": 2,
+    "tierName": "ליגה",
+    "title": "המטפס",
+    "power": {
+      "id": "rising",
+      "name": "טיל עולה",
+      "icon": "🚀"
+    },
+    "family": "ground",
+    "ailment": null,
+    "aura": "none",
+    "profile": "kicker",
+    "stats": {
+      "speed": 4,
+      "jump": 3,
+      "kick": 6,
+      "dash": 3,
+      "power": 5
+    },
+    "statTotal": 21,
+    "stars": 1.5,
+    "rationale": "The rocket lands on the grass first and skims in low."
+  },
+  {
+    "stage": 14,
+    "id": "legendary_14",
+    "tier": 2,
+    "tierName": "ליגה",
+    "title": "נהג המרוצים",
+    "power": {
+      "id": "turbo",
+      "name": "טורבו",
+      "icon": "⚡"
+    },
+    "family": "straight",
+    "ailment": null,
+    "aura": "none",
+    "profile": "fast",
+    "stats": {
+      "speed": 6,
+      "jump": 4,
+      "kick": 3,
+      "dash": 6,
+      "power": 3
+    },
+    "statTotal": 22,
+    "stars": 2,
+    "rationale": "Turbo: the fastest plain straight shot of the early game."
+  },
+  {
+    "stage": 15,
+    "id": "legendary_15",
+    "tier": 2,
+    "tierName": "ליגה",
+    "title": "מרים המשקולות",
+    "power": {
+      "id": "heavy",
+      "name": "משקולות",
+      "icon": "🏋️"
+    },
+    "family": "downward",
+    "ailment": "shock",
+    "aura": "none",
+    "profile": "power",
+    "stats": {
+      "speed": 3,
+      "jump": 3,
+      "kick": 6,
+      "dash": 3,
+      "power": 8
+    },
+    "statTotal": 23,
+    "stars": 2,
+    "rationale": "A weight drops at a slant; whoever it hits is heavy (shock)."
+  },
+  {
+    "stage": 16,
+    "id": "legendary_16",
+    "tier": 2,
+    "tierName": "ליגה",
+    "title": "מקפיץ האבנים",
+    "power": {
+      "id": "skip",
+      "name": "אבן מקפצת",
+      "icon": "🪨"
+    },
+    "family": "ground",
+    "ailment": null,
+    "aura": "none",
+    "profile": "kicker",
+    "stats": {
+      "speed": 4,
+      "jump": 3,
+      "kick": 7,
+      "dash": 3,
+      "power": 6
+    },
+    "statTotal": 23,
+    "stars": 2,
+    "rationale": "A skipping stone along the turf — low, grounded, counter-only."
+  },
+  {
+    "stage": 17,
+    "id": "legendary_17",
+    "tier": 2,
+    "tierName": "ליגה",
+    "title": "רוכב הסערה",
+    "power": {
+      "id": "wind",
+      "name": "סופה",
+      "icon": "🌬️"
+    },
+    "family": "straight",
+    "ailment": null,
+    "aura": "push",
+    "profile": "fast",
+    "stats": {
+      "speed": 7,
+      "jump": 4,
+      "kick": 4,
+      "dash": 6,
+      "power": 3
+    },
+    "statTotal": 24,
+    "stars": 2,
+    "rationale": "Storm wind: a straight gust, and arming pushes the opponent away."
+  },
+  {
+    "stage": 18,
+    "id": "legendary_18",
+    "tier": 2,
+    "tierName": "ליגה",
+    "title": "הסטרייקר",
+    "power": {
+      "id": "strike",
+      "name": "סטרייק",
+      "icon": "⚡"
+    },
+    "family": "destructive",
+    "ailment": "stars",
+    "aura": "stun",
+    "profile": "kicker",
+    "stats": {
+      "speed": 4,
+      "jump": 3,
+      "kick": 8,
+      "dash": 3,
+      "power": 7
+    },
+    "statTotal": 25,
+    "stars": 2,
+    "rationale": "The strike already paralyses the blocker: knockback + stars; the arm aura stuns."
+  },
+  {
+    "stage": 19,
+    "id": "legendary_19",
+    "tier": 3,
+    "tierName": "נבחרת",
+    "title": "הג'וקר",
+    "power": {
+      "id": "reverse",
+      "name": "בלבול",
+      "icon": "🔄"
+    },
+    "family": "ailment",
+    "ailment": "reverse",
+    "aura": "reverse",
+    "profile": "tricky",
+    "stats": {
+      "speed": 7,
+      "jump": 5,
+      "kick": 4,
+      "dash": 5,
+      "power": 5
+    },
+    "statTotal": 26,
+    "stars": 2.5,
+    "rationale": "The joker: controls flip (???) on hit, and on arming."
+  },
+  {
+    "stage": 20,
+    "id": "legendary_20",
+    "tier": 3,
+    "tierName": "נבחרת",
+    "title": "איש השלג",
+    "power": {
+      "id": "freeze",
+      "name": "הקפאה",
+      "icon": "❄️"
+    },
+    "family": "ailment",
+    "ailment": "freeze",
+    "aura": "freeze",
+    "profile": "tricky",
+    "stats": {
+      "speed": 7,
+      "jump": 5,
+      "kick": 4,
+      "dash": 5,
+      "power": 5
+    },
+    "statTotal": 26,
+    "stars": 2.5,
+    "rationale": "Snowman: the hit player freezes; arming freezes anyone close."
+  },
+  {
+    "stage": 21,
+    "id": "legendary_21",
+    "tier": 3,
+    "tierName": "נבחרת",
+    "title": "צייד המטאורים",
+    "power": {
+      "id": "meteor",
+      "name": "מטאור",
+      "icon": "☄️"
+    },
+    "family": "downward",
+    "ailment": "burn",
+    "aura": "none",
+    "profile": "jumper",
+    "stats": {
+      "speed": 5,
+      "jump": 9,
+      "kick": 5,
+      "dash": 3,
+      "power": 5
+    },
+    "statTotal": 27,
+    "stars": 2.5,
+    "rationale": "A meteor dives down into the goal and burns on impact."
+  },
+  {
+    "stage": 22,
+    "id": "legendary_22",
+    "tier": 3,
+    "tierName": "נבחרת",
+    "title": "הגנב",
+    "power": {
+      "id": "drain",
+      "name": "גניבת כוח",
+      "icon": "🫳"
+    },
+    "family": "ailment",
+    "ailment": "shock",
+    "aura": "none",
+    "profile": "tricky",
+    "stats": {
+      "speed": 7,
+      "jump": 6,
+      "kick": 4,
+      "dash": 6,
+      "power": 5
+    },
+    "statTotal": 28,
+    "stars": 2.5,
+    "rationale": "Power drain as an ailment: the hit player is sapped (shock)."
+  },
+  {
+    "stage": 23,
+    "id": "legendary_23",
+    "tier": 3,
+    "tierName": "נבחרת",
+    "title": "רעם האדמה",
+    "power": {
+      "id": "quake",
+      "name": "רעידת אדמה",
+      "icon": "🌋"
+    },
+    "family": "destructive",
+    "ailment": "stars",
+    "aura": "push",
+    "profile": "power",
+    "stats": {
+      "speed": 4,
+      "jump": 4,
+      "kick": 7,
+      "dash": 4,
+      "power": 10
+    },
+    "statTotal": 29,
+    "stars": 3,
+    "rationale": "Earthquake: the blocker is thrown and sees stars; arming shakes the ground (push)."
+  },
+  {
+    "stage": 24,
+    "id": "legendary_24",
+    "tier": 3,
+    "tierName": "נבחרת",
+    "title": "האקרובט",
+    "power": {
+      "id": "trampoline",
+      "name": "טרמפולינה",
+      "icon": "🤸"
+    },
+    "family": "updown",
+    "ailment": null,
+    "aura": "none",
+    "profile": "jumper",
+    "stats": {
+      "speed": 5,
+      "jump": 10,
+      "kick": 5,
+      "dash": 4,
+      "power": 5
+    },
+    "statTotal": 29,
+    "stars": 3,
+    "rationale": "Trampoline bounces: a wavy up-down flight."
+  },
+  {
+    "stage": 25,
+    "id": "legendary_25",
+    "tier": 3,
+    "tierName": "נבחרת",
+    "title": "המטעה",
+    "power": {
+      "id": "stutter",
+      "name": "עצור וסע",
+      "icon": "⏯️"
+    },
+    "family": "delay",
+    "ailment": null,
+    "aura": "none",
+    "profile": "kicker",
+    "stats": {
+      "speed": 5,
+      "jump": 4,
+      "kick": 9,
+      "dash": 4,
+      "power": 8
+    },
+    "statTotal": 30,
+    "stars": 3,
+    "rationale": "Stop-and-go is already a Delay shot: freeze mid-air, then burst on."
+  },
+  {
+    "stage": 26,
+    "id": "legendary_26",
+    "tier": 3,
+    "tierName": "נבחרת",
+    "title": "המחליק",
+    "power": {
+      "id": "ice",
+      "name": "רצפת קרח",
+      "icon": "🧊"
+    },
+    "family": "ground",
+    "ailment": "freeze",
+    "aura": "none",
+    "profile": "fast",
+    "stats": {
+      "speed": 9,
+      "jump": 5,
+      "kick": 5,
+      "dash": 9,
+      "power": 3
+    },
+    "statTotal": 31,
+    "stars": 3,
+    "rationale": "An ice puck sliding on the floor; whoever touches it freezes."
+  },
+  {
+    "stage": 27,
+    "id": "legendary_27",
+    "tier": 3,
+    "tierName": "נבחרת",
+    "title": "שומר הפורטל",
+    "power": {
+      "id": "portal",
+      "name": "פורטל",
+      "icon": "🌀"
+    },
+    "family": "delay",
+    "ailment": null,
+    "aura": "none",
+    "profile": "tricky",
+    "stats": {
+      "speed": 8,
+      "jump": 7,
+      "kick": 5,
+      "dash": 6,
+      "power": 6
+    },
+    "statTotal": 32,
+    "stars": 3,
+    "rationale": "The ball enters a portal, hangs, and comes out still flying — a Delay."
+  },
+  {
+    "stage": 28,
+    "id": "legendary_28",
+    "tier": 4,
+    "tierName": "אלופים",
+    "title": "זורק הבומרנג",
+    "power": {
+      "id": "boomerang",
+      "name": "בומרנג",
+      "icon": "🪃"
+    },
+    "family": "aerial",
+    "ailment": null,
+    "aura": "none",
+    "profile": "kicker",
+    "stats": {
+      "speed": 5,
+      "jump": 4,
+      "kick": 10,
+      "dash": 4,
+      "power": 9
+    },
+    "statTotal": 32,
+    "stars": 3.5,
+    "rationale": "Boomerang: a high arcing loop back into the goal."
+  },
+  {
+    "stage": 29,
+    "id": "legendary_29",
+    "tier": 4,
+    "tierName": "אלופים",
+    "title": "הכורה",
+    "power": {
+      "id": "drill",
+      "name": "מקדחה",
+      "icon": "🔩"
+    },
+    "family": "destructive",
+    "ailment": null,
+    "aura": "push",
+    "profile": "power",
+    "stats": {
+      "speed": 5,
+      "jump": 5,
+      "kick": 8,
+      "dash": 5,
+      "power": 10
+    },
+    "statTotal": 33,
+    "stars": 3.5,
+    "rationale": "The drill bores through the first blocker, knocking him aside."
+  },
+  {
+    "stage": 30,
+    "id": "legendary_30",
+    "tier": 4,
+    "tierName": "אלופים",
+    "title": "אדון המשיכה",
+    "power": {
+      "id": "goalmagnet",
+      "name": "מגנט שער",
+      "icon": "🥅"
+    },
+    "family": "downward",
+    "ailment": null,
+    "aura": "none",
+    "profile": "kicker",
+    "stats": {
+      "speed": 6,
+      "jump": 5,
+      "kick": 10,
+      "dash": 4,
+      "power": 9
+    },
+    "statTotal": 34,
+    "stars": 3.5,
+    "rationale": "The goal magnet pulls the ball down into the net at a slant."
+  },
+  {
+    "stage": 31,
+    "id": "legendary_31",
+    "tier": 4,
+    "tierName": "אלופים",
+    "title": "השואב",
+    "power": {
+      "id": "keeperpull",
+      "name": "שאיבה",
+      "icon": "🌪️"
+    },
+    "family": "grab",
+    "ailment": null,
+    "aura": "push",
+    "profile": "power",
+    "stats": {
+      "speed": 5,
+      "jump": 5,
+      "kick": 10,
+      "dash": 5,
+      "power": 10
+    },
+    "statTotal": 35,
+    "stars": 3.5,
+    "rationale": "The vacuum already drags the keeper around — now it drags him into his own goal."
+  },
+  {
+    "stage": 32,
+    "id": "legendary_32",
+    "tier": 4,
+    "tierName": "אלופים",
+    "title": "הרוזן האפל",
+    "power": {
+      "id": "vampire",
+      "name": "ערפד",
+      "icon": "🧛"
+    },
+    "family": "grab",
+    "ailment": "burn",
+    "aura": "stun",
+    "profile": "tricky",
+    "stats": {
+      "speed": 9,
+      "jump": 7,
+      "kick": 5,
+      "dash": 7,
+      "power": 7
+    },
+    "statTotal": 35,
+    "stars": 3.5,
+    "rationale": "The vampire bites the blocker and drags him in; drained health = burn."
+  },
+  {
+    "stage": 33,
+    "id": "legendary_33",
+    "tier": 4,
+    "tierName": "אלופים",
+    "title": "רגל הזהב",
+    "power": {
+      "id": "superboot",
+      "name": "בעיטת על",
+      "icon": "👟"
+    },
+    "family": "critical",
+    "ailment": null,
+    "aura": "push",
+    "profile": "kicker",
+    "stats": {
+      "speed": 6,
+      "jump": 5,
+      "kick": 10,
+      "dash": 5,
+      "power": 10
+    },
+    "statTotal": 36,
+    "stars": 4,
+    "rationale": "Golden boot: the faster, harder-to-counter shot — Critical."
+  },
+  {
+    "stage": 34,
+    "id": "legendary_34",
+    "tier": 4,
+    "tierName": "אלופים",
+    "title": "אמן הצמר",
+    "power": {
+      "id": "woolshoes",
+      "name": "נעלי צמר",
+      "icon": "🧶"
+    },
+    "family": "aerial",
+    "ailment": "shock",
+    "aura": "none",
+    "profile": "balanced",
+    "stats": {
+      "speed": 8,
+      "jump": 8,
+      "kick": 7,
+      "dash": 7,
+      "power": 7
+    },
+    "statTotal": 37,
+    "stars": 4,
+    "rationale": "A soft woolly lob; whoever touches it goes limp (shock)."
+  },
+  {
+    "stage": 35,
+    "id": "legendary_35",
+    "tier": 4,
+    "tierName": "אלופים",
+    "title": "הנווט",
+    "power": {
+      "id": "homing",
+      "name": "טיל מונחה",
+      "icon": "🎯"
+    },
+    "family": "critical",
+    "ailment": null,
+    "aura": "none",
+    "profile": "kicker",
+    "stats": {
+      "speed": 8,
+      "jump": 5,
+      "kick": 10,
+      "dash": 5,
+      "power": 10
+    },
+    "statTotal": 38,
+    "stars": 4,
+    "rationale": "Guided missile: locks onto the open corner — Critical."
+  },
+  {
+    "stage": 36,
+    "id": "legendary_36",
+    "tier": 4,
+    "tierName": "אלופים",
+    "title": "הופך העולמות",
+    "power": {
+      "id": "gravflip",
+      "name": "היפוך כבידה",
+      "icon": "🙃"
+    },
+    "family": "updown",
+    "ailment": "reverse",
+    "aura": "reverse",
+    "profile": "jumper",
+    "stats": {
+      "speed": 8,
+      "jump": 10,
+      "kick": 8,
+      "dash": 5,
+      "power": 7
+    },
+    "statTotal": 38,
+    "stars": 4,
+    "rationale": "Gravity flip: the ball falls up and back down, and the world turns upside down (???)."
+  },
+  {
+    "stage": 37,
+    "id": "legendary_37",
+    "tier": 5,
+    "tierName": "אגדות",
+    "title": "אדון המראות",
+    "power": {
+      "id": "mirror",
+      "name": "מראה",
+      "icon": "🪞"
+    },
+    "family": "critical",
+    "ailment": "reverse",
+    "aura": "reverse",
+    "profile": "balanced",
+    "stats": {
+      "speed": 8,
+      "jump": 8,
+      "kick": 8,
+      "dash": 8,
+      "power": 7
+    },
+    "statTotal": 39,
+    "stars": 4,
+    "rationale": "The mirror returns everything reversed: a Critical that leaves ??? on the blocker."
+  },
+  {
+    "stage": 38,
+    "id": "legendary_38",
+    "tier": 5,
+    "tierName": "אגדות",
+    "title": "המשגר",
+    "power": {
+      "id": "teleport",
+      "name": "שיגור",
+      "icon": "🛸"
+    },
+    "family": "critical",
+    "ailment": null,
+    "aura": "stun",
+    "profile": "fast",
+    "stats": {
+      "speed": 10,
+      "jump": 8,
+      "kick": 7,
+      "dash": 10,
+      "power": 5
+    },
+    "statTotal": 40,
+    "stars": 4.5,
+    "rationale": "Teleport: the ball blinks to the goal mouth — the hardest to counter."
+  },
+  {
+    "stage": 39,
+    "id": "legendary_39",
+    "tier": 5,
+    "tierName": "אגדות",
+    "title": "מלך הכדרור",
+    "power": {
+      "id": "carry",
+      "name": "דבק",
+      "icon": "🍯"
+    },
+    "family": "grab",
+    "ailment": null,
+    "aura": "push",
+    "profile": "fast",
+    "stats": {
+      "speed": 10,
+      "jump": 8,
+      "kick": 8,
+      "dash": 10,
+      "power": 5
+    },
+    "statTotal": 41,
+    "stars": 4.5,
+    "rationale": "Glue: the ball sticks to the blocker and carries him into the goal."
+  },
+  {
+    "stage": 40,
+    "id": "legendary_40",
+    "tier": 5,
+    "tierName": "אגדות",
+    "title": "רוח הרפאים",
+    "power": {
+      "id": "phantom",
+      "name": "רוח רפאים",
+      "icon": "👻"
+    },
+    "family": "multiball",
+    "ailment": null,
+    "aura": "stun",
+    "profile": "fast",
+    "stats": {
+      "speed": 10,
+      "jump": 8,
+      "kick": 8,
+      "dash": 10,
+      "power": 5
+    },
+    "statTotal": 41,
+    "stars": 4.5,
+    "rationale": "Phantom: ghost balls fly alongside the real one, and any may score."
+  },
+  {
+    "stage": 41,
+    "id": "legendary_41",
+    "tier": 5,
+    "tierName": "אגדות",
+    "title": "שומר הזמן",
+    "power": {
+      "id": "timeslow",
+      "name": "הילוך איטי",
+      "icon": "🐢"
+    },
+    "family": "delay",
+    "ailment": "shock",
+    "aura": "freeze",
+    "profile": "tricky",
+    "stats": {
+      "speed": 10,
+      "jump": 9,
+      "kick": 7,
+      "dash": 8,
+      "power": 8
+    },
+    "statTotal": 42,
+    "stars": 4.5,
+    "rationale": "Slow motion: the ball hangs mid-air; the hit player stays slow (shock)."
+  },
+  {
+    "stage": 42,
+    "id": "legendary_42",
+    "tier": 5,
+    "tierName": "אגדות",
+    "title": "התאום",
+    "power": {
+      "id": "clone",
+      "name": "שכפול",
+      "icon": "👥"
+    },
+    "family": "multiball",
+    "ailment": null,
+    "aura": "push",
+    "profile": "balanced",
+    "stats": {
+      "speed": 9,
+      "jump": 9,
+      "kick": 9,
+      "dash": 8,
+      "power": 8
+    },
+    "statTotal": 43,
+    "stars": 4.5,
+    "rationale": "The twin kicks a second ball at the same time."
+  },
+  {
+    "stage": 43,
+    "id": "legendary_43",
+    "tier": 5,
+    "tierName": "אגדות",
+    "title": "המפצל",
+    "power": {
+      "id": "split",
+      "name": "פיצול",
+      "icon": "🔱"
+    },
+    "family": "multiball",
+    "ailment": null,
+    "aura": "stun",
+    "profile": "kicker",
+    "stats": {
+      "speed": 10,
+      "jump": 7,
+      "kick": 10,
+      "dash": 7,
+      "power": 10
+    },
+    "statTotal": 44,
+    "stars": 5,
+    "rationale": "The split shot is already three balls — full Multi-Ball."
+  },
+  {
+    "stage": 44,
+    "id": "legendary_44",
+    "tier": 5,
+    "tierName": "אגדות",
+    "title": "עין הסערה",
+    "power": {
+      "id": "tornado",
+      "name": "טורנדו",
+      "icon": "🌪"
+    },
+    "family": "updown",
+    "ailment": "stars",
+    "aura": "push",
+    "profile": "power",
+    "stats": {
+      "speed": 8,
+      "jump": 8,
+      "kick": 10,
+      "dash": 8,
+      "power": 10
+    },
+    "statTotal": 44,
+    "stars": 5,
+    "rationale": "The tornado carries the ball up and down across the pitch and throws the opponent (stars)."
+  },
+  {
+    "stage": 45,
+    "id": "legendary_45",
+    "tier": 5,
+    "tierName": "אגדות",
+    "title": "אדון הזמן",
+    "power": {
+      "id": "timestop",
+      "name": "עצירת זמן",
+      "icon": "⏱️"
+    },
+    "family": "delay",
+    "ailment": "freeze",
+    "aura": "freeze",
+    "profile": "balanced",
+    "stats": {
+      "speed": 9,
+      "jump": 9,
+      "kick": 9,
+      "dash": 9,
+      "power": 9
+    },
+    "statTotal": 45,
+    "stars": 5,
+    "rationale": "Time stop: ball and opponent freeze, then the shot resumes — the final Delay."
+  }
+]
