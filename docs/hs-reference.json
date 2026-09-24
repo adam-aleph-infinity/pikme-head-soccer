@@ -245,33 +245,34 @@
   },
   {
     "id": "jump.airtime.tap",
-    "value": 0.74,
+    "value": 0.772,
     "unit": "s",
     "clips": [
       "M4"
     ],
-    "n": 10,
-    "sd": 0.01,
-    "tol": 0.0222,
+    "n": 9,
+    "sd": 0.004,
+    "tol": 0.0232,
     "scenario": "jumpTap",
     "status": "estimated",
-    "source": "M4 21.05–29.4 s",
-    "how": "Takeoff to landing where the fitted parabola crosses the standing line."
+    "source": "M4 21.00–29.45 s: 9 standstill jumps",
+    "how": "Head-top track (m4/u1.json, the human at x≈330), one free parabola per jump through every frame ≥ 3 px up; airtime between its two crossings of the standing line. Checked on the FEET line (shoe bottoms, frames 1310–1370): last standing frame 21.948, first frame 4 px up 21.965, last frame 3 px up 22.713, down 22.730 — 0.774 s.",
+    "note": "Re-measured (was 0.74, an under-count: the first pass fell back to the frames more than 3 px above standing, on a head-TOP track, and 2·√(2·40.8/595) = 0.74). The nine jumps at 21.00, 21.95, 22.98, 23.78, 24.71, 25.49, 26.51, 27.62, 28.60 s: 0.769 0.770 0.773 0.773 0.766 0.773 0.778 0.776 0.772. Fitted freely they give g 592–613 (mean 602), takeoff 233 px/s, apex 44.8 — 2·233/602 = 0.774, so apex 45.8 and g 595 (which imply 0.785) and this airtime agree within the fit. Our sim's 0.790 (235 takeoff, g 595) is 2% long, inside the tolerance; the sim is left as it is."
   },
   {
     "id": "jump.airtime.hold",
-    "value": 0.74,
+    "value": 0.772,
     "unit": "s",
     "clips": [
       "M4"
     ],
-    "n": 10,
-    "sd": 0.01,
-    "tol": 0.0222,
+    "n": 9,
+    "sd": 0.004,
+    "tol": 0.0232,
     "scenario": "jumpHold",
     "status": "estimated",
-    "source": "M4 21.05–29.4 s",
-    "how": "As jump.airtime.tap."
+    "source": "M4 21.00–29.45 s",
+    "how": "As jump.airtime.tap (the held jumps, 23.78–26.51 s, are the same parabola)."
   },
   {
     "id": "player.gravity",
@@ -480,29 +481,33 @@
   },
   {
     "id": "kick.head.speed",
-    "value": null,
+    "value": 391,
     "unit": "px/s",
     "clips": [
-      "C7"
+      "M4"
     ],
-    "n": 0,
-    "sd": null,
-    "tol": null,
+    "n": 4,
+    "sd": 135,
+    "tol": 135,
     "scenario": "kickHead",
-    "status": "unmeasured"
+    "status": "estimated",
+    "source": "M4 a ball met almost still at head height (ball in < 150 px/s): 48.41, 88.81, 155.99, 161.86 s",
+    "note": "379, 356, 647, 402 — the median; HS shows no separate header button, so these are head-height touches of a still ball, which our kickHead (KICK with the ball at the head) re-enacts."
   },
   {
     "id": "kick.head.angle",
-    "value": null,
+    "value": 66,
     "unit": "deg",
     "clips": [
-      "C7"
+      "M4"
     ],
-    "n": 0,
-    "sd": null,
-    "tol": null,
+    "n": 4,
+    "sd": 22,
+    "tol": 25,
     "scenario": "kickHead",
-    "status": "unmeasured"
+    "status": "estimated",
+    "source": "M4 a ball met almost still at head height (ball in < 150 px/s): 48.41, 88.81, 155.99, 161.86 s",
+    "note": "51, 88, 80, 44°."
   },
   {
     "id": "kick.jump.speed",
@@ -593,6 +598,127 @@
     "sd": null,
     "tol": null,
     "scenario": "header",
+    "status": "unmeasured"
+  },
+  {
+    "id": "head.restitution.standing",
+    "value": 0.79,
+    "unit": "",
+    "clips": [
+      "M4"
+    ],
+    "n": 1,
+    "sd": 0.08,
+    "tol": 0.1,
+    "scenario": "headDrop",
+    "status": "estimated",
+    "source": "M4 52.76 s: the ball dropped onto the head of the player standing, still, on the CPU's head",
+    "how": "Ball velocity from the free flights either side (m4 flights.json: 50.95–52.72 s in at (71, 466) px/s, 52.80–54.05 s out at (40, −367)); the head's own speed 0 (its top holds at 344–346 through the touch): e = 367 / 466.",
+    "note": "The one clean still-head bounce in M4 (a standing head on the grass is never hit cleanly there). Our sim: HEAD_BOUNCE 0.75 measures 0.74 here."
+  },
+  {
+    "id": "head.restitution.jumping",
+    "value": 0.7,
+    "unit": "",
+    "clips": [
+      "M4"
+    ],
+    "n": 6,
+    "sd": 0.06,
+    "tol": 0.1,
+    "scenario": "headerPassive",
+    "status": "estimated",
+    "source": "M4 84.96, 86.98, 99.71, 131.85, 133.94, 167.89 s (the clean passive jumping touches of the twelve in ball.launchSpeed.header)",
+    "how": "e along the contact normal, relative to the head. Ball velocities from the flights either side at the contact; the head's velocity from the jump's own kinematics (takeoff 235 px/s, g 595) at the time since takeoff — the human's JUMP presses (99.64, 167.85 s), the CPU's takeoff frame off its head-top track — plus 228 px/s sideways while an arrow was lit (99.71, 167.89 s: R).",
+    "note": "0.77, 0.62, 0.63, 0.68, 0.74, 0.71; median 0.70. Frictionless across the normal within the noise (99.71 s: 49 → 57 px/s tangential), so spin is left decorative. With the still head's 0.79 the two agree on one restitution ~0.7–0.75, near the ball's own off the grass (0.65) and the goal top (0.67) — Box2D's max-of-the-pair mixing."
+  },
+  {
+    "id": "header.passive.launch",
+    "value": 717,
+    "unit": "px/s",
+    "clips": [
+      "M4"
+    ],
+    "n": 6,
+    "sd": 140,
+    "tol": 140,
+    "scenario": "headerPassive",
+    "status": "estimated",
+    "source": "M4 84.96, 86.98, 99.71, 131.85, 133.94, 167.89 s (the clean passive jumping touches of the twelve in ball.launchSpeed.header)",
+    "how": "Speed of the free flight leaving the head (m4 flights.json).",
+    "note": "447, 601, 673, 761, 762, 845 — faster than the ball arrived (506–737, median 576): the head is still rising. The jump had started ~0.04–0.19 s before the touch (median ~0.065). hs-scenarios headerPassive re-enacts that: a 576 px/s arrival, the jump 0.065 s before it, no KICK."
+  },
+  {
+    "id": "ball.launchSpeed.header",
+    "value": 626,
+    "unit": "px/s",
+    "clips": [
+      "M4"
+    ],
+    "n": 12,
+    "sd": 181,
+    "tol": 130,
+    "scenario": "headerKick",
+    "status": "estimated",
+    "source": "M4 jumping headers into a falling ball (ball in at a median 511 px/s): 52.80, 56.26, 84.98, 87.00, 90.37, 99.72, 106.13, 131.86, 133.95, 160.34, 167.90, 178.62 s",
+    "how": "scratchpad m4/flights.mjs: the ball track cut into free flights (fixed-g 583 parabola in y, line in x, < 5px residual); the launch is the flight that starts at the head. Each contact checked by eye on frame strips.",
+    "note": "Median; range 346–841 (p25 415, p75 735). Angle median 74° (the ball arrives falling, so it goes back up). BUTTON CHECK (the human's KICK plaque flashes on every press): none of these is a KICK by the human. 99.72 and 167.90 s are his, passive (JUMP 99.64 / 167.85 s, KICK dark); 106.13 s fell inside his kick mashing (105.93, 106.20 s) but the CPU made that touch; the rest are the CPU's, whose presses cannot be seen — at 84.98, 87.00 and 131.86 s its leg was out, but the ball met the head. So this is in effect a PASSIVE header number: header.passive.launch holds the six clean passive jumping touches on their own. This row still compares our aimed header (KICK at the head, headerKick)."
+  },
+  {
+    "id": "ball.headerApex",
+    "value": 311,
+    "unit": "px",
+    "clips": [
+      "M4"
+    ],
+    "n": 12,
+    "sd": 139,
+    "tol": 80,
+    "scenario": "headerKick",
+    "status": "estimated",
+    "source": "M4 jumping headers into a falling ball (ball in at a median 511 px/s): 52.80, 56.26, 84.98, 87.00, 90.37, 99.72, 106.13, 131.86, 133.95, 160.34, 167.90, 178.62 s",
+    "how": "Apex of the same flights, ball-centre rise above a ball resting on the grass; flights that reach the ceiling count as the ceiling (553).",
+    "note": "p25 267, p75 485; 2 of 12 reach the ceiling. Over all 20 head-height touches in M4 (these plus 48.41, 59.37, 88.81, 102.2, 129.81, 155.99, 161.86, 171.48 s) the apex is p25 252 / p50 304 / p75 509, 6 of 20 above the top of the picture (475) and 3 of 20 at the ceiling."
+  },
+  {
+    "id": "ball.kickApex.feet",
+    "value": null,
+    "unit": "px",
+    "clips": [
+      "C7"
+    ],
+    "n": 0,
+    "sd": null,
+    "tol": null,
+    "scenario": "kickFeet",
+    "status": "unmeasured"
+  },
+  {
+    "id": "ball.kickApex.head",
+    "value": 286,
+    "unit": "px",
+    "clips": [
+      "M4"
+    ],
+    "n": 4,
+    "sd": 139,
+    "tol": 140,
+    "scenario": "kickHead",
+    "status": "estimated",
+    "source": "M4 a ball met almost still at head height (ball in < 150 px/s): 48.41, 88.81, 155.99, 161.86 s",
+    "note": "187, 324, 508, 248."
+  },
+  {
+    "id": "ball.kickApex.lob",
+    "value": null,
+    "unit": "px",
+    "clips": [
+      "C7"
+    ],
+    "n": 0,
+    "sd": null,
+    "tol": null,
+    "scenario": "kickLob",
     "status": "unmeasured"
   },
   {
@@ -723,30 +849,30 @@
     "clips": [
       "M4"
     ],
-    "n": 2,
+    "n": 1,
     "sd": 0,
     "tol": 0.03,
     "scenario": "headStand",
     "status": "estimated",
-    "source": "M4 52.63–53.47 s and 159.2–160.06 s: the player stands on the CPU's head",
-    "how": "By eye on a frame strip: the upper head rests 70 px above a standing head, feet ~9 px into the lower crown.",
-    "note": "Yes."
+    "source": "M4 52.95–53.43 s: the human stands on the CPU's head",
+    "how": "By eye on frame strips and the head-top track: the upper head's top holds at 346–348 against a standing head's 418 — 70 px up, boots on the crown (drawn feet ~9 px over it).",
+    "note": "Yes. (159.3–160.1 s, the other case listed before, is not a stand on top: the human leans on the CPU's left shoulder — his head ~53 px up, ~45 px off-centre — while holding R into him. It is the same hold as dashUnder.)"
   },
   {
     "id": "headStand.carrySpeed",
-    "value": 70,
+    "value": 0,
     "unit": "px/s",
     "clips": [
       "M4"
     ],
     "n": 1,
-    "sd": 35,
-    "tol": 70,
+    "sd": 5,
+    "tol": 20,
     "scenario": "headStand",
     "status": "estimated",
-    "source": "M4 159.2–160.06 s",
-    "how": "The upper player's x drift while the lower one walks.",
-    "note": "LOW CONFIDENCE, conflicting: at 159.2–160.06 s the lower one carries the upper at ~70 px/s; at 53.10–53.47 s the CPU walked ~140 px/s under a stationary player (upper x 888–890 while the lower head went 870→918) and the upper slid off after ~30 px."
+    "source": "M4 53.00–53.40 s",
+    "how": "The upper player's x while the lower one walks under him: 886.5, 884.5, 886.5, 887.5 (image px) while the CPU's head went ~876 → 905.",
+    "note": "NO CARRY — this settles the conflict. At 159.2–160.06 s (read as a 70 px/s carry) the human was holding R himself (the R arrow lit 158.98–159.38 and 159.60–160.35 s) while leaning on the CPU's shoulder: the drift was his own push, not a carry. At 53.40–53.50 s he pressed L and walked off (the 'slid off after ~30 px'). Our sim: the upper body keeps its own velocity; the head moving under it carries it nowhere."
   },
   {
     "id": "dashUnder.launch",
@@ -762,7 +888,7 @@
     "status": "estimated",
     "source": "M4 66.36 s: the player dashes under the airborne CPU",
     "how": "Extra rise of the CPU's jump over an undisturbed one.",
-    "note": "No launch."
+    "note": "No launch: the CPU hung 40 px up (head top 378–380), under its own 46 px jump apex."
   },
   {
     "id": "dashUnder.headLandTime",
@@ -777,8 +903,9 @@
     "scenario": "dashUnder",
     "status": "estimated",
     "source": "M4 66.36 s",
-    "how": "The CPU landed on the dasher's head and rode there.",
-    "note": "0.4 s on the dasher's head."
+    "bound": "min",
+    "how": "The CPU (took off ~66.0 s) was at the top of its jump when the dash met it at ~66.40 s; it hung on the dasher's shoulder — head top 378–380, 40 px up, ~45 px off-centre — until it jumped off at ~66.78 s.",
+    "note": "A LOWER BOUND: 0.4 s is how long it stayed before its OWN jump took it off, not how long until it fell. The pair barely moved (x 838 → 844) while the human dashed right, so both were pushing into each other; the human kept pressing R through 67.10 s (0.75 s), which is what hs-scenarios dashUnder re-enacts: in our sim the push holds the airborne body up (BODY_GRIP) for as long as it lasts."
   },
   {
     "id": "ball.maxSpeed",
@@ -815,24 +942,61 @@
   },
   {
     "id": "gauge.refillTime",
-    "value": 12.98,
+    "value": 15.2,
     "unit": "s",
     "clips": [
       "M4"
     ],
     "n": 1,
-    "sd": 0.05,
-    "tol": 0.3894,
+    "sd": 0.1,
+    "tol": 0.456,
     "scenario": "gauge",
     "status": "estimated",
-    "source": "M4 41.9 s (power used on the counter) → 54.88 s (POWER plaque back)",
-    "how": "Frames from the gauge emptying to the POWER button reappearing.",
-    "note": "Preferred over M1–M3's 16.3 (see gauge.fillTime).",
+    "source": "M4 36.49 s (POWER pressed; the refill starts here, see gauge.refillStart) → 54.88 s (POWER plaque back) = 18.39 s, less the 3.19 s the bar stands still for the goal restart (goal 43.40 s → ball drop 46.59 s)",
+    "how": "Bar fill traced frame by frame (leftmost fill column of the top-left bar, every 0.25–0.5 s): climbs 17.5 px/s from 36.56 s, flat 43.40–46.59 s across the goal, climbs again to the plaque; the cut-ins at 40.44 s and 41.97 s do not change the rate.",
+    "note": "Timed from the PRESS, where the refill really starts. It used to be 12.98 s timed from the fire (41.9 s), which cut the 5.4 s of refill between press and fire off the front; 15.2 s of play now agrees with gauge.fillTime (15.0 s), so the gauge is one play-time clock at 1/15. M3 (another character) climbs at the same 17.4 px/s and also stops at its goals (39.0 s, 45.7 s, 85.1 s).",
     "tracksValue": 16.2733,
     "tracksClips": [
       "M3"
     ]
   },
+  {
+    "id": "gauge.emptyOnPress",
+    "value": 0.07,
+    "unit": "s",
+    "clips": [
+      "M4",
+      "M3"
+    ],
+    "n": 2,
+    "sd": 0.02,
+    "tol": 0.04,
+    "scenario": "armWait",
+    "status": "estimated",
+    "source": "M4 36.49 s (POWER pressed: the full bar's halo goes) → 36.56 s (bar empty); M3 plaque last seen 33.84 s → empty 33.90 s",
+    "bound": "max",
+    "how": "Frames of the top-left POWER bar at 60 fps around the press.",
+    "note": "The bar empties on the PRESS, not on the touch that fires the shot (M4 fires 5.4 s later, at 41.93 s, and the bar is already 1/3 back by then). The press frame is the halo leaving, so this is an upper bound; the sim empties it on the press tick."
+  },
+  {
+    "id": "gauge.refillStart",
+    "value": 0.18,
+    "unit": "s",
+    "clips": [
+      "M4",
+      "M3"
+    ],
+    "n": 2,
+    "sd": 0.05,
+    "tol": 0.1,
+    "scenario": "armWait",
+    "status": "estimated",
+    "source": "M4 press 36.49 s → fill visibly climbing at 36.67 s (and 2 more px by 36.79 s), 5.3 s before the shot fires at 41.93 s; M3 empty 33.90 s → climbing 33.99 s, and the bar climbs straight through the player's cut-in at 71.5 s (70.95 → 71.60 s, 2 px per 0.1 s)",
+    "bound": "max",
+    "how": "Leftmost fill column of the top-left bar at 60 fps after the press.",
+    "note": "The refill starts at the press, not at the fire. A rise is only visible after ~2 px (0.11 s at 17.5 px/s), so 0.18 s is an upper bound on when it starts; the sim starts it the tick after the press."
+  },
+
   {
     "id": "gauge.fullHold",
     "value": 70.2,
@@ -1017,6 +1181,26 @@
     "takes": 3
   },
   {
+    "id": "ball.offscreenFrac",
+    "value": 4,
+    "unit": "%",
+    "clips": [
+      "M4"
+    ],
+    "n": 10,
+    "sd": 1.6,
+    "tol": 3,
+    "scenario": "botLong",
+    "status": "estimated",
+    "source": "M4 live play (ball in → goal, less cut-ins), 125 s: off the top at 50.04, 55.06, 67.86, 100.92, 103.07, 130.31, 132.54, 134.37, 156.59, 159.01 s — 5.0 s in all",
+    "how": "scratchpad m4/offtop.mjs: a gap in the ball track that starts and ends at the top edge (centre above frame y 70) is time off the top; spot-checked on frame strips.",
+    "note": "Match 1 2.2% (3.4% without the drills before 46 s), match 2 5.4%; longest single exit 0.9 s. It is played by Idan against a weak CPU; ours is bot-vs-bot over ten minutes, so the tolerance is wide. The M3 track cannot measure it (its tracker stops at the HUD, 382px up).",
+    "tracksValue": 0,
+    "tracksClips": [
+      "M3"
+    ]
+  },
+  {
     "id": "ball.gravity.m3respawn",
     "value": 561,
     "unit": "px/s²",
@@ -1063,6 +1247,6 @@
     "scenario": "jumpTap",
     "status": "estimated",
     "source": "M3 13.43–14.13 s",
-    "note": "Takeoff to landing, in a match. M4's clean standstill jumps give 0.74."
+    "note": "Takeoff to landing, in a match: a running jump under the READY banner, n = 1, not re-measured — the feet are under the banner for most of it. M4's clean standstill jumps, re-measured, give 0.772 (their 0.74 was an under-count), so this 0.70 is probably one too; kept, and flagged."
   }
 ]

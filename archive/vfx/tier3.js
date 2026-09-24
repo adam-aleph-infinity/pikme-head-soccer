@@ -955,7 +955,7 @@ export default {
     doc: {
       fantasy: 'The champion plugs into the opponent and siphons his power away — then padlocks his meter.',
       purpose: 'A power against powers: it empties the rival\'s meter, cancels his armed ultimate and every effect he has running, and locks his meter so he cannot answer for 5 s.',
-      player: 'Fill the meter, press POWER, then touch the ball with head or body. You take all of the opponent\'s meter (60% of it lands in yours), his armed power and running effects are cancelled, his meter cannot fill for 5 s, and the ball is struck at goal on a lofted line.',
+      player: 'Fill the meter, press POWER, then touch the ball with head or body. The opponent\'s whole meter is emptied (none of it comes to you), his armed power and running effects are cancelled, his meter cannot fill for 5 s, and the ball is struck at goal on a lofted line.',
       bot: 'Arms the moment it can (POWERS.drain.arm = "any"); brawler style (no extra aggression, 1.35× tackling), so it tends to fire it in a scramble.',
       sequence: {
         anticipation: 'While armed a wide dark halo with five green arcs turns round the champion\'s head in a green glow, and lime motes are sucked into it.',

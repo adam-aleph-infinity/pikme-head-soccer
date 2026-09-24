@@ -7,8 +7,9 @@ import { createBot, botInput, DIFFICULTIES } from '../shared/bot.js';
 import { shotFor } from '../shared/hs-powers.js';
 import { goalBox, goalAt, depthPoint, INSIDE_Z } from '../shared/goalbox.js';
 import { createEditor, applyLayout, applyOpacity, loadOpacity } from './padlayout.js';
+import { walkPick, resolveWalk } from './walkpad.js';
 import { headCrop } from './head-crop.js';
-import { clockText } from './hud.js';
+import { clockText, gaugeView } from './hud.js';
 import { createNet } from './net.js';
 import { playEvent, SFX, setAudioEnabled, audioEnabled, synth } from './audio.js';
 import { STAGES, randomStage, stageById } from './stages.js';
@@ -48,13 +49,13 @@ const anchorFor = (r, n) => ANCHORS.heads[`${r}_${n}`] || DEFAULT_ANCHOR;
 // window onto it — positioned from a face box detected offline (Vision.framework) and
 // baked into head-anchors.json. Painted as a CSS background on a DOM node, never blitted
 // into the canvas: canvas-drawn card art comes back blank inside WKWebView.
-function paintHead(el, r, n, sizePx) {
+function paintHead(el, r, n, sizePx, opts) {
   // The maths lives in head-crop.js so test-heads.mjs can run it over all 180 anchors. It
   // CLAMPS the window to the card, which the old inline version did not: twenty of the
   // anchors were measured asking for a window bigger than the card or too near an edge, and
   // an unclamped crop shows the card's edge and blank space beyond it — which is why some
   // faces sat off centre on a phone.
-  const c = headCrop(anchorFor(r, n), ANCHORS.cardW, ANCHORS.cardH, sizePx);
+  const c = headCrop(anchorFor(r, n), ANCHORS.cardW, ANCHORS.cardH, sizePx, opts);
   el.style.backgroundImage = `url("${cardUrl(r, n)}")`;
   el.style.backgroundSize = `${c.width}px ${c.height}px`;
   el.style.backgroundPosition = `${c.x}px ${c.y}px`;
@@ -425,7 +426,24 @@ $('#diffName').textContent = DIFFICULTIES[pick.level].name;
 // ═══════════════════════════════════════════════════════════════════════════
 // INPUT
 // ═══════════════════════════════════════════════════════════════════════════
-const held = { left: false, right: false, jump: false, kick: false, power: false };
+const heldNow = { left: false, right: false, jump: false, kick: false, power: false };
+// A PRESS IS NEVER LOST BETWEEN TWO TICKS. The sim samples `held` once per 1/60s tick, and
+// only on the frames that run a tick at all — none at all on half the frames of a 120Hz
+// screen, none under a frame that ran zero steps. A tap whose down and up both landed between
+// two samples (iOS can deliver a quick tap's touchstart and touchend in the same frame) was
+// simply never seen. So every press is also remembered until a tick has consumed it: the next
+// tick sees the button down at least once, and the sim's own edge test does the rest. Writers
+// still just set held[k] = true/false; the Proxy is what notices the press.
+const tapped = {};
+const held = new Proxy(heldNow, {
+  set(t, k, v) { if (v && !t[k]) tapped[k] = true; t[k] = v; return true; },
+});
+// The input one tick steps with: what is down now, plus anything pressed since the last tick.
+function tickInput() {
+  const inp = { ...heldNow };
+  for (const k in tapped) { inp[k] = true; delete tapped[k]; }
+  return inp;
+}
 
 // Bindings are DATA, not a frozen map. Two slots per action so the arrow cluster and the
 // letter cluster can both live.
@@ -489,17 +507,32 @@ const keyLabel = (code) => {
 // RTL note: the pitch is NOT mirrored, so ← always means screen-left. The player always
 // defends the LEFT goal, which keeps the arrow keys honest in both directions.
 
+// `held` is what the sim reads, and it is DERIVED — from the keys that are down and the
+// fingers that are on the pad — by syncHeld(), never written directly. Two sources writing
+// one flag is how a key gets stuck: a finger lifting used to clear a direction the keyboard
+// was still holding, and vice versa.
+const keyDown = { left: false, right: false, jump: false, kick: false, power: false };
+// When each walk direction was last pressed, by whatever pressed it. Both held at once (→
+// with ← on top, two thumbs, a slide that has not let go of the old arrow yet) resolves to
+// the most recent — see resolveWalk in walkpad.js.
+const walkStamp = { left: 0, right: 0 };
+let walkClock = 0;
+const WALK = new Set(['left', 'right']);
+
 addEventListener('keydown', (e) => {
   const k = KEYMAP[e.code];
   if (!k) return;
-  held[k] = true;
   e.preventDefault();
+  if (!keyDown[k] && WALK.has(k)) walkStamp[k] = ++walkClock;   // auto-repeat is not a new press
+  keyDown[k] = true;
+  syncHeld();
 });
 addEventListener('keyup', (e) => {
   const k = KEYMAP[e.code];
   if (!k) return;
-  held[k] = false;
   e.preventDefault();
+  keyDown[k] = false;
+  syncHeld();
 });
 
 // ── EDIT MODE ──────────────────────────────────────────────────────────────
@@ -513,159 +546,179 @@ let EDITOR = null;
 
 // THE CONTROLS, AS A GAMEPAD RATHER THAN AS WEB BUTTONS.
 //
-// Two complaints, one cause. The buttons "sometimes get stuck" and "sometimes open a
-// magnifier", and both come from treating a thumb like a mouse:
+// On a phone the pad runs on TOUCH EVENTS, one record per finger keyed by Touch.identifier;
+// pointer events drive it only for a mouse or pen (and for a touch screen with no touch
+// events at all). The history, because each step was a real bug on Idan's iPhone:
 //
-//   • RELEASING ON pointerleave. A thumb does not hold still — it rolls and drifts a few
-//     pixels while you hold a direction — and the moment it crossed the edge of the button
-//     the key was released while the finger was still down. That reads as "unresponsive" and,
-//     if the finger then came back without a new pointerdown, as "stuck". A real d-pad keeps
-//     the input until you LIFT. So the pointer is captured on down and only released on up or
-//     cancel, and pointerleave is gone.
-//   • THE MAGNIFIER is iOS deciding that a long press on a ◀ glyph means "select this text".
-//     touch-action alone does not stop it; -webkit-touch-callout and a killed contextmenu do.
+//   • pointerleave released a direction while the thumb was still down (it drifts). Fixed by
+//     capturing the pointer — which in turn stopped a slide ▶→◀ from ever reaching ◀, fixed by
+//     re-hit-testing the walk arrows on every move.
+//   • "I can hold ▶, slide to ◀, but sliding back to ▶ it's stuck" — and "I can't hold the
+//     arrows". Pointer events on iOS cannot keep a touch: pointerdown.preventDefault() does
+//     not stop WebKit's own gesture recognisers (long-press, the loupe, text-selection drag),
+//     and touch-action only speaks for pan and zoom. Hold still for a moment, then move, and
+//     iOS may take the touch for itself: pointercancel (the direction drops, and the finger
+//     is no longer tracked, so nothing it does until it lifts can walk) or simply no more
+//     pointermoves (the old direction stays held). And the walk hit-test was the button's own
+//     box, so a thumb that rolled a few px high on the way back held NOTHING — measured by
+//     _touch-slide.mjs. A non-passive touchstart/touchmove that preventDefault()s is the one
+//     thing that tells iOS the page owns this touch; touch events always come back to the
+//     element the touch started on, with a stable identifier, until the finger lifts.
+//   • THE MAGNIFIER is iOS deciding a long press on a ◀ glyph means "select this text".
+//     -webkit-touch-callout, the killed contextmenu and the preventDefault below stop it.
 //
-// Also tracked PER POINTER ID, so a second thumb landing on jump cannot release the direction
-// the first one is holding, and a pointer lost to the OS (a notification, a call) releases
-// exactly its own key.
-const heldBy = new Map();                       // pointerId -> { k, touch }
-// The two buttons a thumb is allowed to slide BETWEEN. Everything else keeps the capture it
-// was pressed with, because sliding off jump onto kick is a miss, not a change of mind.
-const WALK = new Set(['left', 'right']);
+// Walk fingers are tracked from the press until the lift, whatever they are over in between,
+// and on every move walkPick (walkpad.js) re-asks which arrow the point is nearer to — the gap
+// between the arrows is live, a thumb a button-height off the row still walks, a thumb out on
+// the pitch holds nothing until it comes back. Jump, kick and power keep the key they landed
+// on until the lift: sliding off jump onto kick is a miss, not a change of mind.
+const PAD_BTNS = [...document.querySelectorAll('.pad .btn')];
+const fingers = new Map();              // 't<Touch.identifier>' | 'p<pointerId>' -> { k, walk, touch }
 
-function pressPointer(id, btn, touch) {
-  const k = btn.dataset.k;
-  heldBy.set(id, { k, touch });
-  held[k] = true;
-  btn.classList.add('on');
+function syncHeld() {
+  const on = { ...keyDown };
+  const byFinger = {};
+  for (const f of fingers.values()) if (f.k) on[f.k] = byFinger[f.k] = true;
+  Object.assign(on, resolveWalk(on, walkStamp));
+  for (const k of Object.keys(held)) held[k] = !!on[k];
+  // Lit = a finger is on it AND it is the direction that won, so a thumb can see which one
+  // the game heard.
+  for (const b of PAD_BTNS) b.classList.toggle('on', !!(byFinger[b.dataset.k] && held[b.dataset.k]));
 }
 
-function releasePointer(id) {
-  const rec = heldBy.get(id);
-  if (!rec) return;
-  heldBy.delete(id);
-  // Only clear the key if no OTHER live pointer is still holding it — two thumbs on the same
-  // direction should take two lifts.
-  for (const r of heldBy.values()) if (r.k === rec.k) return;
-  held[rec.k] = false;
-  for (const b of document.querySelectorAll(`.pad .btn[data-k="${rec.k}"]`)) b.classList.remove('on');
+function setFinger(id, k, init) {
+  let f = fingers.get(id);
+  if (!f) fingers.set(id, f = { k: null, walk: false, touch: false, ...init });
+  if (k && k !== f.k && WALK.has(k)) walkStamp[k] = ++walkClock;
+  f.k = k;
+  syncHeld();
+}
+function dropFinger(id) { if (fingers.delete(id)) syncHeld(); }
+
+// The two arrows' boxes, read when a walking finger goes down and kept for its gesture (a
+// layout cannot change mid-press). A pressed arrow is drawn at scale(.94); that is undone
+// here so the plate is the arrow's real footprint, not the shrunk one.
+let walkRects = null;
+function readWalkRects() {
+  const box = (b) => {
+    if (!b) return null;
+    const q = b.getBoundingClientRect();
+    if (!q.width || !q.height) return null;
+    const pressed = b.classList.contains('on') || b.matches(':active');
+    const gx = pressed ? q.width * (1 / 0.94 - 1) / 2 : 0, gy = pressed ? q.height * (1 / 0.94 - 1) / 2 : 0;
+    return { left: q.left - gx, top: q.top - gy, right: q.right + gx, bottom: q.bottom + gy };
+  };
+  const l = box(document.querySelector('.pad .btn[data-k="left"]'));
+  const r = box(document.querySelector('.pad .btn[data-k="right"]'));
+  return l && r ? { l, r } : null;
+}
+const pickAt = (x, y, opt) => (walkRects ? walkPick(x, y, walkRects.l, walkRects.r, opt) : null);
+const editing = () => !!(EDITOR && EDITOR.editing);
+
+// ── TOUCH ────────────────────────────────────────────────────────────────────
+const HAS_TOUCH_EVENTS = 'ontouchstart' in window;
+// Where a touch that did not land on a button may still start a walk (the plate between and
+// around the arrows): the pitch itself, never a menu, the HUD's buttons or a dialog.
+const onPitch = (el) => !!(el && el.closest && el.closest('#stage') && !el.closest('button, a, input, label, select'));
+const tid = (t) => 't' + t.identifier;
+// Any finger we think is down that the glass no longer reports is gone — a touchend the OS
+// swallowed (a notification, a system gesture) must not leave its key held.
+function reconcile(ev) {
+  const live = new Set([...ev.touches].map(tid));
+  let changed = false;
+  for (const [id, f] of fingers) if (f.touch && id[0] === 't' && !live.has(id)) { fingers.delete(id); changed = true; }
+  if (changed) syncHeld();
 }
 
-// ── SLIDING BETWEEN THE ARROWS ──────────────────────────────────────────────
-// The capture above is what stops a drifting thumb from dropping a direction, and it is also
-// what stopped a thumb SLIDING from ▶ onto ◀ from ever reaching ◀: every move for that finger
-// is delivered to the button it started on. Correct for five separate buttons, wrong for the
-// one pair you walk with — nobody lifts their thumb to turn around.
-//
-// So the walk pointers, and only the walk pointers, re-ask on every move which arrow is under
-// the finger. The capture STAYS where it is: it is what guarantees the move events keep
-// arriving here at all once the finger is over the canvas.
-//
-// The answer used to come from document.elementFromPoint on every move, which asks the whole
-// page to hit-test itself dozens of times a second WHILE the button it is testing is having
-// its own transform changed underneath it (`.on`/`:active` scale the pressed arrow down 6%,
-// which moves its hit edges) — a live target on top of a live query. That is a plausible way
-// for a return slide (▶ → ◀ → ▶) to land on the wrong side of the boundary on a real touch
-// screen without ever showing up in a scripted test that moves the finger in tidy steps. So
-// the geometry is read ONCE, when the walking finger first goes down — before either arrow has
-// been pressed and shrunk — and every move during that finger's gesture is answered by simple
-// arithmetic against that frozen box instead of a fresh hit-test.
-let walkGeom = null;
-function captureWalkGeom() {
-  const l = document.querySelector('.pad-l .btn[data-k="left"]');
-  const r = document.querySelector('.pad-l .btn[data-k="right"]');
-  if (!l || !r) return null;
-  return { l, r, lr: l.getBoundingClientRect(), rr: r.getBoundingClientRect() };
-}
-const walkAt = (x, y) => {
-  if (!walkGeom) return null;
-  const { l, r, lr, rr } = walkGeom;
-  const top = Math.min(lr.top, rr.top), bottom = Math.max(lr.bottom, rr.bottom);
-  if (y < top || y > bottom) return null;
-  if (x >= lr.left && x <= lr.right) return l;
-  if (x >= rr.left && x <= rr.right) return r;
-  return null;                              // the gap between them, or off both ends
+addEventListener('touchstart', (ev) => {
+  if (editing()) return;              // the layout editor drives its own drags (pointer events)
+  reconcile(ev);
+  let mine = false;
+  for (const t of ev.changedTouches) {
+    const btn = t.target && t.target.closest ? t.target.closest('.pad .btn') : null;
+    let k = null;
+    if (btn) {
+      k = btn.dataset.k;
+      if (WALK.has(k)) walkRects = readWalkRects();
+    } else if (onPitch(t.target)) {
+      walkRects = readWalkRects();
+      k = pickAt(t.clientX, t.clientY, { start: true });
+    }
+    if (!k) continue;
+    mine = true;
+    setFinger(tid(t), k, { walk: WALK.has(k), touch: true });
+  }
+  // THE line: this touch is the page's. No long-press, loupe, selection, scroll or zoom, and
+  // no pointercancel stealing it back half way through a hold.
+  if (mine && ev.cancelable) ev.preventDefault();
+}, { passive: false });
+
+addEventListener('touchmove', (ev) => {
+  let mine = false;
+  for (const t of ev.changedTouches) {
+    const f = fingers.get(tid(t));
+    if (!f) continue;
+    mine = true;
+    if (!f.walk || editing()) continue;
+    const k = pickAt(t.clientX, t.clientY, { cur: f.k });
+    if (k !== f.k) setFinger(tid(t), k);
+  }
+  if (mine && ev.cancelable) ev.preventDefault();
+}, { passive: false });
+
+const touchUp = (ev) => {
+  let mine = false;
+  for (const t of ev.changedTouches) if (fingers.has(tid(t))) { mine = true; dropFinger(tid(t)); }
+  reconcile(ev);
+  // Cancelling the lift of a pad touch stops the synthetic click/mouse events that would
+  // otherwise follow it onto whatever is under the button.
+  if (mine && ev.cancelable && ev.type === 'touchend') ev.preventDefault();
 };
+addEventListener('touchend', touchUp, { passive: false });
+addEventListener('touchcancel', touchUp, { passive: false });
 
-// Which fingers are WALKING, kept apart from which ones are currently holding a direction.
-// They are not the same set and conflating them was the first version of this: a finger that
-// slides off both arrows lets go of its direction, and if that is also what stops it being
-// tracked then sliding back on can never pick anything up again. A walk pointer is tracked
-// from the press that started it until it lifts, whatever it happens to be over in between.
-const walking = new Set();                      // pointerIds that pressed a walk arrow
-
-function trackWalk(ev) {
-  if (!walking.has(ev.pointerId)) return;               // not a walking finger: leave it be
-  if (EDITOR && EDITOR.editing) return;
-  const btn = walkAt(ev.clientX, ev.clientY);
-  const cur = heldBy.get(ev.pointerId);
-  if (btn && cur && btn.dataset.k === cur.k) return;    // still on the same arrow
-  const touch = cur ? cur.touch : ev.pointerType === 'touch';
-  releasePointer(ev.pointerId);
-  if (btn) pressPointer(ev.pointerId, btn, touch);
-}
-// On the window, not on the button: with a capture the move is delivered to the capturing
-// element and bubbles from there, and without one (an engine where setPointerCapture threw)
-// it is delivered wherever the finger actually is. Both reach here — and so does the lift,
-// which the button would miss if the finger were over the pitch when it came off.
-addEventListener('pointermove', trackWalk, { passive: true });
-const endWalk = (ev) => {
-  if (walking.delete(ev.pointerId)) releasePointer(ev.pointerId);
-  if (!walking.size) walkGeom = null;           // no walking finger left: nothing to stay fresh for
-};
-addEventListener('pointerup', endWalk);
-addEventListener('pointercancel', endWalk);
-
-for (const btn of document.querySelectorAll('.pad .btn')) {
+// ── MOUSE / PEN (and touch on an engine without touch events) ────────────────
+// Same books, keyed 'p<pointerId>'. Captured on down, so a drag off the button still ends
+// here; walk pointers re-pick on every move exactly as a walking finger does.
+const pid = (ev) => 'p' + ev.pointerId;
+for (const btn of PAD_BTNS) {
   btn.addEventListener('pointerdown', (ev) => {
-    // While the layout is being edited a press MOVES the button instead of firing it.
-    if (EDITOR && EDITOR.editing) return;
+    if (editing()) return;            // while the layout is being edited a press MOVES the button
+    if (ev.pointerType === 'touch' && HAS_TOUCH_EVENTS) return;   // the touch handlers own it
     ev.preventDefault();
-    // Geometry first: it has to be read before pressPointer's `.on` class can shrink whichever
-    // arrow this finger landed on.
-    if (WALK.has(btn.dataset.k)) walkGeom = captureWalkGeom();
-    pressPointer(ev.pointerId, btn, ev.pointerType === 'touch');
-    if (WALK.has(btn.dataset.k)) walking.add(ev.pointerId);
-    // Capture: every later event for this finger comes here even if it slides off the button,
-    // which is the whole fix for the drift.
+    const k = btn.dataset.k;
+    if (WALK.has(k)) walkRects = readWalkRects();
+    setFinger(pid(ev), k, { walk: WALK.has(k), touch: ev.pointerType === 'touch' });
     try { btn.setPointerCapture(ev.pointerId); } catch { /* older engines: harmless */ }
   });
-  const up = (ev) => {
-    ev.preventDefault();
-    walking.delete(ev.pointerId);
-    releasePointer(ev.pointerId);
-    if (!walking.size) walkGeom = null;
-  };
-  btn.addEventListener('pointerup', up);
-  btn.addEventListener('pointercancel', up);
-  // The capture can be taken away (a system gesture, a rotation). Treat it as a lift rather
-  // than leaving the key down forever.
+  // A capture taken away (a system gesture) is a lift for jump/kick/power. A walk pointer is
+  // followed by position, not by the capture, so losing it there is not a release.
   btn.addEventListener('lostpointercapture', (ev) => {
-    // The capture going away is only a lift for buttons that RELY on it. A walk arrow keeps
-    // following the finger by hit-test, so losing the capture there is not a release.
-    if (!walking.has(ev.pointerId)) releasePointer(ev.pointerId);
+    const f = fingers.get(pid(ev));
+    if (f && !f.walk) dropFinger(pid(ev));
   });
   btn.addEventListener('contextmenu', (ev) => ev.preventDefault());
 }
-const releaseAll = (touchOnly = false) => {
-  for (const [id, rec] of [...heldBy]) {
-    if (touchOnly && !rec.touch) continue;
-    walking.delete(id);
-    releasePointer(id);
-  }
-  if (!touchOnly) walking.clear();
-  if (!walking.size) walkGeom = null;
+addEventListener('pointermove', (ev) => {
+  const f = fingers.get(pid(ev));
+  if (!f || !f.walk || editing()) return;
+  const k = pickAt(ev.clientX, ev.clientY, { cur: f.k });
+  if (k !== f.k) setFinger(pid(ev), k);
+}, { passive: true });
+const pointerUp = (ev) => dropFinger(pid(ev));
+addEventListener('pointerup', pointerUp);
+addEventListener('pointercancel', pointerUp);
+
+// Anything that takes the page away — a notification, the app backgrounding, a phone call,
+// alt-tab — lifts every finger and every key. Without this the last direction stays held.
+const releaseAll = () => {
+  fingers.clear();
+  for (const k of Object.keys(keyDown)) keyDown[k] = false;
+  walkRects = null;
+  syncHeld();
 };
-// Anything that takes the page away — a notification, the app backgrounding, a phone call —
-// lifts every finger. Without this the last direction you were holding stays held.
-addEventListener('blur', () => releaseAll());
+addEventListener('blur', releaseAll);
 document.addEventListener('visibilitychange', () => { if (document.hidden) releaseAll(); });
-// Belt and braces for the platform that has swallowed a pointerup before: if the glass has no
-// touches left on it, nothing can still be held by a touch. Mouse pointers are left alone, or
-// a stray tap on a touchscreen laptop would drop the key the mouse is holding.
-const allTouchesGone = (ev) => { if (!ev.touches.length) releaseAll(true); };
-addEventListener('touchend', allTouchesGone, { passive: true });
-addEventListener('touchcancel', allTouchesGone, { passive: true });
 // The pad is on every device now, thumb or mouse — it holds the three cards, and an ability
 // you cannot see is an ability nobody presses. `no-touch` survives as a flag for the few
 // places that still want to know (cursor, the key caps printed on the cards); `?pad=1` is
@@ -687,11 +740,9 @@ const setEditing = (on, how = 'save') => {
   else EDITOR.stop();
   $('#editBar').classList.toggle('hidden', !on);
   $('#editOpacity').value = String(EDITOR.opacity);
-  for (const k of Object.keys(held)) held[k] = false;
-  // The per-pointer books too, or a finger that was on an arrow when the editor opened stays
-  // in them and its lift releases a key nobody is holding.
-  heldBy.clear(); walking.clear(); walkGeom = null;
-  for (const b of document.querySelectorAll('.pad .btn')) b.classList.remove('on');
+  // Every finger and key, or one that was on an arrow when the editor opened stays in the
+  // books and holds a key nobody is pressing.
+  releaseAll();
 };
 // Reached from settings, the way football's is — one entry point, not a button in the way.
 $('#editCtlBtn').onclick = () => { $('#tuner').classList.add('hidden'); setEditing(true); };
@@ -900,6 +951,7 @@ function beginLocal(me, foe, opts, bot) {
   BOT = bot;
   parts.length = 0;
   acc = 0; last = performance.now(); running = true;
+  vsSlack = 0; for (const k in tapped) delete tapped[k];   // nothing carried in from the menus
 
   show('match');
   $('#over').classList.add('hidden');
@@ -1022,7 +1074,9 @@ function drainEvents() {
     // GOAL! banner is the sim's (drawReady).
     if (e.type === 'tackle') {
       fx.shockwave(e.x, e.y, '#ffd166');
-      if (e.by === (ONLINE ? NET.you : 0)) banner('פגיעה! +כוח', '#ffd166');
+      // No '+כוח' in it: a tackle pays no power (the gauge is a clock), and saying so on every
+      // boot to the shins was the bar "filling when I kick" that Idan reported.
+      if (e.by === (ONLINE ? NET.you : 0)) banner('פגיעה!', '#ffd166');
     }
     else if (e.type === 'ballReset') banner('כדור חדש', '#8ea0be');
     else if (e.type === 'golden') banner('מוות פתאומי', '#ffb800');
@@ -1038,6 +1092,25 @@ let flashT = 0, flashCol = '#fff', flashLife = 0.2;
 function flash(col, life) { flashT = life; flashLife = life; flashCol = col; }
 
 // ---- loop ------------------------------------------------------------------
+// VSYNC SNAP. The sim ticks at exactly 60Hz and the screen refreshes at ~60 (or 120), so the
+// fixed-step accumulator sits at a constant phase — unless the frame timestamps jitter. Safari
+// coarsens them to 1ms (16, 17, 17, 16…), and whenever that phase sits within a jitter of a tick
+// boundary the loop runs 0 steps on one frame and 2 on the next: the same picture twice, then a
+// jump. Modelled with 1ms-quantised stamps that is ~50 such hitches a minute at 60Hz and ~170 at
+// 120Hz (headless Chrome on main showed 77 in 15s); snapped, ~1. A frame within 4ms of a whole
+// number of ticks (or half a tick, for 120Hz) counts as exactly that. What the snap takes away
+// is kept in `vsSlack` and paid back once it reaches half a tick, so the clock never drifts —
+// the jitter cancels out by itself, and only a real refresh rate that is not 60 costs a step.
+let vsSlack = 0;
+function vsyncDt(dt) {
+  for (const k of [0.5, 1, 2, 3]) {
+    const q = C.TICK * k;
+    if (Math.abs(dt - q) < Math.min(0.004, q / 4)) { vsSlack += dt - q; dt = q; break; }
+  }
+  if (Math.abs(vsSlack) >= C.TICK / 2) { dt = Math.max(0, dt + vsSlack); vsSlack = 0; }
+  return dt;
+}
+
 function frame(now) {
   raf = requestAnimationFrame(frame);
   const dt = Math.min(0.25, (now - last) / 1000);
@@ -1045,13 +1118,14 @@ function frame(now) {
   if (!M) return;
 
   if (running) {
+    const simDt = vsyncDt(dt);
     if (ONLINE) {
       // The net module owns the tick clock online: it has to replay from whatever tick a
       // snapshot lands on, so a second accumulator here would fight it.
-      const m = NET.advance(dt, held, fx);
+      const m = NET.advance(simDt, tickInput, fx);
       if (m) { M = m; drainEvents(); }
     } else {
-      acc += dt;
+      acc += simDt;
       // window.SIM_HOLD: a screenshot harness steps the match itself (_vfx-shots.mjs).
       if (window.SIM_HOLD) acc = 0;
       let guard = 0;
@@ -1061,7 +1135,7 @@ function frame(now) {
       // harness deterministic — every probe there was racing a bot that could score,
       // freeze the match and reset positions between one await and the next.
       const foe = window.BOT_OFF ? {} : botInput(BOT, M, 1, C.TICK);
-        step(M, [{ ...held }, foe], C.TICK, fx);
+        step(M, [tickInput(), foe], C.TICK, fx);
         acc -= C.TICK;
         drainEvents();
         if (!running) break;
@@ -1098,14 +1172,18 @@ let SC = 1, OX = 0, OY = 0, crowd = [];
 // free. Drawing "pixel-style" at full res never convinces — the edges stay clean.
 const PIXEL = 2;
 
-// How much sky may be cropped to fill more of the screen — and the number is set by the
-// BALL, not by taste. The pitch is 960x530 (1.81:1) against a phone's 2.16:1, so filling the
-// width completely would mean hiding 86px off the top. Measured over twelve bot matches, the
-// ball reaches y=42 and spends 4.5% of the playing time above that line: a full-bleed fit
-// would lose the ball off the top of the screen one tick in twenty-two. So the crop stops
-// short of the highest the ball ever gets, and whatever is left over stays as bars — painted
-// the colour of the sky (see paintLetterbox) rather than black.
-const MAX_CROP_PX = 34;               // world units, against a measured ball ceiling of 42
+// HOW MUCH SKY. The camera used to crop up to 34px off the top of the 530px world to fill a
+// phone's width, which left 401px of sky over the grass on an 844x390 phone. Head Soccer shows
+// 487 (C.VIEW_ABOVE_GROUND, off Idan's recordings: the grass at frame y 489 of 590, and the
+// ball flies over the HUD), so every header or lob between 401 and 487 up vanished here and
+// stayed on screen there — "the ball goes too far up and hides". The fit now always keeps
+// VIEW_ABOVE_GROUND of sky, and the canvas reaches ABOVE world y=0 to draw it (SKY_TOP).
+// A phone pays in width: the pitch renders ~18% smaller than it did, with sky-coloured bars at
+// the sides — the same trade HS makes, whose pitch also leaves bars on a 2.16:1 screen.
+//
+// SKY_TOP: world px of canvas above y=0. Even, so the world origin stays on a texel (PIXEL 2).
+const skyTop = () => Math.max(0, 2 * Math.ceil((C.VIEW_ABOVE_GROUND - C.GROUND_Y) / 2));
+let SKY_TOP = skyTop();              // re-read on resize: GROUND_Y is live-tunable
 
 // Decorative grass drawn BELOW the world, never simulated and never reachable. It exists so
 // that lifting the pitch above the controls does not leave a void under it: the pitch ends
@@ -1114,6 +1192,7 @@ const BLEED = 170;
 
 function resize() {
   const vw = innerWidth, vh = innerHeight;
+  SKY_TOP = skyTop();
   const ratio = C.W / C.H;
 
   // THE CONTROL BAND. The buttons used to sit ON the pitch — players stood in them, and the
@@ -1125,8 +1204,8 @@ function resize() {
   // trade, and it is the right way round — a bar at the edge costs you nothing, a thumb over
   // the six-yard box costs you the goal.
   const band = padUnit(vw, vh) * 1.17 + safeInset('b');     // button + its edge margin
-  const scale = Math.min(vw / C.W, (vh - band) / (C.GROUND_Y - MAX_CROP_PX));
-  const w = C.W * scale, h = (C.H + BLEED) * scale;
+  const scale = Math.min(vw / C.W, (vh - band) / C.VIEW_ABOVE_GROUND);
+  const w = C.W * scale, h = (SKY_TOP + C.H + BLEED) * scale;
 
   // The stage is the whole viewport, so the HUD and the pad — which are positioned against
   // the stage — stay where a thumb expects them instead of riding with the canvas.
@@ -1141,7 +1220,7 @@ function resize() {
   OY = (vh - band) - C.GROUND_Y * scale;
   for (const el of [cv, cvNet]) {
     el.style.left = OX + 'px';
-    el.style.top = OY + 'px';
+    el.style.top = (OY - SKY_TOP * scale) + 'px';     // the canvas starts SKY_TOP above y=0
     el.style.width = w + 'px';
     el.style.height = h + 'px';
   }
@@ -1157,8 +1236,8 @@ function resize() {
   applyLayout($('#pad'), { w: sw, h: sh });
   for (const [el, c] of [[cv, ctx], [cvNet, ctxNet]]) {
     el.width = Math.ceil(C.W / PIXEL);
-    el.height = Math.ceil((C.H + BLEED) / PIXEL);
-    c.setTransform(1 / PIXEL, 0, 0, 1 / PIXEL, 0, 0);   // draw in WORLD units, land on texels
+    el.height = Math.ceil((SKY_TOP + C.H + BLEED) / PIXEL);
+    c.setTransform(1 / PIXEL, 0, 0, 1 / PIXEL, 0, SKY_TOP / PIXEL);   // draw in WORLD units, land on texels
     c.imageSmoothingEnabled = false;
   }
   if (!crowd.length) {
@@ -1279,7 +1358,7 @@ function paintLetterbox() {
   if (!STAGE) return;
   if (STAGE.id !== barStage) {
     try {
-      const d = ctx.getImageData(2, 2, 1, 1).data;
+      const d = ctx.getImageData(2, SKY_TOP / PIXEL + 2, 1, 1).data;   // raw pixels: below the sky strip
       barSky = `rgb(${d[0]}, ${d[1]}, ${d[2]})`;
       barStage = STAGE.id;
     } catch { return; }        // a tainted canvas would throw; the default background is fine
@@ -1316,7 +1395,7 @@ function applyBars() {
 
 function draw() {
   const g = ctx;
-  g.clearRect(0, 0, C.W, C.H + BLEED);
+  g.clearRect(0, -SKY_TOP, C.W, SKY_TOP + C.H + BLEED);
   // A frozen frame on its own just looks like a dropped frame. A couple of pixels of shake
   // during hit-stop is what turns it into an impact.
   // Not under a cut-in: that pause is 1.34s long, and 80px of shake is not an impact.
@@ -1332,11 +1411,27 @@ function draw() {
   // one. See drawGoalBack / drawGoalFront and shared/goalbox.js.
   drawGoalBack(g, true);
   drawGoalBack(g, false);
+  // Dash afterimages first, so the player is drawn over their own trail. GHOSTS is read again
+  // by drawHeads for the head copies.
+  // On a clock that stops during a hit-stop, so a freeze-frame freezes the trail with it.
+  const wall = performance.now() / 1000;
+  if (!(M.hitStop > 0)) TRAIL_CLOCK.t += Math.min(0.1, Math.max(0, wall - TRAIL_CLOCK.wall));
+  TRAIL_CLOCK.wall = wall;
+  const now = TRAIL_CLOCK.t;
+  for (const p of M.players) {
+    trackTrail(p, now);
+    GHOSTS[p.index] = trailGhosts(p, now);
+    for (let k = GHOSTS[p.index].length - 1; k >= 0; k--) {
+      const q = GHOSTS[p.index][k];
+      g.save(); g.globalAlpha = q.alpha; drawBody(g, q, true); g.restore();
+    }
+  }
   for (const p of M.players) drawBody(g, p);
   drawParts(g, false);
   drawBall(g, M.ball);
   for (const eb of M.xballs) drawBall(g, eb);      // a Multi-Ball's extras
   VFXR.drawOver(g);                                // a block's grind, a hit's sparks, the Aerial's warning
+  drawBallMarker(g, M.ball);
   drawParts(g, true);
   drawGoalFront(g, true);            // the net you look through, over whatever is in the goal
   drawGoalFront(g, false);
@@ -1345,17 +1440,46 @@ function draw() {
     g.save();
     g.globalAlpha = (flashT / flashLife) * 0.75;
     g.fillStyle = flashCol;
-    g.fillRect(0, 0, C.W, C.H);
+    g.fillRect(0, -SKY_TOP, C.W, SKY_TOP + C.H);
     g.restore();
   }
   drawHeads();
   drawHeadNet();                     // …and the near net again, over a head that is in the goal
-  // Over the heads (they are DOM nodes under this layer): the armed rim, what a shot left on a
-  // player, and the cut-in — the whole screen darkens but the shooter (champ-vfx.js).
+  drawOverHeads(ctxNet);             // YOU at kickoff, stars over a stunned head
+  // Over the heads (they are DOM nodes under this layer): the armed tongues, what a shot left on
+  // a player, and the cut-in — the whole screen darkens but the shooter (champ-vfx.js).
   for (const p of M.players) VFXR.drawArmed(ctxNet, p);
   VFXR.drawOverlay(ctxNet);
   VFXR.drawCutin(ctxNet);
   if (M.banner && M.bannerT > 0 && M.phase !== 'over') drawReady(g);
+}
+
+// THE BALL ABOVE THE PICTURE. The camera keeps Head Soccer's 487px of sky, but the ceiling is
+// higher than that (C.CEIL_Y), so a skied ball can still leave the top — in HS too, ~4% of live
+// play. HS simply clips it; here a small chevron sits on the top edge under the ball's x so you
+// can still read where it will come down. Subtle on purpose: it fades as the ball climbs away.
+// (Not for an Aerial power shot waiting up there: its warning streaks say where it comes down.)
+function drawBallMarker(g, b) {
+  if (M.ballWait > 0 || (b.power && (b.power.ph === 'up' || b.power.ph === 'wait'))) return;
+  // The world y the viewer's top edge shows: the canvas top, or lower when the stage is taller
+  // than the canvas is wide enough to fill (then the canvas top is the edge).
+  const top = Math.max(-SKY_TOP, SC > 0 ? -OY / SC : -SKY_TOP);
+  if (b.y + b.r >= top) return;
+  const s = 10;                      // world px: ~6 CSS px on an 844x390 phone
+  const x = Math.max(s + 4, Math.min(C.W - s - 4, b.x)), y = top + 3;
+  g.save();
+  g.globalAlpha = Math.max(0.35, 0.8 - (top - b.y) / 400);
+  g.beginPath();
+  g.moveTo(x, y);
+  g.lineTo(x + s, y + s);
+  g.lineTo(x - s, y + s);
+  g.closePath();
+  g.fillStyle = '#ffffff';
+  g.fill();
+  g.lineWidth = 2;
+  g.strokeStyle = OUTLINE;
+  g.stroke();
+  g.restore();
 }
 
 // THE ONE THING THE CANVAS CANNOT REACH.
@@ -1377,12 +1501,12 @@ function draw() {
 // frame the player's middle crosses the line. The bounding test below skips the work when the
 // head is nowhere near a goal and can change nothing, so it cannot pop either.
 function drawHeadNet() {
-  ctxNet.clearRect(0, 0, C.W, C.H + BLEED);
+  ctxNet.clearRect(0, -SKY_TOP, C.W, SKY_TOP + C.H + BLEED);
   for (const p of M.players) {
     const h = depthPoint(p.x, headY(p));
-    // Exactly the head's own disc. Wider and the wash would land on pixels the main canvas
+    // Exactly the head's own shape. Wider and the wash would land on pixels the main canvas
     // has already washed, and a second 10% would ring the head in a darker halo.
-    const r = headR(M, p);
+    const rx = headR(M, p) * HEAD_W, ry = headR(M, p) * HEAD_H, r = rx;
     for (const left of [true, false]) {
       const box = goalBox(left);
       // The whole box, all four uprights: the near pair sit at wallX/lineX and the far pair
@@ -1391,7 +1515,8 @@ function drawHeadNet() {
       if (h.x + r < Math.min(...xs) || h.x - r > Math.max(...xs) || h.y + r < box.top + box.wy) continue;
       ctxNet.save();
       ctxNet.beginPath();
-      ctxNet.arc(h.x, h.y, r, 0, 6.2832);
+      for (const [u, v] of HEAD_SHAPE) ctxNet.lineTo(h.x + (u - 0.5) * 2 * rx, h.y + (v - 0.5) * 2 * ry);
+      ctxNet.closePath();                                  // the drawn head's own outline
       ctxNet.clip();
       drawGoalFront(ctxNet, left, true);   // net only — see drawGoalFront
       ctxNet.restore();
@@ -1463,6 +1588,9 @@ function drawStadium(g) {
     crowdBot: standBot - 8,
     gy,
   }), 0, 0, C.W, C.H + BLEED);
+  // The strip above world y=0 (SKY_TOP) is sky the stage art does not reach: carry on its top
+  // colour, the same sample the letterbox bars are painted with.
+  if (SKY_TOP > 0 && barSky) R2(g, 0, -SKY_TOP, C.W, SKY_TOP + 1, barSky);
 
   // railing across the front of the crowd, common to every stage
   R2(g, 0, standBot - 6, C.W, 6, OUTLINE);
@@ -1791,198 +1919,213 @@ function drawGoalFrontRaw(g, left, netOnly = false) {
 }
 
 
-// SF2 palettes: hard 3-tone ramps, no gradients, everything sitting inside a black
-// outline. Player 1 is a blue gi, player 2 a red one, both with the yellow belt.
-// The BOOTS carry the same two colours one step further: blue for player one, red for player
-// two. They are the part of the sprite that does the work — the reach is drawn off them — so
-// they are the part that has to be readable at a glance, and a white sole under a saturated
-// upper is how a football boot reads at 33px long.
-const GI = [
-  { base: '#3c6fd6', shade: '#22407f', light: '#6fa0ff', skin: '#f0b48a', skinShade: '#b87d55',
-    boot: '#1e56c8', bootLight: '#5b93ff', bootDark: '#0d2a6b', sock: '#eaf1ff' },
-  { base: '#d63c3c', shade: '#7f2222', light: '#ff7a6f', skin: '#f0b48a', skinShade: '#b87d55',
-    boot: '#c81e2e', bootLight: '#ff6f61', bootDark: '#6e0f18', sock: '#ffeceb' },
-];
+// THE BODY UNDER THE HEAD, drawn the way a Head Soccer character is built — see
+// docs/HS-CHARACTER-LOOK.md for the frames this was measured from. HS has no gi, no arms and no
+// legs: under the head there is a small dark suit with a coloured collar peeking out below the
+// chin, and two chunky boots. The whole body is barely more than a quarter of a head tall, and
+// that is the proportion that makes it read as HS — the head is the character, the rest is a
+// pedestal with feet. (Ours, not theirs: the suit, collar and boots are drawn here from paths;
+// nothing is traced from an HS sprite.)
+//
+// The canvas is half resolution (PIXEL 2), so one texel is 2 world px. HS's own sprites sit on
+// almost the same grid — its head is ~24 native pixels tall, ours is 26 texels — so every
+// keyline here is ONE texel, the way HS's is.
 const OUTLINE = '#0b0710';
+// Team colour lives in the COLLAR (and the YOU bubble), not in a ring round the head: HS keeps
+// the head clean and puts the kit colour under the chin.
+const KIT = [
+  { collar: '#3d8bff', collarDark: '#1c4fb4' },
+  { collar: '#ff4a64', collarDark: '#a3182f' },
+];
+// The rim light — HS edges its dark suit and boots with a thin gold line on the back. Ours takes
+// the colour of the card's rarity, so a legendary is trimmed in gold and a common in silver.
+const TRIM = { legendary: '#ffcc33', epic: '#d08cff', rare: '#6fd0ff', common: '#c8d0da' };
+const SUIT = '#1f2130', SUIT_LIGHT = '#3b4058';
+const BOOT = '#16171e', BOOT_LIGHT = '#555b73';
+// Measured sizes, in world px on the 26.4 head (HS M4 29.68 s, standing, full resolution):
+// the boot is about one head RADIUS long and half a radius tall, the two boots together span
+// 1.7 radii, and the body shows 0.57 radii below the chin.
+const BOOT_L = 25, BOOT_H = 14;
+const BOOT_BACK = -10, BOOT_FRONT = 11;             // boot centres, standing, along the facing
+const SUIT_W = 30, SUIT_BOT = -7;                  // the suit sits down inside the boots
 
-// Every sprite piece goes through here: a black keyline first, then the fill inside it.
-// The outline is what makes a blocky shape read as a fighting-game sprite rather than a box.
-function px(g, x, y, w, h, fill) {
-  g.fillStyle = OUTLINE;
-  g.fillRect(Math.round(x) - 1, Math.round(y) - 1, Math.round(w) + 2, Math.round(h) + 2);
-  g.fillStyle = fill;
-  g.fillRect(Math.round(x), Math.round(y), Math.round(w), Math.round(h));
+// THE KICK, as HS animates it (M4 29.68–31.96 s, every frame): no leg ever shows. The front boot
+// leaves the body and rides up in front of the face — low and forward on the first frame, at
+// face height by the fourth, then HELD high, toe up, for the rest of the swing, and snapped back
+// in a frame. Keyframes are [progress through KICK_TIME, forward, up, toe-up angle], in head
+// radii off the feet. HS's first frame is 0.95 R forward; this starts at 1.2 so the toe reaches
+// the edge of the sim's kick circle (KICK_REACH − KICK_R) — the boot must look able to touch
+// the ball it touches.
+const KICK_KEYS = [
+  [0.00, 1.20, 0.30, -0.25],
+  [0.07, 1.42, 0.70, 0.30],
+  [0.13, 1.60, 1.10, 0.65],
+  [0.20, 1.70, 1.45, 0.95],
+  [0.32, 1.76, 1.95, 1.20],
+  [0.55, 1.76, 2.10, 1.30],
+  [0.92, 1.72, 2.05, 1.30],
+  [1.00, 1.00, 0.60, 0.40],
+];
+function kickPose(k) {
+  let i = 0;
+  while (i < KICK_KEYS.length - 2 && k > KICK_KEYS[i + 1][0]) i++;
+  const a = KICK_KEYS[i], b = KICK_KEYS[i + 1];
+  const u = Math.max(0, Math.min(1, (k - a[0]) / (b[0] - a[0])));
+  return [a[1] + (b[1] - a[1]) * u, a[2] + (b[2] - a[2]) * u, a[3] + (b[3] - a[3]) * u];
 }
 
-function drawBody(g, p) {
-  const pal = GI[p.index];
-  const knocked = p.stunned > 0;      // the only slump left: bottomed out, not "hit"
-
-  const bw = C.BODY_W, bh = C.BODY_H;
-  // Projected at the FEET, which is the anchor the whole sprite hangs off. A body is 79px
-  // tall against a 192px goal, so the step's vertical part varies by under 5px across it —
-  // far too little to be worth stretching a sprite for.
-  const d = depthPoint(p.x, p.y);
-
-  // contact shadow
+// One boot, toe toward +x in its own space, sole on y = 0. A clog, not a football boot: flat
+// sole, a round toe, and the upper swelling highest at the ankle — the chunky shape that still
+// reads at 13 texels long.
+function bootPath(g) {
+  const L = BOOT_L / 2, H = BOOT_H;
+  g.beginPath();
+  g.moveTo(-L + 3, 0);
+  g.lineTo(L - 4, 0);
+  g.quadraticCurveTo(L + 1, 0, L + 1, -4);
+  g.quadraticCurveTo(L + 1, -H * 0.72, L - 7, -H * 0.8);    // round toe cap
+  g.lineTo(-1, -H * 0.86);
+  g.quadraticCurveTo(-L + 1, -H * 1.05, -L, -H * 0.5);      // high ankle, rounded heel
+  g.quadraticCurveTo(-L, 0, -L + 3, 0);
+  g.closePath();
+}
+function drawBoot(g, x, y, face, ang, trim) {
   g.save();
-  g.globalAlpha = .35;
-  g.fillStyle = '#000';
-  g.fillRect(Math.round(d.x - bw * 0.6), C.GROUND_Y, Math.round(bw * 1.2), 3);
+  g.translate(x, y);
+  g.scale(face, 1);
+  g.rotate(-ang);
+  // No clip (a clip per boot per frame is the expensive kind of canvas call on a phone): the
+  // details are placed inside the shape, and the keyline goes on LAST and covers the texel of
+  // slack at their ends.
+  bootPath(g);
+  g.fillStyle = BOOT; g.fill();
+  g.fillStyle = BOOT_LIGHT;                                  // the sheen across the upper
+  g.fillRect(-5, -BOOT_H * 0.8, 10, 2);
+  g.fillStyle = trim;                                        // rim light down the heel
+  g.fillRect(-BOOT_L / 2 + 1, -BOOT_H * 0.72, 2, BOOT_H * 0.5);
+  g.lineWidth = 2; g.lineJoin = 'round'; g.strokeStyle = OUTLINE; g.stroke();
   g.restore();
+}
+
+// The ground shadow — HS draws a soft dark ellipse about as wide as the head under every
+// player, and leaves it on the grass when they jump, a little smaller and fainter the higher
+// they go. It is the only thing that tells you how high a jumping head is.
+function drawShadow(g, p) {
+  const s = depthPoint(p.x, C.GROUND_Y);
+  const k = Math.max(0, Math.min(1, (C.GROUND_Y - p.y) / 130));
+  g.save();
+  g.globalAlpha = 0.42 * (1 - 0.45 * k);
+  g.fillStyle = '#000';
+  g.beginPath();
+  g.ellipse(s.x, s.y + 1, C.HEAD_R * 1.5 * (1 - 0.3 * k), C.HEAD_R * 0.24 * (1 - 0.3 * k), 0, 0, 6.2832);
+  g.fill();
+  g.restore();
+}
+
+function drawBody(g, p, ghost = false) {
+  const kit = KIT[p.index] || KIT[0];
+  const trim = TRIM[p.char && p.char.rarity] || TRIM.legendary;
+  const R = C.HEAD_R;
+  // Projected at the FEET, which is the anchor the whole sprite hangs off.
+  const d = depthPoint(p.x, p.y);
+  if (!ghost) drawShadow(g, p);
 
   g.save();
   g.translate(Math.round(d.x), Math.round(d.y));
-  if (knocked) g.rotate(p.side * 1.15);
-
-  // LEGS, and they point where the KICK does — `side`, the goal this player attacks — not
-  // where the body faces. The sim latches the swing to the same rule (kickDir), and the two
-  // have to agree or the sprite is lying about which leg can reach the ball: walking backwards
-  // used to turn the boot round while the kick itself went forward.
+  // Facing: `side`, the goal this player attacks — which is also the opponent. HS characters
+  // face the other player the whole match, running backwards included, and the sim latches the
+  // kick to the same rule (kickDir), so the boot that swings is the boot that can reach.
   const face = p.side;
-  const kickP = p.kickT > 0 ? 1 - p.kickT / C.KICK_TIME : 0;
-  const swing = p.kickT > 0 ? Math.sin(kickP * Math.PI) : 0;
-  // The walk and the airborne tuck, both as ANGLES now that the limb pivots — see `leg`.
-  const stride = p.onGround ? Math.sin(performance.now() / 90) * Math.min(1, Math.abs(p.vx) / 260) * 0.5 : 0.3;
-  const legW = Math.max(4, Math.round(bw * 0.26));
-  // Longer than the 0.42 it was, and most of the extra is hidden behind the torso — which is
-  // the point. It only comes out when the leg does: swing a kick and the thigh appears from
-  // under the shirt, so the kick has a leg behind it instead of a boot sliding out on its own.
-  const legH = Math.round(bh * 0.62);
-  const bootL = Math.round((legW + 3) * C.FOOT_LEN);
-  // The boot is drawn on its STUDS: the sole sits SOLE_UP off the grass and the studs bridge
-  // the gap, so the foot rests on the pitch the way a boot does instead of the upper being
-  // buried in it. bootH is the upper alone, ankle down to the sole.
-  const bootH = 6;
-  const SOLE_UP = 2;
-  const sockH = 6;                                           // ankle upward
-  const shortH = 4;                                          // hip downward; skin in between
-  const HIP_Y = -legH;                                       // where both limbs hang from
-  const SHIN = legH - bootH - SOLE_UP + 1;                   // hip to ankle, standing
-  const BOOT_FOLLOW = 0.22;                                  // of the leg's angle the foot takes
-  const KICK_SWING = 1.25;                                   // rad the leg comes through, at full
-  const KICK_EXTEND = 14;                                    // and px of shin it gains doing it
+  // KNOCKED BACK (HS M4 61.9 s): the whole character tips back ~25° away from the hit, head
+  // included, and is carried backwards through the air. Pivoted at the neck so the body stays
+  // under the head, which means the boots swing out forward — the "feet taken out" look.
+  if (p.stunned > 0) {
+    g.translate(0, -C.BODY_H);
+    g.rotate(-face * 0.45);
+    g.translate(0, C.BODY_H);
+  }
+  const air = !p.onGround;
+  const kicking = p.kickT > 0;
+  // THE RUN: the boots shuffle, alternating a few px fore and aft with a small lift — HS's
+  // walk cycle is a pair of feet paddling under a head that does not bob or lean.
+  const run = !air && Math.abs(p.vx) > 20 ? Math.min(1, Math.abs(p.vx) / C.PLAYER_SPEED) : 0;
+  const ph = performance.now() / 1000 * Math.PI * 2 / 0.28;
+  const sw = Math.sin(ph) * 4 * run, lift = Math.max(0, Math.cos(ph)) * 3 * run;
 
-  // ONE LEG, hip to boot. It PIVOTS at the hip rather than sliding sideways, which is the
-  // whole difference between a kick and what this used to draw: the old swing moved the leg
-  // 43px across to meet the sim's reach and left a 29px hole between the hip and the thigh,
-  // so the kicking boot floated away from the body on a stub of sock. Hung off the hip it
-  // stays attached, and the reach comes from the leg EXTENDING through the swing instead —
-  // which is also what a chibi sprite has to do, because no leg on a 27px body reaches 62px.
-  //
-  // `hipX` is the limb's near edge at the hip and `ang` how far it has swung forward, in
-  // radians and positive toward the facing. `reach` is the extension, in px of extra shin.
-  //
-  // Order up from the grass: boot, sock, a sliver of knee, shorts. That is the order a
-  // footballer's leg actually goes in, and the sock — the whole shin with the turnover hoop
-  // at the top of it, not a 3px band at the ankle — is most of what the old leg was missing.
-  // The limb gets ONE keyline and its bands are painted inside without another, or four
-  // stacked 2px plates would be more black outline than leg.
-  const leg = (hipX, ang, shorts, reach = 0) => {
-    const shin = SHIN + reach;
-    const pivotX = hipX + legW / 2;                          // the hip itself
-    const sin = Math.sin(ang), cos = Math.cos(ang);
+  // back boot
+  if (air) drawBoot(g, face * (BOOT_BACK - 4), -1, -face, -0.45, trim);      // splayed: toe out, down
+  else drawBoot(g, face * (BOOT_BACK - sw), -lift * (sw < 0 ? 1 : 0), face, 0, trim);
 
-    g.save();
-    g.translate(Math.round(pivotX), HIP_Y);
-    g.rotate(-face * ang);                                   // canvas y is down; forward is -θ
-    px(g, -legW / 2, 0, legW, shin, pal.skin);               // thigh, knee, shin
-    g.fillStyle = shorts;                                    // shorts over the thigh
-    g.fillRect(Math.round(-legW / 2), 0, legW, shortH);
-    g.fillStyle = pal.sock;                                  // sock up the shin
-    g.fillRect(Math.round(-legW / 2), Math.round(shin - sockH), legW, sockH);
-    g.fillStyle = pal.base;                                  // turnover hoop at the sock top
-    g.fillRect(Math.round(-legW / 2), Math.round(shin - sockH), legW, 2);
-    g.fillStyle = pal.shade;                                 // and the shaded side of the calf
-    g.fillRect(Math.round(legW / 2 - 2), Math.round(shin - sockH + 2), 2, sockH - 2);
-    g.restore();
+  // the suit: a rounded dark body, collar in the team colour just under the chin, and the
+  // rim-light trim down its back edge
+  const top = -C.BODY_H, h = SUIT_BOT - top;
+  roundRect(g, -SUIT_W / 2, top, SUIT_W, h, 8);
+  g.fillStyle = SUIT; g.fill();
+  g.fillStyle = SUIT_LIGHT;                                  // lit front
+  g.fillRect(face > 0 ? 3 : -11, top + 8, 8, h - 10);
+  g.fillStyle = trim;                                        // rim light on the back
+  g.fillRect(face > 0 ? -SUIT_W / 2 + 1 : SUIT_W / 2 - 3, top + 7, 2, h - 10);
+  // The collar, just under the chin: the head is drawn 7% taller than its hitbox (HEAD_H), so
+  // the chin is 15 px off the grass and the collar sits in the first texels below it.
+  g.fillStyle = kit.collarDark;
+  g.fillRect(-9, top + 8, 18, 6);
+  g.fillStyle = kit.collar;
+  g.fillRect(-7, top + 9, 14, 3);
+  roundRect(g, -SUIT_W / 2, top, SUIT_W, h, 8);
+  g.lineWidth = 2; g.strokeStyle = OUTLINE; g.stroke();
 
-    // THE BOOT, drawn as ONE silhouette rather than stacked plates: a tall heel, an instep
-    // that falls away over the laces, and a toe that runs out long and LOW along the grass.
-    // That profile is what says "football boot" at this size — the old two-rectangle boot had
-    // a toe cap as tall as the heel, which is a shoe box, not a boot.
-    //
-    // It is drawn in its own space with the toe toward +x, then mirrored by the facing, so the
-    // away player gets a real mirrored boot instead of one wearing its heel on the wrong end.
-    // It hangs off the ANKLE the leg just ended at and only partly follows the leg's angle: a
-    // footballer's foot stays pointed along the strike while the shin swings through, and a
-    // boot turned the full 70° with the leg is a boot pointing at the floor.
-    const s = face;
-    const ankleX = pivotX + face * sin * shin;
-    const ankleY = HIP_Y + cos * shin;
-    g.save();
-    g.translate(Math.round(ankleX - face * legW / 2), Math.round(ankleY + bootH - 1));
-    g.scale(s, 1);
-    g.rotate(-ang * BOOT_FOLLOW);
-
-    const heel = -3;                                         // a little behind the ankle
-    const toe = bootL + heel;
-    const outline = () => {
+  // front boot — or the kick
+  if (kicking) {
+    const k = 1 - p.kickT / C.KICK_TIME;
+    const [fx, fy, ang] = kickPose(k);
+    // the swoosh: a faint arc behind the rising boot, only while it is climbing
+    if (k < 0.3 && !ghost) {
+      g.save();
+      g.globalAlpha = 0.5 * (1 - k / 0.3);
+      g.strokeStyle = '#ffffff';
+      g.lineWidth = 3;
       g.beginPath();
-      g.moveTo(heel, 0);
-      g.lineTo(heel, -bootH + 1);
-      g.quadraticCurveTo(heel, -bootH, heel + 2, -bootH);    // rounded heel counter
-      g.lineTo(heel + legW + 1, -bootH);
-      g.quadraticCurveTo(heel + legW + 4, -bootH, heel + legW + 5, -bootH + 2);
-      g.lineTo(toe - 4, -3.5);                               // the instep falling to the toe
-      g.quadraticCurveTo(toe, -3, toe, -1.5);                // rounded toe
-      g.quadraticCurveTo(toe, 0, toe - 2, 0);
-      g.closePath();
-    };
-
-    g.strokeStyle = OUTLINE; g.lineWidth = 2; g.lineJoin = 'round';
-    outline(); g.stroke();
-    g.fillStyle = pal.boot; outline(); g.fill();
-
-    g.save();
-    outline(); g.clip();                                     // everything below stays in shape
-    g.fillStyle = pal.bootDark;                              // heel counter, darker at the back
-    g.fillRect(heel, -bootH, 4, bootH);
-    g.fillStyle = pal.bootLight;                             // the side flash, heel to toe
-    g.beginPath();
-    g.moveTo(heel + 3, -1.5);
-    g.lineTo(heel + legW + 3, -bootH + 1);
-    g.lineTo(heel + legW + 6, -bootH + 1);
-    g.lineTo(heel + 7, -1.5);
-    g.closePath(); g.fill();
-    g.fillStyle = '#f4f6fb';                                 // sole, running the whole length
-    g.fillRect(heel, -2, bootL + 1, 2);
-    g.fillStyle = '#ffffff';                                 // laces across the instep
-    for (let i = 0; i < 3; i++) g.fillRect(heel + legW + 2 + i * 3, -bootH + 2, 1, 3);
-    g.restore();
-
-    g.fillStyle = OUTLINE;                                   // studs, bridging sole to grass
-    for (let i = 0; i < 3; i++) g.fillRect(heel + 1 + i * ((bootL - 4) / 3), 0, 2, SOLE_UP);
-    g.restore();
-  };
-
-  // Back leg plants, front leg swings. The swing is an ANGLE plus an EXTENSION, and between
-  // them the toe cap lands near KICK_REACH — the same number the sim strikes the ball from, so
-  // the toe really is where the toe-poke happens. Neither alone gets there: 70° of a 10px shin
-  // is 9px of reach, and a leg that only grows is a telescope, not a kick.
-  leg(-bw * 0.32, -stride, pal.shade);
-  leg(bw * 0.02, stride + swing * KICK_SWING, pal.base, swing * KICK_EXTEND);
-
-  // torso — gi body, hard shadow down one side, belt across the waist. Its HEM is what decides
-  // how much leg there is to look at: at 0.62 it finished 2px above the boot and the socks the
-  // leg is mostly made of were never on screen at all. 0.5 leaves a shin's worth showing.
-  const tH = Math.round(bh * 0.5);
-  px(g, -bw / 2, -bh, bw, tH, pal.base);
-  g.fillStyle = pal.shade;
-  g.fillRect(Math.round(bw / 2 - bw * 0.28), Math.round(-bh), Math.round(bw * 0.28), tH);
-  g.fillStyle = pal.light;
-  g.fillRect(Math.round(-bw / 2), Math.round(-bh), 2, tH);
-  g.fillStyle = '#f5d23c';                                  // belt
-  g.fillRect(Math.round(-bw / 2), Math.round(-bh + tH - 3), bw, 3);
-
-  // arms: guard up when airborne, one cocked back on a kick
-  const armW = Math.max(3, Math.round(bw * 0.2));
-  const armH = Math.round(bh * 0.34);
-  const guard = p.onGround ? 0 : -armH * 0.7;
-  px(g, -bw / 2 - armW, -bh + 2 + guard, armW, armH, pal.skin);
-  px(g, bw / 2, -bh + 2 + guard - swing * 5, armW, armH, pal.skin);
-
+      g.arc(0, -R * 0.2, R * 1.9, face > 0 ? -0.95 : Math.PI - 0.2, face > 0 ? 0.2 : Math.PI + 0.95);
+      g.stroke();
+      g.restore();
+    }
+    drawBoot(g, face * fx * R, -fy * R + BOOT_H / 2, face, ang, trim);
+  } else if (air) {
+    drawBoot(g, face * (BOOT_FRONT + 3), -1, face, -0.45, trim);           // splayed: toe down
+  } else {
+    drawBoot(g, face * (BOOT_FRONT + sw), -lift * (sw > 0 ? 1 : 0), face, 0, trim);
+  }
   g.restore();
+}
+
+// THE DASH AFTERIMAGES (HS M4 57.9 s and 66.4 s): two see-through copies of the whole
+// character strung out behind a dash, fading over about six frames after it ends. The body copy
+// is drawn here from a short position history; the head copies are DOM clones — see drawHeads.
+const TRAIL = [{ hist: [], until: 0 }, { hist: [], until: 0 }];
+// HS's copies overlap the player by more than half a head — two of them, close behind.
+const TRAIL_AGES = [0.02, 0.045];                            // s behind the player
+const TRAIL_ALPHA = [0.45, 0.25];
+const GHOSTS = [[], []];
+const TRAIL_CLOCK = { t: 0, wall: 0 };
+function trackTrail(p, now) {
+  const tr = TRAIL[p.index];
+  tr.hist.push({ now, x: p.x, y: p.y, onGround: p.onGround, vx: p.vx, kickT: p.kickT });
+  while (tr.hist.length > 2 && now - tr.hist[0].now > 0.2) tr.hist.shift();
+  const dashing = !(p.stunned > 0) && (p.dashT > 0 || Math.abs(p.vx) > C.PLAYER_SPEED * 1.8);
+  if (dashing) tr.until = now + 0.12;
+}
+// The ghost poses for player i right now: [{x, y, ..., alpha}], empty when there is no trail.
+function trailGhosts(p, now) {
+  const tr = TRAIL[p.index];
+  if (now >= tr.until) return [];
+  const fade = Math.min(1, (tr.until - now) / 0.12 * 0.65 + 0.35);
+  const out = [];
+  TRAIL_AGES.forEach((age, i) => {
+    let best = null;
+    for (const h of tr.hist) if (!best || Math.abs(now - h.now - age) < Math.abs(now - best.now - age)) best = h;
+    if (best && Math.abs(best.x - p.x) > 6) out.push({ ...p, ...best, stunned: 0, alpha: TRAIL_ALPHA[i] * fade });
+  });
+  return out;
 }
 
 function roundRect(g, x, y, w, h, r) {
@@ -2144,7 +2287,7 @@ function drawReady(g) {
   if (M.phase !== 'kickoff') return;
   g.save();
   g.fillStyle = '#000000b0';
-  g.fillRect(0, 0, C.W, C.H);
+  g.fillRect(0, -SKY_TOP, C.W, SKY_TOP + C.H);
   g.textAlign = 'center';
   g.textBaseline = 'middle';
   const txt = 'KICK OFF';
@@ -2206,26 +2349,71 @@ const HUD = {
 };
 
 // ---- DOM heads -------------------------------------------------------------
+// THE HEAD IS A HEAD SOCCER SHAPE, NOT A COIN. HS's head sprite is 62 px wide and 56-57 tall on
+// the 1280 frame (M3 6.8 s, M4 29.98 s, full resolution) around a 52.8 px head: a wide cartoon
+// head — dome on top, full cheeks, a flat chin sitting on the collar — with one thick near-black
+// keyline round it. So ours is drawn HEAD_W x HEAD_H of the hitbox diameter, in that silhouette
+// (the polygon in style.css), with the card face zoomed until face and hair FILL it. The sim
+// never sees any of this: its head is still the 26.4 circle, and the drawn one overhangs it a
+// few px at the cheeks and chin exactly as HS's hair and cheeks overhang its own.
+// Drawn at exactly the hitbox, the body showed 17 px under the chin (3.1:1 head to body) where
+// HS shows 15 (3.8:1); a 1.07 height puts the chin 15 px off the grass.
+const HEAD_W = 1.17, HEAD_H = 1.07;
+// The silhouette, as points in a unit box (0..1 across, 0..1 down): a superellipse that is
+// ROUND on top (exponent 2.1, a dome) and squarer below (2.9: full cheeks and a flat chin),
+// widest a little below the middle, the jaw drawn in a touch at the bottom corners. One list, two users: the CSS clip-path on
+// the DOM head (--head-shape) and the canvas path the near net is clipped to (drawHeadNet).
+const HEAD_SHAPE = (() => {
+  const pts = [];
+  for (let i = 0; i < 48; i++) {
+    const t = (i / 48) * 2 * Math.PI, c = Math.cos(t), s = Math.sin(t);
+    const n = s < 0 ? 2.1 : 2.9;
+    let x = Math.sign(c) * Math.abs(c) ** (2 / n);
+    const y = Math.sign(s) * Math.abs(s) ** (2 / n);
+    x *= 1 - 0.1 * Math.max(0, y) ** 2;
+    // the widest line sits BELOW the middle: a tall dome, then the cheeks and a short flat jaw
+    pts.push([0.5 + x / 2, 0.56 + y * (y < 0 ? 0.56 : 0.44)]);
+  }
+  return pts;
+})();
+document.documentElement.style.setProperty('--head-shape',
+  `polygon(${HEAD_SHAPE.map(([x, y]) => `${(x * 100).toFixed(1)}% ${(y * 100).toFixed(1)}%`).join(',')})`);
+// The crop for that shape (head-crop.js opts): 1.35x tighter than the measured head, and the
+// window lifted a tenth of a head so there is hair over the brow and the chin reaches the flat
+// bottom. Chosen on a lineup of the album (_charshots.mjs → heads-lineup.png).
+const HEAD_CROP = { zoom: 1.3, lift: -0.06 };
+function headBox(p) {
+  const d = headR(M, p) * 2 * SC;
+  return { w: d * HEAD_W, h: d * HEAD_H };
+}
 function drawHeads() {
   for (let i = 0; i < 2; i++) {
     const p = M.players[i];
     // The head is a DOM node, so a big-head pickup is a CSS size change, not a canvas one.
     // The card art is repainted at the new size rather than transform-scaled: a scaled-up
     // background is a blurry card, and the whole hook is being able to tell who it is.
-    const size = headR(M, p) * 2 * SC;
+    const { w, h } = headBox(p);
     const el = HUD.head[i];
-    const key = `${p.char.rarity}_${p.char.number}_${Math.round(size)}`;
+    const key = `${p.char.rarity}_${p.char.number}_${Math.round(w)}`;
     if (el.dataset.card !== key) {
-      paintHead(el.firstElementChild, p.char.rarity, p.char.number, size);
-      el.style.width = el.style.height = size + 'px';
+      // the keyline is about one texel of the half-res canvas, whatever size the head is
+      const ol = Math.max(1.5, h * 0.05);
+      el.style.width = w + 'px';
+      el.style.height = h + 'px';
+      el.style.setProperty('--ol', ol.toFixed(1) + 'px');
+      // The card is painted into the box INSIDE the keyline, so it is cropped for that box.
+      paintHead(el.firstElementChild, p.char.rarity, p.char.number, w - 2 * ol, { ...HEAD_CROP, h: h - 2 * ol });
       el.dataset.card = key;
     }
     // Through the same projection as the body, or a player walking into the goal leaves their
     // head behind on the goal line.
     const d = depthPoint(p.x, headY(p));
     const x = OX + d.x * SC, y = OY + d.y * SC;
-    const tilt = Math.max(-.34, Math.min(.34, p.vx / 1100)) + (p.stunned > 0 ? p.side * 1.2 : 0);
-    el.style.transform = `translate(${x - size / 2}px, ${y - size / 2}px) rotate(${tilt}rad)`;
+    // UPRIGHT. An HS head does not lean into a run — it rides level on the feet paddling under
+    // it — and only tips back, with the body (drawBody), when a hit knocks the player back.
+    const tilt = p.stunned > 0 ? -p.side * 0.45 : 0;
+    el.style.transform = `translate(${x - w / 2}px, ${y - h / 2}px) rotate(${tilt}rad)`;
+    drawHeadGhosts(i, el, w, h);
     // ARMED: THE PLAYER GLOWS LIKE A FULL POWER BAR.
     //
     // Deliberately the BAR's gold and not the character's shot colour, which is what this
@@ -2240,6 +2428,99 @@ function drawHeads() {
     // NO BRUISES. The face used to redden and bruise off a hidden health bar (.head.hurt1..4);
     // Head Soccer has no health, so the character is drawn the same however often it is hit.
   }
+}
+
+// The head half of a dash afterimage: see-through copies of the head node, placed where the
+// body ghosts were drawn (GHOSTS, filled by draw). Cloned once per card and hidden the rest of
+// the time, so a match without a dash costs one `hidden` check per copy per frame.
+const HEAD_GHOSTS = [[], []];
+function drawHeadGhosts(i, el, w, h) {
+  const want = GHOSTS[i], pool = HEAD_GHOSTS[i];
+  if (!want.length && !pool.length) return;
+  if (pool.key !== el.dataset.card) {                 // new card or size: re-clone
+    for (const gh of pool) gh.remove();
+    pool.length = 0;
+    pool.key = el.dataset.card;
+  }
+  while (pool.length < want.length) {
+    const gh = el.cloneNode(true);
+    gh.removeAttribute('id');
+    gh.className = `head ghost g${i}`;
+    el.parentNode.insertBefore(gh, el);               // under the live head
+    pool.push(gh);
+  }
+  for (let k = 0; k < pool.length; k++) {
+    const gh = pool[k], q = want[k];
+    if (!q) { gh.hidden = true; continue; }
+    const d = depthPoint(q.x, headY(q));
+    gh.hidden = false;
+    gh.style.opacity = q.alpha.toFixed(2);
+    gh.style.transform = `translate(${OX + d.x * SC - w / 2}px, ${OY + d.y * SC - h / 2}px)`;
+  }
+}
+
+// ABOVE THE HEADS — the kickoff's YOU marker and a stunned player's stars. Both have to sit over
+// a head, and a head is a DOM node, so they go on the net layer (ctxNet) the same way the near
+// net does.
+function drawOverHeads(g) {
+  const t = performance.now() / 1000;
+  for (const p of M.players) {
+    if (!(p.stunned > 0)) continue;
+    // …not while a power shot grinds on his boot: HS shows the block's spark burst, no stars
+    // (docs/HS-POWER-SHOTS.md §4, M4 61.45–62.25 s; champ-vfx.js draws the burst).
+    const pw = M.ball.power;
+    if (pw && pw.ph === 'grind' && pw.tgt === p.index) continue;
+    const r = headR(M, p);
+    const c = depthPoint(p.x, headY(p) - r - 4);
+    // three stars orbiting a flat ring over the head; the far side of the ring is smaller
+    for (let k = 0; k < 3; k++) {
+      const a = t * 7 + k * 2.094;
+      const z = (Math.sin(a) + 1) / 2;                   // 0 far → 1 near
+      star(g, c.x + Math.cos(a) * r * 0.85, c.y + Math.sin(a) * r * 0.25, 6 + z * 3, 0.65 + z * 0.35);
+    }
+  }
+  // YOU, over the local player's head for as long as the KICK OFF banner stands (HS: the
+  // bubble is up through the banner and gone the moment play starts).
+  if (M.phase === 'kickoff') {
+    const p = M.players[ONLINE && NET ? (NET.you ?? 0) : 0];
+    if (p) youMarker(g, p, t);
+  }
+}
+function star(g, x, y, r, a) {
+  g.save();
+  g.globalAlpha = a;
+  g.beginPath();
+  for (let i = 0; i < 10; i++) {
+    const rr = i % 2 ? r * 0.45 : r, an = -Math.PI / 2 + i * Math.PI / 5;
+    g.lineTo(x + Math.cos(an) * rr, y + Math.sin(an) * rr);
+  }
+  g.closePath();
+  g.fillStyle = '#ffe14a'; g.fill();
+  g.lineWidth = 2; g.strokeStyle = OUTLINE; g.stroke();
+  g.restore();
+}
+function youMarker(g, p, t) {
+  const r = headR(M, p);
+  const top = depthPoint(p.x, headY(p) - r);
+  const bob = Math.sin(t * 5) * 2;
+  const w = r * 2.8, h = r * 1.45, x = top.x, y = top.y - 12 - h / 2 + bob;
+  const col = p.index === 1 ? '#ff5c7a' : '#4ea0ff';
+  g.save();
+  // the bubble and its tail, one keyline round both
+  const shape = () => {
+    roundRect(g, x - w / 2, y - h / 2, w, h, h / 2);
+    g.moveTo(x - 6, y + h / 2 - 1); g.lineTo(x, y + h / 2 + 8); g.lineTo(x + 6, y + h / 2 - 1);
+  };
+  shape(); g.lineWidth = 4; g.strokeStyle = OUTLINE; g.lineJoin = 'round'; g.stroke();
+  shape(); g.fillStyle = col; g.fill();
+  g.fillStyle = '#ffffff55';                               // gloss along the top
+  roundRect(g, x - w / 2 + 5, y - h / 2 + 3, w - 10, h * 0.3, h * 0.15); g.fill();
+  g.direction = 'ltr';
+  g.textAlign = 'center'; g.textBaseline = 'middle';
+  g.font = `900 ${Math.round(h * 0.72)}px -apple-system, Arial`;
+  g.lineWidth = 4; g.strokeStyle = OUTLINE; g.strokeText('YOU', x, y + 1);
+  g.fillStyle = '#ffd23c'; g.fillText('YOU', x, y + 1);
+  g.restore();
 }
 
 // ---- HUD -------------------------------------------------------------------
@@ -2294,19 +2575,19 @@ function syncHud() {
   for (let i = 0; i < 2; i++) {
     const p = M.players[i];
     const gEl = HUD.gauge[i];
-    const armed = p.armed > 0;
-    // ARMED KEEPS THE BAR FULL. It used to count DOWN while the move was live, because the
-    // move WAS the countdown. Now the meter is not spent until the ball is touched, so a
-    // draining bar would be lying about what you still have: the bar stays at 100% and the
-    // `armed` class is what says "loaded, go and touch the ball".
+    const gv = gaugeView(p);
+    const armed = gv.armed;
+    // THE PRESS EMPTIES THE BAR (HS M4 36.49 s) and the refill climbs from there while the
+    // head glows; the `armed` class and the ⚡ in the name are what say "loaded, go and touch
+    // the ball". See gaugeView.
     //
     // The fill is ONE continuous ramp painted across the whole track and revealed by a
     // clip, rather than a growing box. Growing a box squeezes the gradient into whatever
     // is filled, so the colour under the tip never changes and you get a shorter rainbow
     // instead of a climbing one. Revealing a fixed ramp is what makes the leading edge
     // travel green -> yellow -> orange -> red with nothing to step over.
-    prop(gEl, '--p', (p.gauge * 100).toFixed(2) + '%');
-    gEl.classList.toggle('full', p.gauge >= 1);
+    prop(gEl, '--p', gv.pct.toFixed(2) + '%');
+    gEl.classList.toggle('full', gv.full);
     gEl.classList.toggle('powered', armed);
     const nm = powerName(p);
     txt(HUD.gaugeName[i], armed ? `${nm} ⚡` : nm);
@@ -2314,11 +2595,9 @@ function syncHud() {
   const me = ONLINE ? NET.you : 0;
   const mine = M.players[me];
   const pb = HUD.power;
-  // Lit when a full meter means you can arm, and held lit while you ARE armed — the button
-  // is the same thing the head's glow is saying, and it has nothing left to count down.
-  pb.classList.toggle('ready', mine.gauge >= 1 && mine.armed <= 0);
-  pb.classList.toggle('live', mine.armed > 0);
-  txt(pb, mine.armed > 0 ? '⚡' : 'POWER');
+  // Up only when a press would arm: HS hides the POWER plaque on the press and shows it again
+  // when the bar is full (M4 36.56 s → 54.88 s). The glow on the head is what says armed.
+  pb.classList.toggle('ready', gaugeView(mine).button);
   txt(HUD.rtt, ONLINE ? `${NET.rtt}ms` : '');
 }
 
@@ -2480,7 +2759,7 @@ Object.assign(window, { goalBox, goalAt, depthPoint, INSIDE_Z });
 // drawBody, for looking at the sprite itself at a zoom a 79px body can be judged at. The
 // boots are 23px long on screen and no screenshot of a match will ever settle whether one
 // reads as a football boot — see _bootshots.mjs, which calls this.
-Object.assign(window, { drawBody });
+Object.assign(window, { drawBody, HEAD_CROP, HEAD_W, HEAD_H });
 Object.assign(window, { C, startMatch, pick, paintHead, callout, VFXR });
 // The arcade, for the harness: the same entry points the buttons use, and the live progress.
 Object.assign(window, { startArcadeStage, openArcade, openModes, selectStage, CHAMPIONS });

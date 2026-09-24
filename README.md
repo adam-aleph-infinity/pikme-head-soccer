@@ -58,8 +58,10 @@ Those are two code paths, and only `--album` reaches the second one without a re
 
 The controls used to sit ON the pitch — players stood inside the buttons. The ground line is
 now placed at the top of the band the controls occupy, so the whole playable half of the world
-is clear of them. It costs width: on a 390px-tall phone the pitch renders at about 83% of the
-screen with bars at the sides, and those bars are painted to match the pitch at that height —
+is clear of them. And above the grass the camera always keeps Head Soccer's **487px of sky**
+(`VIEW_ABOVE_GROUND`, measured off the recordings), drawn up past world y = 0 — it used to crop
+to 401 and every header between the two heights vanished off the top. Together these cost width:
+on an 844x390 phone the pitch renders at about 77% of the screen with bars at the sides, and those bars are painted to match the pitch at that height —
 sky above the ground line, grass below. A bar at the edge costs you nothing; a thumb over the
 six-yard box costs you the goal.
 
@@ -318,8 +320,7 @@ you for half a second, גל אדום launches you, גשם מטבעות leaves yo
 
 **Press kick with the ball at your head and you HEAD it** — less power than a boot, more
 loft, and the only way to hit a ball your foot cannot reach. A head you did NOT press with
-cushions the ball instead: heading used to beat playing, so a passive head touch is now a
-control surface and the boot is the only thing that hits it hard.
+bounces the ball (see below: Head Soccer's heads are springy).
 
 **The boot bows toward the far goal.** A kick used to fly dead flat along your facing, so
 scoring meant already standing in exactly the right place. The loft now scales with how far
@@ -332,12 +333,24 @@ turning the ball toward the net for you would take it away.
 **Hold jump while kicking to LOB it** — higher, shorter. The counter to a defender parked on
 their line, and the only aiming the game has.
 
+**Your head is springy; your body deadens.** Measured off Head Soccer (M4): a ball dropped on a
+still head comes back up at ~0.79 of its pace, and a head still rising from its jump sends it
+back FASTER than it came — HS's passive jumping headers leave at ~720px/s off a ~580 arrival.
+So the head is a bounce relative to the head (`HEAD_BOUNCE` 0.75), and a jump into a falling
+ball is a real header even without KICK. The chest still kills the ball (`BODY_DEADEN`).
+
+**Players are solid.** Head and body collide with the other player's head and body: you can
+land on his head and stand there (and jump off it), and he can walk out from under you — the
+head moving away does not carry you. Dash or walk into a player in the air and you shove him;
+keep pushing and he hangs on your shoulder instead of falling (HS M4 66.4 s). Two heads do not
+fit under the crossbar, so a stack in the goal mouth slides the upper player out onto the pitch.
+
+<details><summary>What it used to say</summary>
+
 **Your head deadens the ball too — just less than your body does.** A head keeps 0.58 of the
 pace where the chest keeps 0.18, so heading is the livelier touch of the two and neither is a
 trampoline. Hitting the ball HARD is always a deliberate act now: the boot, or the kick button
 pressed at head height.
-
-<details><summary>What it used to say</summary>
 
 **Your head bounces the ball; your body deadens it.** Barging into the ball kills its pace
 and drops it at your feet — only a kick sends it anywhere, so every meaningful touch is a
@@ -425,7 +438,10 @@ mechanics that actually define it, not just the look:
 
 - **Five buttons, nothing else.** Left, right, jump, kick, power. Dash is a double-tap.
 - **The power gauge fills with match time**, not with touches. When it's full the POWER
-  button lights; pressing it **arms** you, and the *next* ball contact fires your shot.
+  button lights; pressing it **arms** you (you glow), **empties the bar and hides the button**,
+  and the *next* ball contact fires your shot. The refill starts on the press, so it is already
+  climbing while you walk to the ball; the button comes back when the bar is full again (a
+  second arm waits until the first shot has fired).
 - **Eleven shot families** from Head Soccer — see [`shared/hs-powers.js`](shared/hs-powers.js)
   and [`docs/HS-POWER-SHOTS.md`](docs/HS-POWER-SHOTS.md). Kick into one to block it (it grinds
   on your boot and fires back as yours); stand in its way and it knocks you into your own net.
@@ -464,13 +480,18 @@ fit over our sim. There is no platformer dressing left on it:
 | kick | leg out **0.26s**, repeat **0.349s** | timing only; the contact model is a later pass |
 | geometry | head **52.8px**, crossbar top **138px**, mouth **57px** deep, roof **154px** | the ball lands on the goal's roof, not the bar |
 | ceiling | **off-screen** at y = −130, restitution **0.41**, kills sideways speed | a skied ball just leaves the top of the picture |
+| sky | **487px** shown above the grass; the ball is off the top **~4%** of live play | a chevron on the top edge marks a ball above the picture |
+| headers | jump into a falling ball → **~626 px/s**, apex **~311px** (median of 12) | ours: 587 / 326. Our lob (not an HS move) is capped at ~350px up |
 | bounce | grass **0.65**, goal roof **0.67** | |
 
 Coyote time and the jump buffer are kept but cut to 3 frames: HS shows no input lag at all.
 
-**Hit-stop** freezes the whole sim for a few frames on a heavy connect, with a couple of
-pixels of screen shake underneath. Input held across the freeze is not lost — the sim's edge
-detection sees it the moment play resumes.
+**Hit-stop** freezes the whole sim for a few frames, with a couple of pixels of screen shake
+underneath — but only when a power shot is BLOCKED. A kick, header or tackle does not stop the
+game: HS has no hit-stop on a touch (M3's ball track), and ours froze three frames on each of
+~85 touches a match, which is what "the game feels a little bit stuck" was. Input held across a
+freeze is not lost — the sim's edge detection sees it the moment play resumes — and a tap that
+comes and goes between two ticks is remembered until a tick has seen it (tickInput, game.js).
 
 **The cut-in** is the same freeze, 1.34s long, the moment a power shot fires (HS M4): both
 players, the ball and the clock hold while the pitch darkens and rays fan out of the shooter.
@@ -481,11 +502,16 @@ A power shot that hits an unarmed player dazes them for **0.5s** and rebounds.
 move again at **2.24s**, and the ball drops in at the centre **2.795s** after the goal —
 302px up, drifting 138 px/s toward whoever conceded. Both banners are timed by the sim.
 
-**The gauge** fills on a wall clock at **1/13 per second** — through goal restarts and
-cut-ins — after a **2s lead** at the start of a match, and not under the KICK OFF banner. That
-one model gives both of HS's numbers: first fill 15.0s after the banner, refill 13.0s (the refill
-window had 3.6s of pauses in it and was still shorter, so it cannot be a play-time clock; the
-2s gap is the same in two recordings with different characters, so it is a delay, not a rate).
+**The gauge** fills at **1/15 per second of play**: not under the KICK OFF banner, not through
+a goal's restart (it stops at the goal and starts again when the ball drops in), and straight
+through cut-ins. **The POWER press empties it** and the refill starts right there — HS M4: pressed
+at 36.49s, empty at 36.56s, visibly climbing at 36.67s, while the shot only fires on the touch at
+41.93s (M3 likewise: the bar climbs straight through the cut-in at 71.5s). Timed from the press,
+M4's refill is 18.39s to the plaque (54.88s) with the bar flat for 3.19s across a goal
+(43.40→46.59s): 15.2s of play, the same as the first fill (15.0s after the banner). The old
+model (1/13 of wall clock plus a 2s lead) was fitted to a refill timed from the *fire* (13.0s),
+which had the 5.4s of refill between press and fire cut off. Rows: `gauge.emptyOnPress`,
+`gauge.refillStart`, `gauge.refillTime` in `docs/hs-estimates.json`.
 
 ## Pace — REMOVED
 

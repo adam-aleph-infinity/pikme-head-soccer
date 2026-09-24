@@ -1,7 +1,9 @@
 // Physics + rules tests. Run: node test-sim.mjs
 import * as C from './shared/constants.js';
-import { createMatch, step, headY, headR, stun, serialize, restore } from './shared/sim.js';
+import { createMatch, step, headY, headR, stun, serialize, restore, playerContact } from './shared/sim.js';
+import { walkBounds, barY } from './shared/goalbox.js';
 import { shotFor, shotById, FAMILY_ORDER } from './shared/hs-powers.js';
+import { CHAMPIONS } from './shared/champions.js';
 
 let pass = 0, fail = 0;
 const ok = (name, cond, extra = '') => {
@@ -238,11 +240,11 @@ const scoreOn = (m, left, y = C.GROUND_Y - 60, speed = 600) => {
   m.ball.x = p.x; m.ball.y = headY(p) - C.HEAD_R - C.BALL_R + 4;
   m.ball.vx = 0; m.ball.vy = 300;
   step(m, NONE);
-  // A head DEADENS now (HEAD_DEADEN), like the chest but livelier — it does not bounce the
-  // ball away. Hitting it hard is a deliberate act: the boot, or the kick button at head
-  // height. This used to assert `vy < 0`.
-  ok('a head kills the ball rather than bouncing it', Math.abs(m.ball.vy) < 120,
-     `vy=${m.ball.vy.toFixed(0)} off a drop`);
+  // A HEAD IS SPRINGY (HS M4, HEAD_BOUNCE): a drop onto a still head goes back up at about
+  // three quarters of the pace it came down at. It used to be a dead cushion (HEAD_DEADEN),
+  // which HS does not have.
+  ok('a head bounces a drop back up', m.ball.vy < -300 * 0.6 && m.ball.vy > -300,
+     `vy=${m.ball.vy.toFixed(0)} off a 300 drop`);
 }
 {
   const m = fresh();
@@ -251,12 +253,11 @@ const scoreOn = (m, left, y = C.GROUND_Y - 60, speed = 600) => {
   m.ball.vy = 300;
   const before = Math.abs(m.ball.vy);
   step(m, NONE);
-  // This used to assert the head was SPRINGIER than the ground. It is now deliberately the
-  // opposite: at HEAD_POWER 0.52 a head is a control surface — it cushions and redirects —
-  // and the boot (or a deliberate header on the kick button) is the only thing that hits the
-  // ball hard. Heading used to beat playing, which is why the number came down twice.
-  ok('a head CUSHIONS the ball rather than launching it',
-     Math.abs(m.ball.vy) < before * C.BALL_BOUNCE,
+  // A STILL head never returns a ball faster than it arrived: the bounce is relative to the
+  // head, so only a head that is itself moving up (a jump) adds pace. About as lively as the
+  // grass — HS M4 reads 0.79 off a still head and 0.65 off the grass.
+  ok('a still head bounces, but never harder than the ball came',
+     Math.abs(m.ball.vy) < before && Math.abs(m.ball.vy) > before * C.BALL_BOUNCE * 0.9,
      `${Math.abs(m.ball.vy).toFixed(0)} back off a ${before.toFixed(0)} drop, vs ${(before * C.BALL_BOUNCE).toFixed(0)} off the ground`);
 }
 
@@ -298,7 +299,8 @@ const scoreOn = (m, left, y = C.GROUND_Y - 60, speed = 600) => {
     step(m, [{}, {}]);
   }
   ok('an arm that never reaches the ball keeps waiting', p.armed > 0, `armed=${p.armed}`);
-  ok('and it costs the meter nothing to wait', p.gauge >= 1, `gauge=${p.gauge}`);
+  // The press spent the meter and it has been refilling since: 600 ticks of the clock's rate.
+  ok('and the meter refills while it waits', Math.abs(p.gauge - 600 * C.TICK * C.GAUGE_PASSIVE) < 1e-9, `gauge=${p.gauge}`);
 }
 {
   // a straight power shot is DEAD FLAT (HS M4 43.07–43.33 s: level from release to the defender)
@@ -397,7 +399,8 @@ function kickInto(m, i, reach = 130, ticks = 90) {
   ok('and it flies flat and fast', Math.abs(m.ball.vx) > C.KICK_POWER * 1.5 && Math.abs(m.ball.vy) < 60,
      `v=(${m.ball.vx.toFixed(0)}, ${m.ball.vy.toFixed(0)})`);
   ok('firing spends the arm', p.armed === 0);
-  ok('and the meter with it', p.gauge === 0, `gauge=${p.gauge}`);
+  // …and does NOT touch the meter: the press emptied it and the refill has run since.
+  ok('and leaves the refill alone', p.gauge > 0 && p.gauge < 0.05, `gauge=${p.gauge}`);
 }
 {
   // ARMED BEATS INCOMING: a defender who is ALSO armed and gets hit by the incoming shot does
@@ -419,27 +422,26 @@ function kickInto(m, i, reach = 130, ticks = 90) {
   ok('the touch fired b\'s own shot, not a\'s', m.ball.power && m.ball.power.fam === 'updown',
      `shot=${m.ball.power?.fam}`);
   ok('ownership moved to b', m.ball.power && m.ball.power.owner === 1);
-  ok('b\'s arm and gauge are spent', b.armed === 0 && b.gauge === 0);
+  ok('b\'s arm is spent (the press already spent its gauge)', b.armed === 0 && b.gauge < 0.05);
   ok('the event says it was a counter', m.events.some((e) => e.type === 'powershot' && e.countered),
      JSON.stringify(m.events));
 }
-// --- the head deadens too, just less -----------------------------------------
+// --- the head bounces, the chest deadens ---------------------------------------
 {
-  // Both surfaces kill the ball now; the head keeps twice as much of it as the chest. This
-  // block used to assert the head BOUNCED (vy < -100) — that was the trampoline Adam asked
-  // twice to remove, and the second ask was to make it a body part rather than a softer
-  // trampoline.
+  // HS M4: the passive head touch is a restitution bounce (HEAD_BOUNCE, ~0.75 relative to the
+  // head). The chest still kills the ball (BODY_DEADEN), so the head is the lively surface.
   const drop = (yOffset) => {
     const m = fresh();
     const p = m.players[0];
     m.ball.x = p.x; m.ball.y = headY(p) + yOffset; m.ball.vy = 400;
     step(m, NONE);
-    return Math.abs(m.ball.vy);
+    return -m.ball.vy;
   };
   const head = drop(-C.HEAD_R - C.BALL_R + 4);
-  ok('a head takes the pace off the ball', head < 400 * 0.6, `${head.toFixed(0)} of 400`);
-  ok('and it is livelier than the chest', C.HEAD_DEADEN > C.BODY_DEADEN,
-     `head ${C.HEAD_DEADEN} vs body ${C.BODY_DEADEN}`);
+  ok('a head sends a drop back up at ~HEAD_BOUNCE of its pace', Math.abs(head - 400 * C.HEAD_BOUNCE) < 400 * 0.1,
+     `${head.toFixed(0)} of 400 (HEAD_BOUNCE ${C.HEAD_BOUNCE})`);
+  ok('and it is livelier than the chest', C.HEAD_BOUNCE > C.BODY_DEADEN,
+     `head ${C.HEAD_BOUNCE} vs body ${C.BODY_DEADEN}`);
 }
 {
   // Low contact — chest height and below — kills it. At Head Soccer proportions the torso
@@ -455,15 +457,20 @@ function kickInto(m, i, reach = 130, ticks = 90) {
   ok('and it does not fly back', m.ball.vx > -200);
 }
 {
-  // The crown used to bounce so that heading was a tool. Heading is still a tool — it is just
-  // the BUTTON now (tryHeader), not a surface. What the crown does passively is take a ball
-  // out of the air and drop it, and that is what this asserts.
-  const m = fresh();
-  const p = m.players[0];
-  m.ball.x = p.x; m.ball.y = headY(p) - C.HEAD_R - C.BALL_R + 3; m.ball.vy = 400;
-  step(m, NONE);
-  ok('the crown takes a falling ball out of the air', Math.abs(m.ball.vy) < 200,
-     `vy=${m.ball.vy.toFixed(0)} from a 400 drop`);
+  // A head RISING from its jump is a surface moving up, so it returns the ball faster than a
+  // still one does — HS M4's passive jumping headers leave at ~720px/s off a ~580 arrival.
+  const off = (vy) => {
+    const m = fresh();
+    const p = m.players[0];
+    p.vy = vy; p.onGround = vy === 0;
+    m.ball.x = p.x; m.ball.y = headY(p) - C.HEAD_R - C.BALL_R + 3; m.ball.vy = 400;
+    step(m, NONE);
+    return -m.ball.vy;
+  };
+  const still = off(0), rising = off(-200);
+  ok('a rising head returns the ball faster than a still one', rising > still + 150,
+     `${rising.toFixed(0)} off a head rising at 200 vs ${still.toFixed(0)} off a still one`);
+  ok('and faster than it came', rising > 400, `${rising.toFixed(0)} from a 400 drop`);
 }
 
 // --- tackling ---------------------------------------------------------------
@@ -489,7 +496,8 @@ function kickInto(m, i, reach = 130, ticks = 90) {
   // is +x — here that is also away from the tackler, which the next block pulls apart.
   ok('toward their own goal', Math.sign(b.vx) === -b.side, `vx=${b.vx.toFixed(0)} side=${b.side}`);
   ok('a tackle grants immunity', b.tackleImmune > 0);
-  ok('a tackle causes hit-stop', m.hitStop > 0);
+  // HS has no hit-stop on a touch (HIT_STOP_TACKLE, constants.js): the game does not stop.
+  ok('a tackle does not freeze the game', m.hitStop === 0, `hitStop=${m.hitStop}`);
 }
 {
   // Stun-locking someone out of the match would be the obvious abuse.
@@ -711,10 +719,17 @@ const jumpArc = (input) => {
   const p = m.players[0];
   m.ball.x = p.x + C.KICK_REACH; m.ball.y = p.y - C.BODY_H * 0.45; m.ball.vx = 0; m.ball.vy = 0;
   step(m, [{ kick: true }, {}]);
-  ok('a solid kick causes hit-stop', m.hitStop > 0);
+  // HS has no hit-stop on a touch: ~85 of them a match each froze the game for 3 frames, which
+  // is what "the game feels a little bit stuck" was (HIT_STOP_KICK, constants.js).
+  ok('a solid kick does not freeze the game', m.hitStop === 0, `hitStop=${m.hitStop}`);
   const bx = m.ball.x;
   step(m, [{}, {}]);
-  ok('the world is frozen during hit-stop', Math.abs(m.ball.x - bx) < 0.001);
+  ok('the kicked ball flies on the very next tick', Math.abs(m.ball.x - bx) > 1, `dx=${(m.ball.x - bx).toFixed(2)}`);
+  // The mechanism stays, for the blocked power shot (HIT_STOP_POWER).
+  m.hitStop = C.HIT_STOP_POWER;
+  const fx = m.ball.x;
+  step(m, [{}, {}]);
+  ok('the world is frozen during hit-stop', Math.abs(m.ball.x - fx) < 0.001);
   run(m, 12);
   ok('hit-stop always clears', m.hitStop <= 0);
 }
@@ -733,10 +748,10 @@ const jumpArc = (input) => {
 // --- gauge & clock ----------------------------------------------------------
 {
   // THE GAUGE IS A CLOCK (Head Soccer). Nobody touches anything: both meters go from empty to
-  // full in 1 / GAUGE_PASSIVE seconds — 13s, HS M4's refill — and then stay full.
+  // full in 1 / GAUGE_PASSIVE seconds — 15s, HS M4's first fill AND its refill — and stay full.
   const m = fresh();
   const full = 1 / C.GAUGE_PASSIVE;
-  ok('(the fill time is HS\'s 13s)', Math.abs(full - 13) < 1e-9, `${full}s`);
+  ok('(the fill time is HS\'s 15s)', Math.abs(full - 15) < 1e-9, `${full}s`);
   run(m, Math.round((full - 0.5) / C.TICK));
   const [p0, p1] = m.players;
   ok('half a second short of it, the gauge is not yet full', p0.gauge < 1 && p0.gauge > 0.95,
@@ -751,9 +766,9 @@ const jumpArc = (input) => {
   ok('the clock alone arms nobody', p0.armed === 0 && p1.armed === 0);
 }
 {
-  // THE FIRST FILL, FROM A REAL KICKOFF: 15.0s after the KICK OFF banner ends (HS M4), and a
-  // refill 13.0s. One model gives both (see GAUGE_PASSIVE): nothing under the banner, a
-  // GAUGE_LEAD of 2s once play starts, then 1/13 a second.
+  // THE FIRST FILL, FROM A REAL KICKOFF: 15.0s after the KICK OFF banner ends (HS M4), the same
+  // 15s as its refill from the press (see GAUGE_PASSIVE): nothing under the banner, 1/15 a
+  // second of play after it.
   const m = createMatch(CA, CB, {});
   run(m, Math.round(C.KICKOFF_FREEZE / C.TICK) - 2);
   ok('the gauge does not fill under the KICK OFF banner', m.players[0].gauge === 0 && m.phase === 'kickoff');
@@ -763,8 +778,8 @@ const jumpArc = (input) => {
   ok('the first fill takes ~15s from the banner (HS M4 14.99)', Math.abs(t - 15) < 0.1, `${t.toFixed(2)}s`);
 }
 {
-  // …and it is a WALL clock after that: the refill runs straight through a goal's restart and a
-  // cut-in (M4's 13.0s refill had both in it).
+  // It runs straight through a cut-in (HS M4 40.44 s / 41.97 s: same rate under both), and it
+  // STOPS through a goal's restart (M4: still from the goal at 43.40 s to the ball at 46.59 s).
   const m = fresh();
   m.hitStop = 1; m.cutin = 1; m.cutinBy = 0;
   run(m, 30);
@@ -773,7 +788,12 @@ const jumpArc = (input) => {
   scoreOn(n, true);
   const g0 = n.players[0].gauge;
   run(n, 60);
-  ok('and through a goal\'s restart', n.phase === 'goal' && n.players[0].gauge > g0, `${g0} → ${n.players[0].gauge}`);
+  ok('but not through a goal\'s restart', n.phase === 'goal' && n.players[0].gauge === g0, `${g0} → ${n.players[0].gauge}`);
+  while (n.phase === 'goal') step(n, NONE);
+  ok('nor while the ball has still to drop in', n.ballWait > 0 && n.players[0].gauge === g0, `${g0} → ${n.players[0].gauge}`);
+  while (n.ballWait > 0) step(n, NONE);
+  step(n, NONE);
+  ok('it starts again with the ball', n.players[0].gauge > g0, `${g0} → ${n.players[0].gauge}`);
 }
 {
   const m = fresh({ duration: 0.5 });
@@ -1070,9 +1090,9 @@ const jumpArc = (input) => {
      `+${(b.gauge - before[1]).toFixed(4)}`);
 }
 {
-  // 2. PRESSING POWER ONLY ARMS. It fires nothing, it spends nothing, and it does not go
-  // anywhere near the ball — which is the whole change, and the reason the rival can no
-  // longer let one off by existing.
+  // 2. PRESSING POWER ARMS AND EMPTIES THE BAR. It fires nothing, and it does not go anywhere
+  // near the ball — the reason the rival can no longer let one off by existing. The meter IS
+  // spent on the press (HS M4 36.49 s), so the refill runs while the player finds the ball.
   const m = fresh();
   const p = m.players[0];
   p.x = 400; p.facing = 1; p.gauge = 1;
@@ -1083,7 +1103,7 @@ const jumpArc = (input) => {
   const started = m.events.find((e) => e.type === 'armed');
   m.events.length = 0;
   ok('power arms the player', p.armed > 0 && !!started, `armed ${p.armed.toFixed(2)}s`);
-  ok('and does NOT spend the gauge', p.gauge >= 1, `gauge ${p.gauge}`);
+  ok('and empties the gauge on the press', p.gauge === 0, `gauge ${p.gauge}`);
   ok('the ball has not been fired', !m.ball.power);
   // The old wind-up SWEPT the ball sideways to the player and lifted it over their head. So
   // the test for "nothing touched it" is: no sideways movement at all, and it fell rather
@@ -1113,7 +1133,8 @@ const jumpArc = (input) => {
   ok('dead flat', Math.abs(m.ball.vy) < 40, `vy ${m.ball.vy.toFixed(0)}`);
   ok('and towards the other goal', Math.sign(m.ball.vx) === Math.sign(p.side));
   ok('the arm is spent', p.armed === 0);
-  ok('and NOW the gauge is spent', p.gauge === 0, `gauge ${p.gauge}`);
+  ok('and the gauge is the refill since the press, not zeroed again', p.gauge > 20 * C.TICK * C.GAUGE_PASSIVE,
+     `gauge ${p.gauge}`);
 }
 {
   // 5. IT IS STILL BLOCKABLE — by a KICK (HS M4 61.45 s). The ultimate leaves from wherever the
@@ -1598,14 +1619,15 @@ const jumpArc = (input) => {
     // Dropped dead on the crown. That is the one spot where the contact normal points
     // straight up and gravity has nothing to roll the ball off with, so it used to balance
     // there indefinitely — the clearest form of "the ball sticks and its physics stop".
-    // It has to come off the head and reach the grass.
+    // It has to come off the head and reach the grass. The head is springy now (HS M4), so it
+    // bounces there a few times first — each lower — and then rolls off.
     const m = fresh();
     const p = m.players[0], b = m.ball;
     p.x = 400; p.y = C.GROUND_Y;
     m.players[1].x = 80;
     b.x = p.x; b.y = C.GROUND_Y - 200; b.vx = 0; b.vy = 300;
     let reached = -1, under = 0, deepest = 0;
-    for (let i = 0; i < 180; i++) {
+    for (let i = 0; i < 540; i++) {
       m.hitStop = 0;
       step(m, NONE);
       if (reached < 0 && b.y > REST_Y - 1) reached = i;
@@ -1614,7 +1636,10 @@ const jumpArc = (input) => {
     }
     ok('a ball dropped on a head does not balance there', reached >= 0,
        `never reached the grass; ended at y=${b.y.toFixed(1)}, rest is ${REST_Y}`);
-    ok('it rolls off promptly', reached >= 0 && reached < 60, `${reached} ticks`);
+    // Dead centre is the worst case: every bounce comes straight back down onto the crown, so
+    // it bounces itself out (~4.5 s at HEAD_BOUNCE 0.75) before the curve can roll it off. Any
+    // ball that lands a hair off centre is gone on the first bounce.
+    ok('it rolls off once it has bounced itself out', reached >= 0 && reached < 480, `${reached} ticks`);
     ok('it is never pushed under the grass', under === 0, `${under} ticks below the pitch`);
     ok('and never ends a tick inside the player', deepest < 1, `${deepest.toFixed(2)}px embedded`);
   }
@@ -2041,6 +2066,201 @@ const jumpArc = (input) => {
     ok('a tackle still does not strike the ball',
        Math.abs(m.ball.x - ctrl.ball.x) < 1e-9 && Math.abs(m.ball.vx - ctrl.ball.vx) < 1e-9,
        `${m.ball.x.toFixed(2)}/${m.ball.vx.toFixed(2)} vs ${ctrl.ball.x.toFixed(2)}/${ctrl.ball.vx.toFixed(2)}`);
+  }
+}
+
+// --- the gauge is a clock: kicks, headers, tackles and goals pay NOTHING ---------------
+// Idan, on his phone: "the kicks give power to the power bar". Head Soccer's gauge fills with
+// time alone (GAUGE_PASSIVE; 15.0s first fill, 13.0s refill), so here both players spend a
+// long stretch doing nothing BUT kicking — at the ball, at each other, jumping into headers —
+// with the gauge parked well below full, and every single tick is held to the clock: no tick
+// may add more than dt × GAUGE_PASSIVE (× the champion's meterRate in the arcade), and none
+// may take any away. Plain match and arcade with champions, both seats.
+{
+  const plain = [{ rarity: 'legendary', number: 3 }, { rarity: 'legendary', number: 2 }];
+  const runs = [
+    { name: 'plain', cards: plain, opts: {} },
+    ...[0, 9, 21, 30, 44].map((k) => ({
+      name: `arcade ${CHAMPIONS[k].power} v ${CHAMPIONS[(k + 7) % 45].power}`,
+      cards: [CHAMPIONS[k].card, CHAMPIONS[(k + 7) % 45].card],
+      opts: { champions: true, meterRate: [1, 1.9] },
+    })),
+  ];
+  for (const r of runs) {
+    const m = createMatch(r.cards[0], r.cards[1], r.opts);
+    const n = { kick: 0, tackle: 0, head: 0, goal: 0 };
+    let bad = 0, first = '';
+    for (let k = 0; k < Math.round(40 / C.TICK) && m.phase !== 'over'; k++) {
+      // Parked at 0.3, well short of full: this is about what fills it, not about arming.
+      if (m.players.some((p) => p.gauge > 0.9)) m.players.forEach((p) => { p.gauge = 0.3; });
+      const before = m.players.map((p) => p.gauge);
+      step(m, m.players.map((p, i) => {
+        const tgt = (k % 300 < 150) ? m.ball.x : m.players[1 - i].x;
+        return { left: tgt < p.x - 10, right: tgt > p.x + 10, jump: (k % 37) === i * 5, kick: (k % 6) < 3, power: false };
+      }), C.TICK);
+      for (const e of m.events) {
+        if (e.type === 'kick') n.kick++;
+        if (e.type === 'tackle') n.tackle++;
+        if (e.type === 'goal') n.goal++;
+        if (e.type === 'strike' && e.head) n.head++;
+      }
+      const evs = m.events.map((e) => e.type).join(',');
+      m.events.length = 0;
+      m.players.forEach((p, i) => {
+        const rate = m.champ ? p.meterRate || 1 : 1;
+        const d = p.gauge - before[i];
+        if (d > C.TICK * C.GAUGE_PASSIVE * rate + 1e-9 || d < -1e-9) {
+          if (!bad++) first = `P${i + 1} tick ${k}: ${before[i].toFixed(4)} -> ${p.gauge.toFixed(4)} [${evs}]`;
+        }
+      });
+    }
+    ok(`${r.name}: the scenario really kicked, tackled and headed`, n.kick > 100 && n.tackle > 10 && n.head > 0,
+       JSON.stringify(n));
+    ok(`${r.name}: no kick, header, tackle or goal moved either gauge off the clock`, bad === 0,
+       `${bad} ticks; first ${first}`);
+  }
+}
+
+// (The arcade's drain — the last power that touched a meter — went with shared/powers.js: every
+// champion is only its Head Soccer shot now, and no shot pays or takes a gauge.)
+
+// --- players are solid to each other (HS M4: standing on heads, pinned on a shoulder) -------
+{
+  const crownFeet = (lo) => headY(lo) - C.HEAD_R;          // boots on the lower one's crown
+  const overlap = (m) => { const c = playerContact(m, m.players[0], m.players[1]); return c ? c.d : 0; };
+  const inBounds = (m, p) => {
+    const crown = headY(p) - headR(m, p);
+    const { lo, hi } = walkBounds(C.BODY_W, crown >= barY() + C.POST_R - 1e-6);
+    return p.x >= lo - 1e-6 && p.x <= hi + 1e-6 && p.y <= C.GROUND_Y + 1e-9;
+  };
+  const stack = (x = 500) => {
+    const m = fresh();
+    const [a, b] = m.players;
+    m.ball.x = 950; m.ball.y = C.GROUND_Y - C.BALL_R;
+    b.x = x; a.x = x; a.y = C.GROUND_Y - 150; a.vy = 0; a.onGround = false;
+    return m;
+  };
+
+  {
+    // Two bodies walking into each other stop head to head — they no longer stand inside each
+    // other 26px apart.
+    const m = fresh();
+    const [a, b] = m.players;
+    a.x = 480; b.x = 580; m.ball.x = 950;
+    let worst = 0;
+    run(m, 60, (i, mm) => { worst = Math.max(worst, overlap(mm)); return [{ right: true }, { left: true }]; });
+    ok('walking into each other: heads meet and stop', Math.abs(b.x - a.x) >= 2 * C.HEAD_R - 0.5 && worst < 1,
+       `gap ${(b.x - a.x).toFixed(1)}, deepest ${worst.toFixed(2)}px`);
+  }
+  {
+    const m = stack();
+    const [a, b] = m.players;
+    run(m, 60);
+    const y0 = a.y;
+    let drift = 0;
+    run(m, 120, (i, mm) => { drift = Math.max(drift, Math.abs(mm.players[0].y - y0)); return NONE; });
+    ok('a player dropped on a head stands on the crown (HS: heads 70px apart)',
+       Math.abs(a.y - crownFeet(b)) < 0.5 && a.stand === 1 && a.onGround,
+       `feet ${a.y.toFixed(1)} vs crown ${crownFeet(b).toFixed(1)}, stand ${a.stand}, onGround ${a.onGround}`);
+    ok('…and does not sink into it', drift < 0.5, `${drift.toFixed(2)}px over 2 s`);
+    ok('…and the head under it stays on the grass', b.y === C.GROUND_Y && b.onGround);
+    // Jump off it: a head is ground to jump from.
+    let top = a.y;
+    run(m, 50, (i, mm) => { top = Math.min(top, mm.players[0].y); return [i === 1 ? { jump: true } : {}, {}]; });
+    ok('…and can jump off it', crownFeet(b) - top > 40, `rose ${(crownFeet(b) - top).toFixed(1)}px off the crown`);
+  }
+  {
+    // The head walks away: nothing carries the upper body sideways (HS M4 53.00–53.40 s), and
+    // once the crown is out from under it, it falls to the grass.
+    const m = stack();
+    const [a, b] = m.players;
+    run(m, 60);
+    const x0 = a.x;
+    let maxDx = 0, deepest = 0;
+    run(m, 90, (i, mm) => { if (mm.players[0].stand === 1) maxDx = Math.max(maxDx, Math.abs(mm.players[0].x - x0)); deepest = Math.max(deepest, overlap(mm)); return [{}, { right: true }]; });
+    ok('no carry: the upper body stays put while the head walks away under it', maxDx < 1, `moved ${maxDx.toFixed(2)}px`);
+    ok('…and falls to the grass once it is off', a.y === C.GROUND_Y && a.stand === -1, `y ${a.y.toFixed(1)}, stand ${a.stand}`);
+    ok('…never ending a tick inside the other body', deepest < 1, `${deepest.toFixed(2)}px`);
+  }
+  {
+    // Dash into a player at the top of its jump: HS M4 66.36 s — no launch; it hangs on the
+    // dasher's shoulder while he keeps pushing, and drops when he stops.
+    const apexOf = (dash) => {
+      const m = fresh();
+      const [a, b] = m.players;
+      a.x = 380; b.x = 560; m.ball.x = 950;
+      let top = C.GROUND_Y, held = 0;
+      run(m, 110, (i, mm) => {
+        top = Math.min(top, mm.players[1].y);
+        if (mm.players[1].stand === 0) held++;
+        return [dash && ((i >= 13 && i < 15) || (i >= 17 && i < 62)) ? { right: true } : {}, i === 0 ? { jump: true } : {}];
+      });
+      return { rise: C.GROUND_Y - top, held, m };
+    };
+    const calm = apexOf(false), hit = apexOf(true);
+    ok('dash into an airborne player: no launch', hit.rise <= calm.rise + 1,
+       `${hit.rise.toFixed(1)}px vs ${calm.rise.toFixed(1)}px undisturbed`);
+    ok('…it hangs on the dasher while he pushes', hit.held > 20, `${hit.held} ticks held`);
+    ok('…and ends on the grass', hit.m.players[1].y === C.GROUND_Y);
+  }
+  {
+    // Pressed against somebody, a jump is still a whole jump: the grip only ever holds a body
+    // up, it never slows one going up.
+    const m = fresh();
+    const [a, b] = m.players;
+    a.x = 480; b.x = 540; m.ball.x = 950;
+    run(m, 20, [{ right: true }, { left: true }]);
+    const y0 = a.y;
+    let top = y0;
+    run(m, 30, (i, mm) => { top = Math.min(top, mm.players[0].y); return [{ right: true, jump: i === 0 }, { left: true }]; });
+    ok('jumping while pushing into somebody is not damped', y0 - top > 40, `rose ${(y0 - top).toFixed(1)}px`);
+  }
+  {
+    // STACKED UNDER THE CROSSBAR. A player standing in his own mouth, the other dropped on
+    // him from above: two heads (139.6px) do not fit under a 128px bar, so the upper one must
+    // end up out of the mouth, on the pitch — not wedged inside the lower one, not pushed into
+    // the net, not up through the bar.
+    for (const [side, x] of [['left', C.GOAL_W - 10], ['right', C.W - C.GOAL_W + 10]]) {
+      const m = fresh();
+      const [a, b] = m.players;
+      m.ball.x = C.W / 2;
+      b.x = x; a.x = x + (side === 'left' ? 30 : -30); a.y = C.GROUND_Y - 150; a.onGround = false;
+      let deepest = 0, outside = 0, throughBar = 0;
+      run(m, 180, (i, mm) => {
+        for (const p of mm.players) {
+          if (!inBounds(mm, p)) outside++;
+          const inMouth = side === 'left' ? p.x < C.GOAL_W : p.x > C.W - C.GOAL_W;
+          if (inMouth && headY(p) - C.HEAD_R < barY() + C.POST_R - 0.5) throughBar++;
+        }
+        if (i > 30) deepest = Math.max(deepest, overlap(mm));
+        return [{}, i % 40 === 20 ? { jump: true } : {}];      // …and the lower one jumping under him
+      });
+      ok(`stacked in the ${side} mouth: no wedge`, deepest < 1, `${deepest.toFixed(2)}px deep`);
+      ok(`…nobody pushed into the net or out of bounds (${side})`, outside === 0, `${outside} ticks`);
+      ok(`…no crown up through the crossbar (${side})`, throughBar === 0, `${throughBar} ticks`);
+    }
+    // And a player carried INTO the mouth: the lower one walks into his goal with the other on
+    // his head. The upper one cannot come with him (no room under the bar) and gets left on
+    // the pitch.
+    const m = stack(C.GOAL_W + 60);
+    run(m, 60);
+    let deepest = 0, outside = 0;
+    run(m, 120, (i, mm) => { deepest = Math.max(deepest, overlap(mm)); for (const p of mm.players) if (!inBounds(mm, p)) outside++; return [{}, { left: true }]; });
+    const [a, b] = m.players;
+    ok('walking into the goal with a player on your head leaves him on the pitch',
+       a.x >= C.GOAL_W && a.y === C.GROUND_Y && b.x < C.GOAL_W, `upper x ${a.x.toFixed(1)} y ${a.y.toFixed(1)}, lower x ${b.x.toFixed(1)}`);
+    ok('…without a wedge or a body out of bounds', deepest < 1 && outside === 0, `${deepest.toFixed(2)}px, ${outside} ticks out`);
+  }
+  {
+    // Online: a client restored mid-stand plays on exactly as the server does.
+    const m = stack();
+    run(m, 60);
+    const snap = JSON.parse(JSON.stringify(serialize(m)));
+    const twin = restore(stack(), snap);
+    const script = (i) => [i === 10 ? { jump: true } : {}, i > 20 ? { right: true } : {}];
+    run(m, 90, script); run(twin, 90, script);
+    ok('a restored stack plays on identically',
+       JSON.stringify(serialize(m).p) === JSON.stringify(serialize(twin).p) && snap.p[0].length > 0);
   }
 }
 

@@ -112,6 +112,10 @@ export const SCENARIOS = {
   kickJump: { clip: 'C7', ticks: 120, kickTag: 'strike', kickNote: 'jump', setup: (m) => { openPlay(m); parkBall(m); },
     during: (m, i) => { if (i === 12) { const p = m.players[0]; place(m.ball, p.x + p.facing * 50, p.y - C.BODY_H * 0.45); } },
     input: (i) => ({ jump: i === 1, kick: i === 12 }) },
+  // Our lob (not an HS move): KICK with JUMP held, from the halfway line, ball at the feet.
+  kickLob: { clip: 'C7', ticks: 180, kickTag: 'strike', kickNote: 'lob',
+    setup: (m) => { openPlay(m); const p = m.players[0]; p.x = C.W / 2 - 45; parkP1(m); place(m.ball, p.x + p.facing * 45, C.GROUND_Y - C.BALL_R); },
+    input: (i) => ({ jump: i >= 5 && i < 12, kick: i === 5 }) },
   kickRun: { clip: 'C7', ticks: 120, kickTag: 'strike', kickNote: 'run',
     setup: (m) => { openPlay(m); m.players[0].x = 120; parkP1(m); place(m.ball, 420, C.GROUND_Y - C.BALL_R); },
     input: (i, m, ctx) => {
@@ -141,6 +145,31 @@ export const SCENARIOS = {
       return { jump: j };
     } },
 
+  // The PASSIVE jumping header, as HS M4 has it (header.passive.launch, head.restitution.jumping):
+  // no KICK, the ball arriving at ~580px/s (the median of the six measured touches) and the jump
+  // started ~0.065 s before it lands on the head (99.64 → 99.71 s, 167.85 → 167.89 s: the head
+  // is still rising fast). Drop it from 310px above the head; jump when it is 90px above.
+  headerPassive: { clip: 'M4', ticks: 150,
+    setup: (m) => { openPlay(m); const p = m.players[0]; place(m.ball, p.x + 6, headY(p) - 310); },
+    input: (i, m, ctx) => {
+      const p = m.players[0], b = m.ball;
+      const j = !ctx.jumped && headY(p) - b.y < 90; if (j) ctx.jumped = true;
+      return { jump: j };
+    } },
+
+  // The same drop, headed on purpose: jump into it and press KICK as it reaches the head (our
+  // aimed header, tryHeader). The ball arrives falling at ~490 px/s, the median of the HS M4
+  // jumping headers it is compared with (ball.launchSpeed.header, ball.headerApex).
+  headerKick: { clip: 'C8', ticks: 150, kickTag: 'strike', kickNote: 'header',
+    setup: (m) => { openPlay(m); const p = m.players[0]; place(m.ball, p.x + 6, headY(p) - 260); },
+    input: (i, m, ctx) => {
+      const p = m.players[0], b = m.ball;
+      const j = !ctx.jumped && headY(p) - b.y < 150; if (j) ctx.jumped = true;
+      const k = ctx.jumped && !ctx.kicked && Math.hypot(b.x - p.x, b.y - headY(p)) < C.HEAD_R + b.r + 8;
+      if (k) ctx.kicked = true;
+      return { jump: j, kick: k };
+    } },
+
   // C9 — the ball off each surface.
   wallBounce: { clip: 'C9', ticks: 90, setup: (m) => { openPlay(m); place(m.ball, C.W - 220, BAR_Y() - 140, 700, 0); }, input: () => ({}) },
   // The front end of the crossbar, and the goal's top (the middle of the rail), from above.
@@ -159,10 +188,14 @@ export const SCENARIOS = {
     },
     input: (i) => [{}, i > 60 && i < 120 ? { right: true } : {}] },
   // C10 — player 1 jumps once undisturbed, then again while player 0 dashes under it.
+  // Re-enacts HS M4 66.00–66.78 s: the CPU jumped, the human's dash met it at the top of its
+  // jump (~0.4 s after takeoff), and he kept pushing — R held / double-tapped 66.35–67.10 s,
+  // 0.75 s — while the CPU hung on his shoulder. So: player 1 jumps at 75, player 0 double-taps
+  // right to arrive at ~99 (its apex) and holds right for 0.75 s.
   dashUnder: { clip: 'C10', ticks: 170, attempt: 'dashunder', stand: [1, 0],
     setup: (m) => { openPlay(m); parkBall(m); m.players[0].x = 380; m.players[1].x = 560; },
     input: (i) => [
-      (i >= 72 && i < 74) || (i >= 76 && i < 92) ? { right: true } : {},
+      (i >= 88 && i < 90) || (i >= 92 && i < 92 + 45) ? { right: true } : {},
       i === 5 || i === 75 ? { jump: true } : {},
     ] },
 
@@ -203,6 +236,13 @@ export const SCENARIOS = {
       ctx.bots ??= [createBot(2, rng(11)), createBot(2, rng(23))];
       return [botInput(ctx.bots[0], m, 0, C.TICK), botInput(ctx.bots[1], m, 1, C.TICK)];
     } },
+  // Ten minutes of bot-vs-bot on one clock, for shares of play time (a 60 s match is a handful
+  // of high balls; ten minutes is enough of them to be a share).
+  botLong: { clip: 'M', ticks: 60 * 600, setup: (m) => { m.clock = 600; },
+    input: (i, m, ctx) => {
+      ctx.bots ??= [createBot(2, rng(11)), createBot(2, rng(23))];
+      return [botInput(ctx.bots[0], m, 0, C.TICK), botInput(ctx.bots[1], m, 1, C.TICK)];
+    } },
 };
 
 // A small seeded generator, so the bot match is the same match on every run.
@@ -219,10 +259,12 @@ function rng(seed) {
 const GROUND_BALL_Y = () => C.GROUND_Y - C.BALL_R;
 const dirOf = (inp) => (inp.right ? 1 : 0) - (inp.left ? 1 : 0);
 
-// Upper player's feet resting on the lower player's crown.
+// The upper player held up by the lower one's body rather than the grass: standing on its head,
+// or hung on its shoulder by a push (the sim's own `stand`, rebuilt every tick by resolvePlayers
+// from the contact) — what a person tags as "on his head" off the picture. Off the grass, and
+// not falling, so a body sliding down the side of a head does not count.
 function standing(up, lo) {
-  const crown = headY(lo) - C.HEAD_R;
-  return !up.onGround && Math.abs(up.y - crown) < 4 && Math.abs(up.vy) < 40 && Math.abs(up.x - lo.x) < C.HEAD_R;
+  return up.stand === lo.index && up.y < C.GROUND_Y - 2 && Math.abs(up.vy) < 40;
 }
 
 // Run one scenario and return its tracks document.
@@ -301,6 +343,8 @@ export function runScenario(name) {
     // The gauge and the arm, as the HUD shows them.
     if (st.gauge < 1 && a.gauge >= 1) tag(i, 'gauge_full');
     if (st.gauge >= 1 && a.gauge < 1 && a.armed <= 0 && st.armed <= 0) tag(i, 'gauge_drop');
+    if (st.gauge > 0 && a.gauge <= 0) tag(i, 'gauge_empty');
+    if (st.gauge <= 0 && a.gauge > 0) tag(i, 'gauge_rise');
     if (st.armed > 0 && a.armed <= 0) tag(i, 'armed_end');
     st.gauge = a.gauge; st.armed = a.armed;
     // Buttons, as a person reads them off the thumbs: letting go, turning round.
@@ -333,7 +377,8 @@ export function runScenario(name) {
   tags.sort((p, q) => p.t - q.t);
   return {
     scenario: name, clip: sc.clip, fps: 1 / C.TICK, frames, tags,
-    calib: { groundY: C.GROUND_Y, W: C.W, checks: sc.calib ? sc.calib() : {} },
+    // viewTop: the world y of the picture's top edge, as the HS camera frames it.
+    calib: { groundY: C.GROUND_Y, W: C.W, viewTop: C.GROUND_Y - C.VIEW_ABOVE_GROUND, checks: sc.calib ? sc.calib() : {} },
   };
 }
 

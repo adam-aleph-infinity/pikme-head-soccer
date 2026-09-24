@@ -197,7 +197,9 @@ function weighted(per) {
 //   at:  evaluate only these contacts (say, the ones tagged "wall"), while every contact in
 //        contactTimes still bounds the flights — a ground bounce next to a wall bounce must
 //        not leak into the wall bounce's fit.
-export function fitRestitution(pts, contactTimes = null, { axis = 'y', win = 10, minPts = 3, at = null } = {}) {
+//   surface: (t) => the struck surface's own velocity along `axis` at t — a head rising from
+//        its jump, say. e is then RELATIVE to it: −(v_after − v_s) / (v_before − v_s).
+export function fitRestitution(pts, contactTimes = null, { axis = 'y', win = 10, minPts = 3, at = null, surface = null } = {}) {
   // A contact the track shows a frame away from where it was TAGGED is the same contact (the
   // bounce lands between frames, and the eye and the velocity jump pick neighbouring ones), so
   // a cut within 1.5 frames of an evaluated contact is dropped rather than left to starve it.
@@ -217,7 +219,8 @@ export function fitRestitution(pts, contactTimes = null, { axis = 'y', win = 10,
     const fb = fit(before), fa = fit(after);
     if (!fb || !fa) continue;
     const tc = meetTime(fb, fa, before[before.length - 1].t, after[0].t) ?? tc0;
-    const vb = evalVel(fb, tc), va = evalVel(fa, tc);
+    const vs = surface ? surface(tc) : 0;
+    const vb = evalVel(fb, tc) - vs, va = evalVel(fa, tc) - vs;
     if (Math.abs(vb) < 1e-6 || Math.sign(va) === Math.sign(vb)) continue;
     const e = -va / vb;
     const sd = Math.abs(e) * Math.hypot(velSd(fa, tc) / va, velSd(fb, tc) / vb);
@@ -491,7 +494,7 @@ export function posAt(pts, t, axis = 'x') {
 // recorded from our sim by hs-scenarios.mjs. The id is the one name both sides use.
 //
 // Tag vocabulary (video: tagged in tools/hs-measure; sim: emitted by hs-scenarios.mjs):
-//   ready_on ready_off resume goal gauge_full power_press cutin_on cutin_off armed armed_end
+//   ready_on ready_off resume goal gauge_full gauge_empty gauge_rise power_press cutin_on cutin_off armed armed_end
 //   jump_tap jump_hold land dash release reverse kick kick_end touch bounce blocked counter
 //   stun_on stun_off stand_on stand_off attempt
 // `note` carries the variant: a bounce's surface (ground wall bar top ceiling), a kick's
@@ -565,6 +568,15 @@ function firstFill(doc) {
   const a = tagT(doc, 'ready_off')[0], b = tagT(doc, 'gauge_full').find((t) => t > (a ?? Infinity));
   return a != null && b != null ? { value: b - a, sd: dtOf(doc), n: 1 } : NONE;
 }
+
+// From each `a` tag to the first `b` tag at or after it — the same tick counts (0 s), which is
+// what separates "on the press" from "on some later event". A track with no `b` after any `a`
+// is NONE: not seen.
+const sinceTag = (a, b) => (doc) => {
+  const bs = tagT(doc, b);
+  const vals = tagT(doc, a).map((s) => { const e = bs.find((t) => t >= s); return e == null ? null : e - s; }).filter((v) => v != null);
+  return vals.length ? summarise(vals, dtOf(doc)) : NONE;
+};
 
 // How long something held, from its start tag to its end tag — or to the end of the track
 // when it never ended (a LOWER BOUND, which is what the reference row's `bound: 'min'` says).
@@ -695,6 +707,42 @@ function blockRebound(doc) {
   return { value: vb && va && Math.sign(va) !== Math.sign(vb) ? 1 : 0, sd: 0, n: 1 };
 }
 
+// How HIGH a struck ball goes: the top of the flight after the first contact tagged `type`
+// (with `note`), as the ball centre's rise above a ball resting on the grass. The flight ends
+// at the next contact the track shows, so a ball stopped by the ceiling reads the ceiling.
+function apexAfter(doc, type, note = null) {
+  const t = tagT(doc, type, note ? { note } : {})[0];
+  if (t == null || !doc.calib) return NONE;
+  const pts = ball(doc);
+  const next = allCuts(doc, pts).filter((c) => c > t + 0.05).sort((a, b) => a - b)[0] ?? Infinity;
+  const fl = pts.filter((p) => p.t > t && p.t <= Math.min(next, t + 3));
+  if (fl.length < 3) return NONE;
+  const r = doc.frames.find((f) => f.ball)?.ball.r ?? 0;
+  return { value: doc.calib.groundY - r - Math.min(...fl.map((p) => p.y)), sd: 2, n: 1 };
+}
+
+// Share of LIVE play (percent) the ball's centre is above the top edge of the picture. Live:
+// from each ball-in (ready_off) to the next goal, less the power-shot cut-ins. The top edge is
+// calib.viewTop (world y), or for a video calibration the frame's own top (groundY - y0·scale).
+function offscreenFrac(doc) {
+  const c = doc.calib || {};
+  const top = c.viewTop ?? (c.y0 != null && c.scale != null ? c.groundY - c.y0 * c.scale : null);
+  const starts = tagT(doc, 'ready_off');
+  if (top == null || !starts.length) return NONE;
+  const goals = tagT(doc, 'goal'), cutOn = tagT(doc, 'cutin_on'), cutOff = tagT(doc, 'cutin_off');
+  const end = endT(doc) ?? 0;
+  const live = starts.map((s) => [s, goals.find((g) => g > s) ?? end + 1]);
+  const cuts = cutOn.map((s) => [s, cutOff.find((e) => e > s) ?? end + 1]);
+  const inAny = (t, iv) => iv.some(([a, b]) => t >= a && t < b);
+  let n = 0, off = 0;
+  for (const f of doc.frames) {
+    if (f.dup || !inAny(f.t, live) || inAny(f.t, cuts)) continue;
+    n++;
+    if (f.ball && f.ball.y < top) off++;
+  }
+  return n ? { value: (100 * off) / n, sd: 0.5, n: 1 } : NONE;
+}
+
 const calibCheck = (key) => (doc) => {
   const v = doc.calib?.checks?.[key];
   return v != null ? { value: v, sd: 0, n: 1 } : NONE;
@@ -772,6 +820,34 @@ export const METRICS = [
   { id: 'header.speed', unit: 'px/s', clips: ['C8'], scenario: 'header', fit: (d) => fitLaunchSpeed(ball(d), tagT(d, 'touch', { note: 'jump' })) },
   { id: 'header.angle', unit: 'deg', clips: ['C8'], scenario: 'header', fit: (d) => fitLaunchAngle(ball(d), tagT(d, 'touch', { note: 'jump' })) },
 
+  // HS M4 passive heads (no KICK): the bounce off a still head, off a head still rising from its
+  // jump (relative to the head — its velocity off the toucher's own track, frame to frame across
+  // the contact), and how fast a passive jumping header leaves.
+  { id: 'head.restitution.standing', unit: '', clips: ['C8'], scenario: 'headDrop',
+    fit: (d) => { const pts = ball(d); const at = tagT(d, 'touch', { not: 'jump' }); return at.length ? fitRestitution(pts, allCuts(d, pts), { at }) : NONE; } },
+  { id: 'head.restitution.jumping', unit: '', clips: ['C8'], scenario: 'headerPassive',
+    fit: (d) => {
+      const pts = ball(d), head = p0(d), at = tagT(d, 'touch', { note: 'jump' });
+      if (!at.length || head.length < 2) return NONE;
+      const surface = (t) => {
+        const k = Math.max(0, Math.min(head.length - 2, head.findIndex((q) => q.t > t) - 1));
+        return (head[k + 1].y - head[k].y) / (head[k + 1].t - head[k].t);
+      };
+      return fitRestitution(pts, allCuts(d, pts), { at, surface });
+    } },
+  { id: 'header.passive.launch', unit: 'px/s', clips: ['C8'], scenario: 'headerPassive', fit: (d) => fitLaunchSpeed(ball(d), tagT(d, 'touch', { note: 'jump' })) },
+
+  // C8 again, headed ON PURPOSE (jump into the drop, KICK as it reaches the head — tag 'kick',
+  // note 'header'): how fast it leaves and how high it goes. These are the numbers that decide
+  // whether a header stays in the picture.
+  { id: 'ball.launchSpeed.header', unit: 'px/s', clips: ['C8'], scenario: 'headerKick', fit: (d) => fitLaunchSpeed(ball(d), tagT(d, 'kick', { note: 'header' })) },
+  { id: 'ball.headerApex', unit: 'px', clips: ['C8'], scenario: 'headerKick', fit: (d) => apexAfter(d, 'kick', 'header') },
+  // C7 — how high the plain kick of a ball at the feet goes.
+  { id: 'ball.kickApex.feet', unit: 'px', clips: ['C7'], scenario: 'kickFeet', fit: (d) => apexAfter(d, 'kick', 'feet') },
+  { id: 'ball.kickApex.head', unit: 'px', clips: ['C7'], scenario: 'kickHead', fit: (d) => apexAfter(d, 'kick', 'head') },
+  // The lob is ours, not HS's (HS has no hold-to-lob); HS's nearest thing is the jumping kick.
+  { id: 'ball.kickApex.lob', unit: 'px', clips: ['C7'], scenario: 'kickLob', fit: (d) => apexAfter(d, 'kick', 'lob') },
+
   // C9 — the ball off each surface; tag the bounce with the surface's name.
   { id: 'ball.wallRestitution', unit: '', clips: ['C9'], scenario: 'wallBounce', fit: (d) => restitution(d, 'wall', 'x') },
   { id: 'ball.barRestitution', unit: '', clips: ['C9'], scenario: 'barBounce', fit: (d) => restitution(d, 'bar') },
@@ -797,6 +873,9 @@ export const METRICS = [
   // C13 / M — the power gauge.
   { id: 'gauge.fillTime', unit: 's', clips: ['C13', 'M*'], scenario: 'gauge', timing: true, fit: firstFill },
   { id: 'gauge.refillTime', unit: 's', clips: ['C13', 'M*'], scenario: 'gauge', timing: true, fit: dur('power_press', 'gauge_full') },
+  // The press spends the gauge and the refill starts there (HS M4 36.49 s), not at the fire.
+  { id: 'gauge.emptyOnPress', unit: 's', clips: ['M*'], scenario: 'armWait', timing: true, fit: sinceTag('power_press', 'gauge_empty') },
+  { id: 'gauge.refillStart', unit: 's', clips: ['M*'], scenario: 'armWait', timing: true, fit: sinceTag('power_press', 'gauge_rise') },
   // A full gauge left alone: how long it stays full (a lower bound when it never drains).
   { id: 'gauge.fullHold', unit: 's', clips: ['C13', 'M*'], scenario: 'gaugeHold', timing: true, fit: heldFor('gauge_full', 'gauge_drop', { cancel: 'power_press' }) },
   // The darkened spotlight when a power shot FIRES (on the touch after arming — pressing
@@ -818,6 +897,8 @@ export const METRICS = [
   // M — whole matches.
   { id: 'match.goals', unit: 'goals', clips: ['M*'], scenario: 'botMatch',
     fit: (d) => ({ value: d.tags.filter((t) => t.type === 'goal').length, sd: 0, n: 1 }) },
+  // …and how much of the live play the ball spends off the top of the picture.
+  { id: 'ball.offscreenFrac', unit: '%', clips: ['M*'], scenario: 'botLong', fit: offscreenFrac },
 ];
 
 export const METRIC_BY_ID = new Map(METRICS.map((m) => [m.id, m]));

@@ -112,7 +112,9 @@ export function createNet({ onRoom, onStart, onOver, onError, onStatus, onOppone
     let guard = 0;
     while (net.acc >= C.TICK && guard++ < 8) {
       net.acc -= C.TICK;
-      const packed = packInput(held);
+      // `held` may be a function: the client's per-tick input, which remembers a tap that came
+      // and went between two ticks (tickInput in game.js) and has to be asked once per tick.
+      const packed = packInput(typeof held === 'function' ? held() : held);
       net.inputs.set(net.tick, packed);
       if (net.inputs.size > BUFFER) {
         const oldest = net.tick - BUFFER;

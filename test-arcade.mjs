@@ -371,10 +371,24 @@ function fireChampion(stage, i, gap = 460) {
   // so the digest had to move. The arcade's own powers were touched only where they read a
   // removed constant (FALL_MULT, and CEIL_Y for effects, now SKY_Y).
   //
-  // RE-RECORDED for the HS power-shot pass (hs/power-shots): every card now fires its Head Soccer
-  // family at the filmed comet's speed, a kick blocks and a stand gets you hit, the cut-in's dark
+  // AND AGAIN for "the game feels a little bit stuck" (hs/fix-stuck): no hit-stop on a kick,
+  // header or tackle (HS has none), and the bot holds a full gauge before arming it (FULL_HOLD
+  // in bot.js) instead of arming the tick it fills. Both non-arcade; no arcade power changed.
+  //
+  // AND AGAIN for "the power doesn't reset the bar" (hs/gauge-reset-on-press): the POWER press
+  // empties the gauge and the refill starts there (HS M4 36.49 s), the fill is 1/15 of PLAY time
+  // with no head start, and it stops through a goal's restart. A gauge change, so every bot's
+  // arming moves; no arcade power changed.
+  // AND AGAIN for the contact bodies (hs/contact-bodies, Phase C2/C3): the passive head touch is
+  // a springy bounce (HEAD_BOUNCE) instead of a dead cushion, players are solid to each other
+  // (head + body against head + body, standing on heads; `stand` joined the snapshot), and the
+  // bot only jumps into a ball on the goal side of its head. All non-arcade.
+  // AND the merge of both (plus the boot firing an armed ultimate, as HS's does): re-recorded.
+  //
+  // AND for the HS power-shot pass (hs/power-shots): every card now fires its Head Soccer family
+  // at the filmed comet's speed, a kick blocks and a stand gets you hit, the cut-in's dark
   // outlasts its hold, and online stats are EQUAL — all non-arcade changes by design.
-  const GOLDEN = '2b1462ace0905d579985652dcd5eb56be5365c4e7c13451d89aaabdbe7cb2d80';
+  const GOLDEN = 'bf0c20adb4d6ef4c2726f437abbc26edbf097a375c840e0356ce4be4be21c59a';
   const h = createHash('sha256');
   const cases = [
     [{ rarity: 'legendary', number: 3 }, { rarity: 'legendary', number: 2 }, 3, 3, 11],
@@ -407,10 +421,12 @@ function fireChampion(stage, i, gap = 460) {
     return m.ball.power && m.ball.power.fam === 'straight' && m.ball.power.int === 0.5 && !m.ball.power.gentle &&
       createMatch({ rarity: 'legendary', number: 2 }, { rarity: 'epic', number: 1 }, {}).players[0].shot.gentle === false;
   })());
-  // The HS power-shot pass added the ailment to each player (ail, ailT) and the Multi-Ball's extra
-  // balls (xb): both decide what a future tick does.
+  // The HS restart and cut-in state joined the snapshot in one pass (cutin … gaugeLead, landT),
+  // `stand` (whose head holds this player up) with the contact bodies, and the HS power shots
+  // added the ailment to each player (ail, ailT) and the Multi-Ball's extra balls (xb): every one
+  // of them decides what a future tick does.
   ok('the snapshot schema is the HS one', JSON.stringify(Object.keys(serialize(m))) === JSON.stringify(['t', 'clock', 'phase', 'freeze', 'hitStop', 'idle', 'cutin', 'cutinBy', 'banner', 'bannerT', 'ballWait', 'gaugeLead', 'score', 'golden', 'lastScorer', 'p', 'b', 'xb']) &&
-     serialize(m).p[0].length === 27);
+     serialize(m).p[0].length === 28);
   ok('an ordinary bot is still exactly its tier', createBot(3).d === DIFFICULTIES[3]);
 }
 

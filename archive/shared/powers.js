@@ -392,7 +392,7 @@ const COIN_OFFSETS = [-96, 38, -18, 112, 4, -64, 74, 22, -118, 56, -40, 90, 0, -
 //   arm   — when a bot should arm it: 'attack' (ball ahead, their half), 'defend' (ball in my
 //           half), 'any'. The trigger is still the touch; this only picks the moment.
 //   style — how that champion's bot plays the rest of the match: 'striker' presses more,
-//           'keeper' holds its line, 'brawler' goes for the man to earn the meter.
+//           'keeper' holds its line, 'brawler' goes for the man.
 const mk = (id, name, desc, color, glow, icon, kind, arm, style, duration, def) =>
   ({ id, name, desc, color, glow, icon, kind, arm, style, duration, ...def });
 
@@ -551,14 +551,15 @@ export const POWERS = {
         } else { b.vx = pw.dvx; b.vy = pw.dvy; }
       },
     }),
-  drain: mk('drain', 'גניבת כוח', 'גונב את כל מד הכוח של היריב (60% ממנו עובר אליך), מבטל לו כוחות פעילים וחוסם לו טעינה ל-5 שניות.',
+  drain: mk('drain', 'גניבת כוח', 'מרוקן את כל מד הכוח של היריב, מבטל לו כוחות פעילים וחוסם לו טעינה ל-5 שניות.',
     '#00d68f', '#b3ffe3', '🫳', 'effect', 'any', 'brawler', 5, {
       fire(ctx) {
         const { m, p, foe, b } = ctx;
         const stolen = foe.gauge;
         foe.gauge = 0;
         if (foe.armed > 0) { foe.armed = 0; m.events.push({ type: 'ultimateCleared', player: foe.index }); }
-        p.gauge = Math.min(1, p.gauge + stolen * 0.6);
+        // NOTHING comes back to the champion. It used to bank 60% of what it took, the last
+        // way left to fill a meter other than the clock — and Head Soccer's gauge is the clock.
         const fx = m.champ.effects;
         for (let i = fx.length - 1; i >= 0; i--) if (fx[i].owner === foe.index) fx.splice(i, 1);
         modsOn(m, 'drain', p.index, foe.index, 5, { meterLock: true });

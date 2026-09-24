@@ -103,5 +103,35 @@ ok('every card in the album has an anchor', ids.every((id) => !!heads[id]),
   ok('and it is centred rather than off the card', cropOnCard({ cx: 1.4, cy: -0.3, d: 3 }, cardW, cardH));
 }
 
+// ── THE PITCH HEAD: A HEAD SOCCER SHAPE, CROPPED TIGHTER ──────────────────────
+{
+  // The heads on the pitch are wider than tall (HEAD_W 1.17 x HEAD_H 1.07 of the hitbox) and
+  // cropped 1.3x closer, the window nudged down so the chin reaches the flat bottom — game.js
+  // HEAD_CROP. The one guarantee still has to hold for that crop, on every card.
+  const game = readFileSync(new URL('./public/game.js', import.meta.url), 'utf8');
+  const hc = game.match(/const HEAD_CROP = \{ zoom: ([\d.]+), lift: (-?[\d.]+) \}/);
+  const hw = game.match(/const HEAD_W = ([\d.]+), HEAD_H = ([\d.]+);/);
+  ok('game.js still declares HEAD_CROP and HEAD_W/HEAD_H the way this test reads them', !!hc && !!hw);
+  const opts = { zoom: +hc[1], lift: +hc[2], h: +hw[2] / +hw[1] };
+  const off = ids.filter((id) => !cropOnCard(heads[id], cardW, cardH, opts));
+  ok('the pitch crop never shows anything that is not card', off.length === 0,
+    `${off.length} overflow: ${off.slice(0, 6).join(' ')}`);
+  // Tighter is only right if the FACE stays in it: the measured face centre has to land inside
+  // the middle of the window on (nearly) every card — the clamp may push it aside on the few
+  // anchors that sit on the card's edge, never out of the head.
+  const inside = (id) => {
+    const W = 100, H = 100 * opts.h, c = headCrop(heads[id], cardW, cardH, W, { ...opts, h: H });
+    const fx = c.x + heads[id].cx * c.width, fy = c.y + heads[id].cy * c.height;
+    return fx > W * 0.2 && fx < W * 0.8 && fy > H * 0.2 && fy < H * 0.8;
+  };
+  const lost = ids.filter((id) => !inside(id));
+  ok('and the face stays in the middle of it', lost.length <= ids.length * 0.05,
+    `${lost.length}: ${lost.slice(0, 8).join(' ')}`);
+  // Non-square: the card keeps its aspect and the element's height is honoured.
+  const c = headCrop(heads['legendary_3'], cardW, cardH, 117, { ...opts, h: 107 });
+  ok('a non-square head keeps the card aspect', Math.abs(c.height / c.width - cardH / cardW) < 1e-9);
+  ok('and zoom 1.3 is 1.3x the plain crop', Math.abs(c.width / headCrop(heads['legendary_3'], cardW, cardH, 117).width - opts.zoom) < 1e-9);
+}
+
 console.log(`test-heads: ${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);

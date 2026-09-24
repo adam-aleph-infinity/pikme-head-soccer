@@ -181,7 +181,7 @@ function arm(m, i) {
   ok('and the player glows', glowing(p));
   ok('the press is announced', m.events.some((e) => e.type === 'armed'));
   ok('the press does NOT fire', !m.ball.power);
-  ok('the press does NOT spend the meter', p.gauge >= 1, `gauge=${p.gauge}`);
+  ok('the press empties the meter (HS M4 36.49 s)', p.gauge === 0, `gauge=${p.gauge}`);
   ok('the press does not pull the ball sideways', m.ball.x === ballBefore.x,
      `${ballBefore.x.toFixed(1)} -> ${m.ball.x.toFixed(1)}`);
   ok('nor lift it toward the player', m.ball.y >= ballBefore.y,
@@ -215,7 +215,7 @@ function arm(m, i) {
   ok('(the tackle landed)', tackled, m.events.map((e) => e.type).join(','));
   ok('tackling the opponent does not fire the ultimate', !m.ball.power);
   ok('and does not disarm', a.armed > 0, `armed=${a.armed}`);
-  ok('and does not spend the meter', a.gauge >= 1, `gauge=${a.gauge}`);
+  ok('and does not touch the refill', a.gauge > 0 && a.gauge < 0.01, `gauge=${a.gauge}`);
 }
 
 // ═══ 5. BALL CONTACT ACTIVATES — EXACTLY ONCE ════════════════════════════════
@@ -284,16 +284,42 @@ function arm(m, i) {
   ok('an empty meter cannot produce a second one', more === 0, `${more} more`);
 }
 
-// ═══ 6. THE METER IS SPENT AT ACTIVATION, AND ONLY THERE ═════════════════════
+// ═══ 6. THE METER IS SPENT ON THE PRESS, AND THE REFILL STARTS THERE ══════════
+// "When you use the power it's not resetting the bar." HS M4: POWER at 36.49 s, the bar empty
+// by 36.56 s and climbing at 36.67 s — 5.4 s before the touch that fires the shot (41.93 s).
 {
   const m = fresh();
   const p = m.players[0];
   arm(m, 0);
-  ok('armed, the meter is still full', p.gauge >= 1, `gauge=${p.gauge}`);
+  ok('armed, the meter is empty', p.gauge === 0, `gauge=${p.gauge}`);
+  ok('and the glow stays on', p.armed > 0 && glowing(p));
   run(m, 30);
-  ok('waiting does not spend it', p.gauge >= 1, `gauge=${p.gauge}`);
+  ok('the refill starts at the press, not at the shot',
+     Math.abs(p.gauge - 30 * C.TICK * C.GAUGE_PASSIVE) < 1e-9, `gauge=${p.gauge}`);
+  ok('still armed while it refills', p.armed > 0);
+  const g = p.gauge;
   for (let t = 0; t < 30 && !m.ball.power; t++) touchBall(m, p);
-  ok('the activation spends it', p.gauge === 0, `gauge=${p.gauge}`);
+  ok('the touch fires it', !!m.ball.power && p.armed === 0);
+  ok('and does not zero the refill again', p.gauge >= g, `${g} -> ${p.gauge}`);
+}
+{
+  // A REFILL THAT COMPLETES WHILE STILL ARMED does not buy a second arm: no HS footage shows
+  // two stacked, so the first has to fire before the button works again.
+  const m = fresh();
+  const p = m.players[0];
+  arm(m, 0);
+  p.gauge = 1; p.prev = {}; m.events.length = 0;
+  m.ball.x = C.W / 2; m.ball.y = C.CEIL_Y + C.BALL_R + 2; m.ball.vx = 0; m.ball.vy = 0;
+  step(m, [{ power: true }, {}]);
+  ok('a second press while armed does not re-arm', !m.events.some((e) => e.type === 'armed'));
+  ok('and does not spend the new full meter', p.gauge === 1, `gauge=${p.gauge}`);
+  for (let t = 0; t < 30 && !m.ball.power; t++) touchBall(m, p);
+  ok('the first arm fires on the touch', !!m.ball.power && p.armed === 0);
+  ok('and leaves the full meter full', p.gauge === 1, `gauge=${p.gauge}`);
+  m.ball.power = null; p.prev = {}; m.hitStop = 0; m.cutin = 0;
+  m.ball.x = C.W / 2; m.ball.y = C.CEIL_Y + C.BALL_R + 2; m.ball.vx = 0; m.ball.vy = 0;
+  step(m, [{ power: true }, {}]);
+  ok('after which the full meter arms again', p.armed > 0 && p.gauge === 0);
 }
 {
   // THE ARM WAITS. It used to be a 4.5s countdown that lapsed on its own; it has no clock
@@ -309,12 +335,12 @@ function arm(m, i) {
   }
   ok('ten seconds later the arm is still there', p.armed > 0, `armed=${p.armed}`);
   ok('and still glowing', glowing(p));
-  ok('and the meter is still full', p.gauge >= 1, `gauge=${p.gauge}`);
+  ok('and the meter has refilled ten seconds of it', Math.abs(p.gauge - 600 * C.TICK * C.GAUGE_PASSIVE) < 1e-9, `gauge=${p.gauge}`);
   ok('and nothing fired while it waited', !m.ball.power);
   // …and it still pays out when the ball finally arrives.
   for (let t = 0; t < 30 && !m.ball.power; t++) touchBall(m, p);
   ok('the touch after the wait still fires it', !!m.ball.power);
-  ok('and spends the meter then, not before', p.gauge === 0, `gauge=${p.gauge}`);
+  ok('and keeps the refill it has made', p.gauge > 600 * C.TICK * C.GAUGE_PASSIVE - 1e-9, `gauge=${p.gauge}`);
 }
 
 // ═══ 7. A GOAL LEAVES THE ULTIMATE ALONE ═════════════════════════════════════
@@ -327,10 +353,11 @@ function arm(m, i) {
   const p = m.players[0];
   arm(m, 0);
   ok('(armed and glowing)', p.armed > 0 && glowing(p));
+  p.gauge = 0.6;                                     // part-way through the refill
   resetPositions(m, 0);
   ok('a goal restart does NOT disarm', p.armed > 0, `armed=${p.armed}`);
   ok('a goal restart does NOT clear the glow', glowing(p));
-  ok('a goal restart does NOT clear the meter', p.gauge >= 1, `gauge=${p.gauge}`);
+  ok('a goal restart does NOT clear the meter', p.gauge === 0.6, `gauge=${p.gauge}`);
   // The EDGE latch stays too. Clearing it looks like a safety and is the opposite of one:
   // it hands a rising edge to anyone still holding a button through the restart.
   p.prev = { power: true };
@@ -369,7 +396,8 @@ function arm(m, i) {
   for (let i = 0; i < 250 && (m.phase !== 'play' || m.ballWait > 0); i++) { m.hitStop = 0; step(m, NONE); }
   ok('(play has resumed, with a ball)', m.phase === 'play' && m.ballWait === 0);
   ok('still armed after the restart', p.armed > 0);
-  ok('and the meter is still full', p.gauge >= 1, `gauge=${p.gauge}`);
+  ok('and the meter is refilling, not reset', p.gauge > 0 && p.gauge < 1, `gauge=${p.gauge}`);
+  const g = p.gauge;
   let shots = 0;
   for (let i = 0; i < 30; i++) {
     m.hitStop = 0;
@@ -379,9 +407,8 @@ function arm(m, i) {
     m.events.length = 0;
   }
   ok('and the touch after the goal fires it, exactly once', shots === 1, `${shots} shots`);
-  // Spent to zero on the touch; the clock starts refilling it on the very next tick, so what is
-  // left after the 30-tick loop is at most 30 ticks' worth of GAUGE_PASSIVE.
-  ok('and NOW the meter is spent', p.gauge <= 30 * C.TICK * C.GAUGE_PASSIVE + 1e-9, `gauge=${p.gauge}`);
+  // The touch spends the arm, not the meter: that went on the press and has been refilling since.
+  ok('and the touch does not reset the refill', p.gauge >= g, `${g} -> ${p.gauge}`);
 }
 // ═══ 7b. WHAT A GOAL DOES TO THE METERS: NOTHING ═══════════════════════════════
 //
@@ -433,8 +460,8 @@ function arm(m, i) {
      m.players[0].gauge <= 1 && m.players[1].gauge <= 1);
 }
 {
-  // THE METER IS SPENT BY THE ULTIMATE AND BY NOTHING ELSE. Play a long stretch and assert
-  // that every single drop in either meter is accounted for by a powershot on that tick.
+  // THE METER IS SPENT BY THE POWER PRESS AND BY NOTHING ELSE. Play a long stretch and assert
+  // that every single drop in either meter is accounted for by an arm on that tick.
   const m = fresh();
   const bots = [createBot(4, () => 0.5), createBot(3, () => 0.5)];
   let unexplained = 0;
@@ -446,13 +473,13 @@ function arm(m, i) {
     // actually finishes inside the 4000 ticks — which it does now that there are fewer goals
     // and so fewer goal freezes to push it past the whistle.
     if (m.events.some((e) => e.type === 'fulltime')) { m.events.length = 0; break; }
-    const fired = new Set(m.events.filter((e) => e.type === 'powershot').map((e) => e.player));
+    const fired = new Set(m.events.filter((e) => e.type === 'armed').map((e) => e.player));
     for (let k = 0; k < 2; k++) {
       if (m.players[k].gauge < before[k] - 1e-9 && !fired.has(k)) unexplained++;
     }
     m.events.length = 0;
   }
-  ok('over a whole match, a meter only ever falls on an activation',
+  ok('over a whole match, a meter only ever falls on a press',
      unexplained === 0, `${unexplained} unexplained drops`);
 }
 {
@@ -503,8 +530,10 @@ function arm(m, i) {
   }
   ok('the rival does arm, given a full meter and time', sawArm);
   ok('the rival never fires without having been armed first', !shotWhileUnarmed);
-  if (sawShot) ok('and when it fires, the meter is spent', p.gauge === 0, `gauge=${p.gauge}`);
-  else ok('and when it fires, the meter is spent', true, '(no shot inside the window)');
+  // The press emptied the meter and the refill started there (HS M4 36.49 s), so at the shot
+  // the arm is what has been spent and the meter is on its way back up — never still full.
+  if (sawShot) ok('and when it fires, the arm is spent and the meter is refilling', p.armed === 0 && p.gauge < 1, `armed=${p.armed} gauge=${p.gauge}`);
+  else ok('and when it fires, the arm is spent and the meter is refilling', true, '(no shot inside the window)');
 }
 {
   // THE RIVAL CANNOT SHORTCUT THE TOUCH. Armed, with the ball pinned out of reach for ten
@@ -686,7 +715,7 @@ function atDefender(fam, o = {}, { kick = false, armed = false, gap = 320 } = {}
   const c = log.find((e) => e.type === 'powershot' && e.player === 1);
   ok('ARMED, touching it COUNTERS it: his own cut-in and his own shot back (M4 41.77 s)',
      c && c.countered && m.ball.power && m.ball.power.owner === 1 && m.ball.power.fam === 'updown' && m.cutinBy === 1);
-  ok('…and the counter spends his arm and his meter', m.players[1].armed === 0 && m.players[1].gauge === 0);
+  ok('…and the counter spends his arm (the press already spent his meter)', m.players[1].armed === 0 && m.players[1].gauge < 0.2);
 }
 {
   const { m, z, log } = atDefender('ground', {}, { kick: true });

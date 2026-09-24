@@ -40,6 +40,12 @@ export let CEIL_KEEP_X = 0;
 // was the same number as the ball's ceiling until the ceiling moved off-screen; the effects
 // are pictures and stay inside the picture.
 export const SKY_Y = 30;
+// HOW MUCH SKY THE CAMERA SHOWS: world px from the grass to the top edge of the picture. HS
+// M3/M4 calibration: the grass line sits at frame y 489 of 590 and the whole screen height is
+// the game (the ball flies over the HUD), so 489 x 0.9953 = 487 px of sky. The renderer fits at
+// least this much above the ground; with the ceiling at -130 a ball can still leave the top —
+// as it does in HS, ~4% of live play (docs/hs-estimates.json ball.offscreenFrac).
+export const VIEW_ABOVE_GROUND = 487;
 
 export const TICK = 1 / 60;           // sim step (fixed)
 
@@ -96,6 +102,17 @@ export let HEAD_R = 26.4;
 export const BODY_W = 28;
 export const BODY_H = 24;
 export const NECK = 7;
+// PLAYERS ARE SOLID TO EACH OTHER (HS M4): head circle + body box against head circle + body
+// box, so a player can stand on the other's head, lean on its shoulder, and be pinned there.
+// Standing on a crown puts the boots BODY_H + 2·HEAD_R − NECK = 69.8px up, which is HS's own
+// (M4 52.95–53.43 s: the upper head sits 70px above a standing one), so the shapes need no fudge.
+//   BODY_GRIP  friction between two bodies, one way only: it can hold an airborne body UP
+//              against the one pushing into it (HS M4 66.40–66.78 s, the CPU hung on the
+//              dasher's shoulder while he kept pushing; 53.75 and 159.3 s the same). It never
+//              slows a body going up, and it never carries anybody sideways — a player
+//              standing on a head stays put while the head walks away under it (M4
+//              53.00–53.40 s). Unmeasured as a number; 0.5 holds a walk-speed push.
+export let BODY_GRIP = 0.5;
 // HS M4 21.05–29.4 s, 10 standstill jumps: the head's path is ONE parabola, 595 px/s² on the
 // way up and the way down alike (fit rmse < 0.8px). There is no heavier fall — the FALL_MULT
 // 1.55 that sat here was a platformer's trick, and HS does not use it.
@@ -182,20 +199,34 @@ export let KICK_POWER = 367;         // 540 at the old PACE 0.68 — the kick co
 // Most of the gap is flat shots hitting a defender's body instead of sailing over it, which
 // is the trade the flat shot is supposed to make.
 export let KICK_LIFT = 272;          // 400 x the old PACE 0.68
-export let LOB_LIFT = 2.5;            // hold JUMP while kicking: more air, less drive. Restated
-                                      // against the cut in KICK_LIFT so the lob is untouched:
-                                      // 2.5 x 400 is the 1.62 x 620 it replaces.
+// hold JUMP while kicking: more air, less drive. It was 2.5, and from the halfway line (where
+// the bow adds its third) that sent the ball 539px up — to within a ball of the ceiling and
+// ~0.9s off the top of the picture, every time. On a phone JUMP is often still held when KICK
+// goes in, so this was the commonest way to lose the ball upward. Head Soccer has no lob; its
+// jumping kick tops out ~340px (HS M4 167.9 s), and 1.9 puts the halfway-line lob at 352 —
+// still well over a jumping defender (crown ~116px up), and inside the 475 the camera shows
+// (VIEW_ABOVE_GROUND). Measured by ball.kickApex.lob (hs-scenarios kickLob).
+export let LOB_LIFT = 1.9;
 export let LOB_DRIVE = 0.62;
 // Body contact KILLS the ball's pace (Adam: 'if it dosnt kick, the ball kinda stops and
 // rolles'). The head still bounces — that is the aerial tool — but your torso deadens.
 export let BODY_DEADEN = 0.18;
-// A HEAD is a body part, not a trampoline. It now deadens the ball the same way the chest
-// does — cancel the approach, keep a fraction of the pace — just a little more of it, so a
-// header is still the livelier touch of the two without being a bounce. Anything that hits
-// the ball HARD is now a deliberate act: the boot, or the kick button pressed at head height.
-export let HEAD_DEADEN = 0.58;       // vs the body's 0.18. Started at 0.34, which read as dead
-                                     // rather than as a touch; at 0.58 a header keeps most of
-                                     // the pace and still cannot be used as a trampoline.
+// A HEAD IS SPRINGY (HS M4). The passive touch — no KICK — is a restitution bounce off the
+// head, measured RELATIVE to the head: the ball leaves along the normal at HEAD_BOUNCE times
+// the speed it closed at, plus the head's own speed. So a standing head sends a 466px/s drop
+// back up at ~0.75 of it, and a head still rising from its jump sends it back FASTER than it
+// came — M4's passive jumping headers leave at a median ~720px/s off a ~580px/s arrival.
+//   standing   M4 52.76 s (a player standing on the other's head, still): 466 in, 367 out = 0.79
+//   jumping    M4 84.96 / 86.98 / 99.71 / 131.85 / 133.94 / 167.89 s: 0.78 0.62 0.64 0.68 0.74 0.71
+//              (head speed from the jump's own kinematics — takeoff 235, g 595 — off the frame
+//              the jump started; the human's KICK button was dark on every one of his touches)
+// One number for both, 0.75 — between the two, and near the ball's own off the grass (0.65) and
+// the goal top (0.67): Box2D mixes restitution as the max of the pair, so a ball of ~0.7 reads
+// ~0.7 off everything. Measured back off our sim the way the video was (hs-scenarios headDrop,
+// headerPassive): 0.74 standing, 0.70 jumping, a passive header leaving at 735px/s (HS 717).
+// It replaced HEAD_DEADEN (0.58 of the pace kept, approach cancelled — a dead cushion: a jump
+// into a falling ball left at ~170px/s where HS's leaves at ~700).
+export let HEAD_BOUNCE = 0.75;
 // Where the header ends and the chest begins, as the vertical component of the contact
 // normal. 0.35 puts the split a bit below the head's equator.
 export let DEADEN_ZONE = 0.35;
@@ -291,6 +322,10 @@ export let HEADER_POWER = 0.72;      // of a kick, horizontally
 // 620 to 400 to stop the kick going up. The header is the AERIAL tool and wants to keep going
 // up, so the multiple rises to hold the same 680 it had. It is now well above 1 because the
 // header really is the lofted strike and the kick really is not.
+// HS M4 checked it (docs/hs-estimates.json ball.launchSpeed.header / ball.headerApex): a jump
+// into a ball falling at ~490 px/s leaves at 587 px/s and tops out 326px up; HS's median over
+// 12 such headers is 590 and 310. The header was never what sent the ball off the screen —
+// the camera was (see VIEW_ABOVE_GROUND) — so it stays.
 export let HEADER_LIFT = 1.7;        // and more of the lift
 export let HEADER_R = 16;            // px of slack around the head circle that still counts
 
@@ -334,11 +369,20 @@ export let TACKLE_IMMUNE = 1.1;      // s before the same player can be tackled 
 export let STUN_TIME = 1.25;         // s a power that "knocks down" takes the controls away for
 
 // ---- Impact ----------------------------------------------------------------
-// Hit-stop: freeze the whole sim for a few frames on a heavy connect. Costs nothing and is
-// most of what makes a hit feel like it has weight.
-export let HIT_STOP_KICK = 0.035;
+// Hit-stop: freeze the whole sim for a few frames on a heavy connect.
+//
+// NOT ON AN ORDINARY TOUCH ANY MORE — Head Soccer has none. Kicks and headers used to freeze the
+// whole game for 0.035s, which on 60Hz ticks is THREE frozen frames (50ms), and a boot into the
+// opponent froze it for 0.06s (four frames). A bot match makes ~85 ball touches, so the game
+// stopped dead ~85 times a match, and the kick cooldown did not run under those stops (0.349s
+// became ~0.40s after every touch). That is the "the game feels a little bit stuck" report. HS M3's
+// ball track (docs/hs-clips/M3-*.tracks.json) has 93 contact impulses and only 5 with a still
+// frame anywhere in the 3 frames before them; with the old hit-stop every one of ours had three.
+// A tackle has no footage; it goes to zero with the kick, the same engine with no reason to differ.
+// A BLOCKED power shot keeps its short stop (rare, ~0.3 a match) and a fired one is POWER_CUTIN.
+export let HIT_STOP_KICK = 0;
 export let HIT_STOP_POWER = 0.085;  // a BLOCKED power shot; a fired one is POWER_CUTIN
-export let HIT_STOP_TACKLE = 0.06;
+export let HIT_STOP_TACKLE = 0;
 
 // ---- Power shots -----------------------------------------------------------
 // THE GAUGE FILLS OVER TIME, and only over time — Head Soccer's rule. It used to be earned off
@@ -346,21 +390,22 @@ export let HIT_STOP_TACKLE = 0.06;
 // both are gone, so the meter is a clock both players can read and neither can farm. It stays
 // full until spent and freezes in sudden death (chargeGauge in shared/sim.js).
 //
-// HOW FAST, measured, and the two measurements disagree in an informative way. HS M4, the
-// starter character:
-//   first fill  15.0s  — the KICK OFF banner going to the POWER plaque (no goal, no cut-in)
-//   refill      13.0s  — the gauge emptying (a counter at 41.9s) to the plaque, and in that
-//                        window a 1.34s cut-in AND a goal's 2.24s restart: 3.6s of pause.
-// The refill is SHORTER, and it had the pauses in it, so the gauge cannot be a play-time clock
-// (the refill would take 15 + 3.6 = 18.6s). A plain wall clock at 1/15 cannot make 13 either.
-// One rate does fit both: a WALL clock at 1/13 per second that runs through the goal restarts
-// and the cut-ins, plus a fixed LEAD at the start of a match before it starts at all. The
-// lead is the same size in both recordings — M4 15.0 vs 13.0, M1–M3 18.1 vs 16.3 (another
-// character) — so it is a delay, not a rate: a rate difference would scale with the fill.
-// It does NOT fill during the kickoff banner (M4 times the first fill from the banner's end).
+// HOW FAST, measured, HS M4 (the starter character), with the refill timed from the PRESS —
+// which is where it starts (M4 36.49 s: empty by 36.56 s, climbing at 36.67 s, 5.4 s before
+// the shot fires at 41.93 s; see gauge.emptyOnPress / gauge.refillStart):
+//   first fill  15.0s  — the KICK OFF banner going to the POWER plaque (19.57 → 34.56 s)
+//   refill      15.2s  — press (36.49 s) → plaque (54.88 s) is 18.4 s, and the bar stands
+//                        still for 3.2 s of it: from the goal at 43.40 s until the ball drops
+//                        in at 46.59 s. The cut-ins in the window (40.44, 41.97 s) do not
+//                        stop it; the bar climbs 17.5 px/s through both.
+// The two agree, so it is ONE play-time clock at 1/15 with no head start: it stops under
+// the kickoff banner and through a goal's restart (until the ball is back), and runs
+// through cut-ins. (It used to be 1/13 of wall clock plus a 2 s lead — a fit to a refill
+// timed from the FIRE, 13.0 s, which had the press-to-fire 5.4 s cut off its front.)
+// M3 (another character) climbs at the same 17.4 px/s and stops at its goals too.
 // Per-character fill (the Power stat) comes with the arcade's stats; this is the starter's.
-export let GAUGE_PASSIVE = 1 / 13;   // fraction of the gauge per second
-export let GAUGE_LEAD = 2.0;         // s of play after the kickoff before the gauge starts
+export let GAUGE_PASSIVE = 1 / 15;   // fraction of the gauge per second of play
+export let GAUGE_LEAD = 0;           // s of play after the kickoff before the gauge starts
 
 // ── THE ULTIMATE: ARM, THEN TOUCH THE BALL ───────────────────────────────────
 // Three shapes, and the third is the one that is in the game.
@@ -469,7 +514,8 @@ const SETTERS = {
   DEADEN_ZONE: (v) => { DEADEN_ZONE = v; },
   CONTACT_IMPACT_V: (v) => { CONTACT_IMPACT_V = v; },
   BODY_DEADEN: (v) => { BODY_DEADEN = v; },
-  HEAD_DEADEN: (v) => { HEAD_DEADEN = v; },
+  HEAD_BOUNCE: (v) => { HEAD_BOUNCE = v; },
+  BODY_GRIP: (v) => { BODY_GRIP = v; },
   LOB_LIFT: (v) => { LOB_LIFT = v; },
   LOB_DRIVE: (v) => { LOB_DRIVE = v; },
   BALL_IDLE_RESET: (v) => { BALL_IDLE_RESET = v; },
@@ -548,6 +594,8 @@ export function snapshot() {
     DEADEN_ZONE,
     CONTACT_IMPACT_V,
     BODY_DEADEN,
+    HEAD_BOUNCE,
+    BODY_GRIP,
     LOB_LIFT,
     LOB_DRIVE,
     BALL_IDLE_RESET,

@@ -24,6 +24,9 @@ import { FAMILY_VFX, drawGrind } from './vfx/families.js';
 import { AILMENT_VFX } from './vfx/ailments.js';
 
 export { FAMILY_VFX, AILMENT_VFX };
+// The canvas reaches above world y=0 (game.js SKY_TOP: the camera keeps C.VIEW_ABOVE_GROUND of
+// sky). The cut-in's dark has to cover that strip too; the canvas clips whatever is spare.
+const SKY_PAD = Math.max(0, (C.VIEW_ABOVE_GROUND || 0) - C.GROUND_Y) + 8;
 const TAU = Math.PI * 2;
 const HIST = 20;                         // path points kept per ball (the tail is ≤ 340 px)
 const HIT_GHOSTS = 0.4;                  // s the after-images follow a HIT ball (§4 M4 43.33–43.6)
@@ -179,6 +182,8 @@ export function createVfx({ now = () => performance.now() / 1000, drawBall: pain
       const t = now();
       for (const p of M.players) {
         if (!p.ail || !AILMENT_VFX[p.ail]) continue;
+        // A dazed player's three stars are game.js's (drawOverHeads draws them for any stun).
+        if (p.ail === 'stars' && p.stunned > 0) continue;
         const h = depthPoint(p.x, headY(p)), f = depthPoint(p.x, p.y);
         AILMENT_VFX[p.ail].draw(g, p, { t, hx: h.x, hy: h.y, r: headR(M, p), fy: f.y });
       }
@@ -208,7 +213,7 @@ export function createVfx({ now = () => performance.now() / 1000, drawBall: pain
       gr.addColorStop(0, 'rgba(4,3,10,0)');
       gr.addColorStop(0.35, `rgba(4,3,10,${(dark * 0.8).toFixed(3)})`);
       gr.addColorStop(1, `rgba(4,3,10,${dark.toFixed(3)})`);
-      g.globalAlpha = fade; g.fillStyle = gr; g.fillRect(0, 0, C.W, C.H + 40);
+      g.globalAlpha = fade; g.fillStyle = gr; g.fillRect(0, -SKY_PAD, C.W, C.H + SKY_PAD + 40);
       g.restore();
       // the shot, bright over the dark once it has left
       if (paintBall && M.cutin <= C.POWER_RELEASE) for (const b of balls()) if (b.power) paintBall(g, b);
