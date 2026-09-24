@@ -422,17 +422,35 @@ they switched — see `archive/README.md`.
 
 </details>
 
-**Kick the opponent to TACKLE them** — no ball required. It is **knockback and nothing else**:
-the victim is shoved back **toward their own goal** (`TACKLE_PUSH`, less from behind), whichever
-side the boot came from. It pays no power gauge and takes no health — **there is no health**:
-the hidden health bar, the bruising faces (`hurtTier`, `.head.hurt1..4`) and the stun at 0%
-were all removed because Head Soccer has none of them. A blocked power shot likewise just
-deflects. There is a 1.1s immunity window after a tackle so nobody can be juggled out of a
-match. (Repeated hurts knocking a player out with stars, as HS does, waits on measurements.)
+**Kick the opponent to TACKLE them** — no ball required. The victim is shoved back **toward
+their own goal**, whichever side the boot came from, and it pays no power gauge. There is no
+health bar. What there is, as in Head Soccer, is a **knockout**:
 
-The one thing that still takes a player's controls away is the generic **stun timer**
+- **Every boot that lands rocks him back** (~25°, `KICK_REEL` 0.2 s). Standing, he stays on his
+  feet and slides ~40 px (`TACKLE_GROUND_PUSH`); kicked mid-jump he is carried off ~100 px and up
+  (`TACKLE_PUSH`/`TACKLE_LIFT`). Less from behind (`TACKLE_PUSH_BACK`).
+- **Every 5th boot HURTS** (`KICK_HURT_EVERY`): red drops fly off his head and his face bruises a
+  tier (`p.hurt` 0..3: a flush, a red nose, nose + a dark cheek — kept all match).
+- **The 3rd hurt knocks him out** (`KICK_HURTS_TO_KO`): three stars, head tipped back, no controls
+  for 2.0 s (`KICK_KO_TIME`). He cannot be kicked while down, and the count starts again.
+- The count is **boots, never time** — it does not run down, and a goal does not clear it — so it
+  is fully deterministic (server, clients and replays agree). A goal's restart does end a
+  knockout in progress. A blocked power shot's 0.5 s daze is separate and counts nothing.
+
+Measured on Idan's footage (`docs/hs-estimates.json`, rows `kick.*`): M4 103.3–119.3 s he boots
+the CPU **15 times** to the stars — hurts (red drops) on the 6th, 9th and 15th boot, a goal in
+between that cleared nothing, 9 s without a boot that cost nothing; M3 82.60–84.57 s the stars
+stay up **1.97 s**. The wiki agrees: "damaged three times → knocked out, and it resets". HS may
+roll a chance per boot; our fixed 5 × 3 = 15 is the footage's total with no randomness. Bot
+matches almost never see one (bots land ~5 boots a match between them), so nobody is stun-locked.
+`TACKLE_IMMUNE` is 0.3 s — only a guard against one swing landing twice, since HS lands boots
+0.17–0.6 s apart. `p.kicked` and `p.hurt` travel in the snapshot; `hurt` is also what the heads'
+`.hurt1..3` bruise (and any character art's hurt face) reads.
+
+The one thing that takes a player's controls away is the generic **stun timer**
 (`p.stunned`, `stun()` / `tickStun()` in `shared/sim.js`): a single wall-clock countdown that
-cannot be re-set or extended while it runs. Only the arcade's knockdown powers set it today.
+cannot be re-set or extended while it runs. The knockout, a blocked power shot and the arcade's
+knockdown powers set it.
 
 **The touch pad scales with the device.** Every dimension derives from one thumb unit,
 `--u`, which `resize()` computes from the **stage** box — not the viewport, because the pitch

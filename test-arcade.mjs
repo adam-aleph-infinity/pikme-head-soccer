@@ -796,7 +796,10 @@ const CHECKS = {
   // (head + body against head + body, standing on heads; `stand` joined the snapshot), and the
   // bot only jumps into a ball on the goal side of its head. All non-arcade.
   // AND the merge of both (plus the boot firing an armed ultimate, as HS's does): re-recorded.
-  const GOLDEN = 'a0addb997ed38b2b0a283a9ce2788ee2d4d3b40c381616bc33eb687b340d4357';
+  // AND AGAIN for the kick knockout (hs/kick-stun): every 5th boot on a player hurts, the 3rd
+  // hurt knocks him out for 2 s (`kicked`, `hurt` joined the snapshot); a standing victim slides
+  // instead of being lifted, and TACKLE_IMMUNE is 0.3 s. All non-arcade; no arcade power changed.
+  const GOLDEN = '5aba0b4481e356d009e181a447ff41e44788f5965085150c9f477369b3b618b1';
   const h = createHash('sha256');
   const cases = [
     [{ rarity: 'legendary', number: 3 }, { rarity: 'legendary', number: 2 }, 3, 3, 11],
@@ -829,9 +832,10 @@ const CHECKS = {
   })());
   // The HS restart and cut-in state joined the snapshot in the same pass (cutin … gaugeLead, and
   // landT on each player): every one of them decides what a future tick does. `stand` (whose
-  // head holds this player up) joined with the contact bodies.
+  // head holds this player up) joined with the contact bodies; `kicked` and `hurt` (the kick
+  // knockout's count and the bruise) with hs/kick-stun.
   ok('the snapshot schema is unchanged', JSON.stringify(Object.keys(serialize(m))) === JSON.stringify(['t', 'clock', 'phase', 'freeze', 'hitStop', 'idle', 'cutin', 'cutinBy', 'banner', 'bannerT', 'ballWait', 'gaugeLead', 'score', 'golden', 'lastScorer', 'p', 'b']) &&
-     serialize(m).p[0].length === 26);
+     serialize(m).p[0].length === 28);
   ok('an ordinary bot is still exactly its tier', createBot(3).d === DIFFICULTIES[3]);
 }
 

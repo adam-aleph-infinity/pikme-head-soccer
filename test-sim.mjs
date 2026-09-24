@@ -1938,8 +1938,10 @@ const jumpArc = (input) => {
     const m = fresh();
     ok('a player has no health field', m.players.every((p) => !('hp' in p)));
     ok('and neither starts stunned', m.players[0].stunned === 0 && m.players[1].stunned === 0);
-    const seen = beat(m, 12);
-    ok('twelve tackles in a row never knock anybody down', m.players[1].stunned === 0
+    // One short of the KNOCKOUT (KICK_HURT_EVERY x KICK_HURTS_TO_KO kicks), which has its own
+    // block at the end of this file: short of it, a kick never takes the controls away.
+    const seen = beat(m, C.KICK_HURT_EVERY * C.KICK_HURTS_TO_KO - 1);
+    ok('tackles short of the knockout never knock anybody down', m.players[1].stunned === 0
        && !seen.some((e) => e.type === 'stunned'), seen.filter((e) => e.type === 'stunned').length + ' stuns');
     ok('and no damage event exists any more', !seen.some((e) => e.type === 'damage'));
   }
@@ -2079,8 +2081,14 @@ const jumpArc = (input) => {
     // The shove itself is exactly mirrored. Lift and immunity only to within a tick: players
     // are stepped in index order, so a victim who is player 1 is integrated (and has a tick of
     // immunity counted off) in the very tick the boot landed, and one who is player 0 is not.
+    // A STANDING victim slides (TACKLE_GROUND_PUSH bled off by PLAYER_FRICTION per tick), so
+    // the same stepping order that costs a tick of immunity also costs one tick of friction: a
+    // victim who is player 1 has already slid a tick when this reads it. Mirrored in direction,
+    // equal to within exactly that one tick.
+    const same = Math.abs(byP0.vx) === Math.abs(byP1.vx)
+      || Math.abs(Math.max(Math.abs(byP0.vx), Math.abs(byP1.vx)) * C.PLAYER_FRICTION - Math.min(Math.abs(byP0.vx), Math.abs(byP1.vx))) < 1e-6;
     ok('player 1 is shoved by player 0 exactly as player 0 is by player 1, mirrored',
-       byP0.vx === -byP1.vx && byP0.vx !== 0, `${JSON.stringify(byP0)} vs ${JSON.stringify(byP1)}`);
+       Math.sign(byP0.vx) === -Math.sign(byP1.vx) && byP0.vx !== 0 && same, `${JSON.stringify(byP0)} vs ${JSON.stringify(byP1)}`);
     ok('…with the same immunity to within a tick', Math.abs(byP0.immune - byP1.immune) <= C.TICK + 1e-6,
        `${byP0.immune} vs ${byP1.immune}`);
   }
@@ -2342,6 +2350,130 @@ const jumpArc = (input) => {
     run(m, 90, script); run(twin, 90, script);
     ok('a restored stack plays on identically',
        JSON.stringify(serialize(m).p) === JSON.stringify(serialize(twin).p) && snap.p[0].length > 0);
+  }
+}
+
+// ── THE KNOCKOUT: stars after enough kicks (HS M4 106–121 s, M3 82.6 s) ─────────────────────
+// Every connected kick counts; every KICK_HURT_EVERY-th hurts (a tier of bruise); the
+// KICK_HURTS_TO_KO-th hurt knocks the victim out for KICK_KO_TIME and zeroes the count. No clock
+// on it, no goal reset, no randomness. See kickDamage in shared/sim.js.
+{
+  const KO = C.KICK_HURT_EVERY * C.KICK_HURTS_TO_KO;
+  // One connected boot from a standstill, victim squarely on the swing. Returns its events.
+  const land = (m, attacker = 0) => {
+    const a = m.players[attacker], v = m.players[1 - attacker];
+    m.ball.x = C.W / 2; m.ball.y = 100; m.ball.vx = 0; m.ball.vy = 0;
+    const s = attacker === 0 ? 1 : -1;
+    v.x = a.x + s * C.KICK_REACH; v.y = C.GROUND_Y; v.vx = 0; v.vy = 0; v.onGround = true;
+    a.facing = s; v.facing = -s;
+    a.kickCd = 0; a.prev = {}; v.tackleImmune = 0; v.shoved = 0; m.hitStop = 0;
+    m.events.length = 0;
+    step(m, attacker === 0 ? [{ kick: true }, {}] : [{}, { kick: true }]);
+    return m.events.slice();
+  };
+  {
+    const m = fresh();
+    const v = m.players[1];
+    const first = land(m);
+    ok('a single kick never stuns', v.stunned === 0 && v.kicked === 1 && !first.some((e) => e.type === 'hurt'),
+       `stunned=${v.stunned} kicked=${v.kicked}`);
+    const hurtsAt = [], koAt = [];
+    for (let k = 2; k <= KO; k++) {
+      const ev = land(m);
+      if (ev.some((e) => e.type === 'hurt' && e.player === 1)) hurtsAt.push(k);
+      if (ev.some((e) => e.type === 'knockout' && e.player === 1)) koAt.push(k);
+      if (k < KO && v.stunned > 0) break;
+    }
+    const want = Array.from({ length: C.KICK_HURTS_TO_KO }, (_, j) => (j + 1) * C.KICK_HURT_EVERY);
+    ok(`every ${C.KICK_HURT_EVERY}th kick hurts`, JSON.stringify(hurtsAt) === JSON.stringify(want), `hurts on ${hurtsAt}`);
+    ok(`the ${KO}th kick knocks out, and no earlier one`, JSON.stringify(koAt) === JSON.stringify([KO]) && Math.abs(v.stunned - C.KICK_KO_TIME) < C.TICK + 1e-9,
+       `knockout on ${koAt}, stunned=${v.stunned.toFixed(3)}`);
+    ok('the knockout zeroes the count', v.kicked === 0, `kicked=${v.kicked}`);
+    ok('…and the bruise is a tier per hurt, kept through it', v.hurt === Math.min(3, C.KICK_HURTS_TO_KO), `hurt=${v.hurt}`);
+    const kicker = m.players[0];
+    ok('the kicker is untouched by any of it', kicker.kicked === 0 && kicker.hurt === 0 && kicker.stunned === 0);
+
+    // Down: no tackle lands, nothing counts.
+    const onDowned = land(m);
+    ok('a knocked-out player cannot be kicked again', !onDowned.some((e) => e.type === 'tackle') && v.kicked === 0,
+       onDowned.map((e) => e.type).join(','));
+    // …and cannot act: every button held for the rest of it.
+    const x0 = v.x;
+    let acted = false, t = 0;
+    while (v.stunned > 0 && t < 600) {
+      step(m, [{}, { left: true, jump: true, kick: true, power: true }]);
+      if (m.events.some((e) => e.player === 1 && ['jump', 'kick', 'dash', 'armed'].includes(e.type))) acted = true;
+      t++;
+    }
+    ok('a knocked-out player cannot move, jump or kick', !acted && Math.abs(v.x - x0) < 12, `moved ${(v.x - x0).toFixed(1)} px, acted=${acted}`);
+    // `land` spent one tick; the loop the rest.
+    const secs = (t + 1) * C.TICK;
+    ok(`the stars last KICK_KO_TIME (${C.KICK_KO_TIME} s, HS M3 1.97 s)`, Math.abs(secs - C.KICK_KO_TIME) <= 2 * C.TICK, `${secs.toFixed(3)} s`);
+    ok('and he gets up with his controls back', v.stunned === 0 && (run(m, 2, [{}, { left: true }]), v.vx < 0), `vx=${v.vx}`);
+
+    // The count starts again from zero: KO - 1 more kicks do nothing, the next one knocks out.
+    let early = false;
+    for (let k = 1; k < KO; k++) { land(m); if (v.stunned > 0) early = true; }
+    const again = land(m);
+    ok('after a knockout it takes the full count again', !early && again.some((e) => e.type === 'knockout'), `early=${early}`);
+  }
+  {
+    // NO CLOCK ON THE COUNT (HS M4: 9 s and only three kicks between the 1st and 2nd hurt).
+    const m = fresh();
+    const v = m.players[1];
+    for (let k = 1; k < C.KICK_HURT_EVERY; k++) land(m);
+    run(m, 60 * 20);
+    const ev = land(m);
+    ok('the count does not decay with time', ev.some((e) => e.type === 'hurt' && e.player === 1), `kicked=${v.kicked}`);
+  }
+  {
+    // NOR BY A GOAL (HS M4: 2nd hurt at 116.7 s, goal at 117.5 s, stars at 119.3 s) — but the
+    // restart does clear a knockout in progress (M4 121.2 s: the CPU is up at the kickoff).
+    const m = fresh();
+    const v = m.players[1];
+    for (let k = 1; k < KO; k++) land(m);
+    const before = [v.kicked, v.hurt];
+    scoreOn(m, true);
+    let t = 0;
+    while (m.phase !== 'play' && t < 60 * 15) { step(m, NONE); t++; }
+    ok('a goal does not reset the kick count or the bruise', m.score[1] === 1 && v.kicked === before[0] && v.hurt === before[1],
+       `score ${m.score} kicked ${before[0]}→${v.kicked} hurt ${before[1]}→${v.hurt}`);
+    const ev = land(m);
+    ok('…so the next kick after the restart is the knockout', ev.some((e) => e.type === 'knockout'));
+  }
+  {
+    // THE KNOCKBACK: standing, you stay on your feet and slide ~40 px (HS M4 6201–6243, 6990);
+    // in the air you are carried off (6299, 6345).
+    const m = fresh();
+    const v = m.players[1];
+    land(m);
+    let lifted = false;
+    const start = v.x;
+    for (let i = 0; i < 40; i++) { step(m, NONE); if (!v.onGround) lifted = true; }
+    const slid = (v.x - start) * -v.side;
+    ok('a standing victim is not lifted', !lifted && v.y === C.GROUND_Y);
+    ok('…and slides 25–60 px toward his own goal', slid > 25 && slid < 60, `${slid.toFixed(1)} px`);
+    const n = fresh();
+    const w = n.players[1];
+    const a = n.players[0];
+    n.ball.x = C.W / 2; n.ball.y = 100;
+    w.x = a.x + C.KICK_REACH; w.y = C.GROUND_Y - 20; w.vy = 0; w.onGround = false;
+    a.kickCd = 0; a.prev = {}; a.facing = 1; w.facing = -1;
+    const s0 = w.x;
+    step(n, [{ kick: true }, {}]);
+    const lift = w.vy < 0;
+    run(n, 60);
+    ok('an airborne victim is lifted and carried off (> 90 px)', lift && (w.x - s0) * -w.side > 90, `vy<0=${lift}, ${((w.x - s0) * -w.side).toFixed(0)} px`);
+  }
+  {
+    // ONLINE: a client restored mid-count puts the stars on the same boot as the server.
+    const m = fresh();
+    for (let k = 1; k < KO - 1; k++) land(m);
+    const twin = restore(fresh(), JSON.parse(JSON.stringify(serialize(m))));
+    ok('the kick count and the bruise travel in the snapshot', twin.players[1].kicked === m.players[1].kicked && twin.players[1].hurt === m.players[1].hurt,
+       `${twin.players[1].kicked}/${twin.players[1].hurt}`);
+    const koOf = (mm) => { let k = 0; while (mm.players[1].stunned === 0 && k < KO) { land(mm); k++; } return k; };
+    ok('…and a restored client knocks out on the same kick', koOf(m) === koOf(twin) && m.players[1].stunned > 0);
   }
 }
 
