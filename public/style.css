@@ -163,6 +163,14 @@ body.safedemo { --safe-l: 44px; --safe-r: 44px; --safe-b: 21px; --safe-t: 12px; 
     radial-gradient(ellipse 34% 26% at 38% 26%, #ffffff3d, #ffffff00),
     radial-gradient(ellipse 72% 70% at 50% 36%, #0c061800 70%, #0c061866 100%);
 }
+/* A DRAWN CHARACTER (characters.js, docs/CHARACTERS.md): the SVG brings its own keyline, cel
+   shading and HS silhouette, so the keyline and shading layers stand down and the art is not
+   clipped — its hair breaks the outline. game.js (paintPitchChar) sizes <i> past the box. */
+.head.char::before, .head.char::after { display: none; }
+.head.char > i {
+  -webkit-clip-path: none; clip-path: none; filter: none;
+  background: transparent no-repeat 0 0 / 100% 100%;
+}
 /* A dash afterimage: a see-through copy of the head (opacity set per frame by drawHeadGhosts). */
 .head.ghost { will-change: transform, opacity; }
 
@@ -1162,6 +1170,16 @@ body.editing .pad .btn .grip {
   background: #05070de8; backdrop-filter: blur(4px);
 }
 .over h2 { margin: 0; font-size: 44px; font-weight: 900; }
+/* HS's result screen: both heads either side of the score, the loser's greyed out. A drawn
+   character also pulls a face (happy / sad); a photo card is just its crop. */
+.over-faces { display: flex; align-items: center; justify-content: center; gap: 18px; direction: ltr; }
+.ov-face {
+  display: block; width: 84px; height: 84px; border-radius: 50%;
+  background: #1a2238 no-repeat; box-shadow: 0 4px 14px #0008;
+}
+.ov-face.char-face { background-color: transparent; box-shadow: none; }
+.ov-face.lost { filter: grayscale(1) brightness(.5); }
+@media (max-height: 420px) { .ov-face { width: 64px; height: 64px; } }
 .over p { margin: 0; color: var(--dim); font-size: 20px; font-variant-numeric: tabular-nums; }
 .over-btns { display: flex; gap: 10px; justify-content: center; margin-top: 12px; }
 .over-btns button {
