@@ -1363,6 +1363,21 @@ function draw() {
   drawGoalBack(g, false);
   if (M.champ) drawChampBack(g);
   for (const p of M.players) { drawAura(g, p); VFXR.drawAura(g, p); }
+  // Dash afterimages first, so the player is drawn over their own trail. GHOSTS is read again
+  // by drawHeads for the head copies.
+  // On a clock that stops during a hit-stop, so a freeze-frame freezes the trail with it.
+  const wall = performance.now() / 1000;
+  if (!(M.hitStop > 0)) TRAIL_CLOCK.t += Math.min(0.1, Math.max(0, wall - TRAIL_CLOCK.wall));
+  TRAIL_CLOCK.wall = wall;
+  const now = TRAIL_CLOCK.t;
+  for (const p of M.players) {
+    trackTrail(p, now);
+    GHOSTS[p.index] = trailGhosts(p, now);
+    for (let k = GHOSTS[p.index].length - 1; k >= 0; k--) {
+      const q = GHOSTS[p.index][k];
+      g.save(); g.globalAlpha = q.alpha; drawBody(g, q, true); g.restore();
+    }
+  }
   for (const p of M.players) drawBody(g, p);
   drawParts(g, false);
   drawBall(g, M.ball);
@@ -1382,6 +1397,7 @@ function draw() {
   }
   drawHeads();
   drawHeadNet();                     // …and the near net again, over a head that is in the goal
+  drawOverHeads(ctxNet);             // YOU at kickoff, stars over a stunned head
   drawCutin(ctxNet);                 // over the heads too: the whole screen darkens but the shooter
   if (M.banner && M.bannerT > 0 && M.phase !== 'over') drawReady(g);
 }
@@ -1452,7 +1468,7 @@ function drawHeadNet() {
     const h = depthPoint(p.x, headY(p));
     // Exactly the head's own disc. Wider and the wash would land on pixels the main canvas
     // has already washed, and a second 10% would ring the head in a darker halo.
-    const r = headR(M, p);
+    const r = headR(M, p) * HEAD_DRAW;
     for (const left of [true, false]) {
       const box = goalBox(left);
       // The whole box, all four uprights: the near pair sit at wallX/lineX and the far pair
@@ -1861,198 +1877,213 @@ function drawGoalFrontRaw(g, left, netOnly = false) {
 }
 
 
-// SF2 palettes: hard 3-tone ramps, no gradients, everything sitting inside a black
-// outline. Player 1 is a blue gi, player 2 a red one, both with the yellow belt.
-// The BOOTS carry the same two colours one step further: blue for player one, red for player
-// two. They are the part of the sprite that does the work — the reach is drawn off them — so
-// they are the part that has to be readable at a glance, and a white sole under a saturated
-// upper is how a football boot reads at 33px long.
-const GI = [
-  { base: '#3c6fd6', shade: '#22407f', light: '#6fa0ff', skin: '#f0b48a', skinShade: '#b87d55',
-    boot: '#1e56c8', bootLight: '#5b93ff', bootDark: '#0d2a6b', sock: '#eaf1ff' },
-  { base: '#d63c3c', shade: '#7f2222', light: '#ff7a6f', skin: '#f0b48a', skinShade: '#b87d55',
-    boot: '#c81e2e', bootLight: '#ff6f61', bootDark: '#6e0f18', sock: '#ffeceb' },
-];
+// THE BODY UNDER THE HEAD, drawn the way a Head Soccer character is built — see
+// docs/HS-CHARACTER-LOOK.md for the frames this was measured from. HS has no gi, no arms and no
+// legs: under the head there is a small dark suit with a coloured collar peeking out below the
+// chin, and two chunky boots. The whole body is barely more than a quarter of a head tall, and
+// that is the proportion that makes it read as HS — the head is the character, the rest is a
+// pedestal with feet. (Ours, not theirs: the suit, collar and boots are drawn here from paths;
+// nothing is traced from an HS sprite.)
+//
+// The canvas is half resolution (PIXEL 2), so one texel is 2 world px. HS's own sprites sit on
+// almost the same grid — its head is ~24 native pixels tall, ours is 26 texels — so every
+// keyline here is ONE texel, the way HS's is.
 const OUTLINE = '#0b0710';
+// Team colour lives in the COLLAR (and the YOU bubble), not in a ring round the head: HS keeps
+// the head clean and puts the kit colour under the chin.
+const KIT = [
+  { collar: '#3d8bff', collarDark: '#1c4fb4' },
+  { collar: '#ff4a64', collarDark: '#a3182f' },
+];
+// The rim light — HS edges its dark suit and boots with a thin gold line on the back. Ours takes
+// the colour of the card's rarity, so a legendary is trimmed in gold and a common in silver.
+const TRIM = { legendary: '#ffcc33', epic: '#d08cff', rare: '#6fd0ff', common: '#c8d0da' };
+const SUIT = '#1f2130', SUIT_LIGHT = '#3b4058';
+const BOOT = '#16171e', BOOT_LIGHT = '#555b73';
+// Measured sizes, in world px on the 26.4 head (HS M4 29.68 s, standing, full resolution):
+// the boot is about one head RADIUS long and half a radius tall, the two boots together span
+// 1.7 radii, and the body shows 0.57 radii below the chin.
+const BOOT_L = 25, BOOT_H = 14;
+const BOOT_BACK = -10, BOOT_FRONT = 11;             // boot centres, standing, along the facing
+const SUIT_W = 30, SUIT_BOT = -7;                  // the suit sits down inside the boots
 
-// Every sprite piece goes through here: a black keyline first, then the fill inside it.
-// The outline is what makes a blocky shape read as a fighting-game sprite rather than a box.
-function px(g, x, y, w, h, fill) {
-  g.fillStyle = OUTLINE;
-  g.fillRect(Math.round(x) - 1, Math.round(y) - 1, Math.round(w) + 2, Math.round(h) + 2);
-  g.fillStyle = fill;
-  g.fillRect(Math.round(x), Math.round(y), Math.round(w), Math.round(h));
+// THE KICK, as HS animates it (M4 29.68–31.96 s, every frame): no leg ever shows. The front boot
+// leaves the body and rides up in front of the face — low and forward on the first frame, at
+// face height by the fourth, then HELD high, toe up, for the rest of the swing, and snapped back
+// in a frame. Keyframes are [progress through KICK_TIME, forward, up, toe-up angle], in head
+// radii off the feet. HS's first frame is 0.95 R forward; this starts at 1.2 so the toe reaches
+// the edge of the sim's kick circle (KICK_REACH − KICK_R) — the boot must look able to touch
+// the ball it touches.
+const KICK_KEYS = [
+  [0.00, 1.20, 0.30, -0.25],
+  [0.07, 1.42, 0.70, 0.30],
+  [0.13, 1.60, 1.10, 0.65],
+  [0.20, 1.70, 1.45, 0.95],
+  [0.32, 1.76, 1.95, 1.20],
+  [0.55, 1.76, 2.10, 1.30],
+  [0.92, 1.72, 2.05, 1.30],
+  [1.00, 1.00, 0.60, 0.40],
+];
+function kickPose(k) {
+  let i = 0;
+  while (i < KICK_KEYS.length - 2 && k > KICK_KEYS[i + 1][0]) i++;
+  const a = KICK_KEYS[i], b = KICK_KEYS[i + 1];
+  const u = Math.max(0, Math.min(1, (k - a[0]) / (b[0] - a[0])));
+  return [a[1] + (b[1] - a[1]) * u, a[2] + (b[2] - a[2]) * u, a[3] + (b[3] - a[3]) * u];
 }
 
-function drawBody(g, p) {
-  const pal = GI[p.index];
-  const knocked = p.stunned > 0;      // the only slump left: bottomed out, not "hit"
-
-  const bw = C.BODY_W, bh = C.BODY_H;
-  // Projected at the FEET, which is the anchor the whole sprite hangs off. A body is 79px
-  // tall against a 192px goal, so the step's vertical part varies by under 5px across it —
-  // far too little to be worth stretching a sprite for.
-  const d = depthPoint(p.x, p.y);
-
-  // contact shadow
+// One boot, toe toward +x in its own space, sole on y = 0. A clog, not a football boot: flat
+// sole, a round toe, and the upper swelling highest at the ankle — the chunky shape that still
+// reads at 13 texels long.
+function bootPath(g) {
+  const L = BOOT_L / 2, H = BOOT_H;
+  g.beginPath();
+  g.moveTo(-L + 3, 0);
+  g.lineTo(L - 4, 0);
+  g.quadraticCurveTo(L + 1, 0, L + 1, -4);
+  g.quadraticCurveTo(L + 1, -H * 0.72, L - 7, -H * 0.8);    // round toe cap
+  g.lineTo(-1, -H * 0.86);
+  g.quadraticCurveTo(-L + 1, -H * 1.05, -L, -H * 0.5);      // high ankle, rounded heel
+  g.quadraticCurveTo(-L, 0, -L + 3, 0);
+  g.closePath();
+}
+function drawBoot(g, x, y, face, ang, trim) {
   g.save();
-  g.globalAlpha = .35;
-  g.fillStyle = '#000';
-  g.fillRect(Math.round(d.x - bw * 0.6), C.GROUND_Y, Math.round(bw * 1.2), 3);
+  g.translate(x, y);
+  g.scale(face, 1);
+  g.rotate(-ang);
+  // No clip (a clip per boot per frame is the expensive kind of canvas call on a phone): the
+  // details are placed inside the shape, and the keyline goes on LAST and covers the texel of
+  // slack at their ends.
+  bootPath(g);
+  g.fillStyle = BOOT; g.fill();
+  g.fillStyle = BOOT_LIGHT;                                  // the sheen across the upper
+  g.fillRect(-5, -BOOT_H * 0.8, 10, 2);
+  g.fillStyle = trim;                                        // rim light down the heel
+  g.fillRect(-BOOT_L / 2 + 1, -BOOT_H * 0.72, 2, BOOT_H * 0.5);
+  g.lineWidth = 2; g.lineJoin = 'round'; g.strokeStyle = OUTLINE; g.stroke();
   g.restore();
+}
+
+// The ground shadow — HS draws a soft dark ellipse about as wide as the head under every
+// player, and leaves it on the grass when they jump, a little smaller and fainter the higher
+// they go. It is the only thing that tells you how high a jumping head is.
+function drawShadow(g, p) {
+  const s = depthPoint(p.x, C.GROUND_Y);
+  const k = Math.max(0, Math.min(1, (C.GROUND_Y - p.y) / 130));
+  g.save();
+  g.globalAlpha = 0.42 * (1 - 0.45 * k);
+  g.fillStyle = '#000';
+  g.beginPath();
+  g.ellipse(s.x, s.y + 1, C.HEAD_R * 1.5 * (1 - 0.3 * k), C.HEAD_R * 0.24 * (1 - 0.3 * k), 0, 0, 6.2832);
+  g.fill();
+  g.restore();
+}
+
+function drawBody(g, p, ghost = false) {
+  const kit = KIT[p.index] || KIT[0];
+  const trim = TRIM[p.char && p.char.rarity] || TRIM.legendary;
+  const R = C.HEAD_R;
+  // Projected at the FEET, which is the anchor the whole sprite hangs off.
+  const d = depthPoint(p.x, p.y);
+  if (!ghost) drawShadow(g, p);
 
   g.save();
   g.translate(Math.round(d.x), Math.round(d.y));
-  if (knocked) g.rotate(p.side * 1.15);
-
-  // LEGS, and they point where the KICK does — `side`, the goal this player attacks — not
-  // where the body faces. The sim latches the swing to the same rule (kickDir), and the two
-  // have to agree or the sprite is lying about which leg can reach the ball: walking backwards
-  // used to turn the boot round while the kick itself went forward.
+  // Facing: `side`, the goal this player attacks — which is also the opponent. HS characters
+  // face the other player the whole match, running backwards included, and the sim latches the
+  // kick to the same rule (kickDir), so the boot that swings is the boot that can reach.
   const face = p.side;
-  const kickP = p.kickT > 0 ? 1 - p.kickT / C.KICK_TIME : 0;
-  const swing = p.kickT > 0 ? Math.sin(kickP * Math.PI) : 0;
-  // The walk and the airborne tuck, both as ANGLES now that the limb pivots — see `leg`.
-  const stride = p.onGround ? Math.sin(performance.now() / 90) * Math.min(1, Math.abs(p.vx) / 260) * 0.5 : 0.3;
-  const legW = Math.max(4, Math.round(bw * 0.26));
-  // Longer than the 0.42 it was, and most of the extra is hidden behind the torso — which is
-  // the point. It only comes out when the leg does: swing a kick and the thigh appears from
-  // under the shirt, so the kick has a leg behind it instead of a boot sliding out on its own.
-  const legH = Math.round(bh * 0.62);
-  const bootL = Math.round((legW + 3) * C.FOOT_LEN);
-  // The boot is drawn on its STUDS: the sole sits SOLE_UP off the grass and the studs bridge
-  // the gap, so the foot rests on the pitch the way a boot does instead of the upper being
-  // buried in it. bootH is the upper alone, ankle down to the sole.
-  const bootH = 6;
-  const SOLE_UP = 2;
-  const sockH = 6;                                           // ankle upward
-  const shortH = 4;                                          // hip downward; skin in between
-  const HIP_Y = -legH;                                       // where both limbs hang from
-  const SHIN = legH - bootH - SOLE_UP + 1;                   // hip to ankle, standing
-  const BOOT_FOLLOW = 0.22;                                  // of the leg's angle the foot takes
-  const KICK_SWING = 1.25;                                   // rad the leg comes through, at full
-  const KICK_EXTEND = 14;                                    // and px of shin it gains doing it
+  // KNOCKED BACK (HS M4 61.9 s): the whole character tips back ~25° away from the hit, head
+  // included, and is carried backwards through the air. Pivoted at the neck so the body stays
+  // under the head, which means the boots swing out forward — the "feet taken out" look.
+  if (p.stunned > 0) {
+    g.translate(0, -C.BODY_H);
+    g.rotate(-face * 0.45);
+    g.translate(0, C.BODY_H);
+  }
+  const air = !p.onGround;
+  const kicking = p.kickT > 0;
+  // THE RUN: the boots shuffle, alternating a few px fore and aft with a small lift — HS's
+  // walk cycle is a pair of feet paddling under a head that does not bob or lean.
+  const run = !air && Math.abs(p.vx) > 20 ? Math.min(1, Math.abs(p.vx) / C.PLAYER_SPEED) : 0;
+  const ph = performance.now() / 1000 * Math.PI * 2 / 0.28;
+  const sw = Math.sin(ph) * 4 * run, lift = Math.max(0, Math.cos(ph)) * 3 * run;
 
-  // ONE LEG, hip to boot. It PIVOTS at the hip rather than sliding sideways, which is the
-  // whole difference between a kick and what this used to draw: the old swing moved the leg
-  // 43px across to meet the sim's reach and left a 29px hole between the hip and the thigh,
-  // so the kicking boot floated away from the body on a stub of sock. Hung off the hip it
-  // stays attached, and the reach comes from the leg EXTENDING through the swing instead —
-  // which is also what a chibi sprite has to do, because no leg on a 27px body reaches 62px.
-  //
-  // `hipX` is the limb's near edge at the hip and `ang` how far it has swung forward, in
-  // radians and positive toward the facing. `reach` is the extension, in px of extra shin.
-  //
-  // Order up from the grass: boot, sock, a sliver of knee, shorts. That is the order a
-  // footballer's leg actually goes in, and the sock — the whole shin with the turnover hoop
-  // at the top of it, not a 3px band at the ankle — is most of what the old leg was missing.
-  // The limb gets ONE keyline and its bands are painted inside without another, or four
-  // stacked 2px plates would be more black outline than leg.
-  const leg = (hipX, ang, shorts, reach = 0) => {
-    const shin = SHIN + reach;
-    const pivotX = hipX + legW / 2;                          // the hip itself
-    const sin = Math.sin(ang), cos = Math.cos(ang);
+  // back boot
+  if (air) drawBoot(g, face * (BOOT_BACK - 4), -1, -face, -0.45, trim);      // splayed: toe out, down
+  else drawBoot(g, face * (BOOT_BACK - sw), -lift * (sw < 0 ? 1 : 0), face, 0, trim);
 
-    g.save();
-    g.translate(Math.round(pivotX), HIP_Y);
-    g.rotate(-face * ang);                                   // canvas y is down; forward is -θ
-    px(g, -legW / 2, 0, legW, shin, pal.skin);               // thigh, knee, shin
-    g.fillStyle = shorts;                                    // shorts over the thigh
-    g.fillRect(Math.round(-legW / 2), 0, legW, shortH);
-    g.fillStyle = pal.sock;                                  // sock up the shin
-    g.fillRect(Math.round(-legW / 2), Math.round(shin - sockH), legW, sockH);
-    g.fillStyle = pal.base;                                  // turnover hoop at the sock top
-    g.fillRect(Math.round(-legW / 2), Math.round(shin - sockH), legW, 2);
-    g.fillStyle = pal.shade;                                 // and the shaded side of the calf
-    g.fillRect(Math.round(legW / 2 - 2), Math.round(shin - sockH + 2), 2, sockH - 2);
-    g.restore();
+  // the suit: a rounded dark body, collar in the team colour just under the chin, and the
+  // rim-light trim down its back edge
+  const top = -C.BODY_H, h = SUIT_BOT - top;
+  roundRect(g, -SUIT_W / 2, top, SUIT_W, h, 8);
+  g.fillStyle = SUIT; g.fill();
+  g.fillStyle = SUIT_LIGHT;                                  // lit front
+  g.fillRect(face > 0 ? 3 : -11, top + 8, 8, h - 10);
+  g.fillStyle = trim;                                        // rim light on the back
+  g.fillRect(face > 0 ? -SUIT_W / 2 + 1 : SUIT_W / 2 - 3, top + 7, 2, h - 10);
+  // The collar, just under the chin: the head is drawn 8% over its hitbox (HEAD_DRAW), so the
+  // chin is 15 px off the grass and the collar sits in the first texels below it.
+  g.fillStyle = kit.collarDark;
+  g.fillRect(-9, top + 8, 18, 6);
+  g.fillStyle = kit.collar;
+  g.fillRect(-7, top + 9, 14, 3);
+  roundRect(g, -SUIT_W / 2, top, SUIT_W, h, 8);
+  g.lineWidth = 2; g.strokeStyle = OUTLINE; g.stroke();
 
-    // THE BOOT, drawn as ONE silhouette rather than stacked plates: a tall heel, an instep
-    // that falls away over the laces, and a toe that runs out long and LOW along the grass.
-    // That profile is what says "football boot" at this size — the old two-rectangle boot had
-    // a toe cap as tall as the heel, which is a shoe box, not a boot.
-    //
-    // It is drawn in its own space with the toe toward +x, then mirrored by the facing, so the
-    // away player gets a real mirrored boot instead of one wearing its heel on the wrong end.
-    // It hangs off the ANKLE the leg just ended at and only partly follows the leg's angle: a
-    // footballer's foot stays pointed along the strike while the shin swings through, and a
-    // boot turned the full 70° with the leg is a boot pointing at the floor.
-    const s = face;
-    const ankleX = pivotX + face * sin * shin;
-    const ankleY = HIP_Y + cos * shin;
-    g.save();
-    g.translate(Math.round(ankleX - face * legW / 2), Math.round(ankleY + bootH - 1));
-    g.scale(s, 1);
-    g.rotate(-ang * BOOT_FOLLOW);
-
-    const heel = -3;                                         // a little behind the ankle
-    const toe = bootL + heel;
-    const outline = () => {
+  // front boot — or the kick
+  if (kicking) {
+    const k = 1 - p.kickT / C.KICK_TIME;
+    const [fx, fy, ang] = kickPose(k);
+    // the swoosh: a faint arc behind the rising boot, only while it is climbing
+    if (k < 0.3 && !ghost) {
+      g.save();
+      g.globalAlpha = 0.5 * (1 - k / 0.3);
+      g.strokeStyle = '#ffffff';
+      g.lineWidth = 3;
       g.beginPath();
-      g.moveTo(heel, 0);
-      g.lineTo(heel, -bootH + 1);
-      g.quadraticCurveTo(heel, -bootH, heel + 2, -bootH);    // rounded heel counter
-      g.lineTo(heel + legW + 1, -bootH);
-      g.quadraticCurveTo(heel + legW + 4, -bootH, heel + legW + 5, -bootH + 2);
-      g.lineTo(toe - 4, -3.5);                               // the instep falling to the toe
-      g.quadraticCurveTo(toe, -3, toe, -1.5);                // rounded toe
-      g.quadraticCurveTo(toe, 0, toe - 2, 0);
-      g.closePath();
-    };
-
-    g.strokeStyle = OUTLINE; g.lineWidth = 2; g.lineJoin = 'round';
-    outline(); g.stroke();
-    g.fillStyle = pal.boot; outline(); g.fill();
-
-    g.save();
-    outline(); g.clip();                                     // everything below stays in shape
-    g.fillStyle = pal.bootDark;                              // heel counter, darker at the back
-    g.fillRect(heel, -bootH, 4, bootH);
-    g.fillStyle = pal.bootLight;                             // the side flash, heel to toe
-    g.beginPath();
-    g.moveTo(heel + 3, -1.5);
-    g.lineTo(heel + legW + 3, -bootH + 1);
-    g.lineTo(heel + legW + 6, -bootH + 1);
-    g.lineTo(heel + 7, -1.5);
-    g.closePath(); g.fill();
-    g.fillStyle = '#f4f6fb';                                 // sole, running the whole length
-    g.fillRect(heel, -2, bootL + 1, 2);
-    g.fillStyle = '#ffffff';                                 // laces across the instep
-    for (let i = 0; i < 3; i++) g.fillRect(heel + legW + 2 + i * 3, -bootH + 2, 1, 3);
-    g.restore();
-
-    g.fillStyle = OUTLINE;                                   // studs, bridging sole to grass
-    for (let i = 0; i < 3; i++) g.fillRect(heel + 1 + i * ((bootL - 4) / 3), 0, 2, SOLE_UP);
-    g.restore();
-  };
-
-  // Back leg plants, front leg swings. The swing is an ANGLE plus an EXTENSION, and between
-  // them the toe cap lands near KICK_REACH — the same number the sim strikes the ball from, so
-  // the toe really is where the toe-poke happens. Neither alone gets there: 70° of a 10px shin
-  // is 9px of reach, and a leg that only grows is a telescope, not a kick.
-  leg(-bw * 0.32, -stride, pal.shade);
-  leg(bw * 0.02, stride + swing * KICK_SWING, pal.base, swing * KICK_EXTEND);
-
-  // torso — gi body, hard shadow down one side, belt across the waist. Its HEM is what decides
-  // how much leg there is to look at: at 0.62 it finished 2px above the boot and the socks the
-  // leg is mostly made of were never on screen at all. 0.5 leaves a shin's worth showing.
-  const tH = Math.round(bh * 0.5);
-  px(g, -bw / 2, -bh, bw, tH, pal.base);
-  g.fillStyle = pal.shade;
-  g.fillRect(Math.round(bw / 2 - bw * 0.28), Math.round(-bh), Math.round(bw * 0.28), tH);
-  g.fillStyle = pal.light;
-  g.fillRect(Math.round(-bw / 2), Math.round(-bh), 2, tH);
-  g.fillStyle = '#f5d23c';                                  // belt
-  g.fillRect(Math.round(-bw / 2), Math.round(-bh + tH - 3), bw, 3);
-
-  // arms: guard up when airborne, one cocked back on a kick
-  const armW = Math.max(3, Math.round(bw * 0.2));
-  const armH = Math.round(bh * 0.34);
-  const guard = p.onGround ? 0 : -armH * 0.7;
-  px(g, -bw / 2 - armW, -bh + 2 + guard, armW, armH, pal.skin);
-  px(g, bw / 2, -bh + 2 + guard - swing * 5, armW, armH, pal.skin);
-
+      g.arc(0, -R * 0.2, R * 1.9, face > 0 ? -0.95 : Math.PI - 0.2, face > 0 ? 0.2 : Math.PI + 0.95);
+      g.stroke();
+      g.restore();
+    }
+    drawBoot(g, face * fx * R, -fy * R + BOOT_H / 2, face, ang, trim);
+  } else if (air) {
+    drawBoot(g, face * (BOOT_FRONT + 3), -1, face, -0.45, trim);           // splayed: toe down
+  } else {
+    drawBoot(g, face * (BOOT_FRONT + sw), -lift * (sw > 0 ? 1 : 0), face, 0, trim);
+  }
   g.restore();
+}
+
+// THE DASH AFTERIMAGES (HS M4 57.9 s and 66.4 s): two see-through copies of the whole
+// character strung out behind a dash, fading over about six frames after it ends. The body copy
+// is drawn here from a short position history; the head copies are DOM clones — see drawHeads.
+const TRAIL = [{ hist: [], until: 0 }, { hist: [], until: 0 }];
+// HS's copies overlap the player by more than half a head — two of them, close behind.
+const TRAIL_AGES = [0.02, 0.045];                            // s behind the player
+const TRAIL_ALPHA = [0.45, 0.25];
+const GHOSTS = [[], []];
+const TRAIL_CLOCK = { t: 0, wall: 0 };
+function trackTrail(p, now) {
+  const tr = TRAIL[p.index];
+  tr.hist.push({ now, x: p.x, y: p.y, onGround: p.onGround, vx: p.vx, kickT: p.kickT });
+  while (tr.hist.length > 2 && now - tr.hist[0].now > 0.2) tr.hist.shift();
+  const dashing = !(p.stunned > 0) && (p.dashT > 0 || Math.abs(p.vx) > C.PLAYER_SPEED * 1.8);
+  if (dashing) tr.until = now + 0.12;
+}
+// The ghost poses for player i right now: [{x, y, ..., alpha}], empty when there is no trail.
+function trailGhosts(p, now) {
+  const tr = TRAIL[p.index];
+  if (now >= tr.until) return [];
+  const fade = Math.min(1, (tr.until - now) / 0.12 * 0.65 + 0.35);
+  const out = [];
+  TRAIL_AGES.forEach((age, i) => {
+    let best = null;
+    for (const h of tr.hist) if (!best || Math.abs(now - h.now - age) < Math.abs(now - best.now - age)) best = h;
+    if (best && Math.abs(best.x - p.x) > 6) out.push({ ...p, ...best, stunned: 0, alpha: TRAIL_ALPHA[i] * fade });
+  });
+  return out;
 }
 
 function roundRect(g, x, y, w, h, r) {
@@ -2358,26 +2389,38 @@ const HUD = {
 };
 
 // ---- DOM heads -------------------------------------------------------------
+// THE HEAD IS DRAWN 8% OVER ITS HITBOX, as Head Soccer's is. HS's head sprite, hair included, is
+// 56-57 px tall and 62 wide on the 1280 frame (M3 6.8 s, M4 29.98 s, full resolution) around a
+// 52.8 px head; drawn at exactly the hitbox, ours showed 17 px of body under the chin (head to
+// body 3.1:1) where HS shows 15 (3.8:1). The sim never sees this — it is the picture only, the
+// same couple of pixels of overhang HS's hair and cheeks have.
+const HEAD_DRAW = 1.08;
 function drawHeads() {
   for (let i = 0; i < 2; i++) {
     const p = M.players[i];
     // The head is a DOM node, so a big-head pickup is a CSS size change, not a canvas one.
     // The card art is repainted at the new size rather than transform-scaled: a scaled-up
     // background is a blurry card, and the whole hook is being able to tell who it is.
-    const size = headR(M, p) * 2 * SC;
+    const size = headR(M, p) * 2 * HEAD_DRAW * SC;
     const el = HUD.head[i];
     const key = `${p.char.rarity}_${p.char.number}_${Math.round(size)}`;
     if (el.dataset.card !== key) {
       paintHead(el.firstElementChild, p.char.rarity, p.char.number, size);
       el.style.width = el.style.height = size + 'px';
+      // the keyline is one texel of the half-res canvas, whatever size the head is drawn at
+      el.style.setProperty('--ol', Math.max(1.5, size * 0.045).toFixed(1) + 'px');
+      el.style.setProperty('--trim', TRIM[p.char.rarity] || TRIM.legendary);
       el.dataset.card = key;
     }
     // Through the same projection as the body, or a player walking into the goal leaves their
     // head behind on the goal line.
     const d = depthPoint(p.x, headY(p));
     const x = OX + d.x * SC, y = OY + d.y * SC;
-    const tilt = Math.max(-.34, Math.min(.34, p.vx / 1100)) + (p.stunned > 0 ? p.side * 1.2 : 0);
+    // UPRIGHT. An HS head does not lean into a run — it rides level on the feet paddling under
+    // it — and only tips back, with the body (drawBody), when a hit knocks the player back.
+    const tilt = p.stunned > 0 ? -p.side * 0.45 : 0;
     el.style.transform = `translate(${x - size / 2}px, ${y - size / 2}px) rotate(${tilt}rad)`;
+    drawHeadGhosts(i, el, size);
     // ARMED: THE PLAYER GLOWS LIKE A FULL POWER BAR.
     //
     // Deliberately the BAR's gold and not the character's shot colour, which is what this
@@ -2389,6 +2432,95 @@ function drawHeads() {
     // NO BRUISES. The face used to redden and bruise off a hidden health bar (.head.hurt1..4);
     // Head Soccer has no health, so the character is drawn the same however often it is hit.
   }
+}
+
+// The head half of a dash afterimage: see-through copies of the head node, placed where the
+// body ghosts were drawn (GHOSTS, filled by draw). Cloned once per card and hidden the rest of
+// the time, so a match without a dash costs one `hidden` check per copy per frame.
+const HEAD_GHOSTS = [[], []];
+function drawHeadGhosts(i, el, size) {
+  const want = GHOSTS[i], pool = HEAD_GHOSTS[i];
+  if (!want.length && !pool.length) return;
+  if (pool.key !== el.dataset.card) {                 // new card or size: re-clone
+    for (const gh of pool) gh.remove();
+    pool.length = 0;
+    pool.key = el.dataset.card;
+  }
+  while (pool.length < want.length) {
+    const gh = el.cloneNode(true);
+    gh.removeAttribute('id');
+    gh.className = `head ghost g${i}`;
+    el.parentNode.insertBefore(gh, el);               // under the live head
+    pool.push(gh);
+  }
+  for (let k = 0; k < pool.length; k++) {
+    const gh = pool[k], q = want[k];
+    if (!q) { gh.hidden = true; continue; }
+    const d = depthPoint(q.x, headY(q));
+    gh.hidden = false;
+    gh.style.opacity = q.alpha.toFixed(2);
+    gh.style.transform = `translate(${OX + d.x * SC - size / 2}px, ${OY + d.y * SC - size / 2}px)`;
+  }
+}
+
+// ABOVE THE HEADS — the kickoff's YOU marker and a stunned player's stars. Both have to sit over
+// a head, and a head is a DOM node, so they go on the net layer (ctxNet) the same way the near
+// net does.
+function drawOverHeads(g) {
+  const t = performance.now() / 1000;
+  for (const p of M.players) {
+    if (!(p.stunned > 0)) continue;
+    const r = headR(M, p);
+    const c = depthPoint(p.x, headY(p) - r - 4);
+    // three stars orbiting a flat ring over the head; the far side of the ring is smaller
+    for (let k = 0; k < 3; k++) {
+      const a = t * 7 + k * 2.094;
+      const z = (Math.sin(a) + 1) / 2;                   // 0 far → 1 near
+      star(g, c.x + Math.cos(a) * r * 0.85, c.y + Math.sin(a) * r * 0.25, 6 + z * 3, 0.65 + z * 0.35);
+    }
+  }
+  // YOU, over the local player's head for as long as the KICK OFF banner stands (HS: the
+  // bubble is up through the banner and gone the moment play starts).
+  if (M.phase === 'kickoff') {
+    const p = M.players[ONLINE && NET ? (NET.you ?? 0) : 0];
+    if (p) youMarker(g, p, t);
+  }
+}
+function star(g, x, y, r, a) {
+  g.save();
+  g.globalAlpha = a;
+  g.beginPath();
+  for (let i = 0; i < 10; i++) {
+    const rr = i % 2 ? r * 0.45 : r, an = -Math.PI / 2 + i * Math.PI / 5;
+    g.lineTo(x + Math.cos(an) * rr, y + Math.sin(an) * rr);
+  }
+  g.closePath();
+  g.fillStyle = '#ffe14a'; g.fill();
+  g.lineWidth = 2; g.strokeStyle = OUTLINE; g.stroke();
+  g.restore();
+}
+function youMarker(g, p, t) {
+  const r = headR(M, p);
+  const top = depthPoint(p.x, headY(p) - r);
+  const bob = Math.sin(t * 5) * 2;
+  const w = r * 2.8, h = r * 1.45, x = top.x, y = top.y - 12 - h / 2 + bob;
+  const col = p.index === 1 ? '#ff5c7a' : '#4ea0ff';
+  g.save();
+  // the bubble and its tail, one keyline round both
+  const shape = () => {
+    roundRect(g, x - w / 2, y - h / 2, w, h, h / 2);
+    g.moveTo(x - 6, y + h / 2 - 1); g.lineTo(x, y + h / 2 + 8); g.lineTo(x + 6, y + h / 2 - 1);
+  };
+  shape(); g.lineWidth = 4; g.strokeStyle = OUTLINE; g.lineJoin = 'round'; g.stroke();
+  shape(); g.fillStyle = col; g.fill();
+  g.fillStyle = '#ffffff55';                               // gloss along the top
+  roundRect(g, x - w / 2 + 5, y - h / 2 + 3, w - 10, h * 0.3, h * 0.15); g.fill();
+  g.direction = 'ltr';
+  g.textAlign = 'center'; g.textBaseline = 'middle';
+  g.font = `900 ${Math.round(h * 0.72)}px -apple-system, Arial`;
+  g.lineWidth = 4; g.strokeStyle = OUTLINE; g.strokeText('YOU', x, y + 1);
+  g.fillStyle = '#ffd23c'; g.fillText('YOU', x, y + 1);
+  g.restore();
 }
 
 // ---- HUD -------------------------------------------------------------------

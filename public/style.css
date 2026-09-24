@@ -125,19 +125,38 @@ body.safedemo { --safe-l: 44px; --safe-r: 44px; --safe-b: 21px; --safe-t: 12px; 
 #cvnet { pointer-events: none; }
 
 /* The big head. Sized + moved from JS in stage pixels. */
+/* HEAD SOCCER'S HEAD (docs/HS-CHARACTER-LOOK.md): one thick near-black keyline round the whole
+   head (--ol, ~4.5% of the diameter, set by drawHeads — the same one native pixel HS draws), a
+   thin rim light on the BACK of the head in the card's rarity colour (--trim), and cel-style
+   volume over the face — a soft highlight up front, the edge falling into shade. No drop shadow
+   and no team ring: HS keeps the head clean, puts its shadow on the grass (drawShadow) and its
+   team colour on the collar. */
 .head {
   position: absolute; left: 0; top: 0;
   border-radius: 50%; overflow: hidden;
   will-change: transform; pointer-events: none;
-  box-shadow: 0 6px 16px #000a, inset 0 0 0 2px #0006;
+  outline: var(--ol, 2px) solid #140c08;
 }
+.head::after {
+  content: ''; position: absolute; inset: 0; border-radius: 50%; pointer-events: none;
+  background:
+    radial-gradient(circle at 64% 27%, #ffffff47, #ffffff00 36%),
+    radial-gradient(circle at 50% 40%, #0c061800 58%, #0c06186b 100%);
+  box-shadow: inset calc(var(--ol, 2px) * 0.9) calc(var(--ol, 2px) * 0.9) 0 var(--trim, #ffcc33);
+}
+.head.p1::after, .head.ghost.g1::after {
+  background:
+    radial-gradient(circle at 36% 27%, #ffffff47, #ffffff00 36%),
+    radial-gradient(circle at 50% 40%, #0c061800 58%, #0c06186b 100%);
+  box-shadow: inset calc(var(--ol, 2px) * -0.9) calc(var(--ol, 2px) * 0.9) 0 var(--trim, #ffcc33);
+}
+/* A dash afterimage: a see-through copy of the head (opacity set per frame by drawHeadGhosts). */
+.head.ghost { will-change: transform, opacity; outline: none; clip-path: circle(50%); }
 .head > i {
   position: absolute; inset: 0; display: block;
   background: #0b1020 no-repeat;         /* size/position set per card from the anchor table */
   transform-origin: 50% 50%;
 }
-.head.p0 { outline: 3px solid var(--p0); }
-.head.p1 { outline: 3px solid var(--p1); }
 .head.armed { animation: armed .55s infinite alternate; }
 @keyframes armed { from { box-shadow: 0 0 0 0 #ffb80000; } to { box-shadow: 0 0 22px 6px #ffb800cc; } }
 
