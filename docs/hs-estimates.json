@@ -1,37 +1,589 @@
 [
   {
-    "id": "ball.gravity", "value": 561, "unit": "px/s²", "sd": 10, "n": 8, "clips": ["M3"],
+    "id": "ball.gravity",
+    "value": 583,
+    "unit": "px/s²",
+    "sd": 15,
+    "n": 86,
+    "clips": [
+      "M4"
+    ],
+    "source": "M4 (hs-video/M4-gaps.mp4) both matches, 18.0–86.0 s and 96.0–184.5 s: every clean ball flight ≥ 12 frames",
+    "how": "One parabola per free flight (hs-fit-lib fitGravity, contacts detected at minDv 150), median over 86 flights; calib wallL 107, wallR 1172, ground y 489 on 1280×590 frames, s = 0.9953.",
+    "note": "Supersedes M3's 561. Re-derived on M3 with the M4 method (21 flights of ≥ 25 frames, same calibration: wallL 107, wallR 1172, ground 489): median 582. The 561 came from 8 hand-picked falls straight after a respawn; see ball.gravity.m3respawn."
+  },
+  {
+    "id": "ball.gravity.m3respawn",
+    "metric": "ball.gravity",
+    "value": 561,
+    "unit": "px/s²",
+    "sd": 10,
+    "n": 8,
+    "clips": [
+      "M3"
+    ],
     "source": "M3 ball falls after each respawn: 6.92, 14.16, 31.96, 41.82, 48.55, 53.95, 62.23, 87.92 s",
-    "note": "One parabola per fall, 30–45 frames each, fit rmse ≈ 1 px. The ball in HS falls far slower than a head jumps."
+    "how": "One parabola per respawn fall, 30–45 frames each, fit rmse ≈ 1 px.",
+    "note": "FLAGGED: 4% under M4's 583. The calibration is identical (x0 107, y0 489, scale 0.9953), and the M4 method run over M3's own track gives 582 (n=21), so the gap is in this subset — falls from a fresh respawn — not in M3. Kept to show the disagreement; ball.gravity is the number to fit."
   },
   {
-    "id": "ball.groundRestitution", "value": 0.65, "unit": "", "sd": 0.05, "n": 5, "clips": ["M3"],
+    "id": "ball.groundRestitution",
+    "value": 0.65,
+    "unit": "",
+    "sd": 0.05,
+    "n": 5,
+    "clips": [
+      "M3"
+    ],
     "source": "M3 ground bounces at 7.67, 9.15, 17.29, 58.82, 87.26 s",
-    "note": "Low confidence: auto-tracked, and some bounces may have been touched. The single values were 0.62, 0.70, 0.58, 0.64 and 0.70."
+    "note": "Low confidence: auto-tracked, and some bounces may have been touched. The single values were 0.62, 0.70, 0.58, 0.64 and 0.70. M4 did not improve on it."
   },
   {
-    "id": "ball.spawnHeight", "value": 302, "unit": "px", "sd": 2, "n": 7, "clips": ["M3"],
+    "id": "ball.spawnHeight",
+    "value": 302,
+    "unit": "px",
+    "sd": 2,
+    "n": 7,
+    "clips": [
+      "M3"
+    ],
     "source": "M3 respawn after every goal: 14.16, 31.97, 41.85, 48.60, 54.00, 62.30, 88.03 s",
     "note": "The ball centre, above the ground line. The ball appears at the pitch centre with vy ≈ 0 and drifts ±138 px/s sideways."
   },
   {
-    "id": "player.topSpeed", "value": 260, "unit": "px/s", "sd": 35, "n": 6, "clips": ["M3"],
-    "source": "M3 6.66–11.42 s: the left player walks back and forth; six runs of 0.5–0.8 s",
-    "note": "Low confidence: an auto head track, and the runs may be too short to reach top speed."
+    "id": "player.topSpeed",
+    "value": 228,
+    "unit": "px/s",
+    "sd": 5,
+    "n": 2,
+    "clips": [
+      "M4"
+    ],
+    "source": "M4 32.3–33.9 s (run right from standstill) and 85.4–88.4 s",
+    "how": "Straight-line fit to the head x over the run's plateau (fitTopSpeed).",
+    "note": "M3's 260 ± 35 (6.66–11.42 s, an auto head track of short walks) was lower confidence and is superseded."
   },
   {
-    "id": "goal.bannerTime", "value": 2.05, "unit": "s", "sd": 0.1, "n": 7, "clips": ["M3"], "scenario": "goalReset",
+    "id": "player.accelTime",
+    "bound": "max",
+    "value": 0.05,
+    "unit": "s",
+    "sd": 0.008,
+    "n": 2,
+    "clips": [
+      "M4"
+    ],
+    "source": "M4 32.25 s (R pressed) → full speed by 32.30 s; 84.98 s reversal",
+    "how": "Frames from the R button lighting to the head x moving at top speed: ≤ 3 frames.",
+    "note": "Effectively instant. An upper bound: parity is ours ≤ 0.05 s."
+  },
+  {
+    "id": "player.stopTime",
+    "bound": "max",
+    "value": 0.05,
+    "unit": "s",
+    "sd": 0.008,
+    "n": 2,
+    "clips": [
+      "M4"
+    ],
+    "source": "M4 run releases at 33.68 s and 88.4 s",
+    "how": "Frames from the arrow going dark to the head x standing still: ≤ 3 frames.",
+    "note": "Effectively instant. An upper bound."
+  },
+  {
+    "id": "player.stopDistance",
+    "bound": "max",
+    "value": 6,
+    "unit": "px",
+    "sd": 1,
+    "n": 2,
+    "clips": [
+      "M4"
+    ],
+    "source": "M4 run releases at 33.68 s and 88.4 s",
+    "how": "DERIVED, not tracked: a stop within 3 frames from 228 px/s slides at most 228 × 0.05 / 2 ≈ 6 px.",
+    "note": "An upper bound. Measure directly when a clean C2 take exists."
+  },
+  {
+    "id": "player.reverseTime",
+    "bound": "max",
+    "value": 0.05,
+    "unit": "s",
+    "sd": 0.008,
+    "n": 1,
+    "clips": [
+      "M4"
+    ],
+    "source": "M4 84.98 s: L → R at full speed in the left goal mouth; moving right at 3.5 px/frame by 85.08 s",
+    "how": "Frames from the R button lighting to top speed the other way.",
+    "note": "Instant reversal: no turn-around deceleration visible."
+  },
+  {
+    "id": "jump.apex.tap",
+    "value": 45.8,
+    "unit": "px",
+    "sd": 1,
+    "n": 10,
+    "clips": [
+      "M4"
+    ],
+    "source": "M4 21.05–29.4 s: 10 standstill jumps (21.05, 21.96, 23.01, 23.81, 24.73, 25.51, 26.52, 27.64, 28.64 s…)",
+    "how": "Head rise above standing, from a parabola per jump (hs-fit-lib jumps()).",
+    "note": "Identical for tap and hold. The head path is a plain parabola (fit rmse < 0.8 px): M3's 0.2 s 'flat top' is the vertex seen through 1-px quantisation, not a hover. A head-TOP track of the same jumps gives 43.8."
+  },
+  {
+    "id": "jump.apex.hold",
+    "value": 45.8,
+    "unit": "px",
+    "sd": 1,
+    "n": 10,
+    "clips": [
+      "M4"
+    ],
+    "source": "M4 21.05–29.4 s",
+    "how": "As jump.apex.tap.",
+    "note": "Holding JUMP does not change the height — HS has no variable jump."
+  },
+  {
+    "id": "jump.airtime.tap",
+    "value": 0.74,
+    "unit": "s",
+    "sd": 0.01,
+    "n": 10,
+    "clips": [
+      "M4"
+    ],
+    "source": "M4 21.05–29.4 s",
+    "how": "Takeoff to landing where the fitted parabola crosses the standing line."
+  },
+  {
+    "id": "jump.airtime.hold",
+    "value": 0.74,
+    "unit": "s",
+    "sd": 0.01,
+    "n": 10,
+    "clips": [
+      "M4"
+    ],
+    "source": "M4 21.05–29.4 s",
+    "how": "As jump.airtime.tap."
+  },
+  {
+    "id": "player.gravity",
+    "value": 595,
+    "unit": "px/s²",
+    "sd": 10,
+    "n": 10,
+    "clips": [
+      "M4"
+    ],
+    "source": "M4 21.05–29.4 s",
+    "how": "2·c2 of the parabola fitted to each jump's head track.",
+    "note": "The same fall speed up and down (one parabola fits), and almost the ball's own gravity (583)."
+  },
+  {
+    "id": "jump.takeoffSpeed",
+    "value": 235,
+    "unit": "px/s",
+    "sd": 8,
+    "n": 10,
+    "clips": [
+      "M4"
+    ],
+    "source": "M4 21.05–29.4 s",
+    "how": "Velocity of the fitted parabola at takeoff (≈ √(2·g·apex))."
+  },
+  {
+    "id": "jump.holdRejump",
+    "value": 0.05,
+    "unit": "s",
+    "sd": 0.008,
+    "n": 3,
+    "clips": [
+      "M4"
+    ],
+    "source": "M4 23.81–26.25 s: JUMP held, back-to-back jumps",
+    "how": "Landing to the next takeoff while JUMP stays held.",
+    "note": "HS re-jumps on its own while JUMP is held."
+  },
+  {
+    "id": "dash.speed",
+    "value": 1790,
+    "unit": "px/s",
+    "sd": 90,
+    "n": 3,
+    "clips": [
+      "M4"
+    ],
+    "source": "M4 dash-mash windows 45.84–47.08 s and 57.71–58.72 s (double taps on R / L)",
+    "how": "Peak head-x speed after the second tap (burst())."
+  },
+  {
+    "id": "dash.duration",
+    "value": 0.067,
+    "unit": "s",
+    "sd": 0.008,
+    "n": 3,
+    "clips": [
+      "M4"
+    ],
+    "source": "M4 45.84–47.08 s and 57.71–58.72 s",
+    "how": "Frames above the midpoint between the dash peak and the run speed: 4 frames."
+  },
+  {
+    "id": "dash.distance",
+    "value": 120,
+    "unit": "px",
+    "sd": 10,
+    "n": 3,
+    "clips": [
+      "M4"
+    ],
+    "source": "M4 45.84–47.08 s and 57.71–58.72 s",
+    "how": "Head-x displacement over the dash's burst."
+  },
+  {
+    "id": "dash.cooldown",
+    "bound": "min",
+    "value": 0.42,
+    "unit": "s",
+    "sd": 0.008,
+    "n": 1,
+    "clips": [
+      "M4"
+    ],
+    "source": "M4 57.93 → 58.34 s: the closest two dashes while mashing",
+    "how": "Spacing of successful dashes during a mash.",
+    "note": "A lower bound: the true cooldown is at least this."
+  },
+  {
+    "id": "kick.duration",
+    "value": 0.26,
+    "unit": "s",
+    "sd": 0.01,
+    "n": 12,
+    "clips": [
+      "M4"
+    ],
+    "source": "M4 29.67–31.96 s: kick mashed with the ball far away",
+    "how": "Frames the leg is out (the body's bounding box wider than standing): 0.25–0.27 s."
+  },
+  {
+    "id": "kick.cooldown",
+    "value": 0.349,
+    "unit": "s",
+    "sd": 0.02,
+    "n": 11,
+    "clips": [
+      "M4"
+    ],
+    "source": "M4 kick onsets 29.72 … 31.83 s",
+    "how": "Median spacing of leg-out onsets while mashing (spacing()).",
+    "note": "Shortest repeat 0.317 s."
+  },
+  {
+    "id": "headStand.happens",
+    "value": 1,
+    "unit": "yes/no",
+    "sd": 0,
+    "n": 2,
+    "clips": [
+      "M4"
+    ],
+    "source": "M4 52.63–53.47 s and 159.2–160.06 s: the player stands on the CPU's head",
+    "how": "By eye on a frame strip: the upper head rests 70 px above a standing head, feet ~9 px into the lower crown.",
+    "note": "Yes."
+  },
+  {
+    "id": "headStand.carrySpeed",
+    "value": 70,
+    "unit": "px/s",
+    "sd": 35,
+    "n": 1,
+    "clips": [
+      "M4"
+    ],
+    "source": "M4 159.2–160.06 s",
+    "how": "The upper player's x drift while the lower one walks.",
+    "note": "LOW CONFIDENCE, conflicting: at 159.2–160.06 s the lower one carries the upper at ~70 px/s; at 53.10–53.47 s the CPU walked ~140 px/s under a stationary player (upper x 888–890 while the lower head went 870→918) and the upper slid off after ~30 px."
+  },
+  {
+    "id": "dashUnder.launch",
+    "value": 0,
+    "unit": "px",
+    "sd": 2,
+    "n": 1,
+    "clips": [
+      "M4"
+    ],
+    "source": "M4 66.36 s: the player dashes under the airborne CPU",
+    "how": "Extra rise of the CPU's jump over an undisturbed one.",
+    "note": "No launch."
+  },
+  {
+    "id": "dashUnder.headLandTime",
+    "value": 0.4,
+    "unit": "s",
+    "sd": 0.05,
+    "n": 1,
+    "clips": [
+      "M4"
+    ],
+    "source": "M4 66.36 s",
+    "how": "The CPU landed on the dasher's head and rode there.",
+    "note": "0.4 s on the dasher's head."
+  },
+  {
+    "id": "power.armHold",
+    "bound": "min",
+    "value": 5.4,
+    "unit": "s",
+    "sd": 0.02,
+    "n": 1,
+    "clips": [
+      "M4"
+    ],
+    "source": "M4 36.49 s (POWER pressed, glow on) → 41.9 s (used on the counter), no touch in between",
+    "how": "Frames from the press to the glow ending.",
+    "note": "No expiry seen: a lower bound."
+  },
+  {
+    "id": "gauge.fullHold",
+    "bound": "min",
+    "value": 70.2,
+    "unit": "s",
+    "sd": 0.02,
+    "n": 2,
+    "clips": [
+      "M4"
+    ],
+    "source": "M4 113.29 → 183.46 s (and 54.88 → 91.37 s): POWER plaque shown the whole time",
+    "how": "Frames the POWER button stays up without being pressed.",
+    "note": "A full gauge never drains: a lower bound. Preferred over M1–M3, whose script tags only show how long the gauge sat full before the player pressed POWER.",
+    "prefer": true
+  },
+  {
+    "id": "power.armedCounter",
+    "value": 1,
+    "unit": "yes/no",
+    "sd": 0,
+    "n": 1,
+    "clips": [
+      "M4"
+    ],
+    "source": "M4 41.77 s: the armed player touches the CPU's power ball",
+    "how": "By eye: cut-in with the player glowing, then the ball flies back at the CPU's goal as the player's shot (goal at 43.68 s).",
+    "note": "Armed + touching an enemy power shot = your own power shot back."
+  },
+  {
+    "id": "power.blockStun",
+    "value": 0.5,
+    "unit": "s",
+    "sd": 0.1,
+    "n": 2,
+    "clips": [
+      "M4"
+    ],
+    "source": "M4 60.16 s and 78.36 s: CPU power shots hit the unarmed player",
+    "how": "Frames the player is dazed after the hit.",
+    "note": "~0.5 s stun."
+  },
+  {
+    "id": "power.blockRebound",
+    "value": 1,
+    "unit": "yes/no",
+    "sd": 0,
+    "n": 2,
+    "clips": [
+      "M4"
+    ],
+    "source": "M4 60.16 s and 78.36 s",
+    "how": "By eye: the ball comes back off the player.",
+    "note": "The ball rebounds."
+  },
+  {
+    "id": "geom.ceilingY",
+    "value": -130,
+    "unit": "px",
+    "sd": 10,
+    "n": 3,
+    "clips": [
+      "M4"
+    ],
+    "source": "M4 lofted balls that leave the top of the screen and come back (the other M4 pass, scratchpad ceil.mjs)",
+    "how": "Ball-centre y at the top of each ceiling bounce (extrapolated from both flights).",
+    "note": "The ceiling is ABOVE the visible screen (world y ≈ −130; our CEIL_Y is +30). Timestamps not re-verified in this pass."
+  },
+  {
+    "id": "ball.ceilingRestitution",
+    "value": 0.41,
+    "unit": "",
+    "sd": 0.14,
+    "n": 3,
+    "clips": [
+      "M4"
+    ],
+    "source": "M4 ceiling bounces (range 0.27–0.55)",
+    "how": "fitRestitution on the flights either side of the (off-screen) contact.",
+    "note": "Low confidence: the contact itself is off-screen. Timestamps not re-verified in this pass."
+  },
+  {
+    "id": "ball.ceilingKeepX",
+    "value": 0,
+    "unit": "",
+    "sd": 0.15,
+    "n": 3,
+    "clips": [
+      "M4"
+    ],
+    "source": "M4 ceiling bounces",
+    "how": "Horizontal speed after / before the ceiling.",
+    "note": "Qualitative: the ceiling kills the horizontal speed — the ball comes back down almost vertically."
+  },
+  {
+    "id": "ball.goalTopRestitution",
+    "value": 0.67,
+    "unit": "",
+    "sd": 0.05,
+    "n": 2,
+    "clips": [
+      "M4"
+    ],
+    "source": "M4 ball onto the goal top",
+    "how": "fitRestitution at the bounce on the goal's top."
+  },
+  {
+    "id": "geom.goalTopY",
+    "value": 154,
+    "unit": "px",
+    "sd": 3,
+    "n": 2,
+    "clips": [
+      "M4"
+    ],
+    "source": "M4 ball onto the goal top",
+    "how": "Height above the grass of the surface the ball bounces on (ball bottom at contact).",
+    "note": "Above the 138 px crossbar-top click of M3's calibration: the ball lands on the goal's roof, not the front bar."
+  },
+  {
+    "id": "ball.restsOnBar",
+    "value": 0,
+    "unit": "yes/no",
+    "sd": 0,
+    "n": 2,
+    "clips": [
+      "M4"
+    ],
+    "source": "M4 ball onto the goal top",
+    "how": "By eye.",
+    "note": "The ball never comes to rest on the goal."
+  },
+  {
+    "id": "kickoff.readyTime",
+    "value": 2.17,
+    "unit": "s",
+    "sd": 0.02,
+    "n": 2,
+    "clips": [
+      "M4"
+    ],
+    "source": "M4 kickoffs at 18.0 s and 95.2 s",
+    "how": "KICK OFF banner in → banner gone.",
+    "note": "Agrees with M1–M3's tracked 2.16."
+  },
+  {
+    "id": "goal.resumeTime",
+    "value": 2.24,
+    "unit": "s",
+    "sd": 0.01,
+    "n": 8,
+    "clips": [
+      "M4"
+    ],
+    "source": "M4 goals at 43.68, 74.02, 81.31, 117.85, 124.44, 146.75, 152.18, 164.22 s",
+    "how": "GOAL! banner onset → players move again.",
+    "note": "No KICK OFF banner after a goal; the ball drops ~0.7 s after play resumes."
+  },
+  {
+    "id": "power.cutinTime",
+    "value": 1.34,
+    "unit": "s",
+    "sd": 0.01,
+    "n": 7,
+    "clips": [
+      "M4"
+    ],
+    "prefer": true,
+    "source": "M4 cut-ins at 40.44, 41.97, 60.19, 78.39, 122.91, 150.61, 171.94 s",
+    "how": "Darkened-screen onset → offset (overlay signal), 1.33–1.35 s.",
+    "note": "Preferred over M1–M3's script-tagged 1.25."
+  },
+  {
+    "id": "gauge.fillTime",
+    "value": 14.99,
+    "unit": "s",
+    "sd": 0.05,
+    "n": 1,
+    "clips": [
+      "M4"
+    ],
+    "prefer": true,
+    "source": "M4 end of the kickoff banner (19.57 s) → POWER plaque",
+    "how": "Frames from the banner going to the POWER button appearing.",
+    "note": "Preferred over M1–M3's script-tagged 18.1: M4 plays the starter character, M1–M3 other characters (the Power stat changes the fill)."
+  },
+  {
+    "id": "gauge.refillTime",
+    "value": 12.98,
+    "unit": "s",
+    "sd": 0.05,
+    "n": 1,
+    "clips": [
+      "M4"
+    ],
+    "prefer": true,
+    "source": "M4 41.9 s (power used on the counter) → 54.88 s (POWER plaque back)",
+    "how": "Frames from the gauge emptying to the POWER button reappearing.",
+    "note": "Preferred over M1–M3's 16.3 (see gauge.fillTime)."
+  },
+  {
+    "id": "goal.bannerTime",
+    "value": 2.05,
+    "unit": "s",
+    "sd": 0.1,
+    "n": 7,
+    "clips": [
+      "M3"
+    ],
+    "scenario": "goalReset",
     "source": "M3 goals at 11.37, 29.15, 39.01, 45.74, 51.13, 59.42, 85.11 s",
     "note": "From the GOAL! banner appearing to the screen clearing. The ball respawns 0.75 s after that (see goal.toPlayTime)."
   },
   {
-    "id": "jump.apex.match", "value": 45, "unit": "px", "sd": 3, "n": 2, "clips": ["M3"], "scenario": "jumpTap",
+    "id": "jump.apex.match",
+    "metric": "jump.apex.tap",
+    "value": 45,
+    "unit": "px",
+    "sd": 3,
+    "n": 2,
+    "clips": [
+      "M3"
+    ],
     "source": "M3 13.43–14.13 s and 15.16–15.66 s: the left player jumps in place",
-    "note": "The head's rise above standing. Tap or hold is unknown. The top is FLAT for ≈ 0.2 s (12 frames), not a parabola."
+    "note": "The head's rise above standing, in a match. Agrees with M4's 45.8."
   },
   {
-    "id": "jump.airtime.match", "value": 0.70, "unit": "s", "sd": 0.03, "n": 1, "clips": ["M3"], "scenario": "jumpTap",
+    "id": "jump.airtime.match",
+    "metric": "jump.airtime.tap",
+    "value": 0.7,
+    "unit": "s",
+    "sd": 0.03,
+    "n": 1,
+    "clips": [
+      "M3"
+    ],
     "source": "M3 13.43–14.13 s",
-    "note": "Takeoff to landing. Tap or hold is unknown."
+    "note": "Takeoff to landing, in a match. M4's clean standstill jumps give 0.74."
   }
 ]
