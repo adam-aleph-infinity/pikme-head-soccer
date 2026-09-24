@@ -145,6 +145,18 @@ export const SCENARIOS = {
       return { jump: j };
     } },
 
+  // The PASSIVE jumping header, as HS M4 has it (header.passive.launch, head.restitution.jumping):
+  // no KICK, the ball arriving at ~580px/s (the median of the six measured touches) and the jump
+  // started ~0.065 s before it lands on the head (99.64 → 99.71 s, 167.85 → 167.89 s: the head
+  // is still rising fast). Drop it from 310px above the head; jump when it is 90px above.
+  headerPassive: { clip: 'M4', ticks: 150,
+    setup: (m) => { openPlay(m); const p = m.players[0]; place(m.ball, p.x + 6, headY(p) - 310); },
+    input: (i, m, ctx) => {
+      const p = m.players[0], b = m.ball;
+      const j = !ctx.jumped && headY(p) - b.y < 90; if (j) ctx.jumped = true;
+      return { jump: j };
+    } },
+
   // The same drop, headed on purpose: jump into it and press KICK as it reaches the head (our
   // aimed header, tryHeader). The ball arrives falling at ~490 px/s, the median of the HS M4
   // jumping headers it is compared with (ball.launchSpeed.header, ball.headerApex).
@@ -176,10 +188,14 @@ export const SCENARIOS = {
     },
     input: (i) => [{}, i > 60 && i < 120 ? { right: true } : {}] },
   // C10 — player 1 jumps once undisturbed, then again while player 0 dashes under it.
+  // Re-enacts HS M4 66.00–66.78 s: the CPU jumped, the human's dash met it at the top of its
+  // jump (~0.4 s after takeoff), and he kept pushing — R held / double-tapped 66.35–67.10 s,
+  // 0.75 s — while the CPU hung on his shoulder. So: player 1 jumps at 75, player 0 double-taps
+  // right to arrive at ~99 (its apex) and holds right for 0.75 s.
   dashUnder: { clip: 'C10', ticks: 170, attempt: 'dashunder', stand: [1, 0],
     setup: (m) => { openPlay(m); parkBall(m); m.players[0].x = 380; m.players[1].x = 560; },
     input: (i) => [
-      (i >= 72 && i < 74) || (i >= 76 && i < 92) ? { right: true } : {},
+      (i >= 88 && i < 90) || (i >= 92 && i < 92 + 45) ? { right: true } : {},
       i === 5 || i === 75 ? { jump: true } : {},
     ] },
 
@@ -242,10 +258,12 @@ function rng(seed) {
 const GROUND_BALL_Y = () => C.GROUND_Y - C.BALL_R;
 const dirOf = (inp) => (inp.right ? 1 : 0) - (inp.left ? 1 : 0);
 
-// Upper player's feet resting on the lower player's crown.
+// The upper player held up by the lower one's body rather than the grass: standing on its head,
+// or hung on its shoulder by a push (the sim's own `stand`, rebuilt every tick by resolvePlayers
+// from the contact) — what a person tags as "on his head" off the picture. Off the grass, and
+// not falling, so a body sliding down the side of a head does not count.
 function standing(up, lo) {
-  const crown = headY(lo) - C.HEAD_R;
-  return !up.onGround && Math.abs(up.y - crown) < 4 && Math.abs(up.vy) < 40 && Math.abs(up.x - lo.x) < C.HEAD_R;
+  return up.stand === lo.index && up.y < C.GROUND_Y - 2 && Math.abs(up.vy) < 40;
 }
 
 // Run one scenario and return its tracks document.

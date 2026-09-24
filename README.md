@@ -332,8 +332,7 @@ you for half a second, גל אדום launches you, גשם מטבעות leaves yo
 
 **Press kick with the ball at your head and you HEAD it** — less power than a boot, more
 loft, and the only way to hit a ball your foot cannot reach. A head you did NOT press with
-cushions the ball instead: heading used to beat playing, so a passive head touch is now a
-control surface and the boot is the only thing that hits it hard.
+bounces the ball (see below: Head Soccer's heads are springy).
 
 **The boot bows toward the far goal.** A kick used to fly dead flat along your facing, so
 scoring meant already standing in exactly the right place. The loft now scales with how far
@@ -346,12 +345,24 @@ turning the ball toward the net for you would take it away.
 **Hold jump while kicking to LOB it** — higher, shorter. The counter to a defender parked on
 their line, and the only aiming the game has.
 
+**Your head is springy; your body deadens.** Measured off Head Soccer (M4): a ball dropped on a
+still head comes back up at ~0.79 of its pace, and a head still rising from its jump sends it
+back FASTER than it came — HS's passive jumping headers leave at ~720px/s off a ~580 arrival.
+So the head is a bounce relative to the head (`HEAD_BOUNCE` 0.75), and a jump into a falling
+ball is a real header even without KICK. The chest still kills the ball (`BODY_DEADEN`).
+
+**Players are solid.** Head and body collide with the other player's head and body: you can
+land on his head and stand there (and jump off it), and he can walk out from under you — the
+head moving away does not carry you. Dash or walk into a player in the air and you shove him;
+keep pushing and he hangs on your shoulder instead of falling (HS M4 66.4 s). Two heads do not
+fit under the crossbar, so a stack in the goal mouth slides the upper player out onto the pitch.
+
+<details><summary>What it used to say</summary>
+
 **Your head deadens the ball too — just less than your body does.** A head keeps 0.58 of the
 pace where the chest keeps 0.18, so heading is the livelier touch of the two and neither is a
 trampoline. Hitting the ball HARD is always a deliberate act now: the boot, or the kick button
 pressed at head height.
-
-<details><summary>What it used to say</summary>
 
 **Your head bounces the ball; your body deadens it.** Barging into the ball kills its pace
 and drops it at your feet — only a kick sends it anywhere, so every meaningful touch is a

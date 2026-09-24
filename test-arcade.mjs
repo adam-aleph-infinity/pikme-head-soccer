@@ -785,7 +785,12 @@ const CHECKS = {
   // AND AGAIN for "the game feels a little bit stuck" (hs/fix-stuck): no hit-stop on a kick,
   // header or tackle (HS has none), and the bot holds a full gauge before arming it (FULL_HOLD
   // in bot.js) instead of arming the tick it fills. Both non-arcade; no arcade power changed.
-  const GOLDEN = 'c94c7f8893814787726324eebed7dd6be587f06bab67ca3f443de16dbf9718ba';
+  //
+  // AND AGAIN for the contact bodies (hs/contact-bodies, Phase C2/C3): the passive head touch is
+  // a springy bounce (HEAD_BOUNCE) instead of a dead cushion, players are solid to each other
+  // (head + body against head + body, standing on heads; `stand` joined the snapshot), and the
+  // bot only jumps into a ball on the goal side of its head. All non-arcade.
+  const GOLDEN = 'fe112ddf7244769a49035413b2eff9e097a53d729a1c9635ce78a1e5e90986c2';
   const h = createHash('sha256');
   const cases = [
     [{ rarity: 'legendary', number: 3 }, { rarity: 'legendary', number: 2 }, 3, 3, 11],
@@ -817,9 +822,10 @@ const CHECKS = {
     return m.ball.power && !m.ball.power.champ && m.events.some((e) => e.type === 'powershot' && !e.champ);
   })());
   // The HS restart and cut-in state joined the snapshot in the same pass (cutin … gaugeLead, and
-  // landT on each player): every one of them decides what a future tick does.
+  // landT on each player): every one of them decides what a future tick does. `stand` (whose
+  // head holds this player up) joined with the contact bodies.
   ok('the snapshot schema is unchanged', JSON.stringify(Object.keys(serialize(m))) === JSON.stringify(['t', 'clock', 'phase', 'freeze', 'hitStop', 'idle', 'cutin', 'cutinBy', 'banner', 'bannerT', 'ballWait', 'gaugeLead', 'score', 'golden', 'lastScorer', 'p', 'b']) &&
-     serialize(m).p[0].length === 25);
+     serialize(m).p[0].length === 26);
   ok('an ordinary bot is still exactly its tier', createBot(3).d === DIFFICULTIES[3]);
 }
 

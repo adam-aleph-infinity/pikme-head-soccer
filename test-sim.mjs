@@ -1,6 +1,7 @@
 // Physics + rules tests. Run: node test-sim.mjs
 import * as C from './shared/constants.js';
-import { createMatch, step, headY, headR, stun, serialize, restore } from './shared/sim.js';
+import { createMatch, step, headY, headR, stun, serialize, restore, playerContact } from './shared/sim.js';
+import { walkBounds, barY } from './shared/goalbox.js';
 import { shotFor, SHOTS } from './shared/powershots.js';
 
 let pass = 0, fail = 0;
@@ -238,11 +239,11 @@ const scoreOn = (m, left, y = C.GROUND_Y - 60, speed = 600) => {
   m.ball.x = p.x; m.ball.y = headY(p) - C.HEAD_R - C.BALL_R + 4;
   m.ball.vx = 0; m.ball.vy = 300;
   step(m, NONE);
-  // A head DEADENS now (HEAD_DEADEN), like the chest but livelier — it does not bounce the
-  // ball away. Hitting it hard is a deliberate act: the boot, or the kick button at head
-  // height. This used to assert `vy < 0`.
-  ok('a head kills the ball rather than bouncing it', Math.abs(m.ball.vy) < 120,
-     `vy=${m.ball.vy.toFixed(0)} off a drop`);
+  // A HEAD IS SPRINGY (HS M4, HEAD_BOUNCE): a drop onto a still head goes back up at about
+  // three quarters of the pace it came down at. It used to be a dead cushion (HEAD_DEADEN),
+  // which HS does not have.
+  ok('a head bounces a drop back up', m.ball.vy < -300 * 0.6 && m.ball.vy > -300,
+     `vy=${m.ball.vy.toFixed(0)} off a 300 drop`);
 }
 {
   const m = fresh();
@@ -251,12 +252,11 @@ const scoreOn = (m, left, y = C.GROUND_Y - 60, speed = 600) => {
   m.ball.vy = 300;
   const before = Math.abs(m.ball.vy);
   step(m, NONE);
-  // This used to assert the head was SPRINGIER than the ground. It is now deliberately the
-  // opposite: at HEAD_POWER 0.52 a head is a control surface — it cushions and redirects —
-  // and the boot (or a deliberate header on the kick button) is the only thing that hits the
-  // ball hard. Heading used to beat playing, which is why the number came down twice.
-  ok('a head CUSHIONS the ball rather than launching it',
-     Math.abs(m.ball.vy) < before * C.BALL_BOUNCE,
+  // A STILL head never returns a ball faster than it arrived: the bounce is relative to the
+  // head, so only a head that is itself moving up (a jump) adds pace. About as lively as the
+  // grass — HS M4 reads 0.79 off a still head and 0.65 off the grass.
+  ok('a still head bounces, but never harder than the ball came',
+     Math.abs(m.ball.vy) < before && Math.abs(m.ball.vy) > before * C.BALL_BOUNCE * 0.9,
      `${Math.abs(m.ball.vy).toFixed(0)} back off a ${before.toFixed(0)} drop, vs ${(before * C.BALL_BOUNCE).toFixed(0)} off the ground`);
 }
 
@@ -482,23 +482,22 @@ const scoreOn = (m, left, y = C.GROUND_Y - 60, speed = 600) => {
   ok('and every one of them is blocked the same way', new Set(dmg).size === 1 && dmg[0] === `true|${C.POWER_BLOCK_STUN}`, dmg.join(','));
 }
 
-// --- the head deadens too, just less -----------------------------------------
+// --- the head bounces, the chest deadens ---------------------------------------
 {
-  // Both surfaces kill the ball now; the head keeps twice as much of it as the chest. This
-  // block used to assert the head BOUNCED (vy < -100) — that was the trampoline Adam asked
-  // twice to remove, and the second ask was to make it a body part rather than a softer
-  // trampoline.
+  // HS M4: the passive head touch is a restitution bounce (HEAD_BOUNCE, ~0.75 relative to the
+  // head). The chest still kills the ball (BODY_DEADEN), so the head is the lively surface.
   const drop = (yOffset) => {
     const m = fresh();
     const p = m.players[0];
     m.ball.x = p.x; m.ball.y = headY(p) + yOffset; m.ball.vy = 400;
     step(m, NONE);
-    return Math.abs(m.ball.vy);
+    return -m.ball.vy;
   };
   const head = drop(-C.HEAD_R - C.BALL_R + 4);
-  ok('a head takes the pace off the ball', head < 400 * 0.6, `${head.toFixed(0)} of 400`);
-  ok('and it is livelier than the chest', C.HEAD_DEADEN > C.BODY_DEADEN,
-     `head ${C.HEAD_DEADEN} vs body ${C.BODY_DEADEN}`);
+  ok('a head sends a drop back up at ~HEAD_BOUNCE of its pace', Math.abs(head - 400 * C.HEAD_BOUNCE) < 400 * 0.1,
+     `${head.toFixed(0)} of 400 (HEAD_BOUNCE ${C.HEAD_BOUNCE})`);
+  ok('and it is livelier than the chest', C.HEAD_BOUNCE > C.BODY_DEADEN,
+     `head ${C.HEAD_BOUNCE} vs body ${C.BODY_DEADEN}`);
 }
 {
   // Low contact — chest height and below — kills it. At Head Soccer proportions the torso
@@ -514,15 +513,20 @@ const scoreOn = (m, left, y = C.GROUND_Y - 60, speed = 600) => {
   ok('and it does not fly back', m.ball.vx > -200);
 }
 {
-  // The crown used to bounce so that heading was a tool. Heading is still a tool — it is just
-  // the BUTTON now (tryHeader), not a surface. What the crown does passively is take a ball
-  // out of the air and drop it, and that is what this asserts.
-  const m = fresh();
-  const p = m.players[0];
-  m.ball.x = p.x; m.ball.y = headY(p) - C.HEAD_R - C.BALL_R + 3; m.ball.vy = 400;
-  step(m, NONE);
-  ok('the crown takes a falling ball out of the air', Math.abs(m.ball.vy) < 200,
-     `vy=${m.ball.vy.toFixed(0)} from a 400 drop`);
+  // A head RISING from its jump is a surface moving up, so it returns the ball faster than a
+  // still one does — HS M4's passive jumping headers leave at ~720px/s off a ~580 arrival.
+  const off = (vy) => {
+    const m = fresh();
+    const p = m.players[0];
+    p.vy = vy; p.onGround = vy === 0;
+    m.ball.x = p.x; m.ball.y = headY(p) - C.HEAD_R - C.BALL_R + 3; m.ball.vy = 400;
+    step(m, NONE);
+    return -m.ball.vy;
+  };
+  const still = off(0), rising = off(-200);
+  ok('a rising head returns the ball faster than a still one', rising > still + 150,
+     `${rising.toFixed(0)} off a head rising at 200 vs ${still.toFixed(0)} off a still one`);
+  ok('and faster than it came', rising > 400, `${rising.toFixed(0)} from a 400 drop`);
 }
 
 // --- tackling ---------------------------------------------------------------
@@ -1664,14 +1668,15 @@ const jumpArc = (input) => {
     // Dropped dead on the crown. That is the one spot where the contact normal points
     // straight up and gravity has nothing to roll the ball off with, so it used to balance
     // there indefinitely — the clearest form of "the ball sticks and its physics stop".
-    // It has to come off the head and reach the grass.
+    // It has to come off the head and reach the grass. The head is springy now (HS M4), so it
+    // bounces there a few times first — each lower — and then rolls off.
     const m = fresh();
     const p = m.players[0], b = m.ball;
     p.x = 400; p.y = C.GROUND_Y;
     m.players[1].x = 80;
     b.x = p.x; b.y = C.GROUND_Y - 200; b.vx = 0; b.vy = 300;
     let reached = -1, under = 0, deepest = 0;
-    for (let i = 0; i < 180; i++) {
+    for (let i = 0; i < 540; i++) {
       m.hitStop = 0;
       step(m, NONE);
       if (reached < 0 && b.y > REST_Y - 1) reached = i;
@@ -1680,7 +1685,10 @@ const jumpArc = (input) => {
     }
     ok('a ball dropped on a head does not balance there', reached >= 0,
        `never reached the grass; ended at y=${b.y.toFixed(1)}, rest is ${REST_Y}`);
-    ok('it rolls off promptly', reached >= 0 && reached < 60, `${reached} ticks`);
+    // Dead centre is the worst case: every bounce comes straight back down onto the crown, so
+    // it bounces itself out (~4.5 s at HEAD_BOUNCE 0.75) before the curve can roll it off. Any
+    // ball that lands a hair off centre is gone on the first bounce.
+    ok('it rolls off once it has bounced itself out', reached >= 0 && reached < 480, `${reached} ticks`);
     ok('it is never pushed under the grass', under === 0, `${under} ticks below the pitch`);
     ok('and never ends a tick inside the player', deepest < 1, `${deepest.toFixed(2)}px embedded`);
   }
@@ -2107,6 +2115,146 @@ const jumpArc = (input) => {
     ok('a tackle still does not strike the ball',
        Math.abs(m.ball.x - ctrl.ball.x) < 1e-9 && Math.abs(m.ball.vx - ctrl.ball.vx) < 1e-9,
        `${m.ball.x.toFixed(2)}/${m.ball.vx.toFixed(2)} vs ${ctrl.ball.x.toFixed(2)}/${ctrl.ball.vx.toFixed(2)}`);
+  }
+}
+
+// --- players are solid to each other (HS M4: standing on heads, pinned on a shoulder) -------
+{
+  const crownFeet = (lo) => headY(lo) - C.HEAD_R;          // boots on the lower one's crown
+  const overlap = (m) => { const c = playerContact(m, m.players[0], m.players[1]); return c ? c.d : 0; };
+  const inBounds = (m, p) => {
+    const crown = headY(p) - headR(m, p);
+    const { lo, hi } = walkBounds(C.BODY_W, crown >= barY() + C.POST_R - 1e-6);
+    return p.x >= lo - 1e-6 && p.x <= hi + 1e-6 && p.y <= C.GROUND_Y + 1e-9;
+  };
+  const stack = (x = 500) => {
+    const m = fresh();
+    const [a, b] = m.players;
+    m.ball.x = 950; m.ball.y = C.GROUND_Y - C.BALL_R;
+    b.x = x; a.x = x; a.y = C.GROUND_Y - 150; a.vy = 0; a.onGround = false;
+    return m;
+  };
+
+  {
+    // Two bodies walking into each other stop head to head — they no longer stand inside each
+    // other 26px apart.
+    const m = fresh();
+    const [a, b] = m.players;
+    a.x = 480; b.x = 580; m.ball.x = 950;
+    let worst = 0;
+    run(m, 60, (i, mm) => { worst = Math.max(worst, overlap(mm)); return [{ right: true }, { left: true }]; });
+    ok('walking into each other: heads meet and stop', Math.abs(b.x - a.x) >= 2 * C.HEAD_R - 0.5 && worst < 1,
+       `gap ${(b.x - a.x).toFixed(1)}, deepest ${worst.toFixed(2)}px`);
+  }
+  {
+    const m = stack();
+    const [a, b] = m.players;
+    run(m, 60);
+    const y0 = a.y;
+    let drift = 0;
+    run(m, 120, (i, mm) => { drift = Math.max(drift, Math.abs(mm.players[0].y - y0)); return NONE; });
+    ok('a player dropped on a head stands on the crown (HS: heads 70px apart)',
+       Math.abs(a.y - crownFeet(b)) < 0.5 && a.stand === 1 && a.onGround,
+       `feet ${a.y.toFixed(1)} vs crown ${crownFeet(b).toFixed(1)}, stand ${a.stand}, onGround ${a.onGround}`);
+    ok('…and does not sink into it', drift < 0.5, `${drift.toFixed(2)}px over 2 s`);
+    ok('…and the head under it stays on the grass', b.y === C.GROUND_Y && b.onGround);
+    // Jump off it: a head is ground to jump from.
+    let top = a.y;
+    run(m, 50, (i, mm) => { top = Math.min(top, mm.players[0].y); return [i === 1 ? { jump: true } : {}, {}]; });
+    ok('…and can jump off it', crownFeet(b) - top > 40, `rose ${(crownFeet(b) - top).toFixed(1)}px off the crown`);
+  }
+  {
+    // The head walks away: nothing carries the upper body sideways (HS M4 53.00–53.40 s), and
+    // once the crown is out from under it, it falls to the grass.
+    const m = stack();
+    const [a, b] = m.players;
+    run(m, 60);
+    const x0 = a.x;
+    let maxDx = 0, deepest = 0;
+    run(m, 90, (i, mm) => { if (mm.players[0].stand === 1) maxDx = Math.max(maxDx, Math.abs(mm.players[0].x - x0)); deepest = Math.max(deepest, overlap(mm)); return [{}, { right: true }]; });
+    ok('no carry: the upper body stays put while the head walks away under it', maxDx < 1, `moved ${maxDx.toFixed(2)}px`);
+    ok('…and falls to the grass once it is off', a.y === C.GROUND_Y && a.stand === -1, `y ${a.y.toFixed(1)}, stand ${a.stand}`);
+    ok('…never ending a tick inside the other body', deepest < 1, `${deepest.toFixed(2)}px`);
+  }
+  {
+    // Dash into a player at the top of its jump: HS M4 66.36 s — no launch; it hangs on the
+    // dasher's shoulder while he keeps pushing, and drops when he stops.
+    const apexOf = (dash) => {
+      const m = fresh();
+      const [a, b] = m.players;
+      a.x = 380; b.x = 560; m.ball.x = 950;
+      let top = C.GROUND_Y, held = 0;
+      run(m, 110, (i, mm) => {
+        top = Math.min(top, mm.players[1].y);
+        if (mm.players[1].stand === 0) held++;
+        return [dash && ((i >= 13 && i < 15) || (i >= 17 && i < 62)) ? { right: true } : {}, i === 0 ? { jump: true } : {}];
+      });
+      return { rise: C.GROUND_Y - top, held, m };
+    };
+    const calm = apexOf(false), hit = apexOf(true);
+    ok('dash into an airborne player: no launch', hit.rise <= calm.rise + 1,
+       `${hit.rise.toFixed(1)}px vs ${calm.rise.toFixed(1)}px undisturbed`);
+    ok('…it hangs on the dasher while he pushes', hit.held > 20, `${hit.held} ticks held`);
+    ok('…and ends on the grass', hit.m.players[1].y === C.GROUND_Y);
+  }
+  {
+    // Pressed against somebody, a jump is still a whole jump: the grip only ever holds a body
+    // up, it never slows one going up.
+    const m = fresh();
+    const [a, b] = m.players;
+    a.x = 480; b.x = 540; m.ball.x = 950;
+    run(m, 20, [{ right: true }, { left: true }]);
+    const y0 = a.y;
+    let top = y0;
+    run(m, 30, (i, mm) => { top = Math.min(top, mm.players[0].y); return [{ right: true, jump: i === 0 }, { left: true }]; });
+    ok('jumping while pushing into somebody is not damped', y0 - top > 40, `rose ${(y0 - top).toFixed(1)}px`);
+  }
+  {
+    // STACKED UNDER THE CROSSBAR. A player standing in his own mouth, the other dropped on
+    // him from above: two heads (139.6px) do not fit under a 128px bar, so the upper one must
+    // end up out of the mouth, on the pitch — not wedged inside the lower one, not pushed into
+    // the net, not up through the bar.
+    for (const [side, x] of [['left', C.GOAL_W - 10], ['right', C.W - C.GOAL_W + 10]]) {
+      const m = fresh();
+      const [a, b] = m.players;
+      m.ball.x = C.W / 2;
+      b.x = x; a.x = x + (side === 'left' ? 30 : -30); a.y = C.GROUND_Y - 150; a.onGround = false;
+      let deepest = 0, outside = 0, throughBar = 0;
+      run(m, 180, (i, mm) => {
+        for (const p of mm.players) {
+          if (!inBounds(mm, p)) outside++;
+          const inMouth = side === 'left' ? p.x < C.GOAL_W : p.x > C.W - C.GOAL_W;
+          if (inMouth && headY(p) - C.HEAD_R < barY() + C.POST_R - 0.5) throughBar++;
+        }
+        if (i > 30) deepest = Math.max(deepest, overlap(mm));
+        return [{}, i % 40 === 20 ? { jump: true } : {}];      // …and the lower one jumping under him
+      });
+      ok(`stacked in the ${side} mouth: no wedge`, deepest < 1, `${deepest.toFixed(2)}px deep`);
+      ok(`…nobody pushed into the net or out of bounds (${side})`, outside === 0, `${outside} ticks`);
+      ok(`…no crown up through the crossbar (${side})`, throughBar === 0, `${throughBar} ticks`);
+    }
+    // And a player carried INTO the mouth: the lower one walks into his goal with the other on
+    // his head. The upper one cannot come with him (no room under the bar) and gets left on
+    // the pitch.
+    const m = stack(C.GOAL_W + 60);
+    run(m, 60);
+    let deepest = 0, outside = 0;
+    run(m, 120, (i, mm) => { deepest = Math.max(deepest, overlap(mm)); for (const p of mm.players) if (!inBounds(mm, p)) outside++; return [{}, { left: true }]; });
+    const [a, b] = m.players;
+    ok('walking into the goal with a player on your head leaves him on the pitch',
+       a.x >= C.GOAL_W && a.y === C.GROUND_Y && b.x < C.GOAL_W, `upper x ${a.x.toFixed(1)} y ${a.y.toFixed(1)}, lower x ${b.x.toFixed(1)}`);
+    ok('…without a wedge or a body out of bounds', deepest < 1 && outside === 0, `${deepest.toFixed(2)}px, ${outside} ticks out`);
+  }
+  {
+    // Online: a client restored mid-stand plays on exactly as the server does.
+    const m = stack();
+    run(m, 60);
+    const snap = JSON.parse(JSON.stringify(serialize(m)));
+    const twin = restore(stack(), snap);
+    const script = (i) => [i === 10 ? { jump: true } : {}, i > 20 ? { right: true } : {}];
+    run(m, 90, script); run(twin, 90, script);
+    ok('a restored stack plays on identically',
+       JSON.stringify(serialize(m).p) === JSON.stringify(serialize(twin).p) && snap.p[0].length > 0);
   }
 }
 
