@@ -1210,59 +1210,8 @@ body.editing .pad .btn .grip {
 .play[disabled] { opacity: .4; box-shadow: none; }
 .scoreboard .rtt { font-style: normal; font-size: 10px; color: var(--dim); min-width: 34px; }
 
-/* ── DAMAGE, ON THE CHARACTER ─────────────────────────────────────────────────
-   There is no health bar in this game and there is not going to be one. A player's condition
-   is read off their own face, which is a Saltiz card — the same thing the whole hook is built
-   on — so the damage has to be legible without covering the card up or recolouring it into
-   somebody else. Hence: a FILTER for the state of the player, warming and darkening the card
-   as they are worn down, plus a soft overlay for the marks. The card stays recognisable at
-   every tier, which is the constraint that rules out tinting it flat red.
-
-   Four tiers, set by hurtTier() in shared/sim.js and applied by drawHeads(). They replace the
-   three markers that used to live here — .knocked (grey), .slowed (washed out with a spinning
-   ring) and .hexed (green cast) — each of which marked a player who had been switched off
-   rather than one who had been hurt.
-
-   The overlay is a ::after on a circular, overflow:hidden .head, so it clips to the face. It
-   sits UNDER the filter (filters apply to the whole element, children included), which is what
-   keeps the bruise reading as part of the picture rather than a sticker on top of it. */
-.head.hurt1 { filter: saturate(1.25) sepia(.22) hue-rotate(-18deg) brightness(1.02); }
-.head.hurt2 { filter: saturate(1.42) sepia(.42) hue-rotate(-24deg) brightness(.96) contrast(1.06); }
-.head.hurt3 { filter: saturate(1.48) sepia(.54) hue-rotate(-26deg) brightness(.9) contrast(1.1); }
-.head.hurt4 { filter: saturate(1.3) sepia(.66) hue-rotate(-28deg) brightness(.72) contrast(1.22); }
-
-/* The marks themselves. Red from the first tier, and from hurt3 a blue bruise comes up on the
-   opposite cheek — "blue marks if compatible with the character", done as a multiply blend so
-   it takes the card's own shading instead of painting over it. Pushed stronger than the first
-   pass on request — these have to read at a glance, not on close inspection. */
-.head.hurt1::after, .head.hurt2::after, .head.hurt3::after, .head.hurt4::after {
-  content: ''; position: absolute; inset: 0; border-radius: 50%;
-  pointer-events: none; mix-blend-mode: multiply; z-index: 1;
-}
-.head.hurt1::after {
-  background: radial-gradient(circle at 72% 62%, #ff5a4a80 0 19%, #ff5a4a00 52%);
-}
-.head.hurt2::after {
-  background:
-    radial-gradient(circle at 72% 62%, #ff3b2eb0 0 22%, #ff3b2e00 56%),
-    radial-gradient(circle at 30% 45%, #ff3b2e80 0 16%, #ff3b2e00 48%);
-}
-.head.hurt3::after {
-  background:
-    radial-gradient(circle at 72% 62%, #ff2a1fc8 0 24%, #ff2a1f00 58%),
-    radial-gradient(circle at 28% 44%, #4a7bffc8 0 21%, #4a7bff00 54%),
-    radial-gradient(circle at 50% 84%, #4a7bff90 0 17%, #4a7bff00 46%);
-}
-.head.hurt4::after {
-  background:
-    radial-gradient(circle at 72% 60%, #e01020e8 0 28%, #e0102000 64%),
-    radial-gradient(circle at 27% 43%, #2f5cffe8 0 26%, #2f5cff00 60%),
-    radial-gradient(circle at 52% 85%, #2f5cffc8 0 22%, #2f5cff00 52%);
-}
-/* Bottomed out: the head lolls (drawHeads tilts it) and the card is barely holding on. A slow
-   pulse rather than a flash — this lasts HP_STUN_TIME and a strobe for two seconds is nasty. */
-.head.hurt4 { animation: hurtPulse .7s infinite alternate; }
-@keyframes hurtPulse { from { box-shadow: 0 0 0 0 #e0102000; } to { box-shadow: 0 0 18px 5px #e0102088; } }
+/* NO DAMAGE LOOK. The .head.hurt1..4 bruise tiers that sat here were the only readout of a
+   hidden health bar; Head Soccer has no health, so both are gone. */
 
 /* ARMED is a loaded state, not a countdown: the bar stays full, the button stays lit, and
    the head glows in the bar's own gold. */

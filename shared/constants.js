@@ -255,15 +255,6 @@ export let HEADER_POWER = 0.72;      // of a kick, horizontally
 export let HEADER_LIFT = 1.7;        // and more of the lift
 export let HEADER_R = 16;            // px of slack around the head circle that still counts
 
-export let HEAD_POWER = 0.52;       // head hits multiply the bounce-out speed. Was 1.14: a head
-                                     // was springier than a boot, so the ball pinged off a jump
-                                     // harder than off a kick and heading beat playing. At 0.80
-                                     // a header is a touch — it redirects, the boot is what
-                                     // sends it. Then 0.80 was still too lively, so 0.52:
-                                     // a head is now a CONTROL surface — it cushions and
-                                     // redirects — and the boot is the only thing on the
-                                     // pitch that hits the ball hard.
-
 // ---- Jump feel -------------------------------------------------------------
 // The three things that separate a jump that feels good from one that feels broken.
 // COYOTE: you may still jump for this long after walking off a ledge or being bumped —
@@ -277,63 +268,27 @@ export let JUMP_BUFFER = 0.12;
 export let FALL_MULT = 1.55;
 
 // ---- Tackling --------------------------------------------------------------
-// Kicking the OPPONENT rather than the ball: a real risk/reward move. It pays a slice of
-// power gauge and slows them, so pressing is worth something even when the ball is gone.
-// IMMUNE exists so a faster player cannot simply stand next to a slower one and stun-lock
-// them out of the match.
-// The gauge is now EARNED OFF THE OPPONENT and nothing else: a third of it per tackle, so
-// three hits buy a volley. It used to fill on a clock whether you played or not, which made
-// the super move a thing that happened TO a match rather than something a player did.
-export let TACKLE_GAUGE = 0.2;       // gauge gifted to the tackler — FIVE hits for a volley.
-                                     // Three (0.34) was cheap enough that two bots produced
-                                     // ten volleys and eleven goals a match once the cancel
-                                     // window let the shots through. Five keeps it a thing you
-                                     // work towards.
-// Kicking someone in the back is the one hit they could not see coming, so it is the one that
-// costs them most. Both directions shove; the back hit shoves LESS and hurts MORE, which is
-// what keeps it worth walking round behind somebody for.
+// Kicking the OPPONENT rather than the ball. In Head Soccer that is a SHOVE and nothing else:
+// the victim is knocked back toward their OWN goal, which is the whole of the risk/reward —
+// you clear a keeper off the ball, or you push him into his own net with the ball in front of
+// him. It pays no power gauge and takes no health (there is no health: see the note below).
+// IMMUNE exists so a faster player cannot simply stand next to a slower one and juggle them.
+//
+// Kicking someone in the back is the one hit they could not see coming, and it shoves LESS —
+// kept from the old model because nothing in HS contradicts it yet; measured values replace it.
 export let TACKLE_PUSH_BACK = 0.45;  // the shove, scaled down when it lands from behind
 export let TACKLE_PUSH = 430;        // knockback from the front — a real shove
 export let TACKLE_LIFT = 200;
 export let TACKLE_IMMUNE = 1.1;      // s before the same player can be tackled again
 
-// ---- Health -----------------------------------------------------------------
-// INVISIBLE HEALTH. Every player carries one, 1 = 100%, and nothing on screen prints it: the
-// only place it is ever legible is the CHARACTER, whose face reddens and bruises as it falls
-// (see hurtTier in shared/sim.js and .head.hurt1..4 in public/style.css).
-//
-// It replaces the signature-effect system — grey heads, TACKLE_SLOW, rooted and knocked —
-// which turned being hit into being switched off for a second and a half. A hit now costs you
-// CONDITION, which you can see and play around, and the only thing that ever takes the
-// controls away is bottoming out (HP_STUN_TIME).
-export let KICK_DAMAGE = 0.24;       // a boot in the ribs: four of them bottom you out
-export let KICK_DAMAGE_BACK = 1.5;   // × the above when it lands from behind
-export let POWER_DAMAGE = 0.5;       // taking a power shot on the body — two of them
-export let HP_REGEN = 0.05;          // per second, back toward 100%: 40% -> full in 12s.
-                                     // Slow on purpose — a hit is meant to accumulate faster
-                                     // than it fades, or a stun becomes unreachable in a real
-                                     // match with gaps between contacts.
-export let HP_STUN_TIME = 1.75;      // s of no input at 0%. The brief asks for 1.5–2; this is
-                                     // the middle of it, so the PACE dial has room either way.
-export let HP_AFTER_STUN = 0.4;      // what you come back with — hurt, and visibly so
-// GETTING UP TAKES A MOMENT. Revival used to hand you straight back into normal tackle
-// spacing (TACKLE_IMMUNE, 1.1s between hits on anybody), and coming back at 40% means only
-// two more boots are needed to go straight back down — under 1.2s, which read as a stun-lock
-// nobody can play through. This is the one knob that fixes it without touching how long the
-// FIRST knockdown takes: it only ever fires on a revive, so a fresh 100% opponent still goes
-// down in the same ~4-5s of continuous kicking. From 40%, it buys one extra TACKLE_IMMUNE
-// window before the clock the player can already see (their own dodge) — first hit lands at
-// ~HP_REVIVE_GRACE, second (and stunning) hit ~TACKLE_IMMUNE later: ≈3s to a second knockdown.
-// Was 1.9, tuned back against HP_REGEN's old 0.02/s. HP_REGEN is now 0.05/s (40% -> full in
-// 12s instead of 30s), which heals more of the gap back between the two hits above — at 1.9
-// that pushed the second knockdown out to 4.33s. 0.6 is the grace that lands back on the
-// original ~3s target at the faster regen rate (measured, not guessed: swept 0.3-1.9 in
-// 0.1 steps against the mashing test below).
-export let HP_REVIVE_GRACE = 0.6;
-// Where the character's face changes. Read as "at or below".
-export let HP_HURT1 = 0.8;           // a flush of red
-export let HP_HURT2 = 0.6;           // properly red
-export let HP_HURT3 = 0.4;           // red and bruising blue
+// ---- REMOVED: hidden health ------------------------------------------------
+// There used to be an invisible health bar here (HP_*, KICK_DAMAGE, POWER_DAMAGE): every boot
+// and every blocked power shot took a slice, the face reddened and bruised through four tiers,
+// and bottoming out stunned you for 1.75s. Head Soccer has none of that — a hit shoves you and
+// a blocked power shot bounces off you, and that is all — so it is gone, bruises included.
+// What survives is the generic STUN TIMER (`p.stunned`, stun()/tickStun() in shared/sim.js),
+// because arcade powers still knock people down with it and HS's own ailments will too.
+export let STUN_TIME = 1.25;         // s a power that "knocks down" takes the controls away for
 
 // ---- Impact ----------------------------------------------------------------
 // Hit-stop: freeze the whole sim for a few frames on a heavy connect. Costs nothing and is
@@ -343,29 +298,14 @@ export let HIT_STOP_POWER = 0.085;
 export let HIT_STOP_TACKLE = 0.06;
 
 // ---- Power shots -----------------------------------------------------------
-// 0 = no passive fill at all. Kept as a dial rather than deleted, because "how much of the
-// gauge should the clock give you" is exactly the kind of thing worth arguing about with a
-// slider — but it starts at nothing, because the brief is that you earn it by kicking them.
-export let GAUGE_PASSIVE = 0;        // fraction of the gauge per second, 0 = none
-export let GAUGE_FULL = 21;          // Cut with PACE 0.68. The match is still 60 REAL seconds, so a
-                                      // slower game does not change how often the gauge fills — but it
-                                      // does mean far fewer ball contacts to spend it on, and power
-                                      // shots per match fell to 1.9 with one bot match hitting zero.
-                                      // Shorter fill keeps arming a moment that actually happens.         // s to fill an empty gauge. At 13s each player got ~7 power
-                                      // shots a match and nearly all of them scored — matches ended 10-6.
-                                      // ~2-3 per side is what makes arming feel like a moment.
-// WHAT A GOAL PAYS THE PLAYER WHO CONCEDED IT. Twenty-five points ON TOP of whatever their
-// meter already held, clamped at full — an ADDITION, never an assignment and never a reset.
+// THE GAUGE FILLS OVER TIME, and only over time — Head Soccer's rule. It used to be earned off
+// the opponent (a fifth of a gauge per tackle) with a quarter-gauge consolation for conceding;
+// both are gone, so the meter is a clock both players can read and neither can farm. It stays
+// full until spent and freezes in sudden death (chargeGauge in shared/sim.js).
 //
-// The distinction is the whole of the bug this number was caught in. A goal used to wipe both
-// meters back to zero at the restart and then hand this to the conceder, so "conceding gifts
-// you a quarter of a meter" was true and "scoring costs you everything you had earned" was
-// true with it: an 80% meter came out of a goal at 25%, and the scorer's came out at 0. Both
-// players lost a match's worth of tackles every time anybody scored.
-//
-// The one place it is applied is awardConcedeMeter() in shared/sim.js, and that function is
-// the only thing in the sim a goal is allowed to do to a meter.
-export const GAUGE_CONCEDE_BONUS = 0.25;
+// PLACEHOLDER: 1/20 per second, 20s from empty to full. The real fill time (per character, from
+// the Power stat) is to be measured from video — until then this is a round guess, not a fit.
+export let GAUGE_PASSIVE = 1 / 20;   // fraction of the gauge per second
 
 // ── THE ULTIMATE: ARM, THEN TOUCH THE BALL ───────────────────────────────────
 // Three shapes, and the third is the one that is in the game.
@@ -404,8 +344,6 @@ export let POWER_SHOT_SPEED = 1000;   // Ball-only slowdown pass. NOTE the refer
 export let POWER_SHOT_LIFE = 1.6;     // s before a power ball reverts to an ordinary one
 export let POWER_SHOT_SAG = 0.12;     // a touch of gravity so a high shot still comes down
 export let POWER_BLOCK_REBOUND = 0.42; // pace a blocked shot keeps as it comes back off you
-export let POWER_TACKLE_SCALE = 0.55;  // effect strength when you kick the PLAYER, not the ball
-export let POWER_STUN = 1.25;         // plain knockdown length (non-signature knockdowns)
 export let COUNTER_WINDOW = 130;    // px: kick within this of an incoming power ball to counter
 
 // ---- REMOVED: the random match modifiers -----------------------------------
@@ -480,21 +418,11 @@ const SETTERS = {
   COYOTE_TIME: (v) => { COYOTE_TIME = v; },
   JUMP_BUFFER: (v) => { JUMP_BUFFER = v; },
   FALL_MULT: (v) => { FALL_MULT = v; },
-  TACKLE_GAUGE: (v) => { TACKLE_GAUGE = v; },
   TACKLE_PUSH: (v) => { TACKLE_PUSH = v; },
   TACKLE_PUSH_BACK: (v) => { TACKLE_PUSH_BACK = v; },
   TACKLE_LIFT: (v) => { TACKLE_LIFT = v; },
   TACKLE_IMMUNE: (v) => { TACKLE_IMMUNE = v; },
-  KICK_DAMAGE: (v) => { KICK_DAMAGE = v; },
-  KICK_DAMAGE_BACK: (v) => { KICK_DAMAGE_BACK = v; },
-  POWER_DAMAGE: (v) => { POWER_DAMAGE = v; },
-  HP_REGEN: (v) => { HP_REGEN = v; },
-  HP_STUN_TIME: (v) => { HP_STUN_TIME = v; },
-  HP_AFTER_STUN: (v) => { HP_AFTER_STUN = v; },
-  HP_REVIVE_GRACE: (v) => { HP_REVIVE_GRACE = v; },
-  HP_HURT1: (v) => { HP_HURT1 = v; },
-  HP_HURT2: (v) => { HP_HURT2 = v; },
-  HP_HURT3: (v) => { HP_HURT3 = v; },
+  STUN_TIME: (v) => { STUN_TIME = v; },
   HIT_STOP_KICK: (v) => { HIT_STOP_KICK = v; },
   HIT_STOP_POWER: (v) => { HIT_STOP_POWER = v; },
   HIT_STOP_TACKLE: (v) => { HIT_STOP_TACKLE = v; },
@@ -520,7 +448,6 @@ const SETTERS = {
   KICK_R: (v) => { KICK_R = v; },
   KICK_POWER: (v) => { KICK_POWER = v; },
   KICK_LIFT: (v) => { KICK_LIFT = v; },
-  HEAD_POWER: (v) => { HEAD_POWER = v; },
   KICK_AIM: (v) => { KICK_AIM = v; },
   KICK_BOW: (v) => { KICK_BOW = v; },
   KICK_TOE_NEUTRAL: (v) => { KICK_TOE_NEUTRAL = v; },
@@ -536,14 +463,11 @@ const SETTERS = {
   HEAD_RISE: (v) => { HEAD_RISE = v; },
   HEADER_POWER: (v) => { HEADER_POWER = v; },
   HEADER_LIFT: (v) => { HEADER_LIFT = v; },
-  GAUGE_FULL: (v) => { GAUGE_FULL = v; },
   GAUGE_PASSIVE: (v) => { GAUGE_PASSIVE = v; },
   POWER_SHOT_LIFE: (v) => { POWER_SHOT_LIFE = v; },
   POWER_SHOT_SAG: (v) => { POWER_SHOT_SAG = v; },
   POWER_BLOCK_REBOUND: (v) => { POWER_BLOCK_REBOUND = v; },
-  POWER_TACKLE_SCALE: (v) => { POWER_TACKLE_SCALE = v; },
   POWER_SHOT_SPEED: (v) => { POWER_SHOT_SPEED = v; },
-  POWER_STUN: (v) => { POWER_STUN = v; },
   COUNTER_WINDOW: (v) => { COUNTER_WINDOW = v; },
   MATCH_DURATION: (v) => { MATCH_DURATION = v; },
   PACE: (v) => { setPace(v); },
@@ -568,21 +492,11 @@ export function snapshot() {
     COYOTE_TIME,
     JUMP_BUFFER,
     FALL_MULT,
-    TACKLE_GAUGE,
     TACKLE_PUSH,
     TACKLE_PUSH_BACK,
     TACKLE_LIFT,
     TACKLE_IMMUNE,
-    KICK_DAMAGE,
-    KICK_DAMAGE_BACK,
-    POWER_DAMAGE,
-    HP_REGEN,
-    HP_STUN_TIME,
-    HP_AFTER_STUN,
-    HP_REVIVE_GRACE,
-    HP_HURT1,
-    HP_HURT2,
-    HP_HURT3,
+    STUN_TIME,
     HIT_STOP_KICK,
     HIT_STOP_POWER,
     HIT_STOP_TACKLE,
@@ -607,14 +521,10 @@ export function snapshot() {
     KICK_R,
     KICK_POWER,
     KICK_LIFT,
-    HEAD_POWER,
-    GAUGE_FULL,
     POWER_SHOT_LIFE,
     POWER_SHOT_SAG,
     POWER_BLOCK_REBOUND,
-    POWER_TACKLE_SCALE,
     POWER_SHOT_SPEED,
-    POWER_STUN,
     COUNTER_WINDOW,
     MATCH_DURATION,
     PACE,

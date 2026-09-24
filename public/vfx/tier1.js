@@ -336,7 +336,7 @@ export default {
       camera: 'Shake 12 and an orange flash, 1s orange vignette and a light orange tint on firing; shake 14, a flash and a vignette on the explosion.',
       hud: 'The ordinary gold meter and armed glow, the engine\'s super cut-in with its tank; no lingering status — the power is the shot.',
       audio: 'Fire: a low boom with a noise body. Impact: a bigger, lower explosion with a metallic crack. End: a soft hiss of settling smoke.',
-      counterplay: 'Flat means predictable: stand in the line and take the hit (you lose health and get thrown back), or time a kick for a counter. Jumping over it leaves the goal open.',
+      counterplay: 'Flat means predictable: stand in the line and take the hit (it deflects off you), or time a kick for a counter. Jumping over it leaves the goal open.',
       perf: '~75 particles on firing, ~95 on the explosion, ≤4 a frame in flight; 3 drawGlow a frame on the shell, 3 on the aura; no shadowBlur (glow sprites instead). The pitch-wide layer (armed beacon, ambient field, turf strip) adds ~30-90 plain shapes and ≤7 drawGlow a frame, no shadowBlur; the screen-wide sheets keep every burst ≤~120 particles.',
       helpers: 'boom (fx.glow/rays/ring/stamp), fx.beam, fx.burst, fx.confetti, fx.emit(smoke/shard/streak/star/sq), fx.drawGlow, fx.vignette, fx.shake, fx.flash, fx.tint, s.depth. Shared: beacon, field, sheet, speedLines/groundFire where themed.',
     },
@@ -772,8 +772,8 @@ export default {
     palette: ['#ff3d00', '#ffb627', '#7a1f00', '#3b3b3b', '#fff1c1', '#2a2a2a'],
     doc: {
       fantasy: 'The champion stands on a lit barbecue; the shot goes out as a glowing coal down a tunnel of fire, and whoever stops it gets grilled.',
-      purpose: 'A flat shot like the cannon, but blocking it is no longer free: the blocker burns for 2.5s, so the defender has to choose between the goal and their health.',
-      player: 'Fill the meter, press POWER, then touch the ball with head or body. The ball flies flat at 1.02× power-shot speed (≈1020px/s). A body that blocks it burns: 0.03 health every 0.25s for 2.5s (9 ticks, 0.27 in all).',
+      purpose: 'A flat shot like the cannon, but blocking it is no longer free: the blocker burns for 2.5s, so the defender has to choose between the goal and their legs.',
+      player: 'Fill the meter, press POWER, then touch the ball with head or body. The ball flies flat at 1.02× power-shot speed (≈1020px/s). A body that blocks it burns for 2.5s, running at 0.75× speed while the flames flare every 0.25s.',
       bot: 'POWERS.blaze.arm is \'attack\', but at stage 3 the ladder is below the smart bar, so it arms as soon as the meter is full and waits for a touch; style \'striker\' — it presses forward.',
       sequence: {
         anticipation: 'While armed a big charcoal grill roars under the champion: a blazing orange light, glowing coals, a black grate, tall flame tongues licking up behind the legs and embers rising. Over it all the armed beacon: a pillar of red light from the turf to above the head, a spinning dashed ring with a ripple on the grass, sparks spiralling up, and the power\'s icon in a diamond badge bobbing over the head.',
@@ -991,7 +991,8 @@ export default {
     },
 
     // The burn: flames behind the body (back) and in front of the legs (front), flaring on the
-    // tick the sim takes health — `since` is how long ago that was, read off e.next/e.every.
+    // burn tick (a beat, now that there is no health to take) — `since` is how long ago that
+    // was, read off e.next/e.every.
     back(g, e, s) {
       const q = s.M.players[e.target];
       const d = s.depth(q.x, q.y);
@@ -1721,8 +1722,8 @@ export default {
     palette: ['#ffc400', '#b8860b', '#fff3b0', '#1f8f4e', '#d7263d'],
     doc: {
       fantasy: 'The champion hits the jackpot and the payout falls on the opponent\'s head — a marquee lights up over them and gold rains down.',
-      purpose: 'The first power the opponent can dodge by moving: it rewards footwork, and punishes standing still with steady health loss.',
-      player: 'Fill the meter, press POWER, then touch the ball with head or body. The ball is struck at the goal you attack and coins fall on the opponent for 4.5s: one every 0.26s (until 0.5s before the end), each hit costs 0.06 health and knocks them 70px/s sideways.',
+      purpose: 'The first power the opponent can dodge by moving: it rewards footwork, and punishes standing still with a steady shoving.',
+      player: 'Fill the meter, press POWER, then touch the ball with head or body. The ball is struck at the goal you attack and coins fall on the opponent for 4.5s: one every 0.26s (until 0.5s before the end), each hit knocks them 70px/s sideways.',
       bot: 'POWERS.coins.arm is \'any\' and stage 6 is below the smart bar, so it arms as soon as the meter is full; style \'brawler\' — it goes for the man to fill the meter.',
       sequence: {
         anticipation: 'While armed five big coins orbit round the champion\'s head, spinning edge-on to face-on and glinting, with golden light pooling either side. Over it all the armed beacon: a pillar of gold light from the turf to above the head, a spinning dashed ring with a ripple on the grass, sparks spiralling up, and the power\'s icon in a diamond badge bobbing over the head. Seven bigger coins orbit the head.',

@@ -2,7 +2,7 @@
 // Everything that decides the game lives in /shared; this file only draws it and reads keys.
 
 import * as C from '../shared/constants.js';
-import { createMatch, step, headY, headR, hurtTier, NO_FX } from '../shared/sim.js';
+import { createMatch, step, headY, headR, NO_FX } from '../shared/sim.js';
 import { createBot, botInput, DIFFICULTIES } from '../shared/bot.js';
 import { shotFor, SHOTS } from '../shared/powershots.js';
 import { goalBox, goalAt, depthPoint, INSIDE_Z } from '../shared/goalbox.js';
@@ -2303,18 +2303,8 @@ function drawHeads() {
     // the gaugeReady keyframes in style.css, which this is the head's half of.
     el.classList.toggle('armed', p.armed > 0);
     if (p.armed > 0) el.style.setProperty('--glow', '#ffc400');
-    // DAMAGE IS SHOWN ON THE CHARACTER AND NOWHERE ELSE.
-    //
-    // There is no health bar, no number and no meter anywhere in the HUD — deliberately. The
-    // card's own face is the readout: it reddens as the player is worn down and bruises blue
-    // when they are nearly out (.head.hurt1..4 in style.css). One class at a time, straight
-    // off hurtTier, so the sim and the picture cannot hold different opinions about it.
-    //
-    // This replaces the three markers that used to live here — `hexed` (the signature effect's
-    // green cast), `knocked` (grey) and `slowed` (washed out, with a spinning dashed ring).
-    // All three said "this player has been switched off"; these say "this player is hurt".
-    const hurt = hurtTier(p.hp);
-    for (let t = 1; t <= 4; t++) el.classList.toggle('hurt' + t, hurt === t);
+    // NO BRUISES. The face used to redden and bruise off a hidden health bar (.head.hurt1..4);
+    // Head Soccer has no health, so the character is drawn the same however often it is hit.
   }
 }
 
@@ -2405,26 +2395,23 @@ const RANGES = {
   PLAYER_SPEED: [120, 900], PLAYER_ACCEL: [800, 8000], PLAYER_AIR_ACCEL: [200, 3000],
   PLAYER_GRAV: [800, 5000], JUMP_V: [400, 1500], DASH_V: [300, 1800], DASH_TIME: [.05, .5],
   KICK_POWER: [200, 1600], KICK_LIFT: [0, 1400], KICK_REACH: [20, 130], KICK_R: [10, 60],
-  KICK_TIME: [.05, .6], HEAD_POWER: [.4, 2.5],
+  KICK_TIME: [.05, .6],
   BALL_GRAV: [300, 3000], BALL_BOUNCE: [.2, 1], BALL_AIR: [.97, 1], BALL_GROUND_FRICTION: [.9, 1],
   BALL_MAX_SPEED: [500, 2600],
   GOAL_H: [90, 300], GOAL_W: [40, 160], HEAD_R: [24, 80], GROUND_Y: [360, 500],
-  GAUGE_FULL: [3, 60], POWER_SHOT_SPEED: [800, 3600],
+  GAUGE_PASSIVE: [0, .25], POWER_SHOT_SPEED: [800, 3600],
   POWER_SHOT_LIFE: [.4, 4], POWER_SHOT_SAG: [0, 1], POWER_BLOCK_REBOUND: [0, 1],
-  POWER_TACKLE_SCALE: [0, 1.5], BODY_DEADEN: [0, 1],
-  POWER_STUN: [.2, 3], COUNTER_WINDOW: [40, 320], MATCH_DURATION: [15, 180],
+  BODY_DEADEN: [0, 1],
+  COUNTER_WINDOW: [40, 320], MATCH_DURATION: [15, 180],
   // jump feel
   COYOTE_TIME: [0, .3], JUMP_BUFFER: [0, .3], FALL_MULT: [1, 3],
   // kick shaping
   LOB_LIFT: [1, 3], LOB_DRIVE: [.2, 1],
   // tackling
-  TACKLE_GAUGE: [0, .4], TACKLE_PUSH: [0, 900], TACKLE_LIFT: [0, 600], TACKLE_IMMUNE: [0, 4],
-  // damage and health. TACKLE_SLOW / TACKLE_SLOW_TIME / TACKLE_STUN used to sit above; they
-  // were the dials on the lockout a hit used to apply, and there is no lockout to dial now.
-  // These are what a hit costs instead. No slider prints a health value on the pitch — the
-  // tuner is a dev panel behind the gear, not part of the HUD.
-  KICK_DAMAGE: [0, .5], KICK_DAMAGE_BACK: [1, 3], POWER_DAMAGE: [0, 1], HP_REGEN: [0, .4],
-  HP_STUN_TIME: [1.5, 2], HP_AFTER_STUN: [.1, .9],
+  TACKLE_PUSH: [0, 900], TACKLE_LIFT: [0, 600], TACKLE_IMMUNE: [0, 4],
+  // The knockdown a power can cause. The health dials (KICK_DAMAGE, HP_*) that sat here went
+  // with the hidden health itself — Head Soccer has none.
+  STUN_TIME: [.2, 3],
   // impact
   HIT_STOP_KICK: [0, .2], HIT_STOP_POWER: [0, .3], HIT_STOP_TACKLE: [0, .2],
   BALL_IDLE_RESET: [2, 20],

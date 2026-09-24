@@ -113,7 +113,7 @@ for (const id of IDS) {
 const freshHits = () => ({ aura: 0, fire: 0, ball: 0, trail: 0, back: 0, front: 0, over: 0, tick: 0, impact: 0, end: 0 });
 
 const FOE_CARD = { rarity: 'epic', number: 1 };
-const snap = (m) => JSON.stringify([m.players.map((p) => [p.x, p.y, p.vx, p.vy, p.hp, p.gauge, p.armed]), m.ball, m.champ.effects.length, m.score]);
+const snap = (m) => JSON.stringify([m.players.map((p) => [p.x, p.y, p.vx, p.vy, p.stunned, p.gauge, p.armed]), m.ball, m.champ.effects.length, m.score]);
 
 // One run: stage n's champion in seat i, fired off its head, `secs` of match after.
 // `foeX` is where the other player stands, as distance from the champion's own side.

@@ -1,6 +1,6 @@
 // Physics + rules tests. Run: node test-sim.mjs
 import * as C from './shared/constants.js';
-import { createMatch, step, headY, headR, hurtTier, serialize, restore } from './shared/sim.js';
+import { createMatch, step, headY, headR, stun, serialize, restore } from './shared/sim.js';
 import { shotFor, SHOTS } from './shared/powershots.js';
 
 let pass = 0, fail = 0;
@@ -156,16 +156,17 @@ const scoreOn = (m, left, y = C.GROUND_Y - 60, speed = 600) => {
 {
   const m = fresh();
   const conceded = m.players[0], scorer = m.players[1];
-  // Both part-filled, so this measures an ADDITION rather than an assignment. A goal used to
-  // wipe both meters and then gift the conceder, which passed a `>= BONUS` check while
-  // destroying everything either player had earned.
+  // Both part-filled. A goal used to wipe both meters, and later to gift the conceder a quarter
+  // of one; Head Soccer's meter is a clock and nothing else, so now the goal adds NOTHING. Both
+  // meters gain exactly the same — the clock's share of the ticks the goal took — and no more.
   conceded.gauge = 0.4; scorer.gauge = 0.7;
   scoreOn(m, true);
   ok('(the goal went in)', m.score[1] === 1, `score ${m.score.join('-')}`);
-  ok('conceding ADDS the gift to what was there',
-     Math.abs(conceded.gauge - (0.4 + C.GAUGE_CONCEDE_BONUS)) < 1e-9, `gauge=${conceded.gauge}`);
-  ok('and the scorer keeps their own meter untouched',
-     Math.abs(scorer.gauge - 0.7) < 1e-9, `gauge=${scorer.gauge}`);
+  const gotC = conceded.gauge - 0.4, gotS = scorer.gauge - 0.7;
+  ok('conceding gives the conceder nothing the scorer did not also get',
+     Math.abs(gotC - gotS) < 1e-9, `conceder +${gotC.toFixed(4)}, scorer +${gotS.toFixed(4)}`);
+  ok('and what both got is only the clock',
+     gotC >= 0 && gotC <= m.t * C.GAUGE_PASSIVE + 1e-9, `+${gotC.toFixed(4)} in ${m.t.toFixed(2)}s`);
 }
 
 // --- player movement --------------------------------------------------------
@@ -303,12 +304,11 @@ const scoreOn = (m, left, y = C.GROUND_Y - 60, speed = 600) => {
   ok('straight power shot holds its line', Math.abs(m.ball.y - y0) < 30, `dy=${(m.ball.y - y0).toFixed(1)}`);
 }
 {
-  // A POWER SHOT HURTS YOU. IT DOES NOT SWITCH YOU OFF.
+  // A BLOCKED POWER SHOT DEFLECTS. IT DOES NOT SWITCH YOU OFF, AND IT COSTS NOTHING ELSE.
   //
-  // This block used to assert the opposite: `b.knocked > 0`, and then that the defender's
-  // input was ignored for the length of it. That was the old signature effect — grey head, no
-  // controls — and it is what the damage system replaces. Taking a power shot on the body is
-  // still the heaviest hit in the game; it is just paid in health now.
+  // This block used to assert `b.knocked > 0` (the old signature lockout) and then that the
+  // block took half a hidden health bar. Head Soccer has neither: the ball comes back off the
+  // body and the defender plays on.
   const m = fresh();
   const a = m.players[0], b = m.players[1];
   a.shot = SHOTS.blaze;
@@ -320,10 +320,9 @@ const scoreOn = (m, left, y = C.GROUND_Y - 60, speed = 600) => {
   // as it passes — standing is safe from this shot, which is the entire point of the move.
   inLine(m, b);
   run(m, 30);
-  ok('a power shot costs the defender health', b.hp < 1, `hp=${b.hp.toFixed(2)}`);
-  ok('and it is the heaviest hit there is', 1 - b.hp >= C.POWER_DAMAGE - 0.05,
-     `took ${(1 - b.hp).toFixed(2)} of ${C.POWER_DAMAGE}`);
-  ok('one power shot is not enough to stun anybody', b.stunned === 0 && b.hp > 0,
+  ok('a defender in its line blocks the power shot', m.events.some((e) => e.type === 'blocked' && e.player === 1)
+     && m.score[0] === 0, m.events.map((e) => e.type).join(','));
+  ok('and the block is a deflection and nothing else', b.stunned === 0 && !('hp' in b),
      `stunned=${b.stunned}`);
   // The old test proved the defender was frozen by comparing them against a control that was
   // given no input. Same comparison, opposite expectation: a hit player still plays.
@@ -336,14 +335,14 @@ const scoreOn = (m, left, y = C.GROUND_Y - 60, speed = 600) => {
   run(ctrl, 30);
   run(m, 5, [{}, { right: true }]);      // held right
   run(ctrl, 5, [{}, {}]);                // held nothing
-  ok('a damaged defender still answers the controls', Math.abs(b.vx - cb.vx) > 20,
+  ok('a defender who blocked still answers the controls', Math.abs(b.vx - cb.vx) > 20,
      `input ${b.vx.toFixed(1)} vs no input ${cb.vx.toFixed(1)}`);
 }
 {
   // …and nothing about which character fired it locks the defender down. `tentacles` used to
   // ROOT whoever blocked it — the total lockout, the one the old comments called the hardest
-  // in the game. Every shot lands the same consequence now, and it is a number off their
-  // health, so this asserts what it must never do again: take a player's legs away.
+  // in the game. Every shot lands the same consequence now — a deflection — so this asserts
+  // what it must never do again: take a player's legs away.
   const m = fresh();
   const a = m.players[0], b = m.players[1];
   a.shot = SHOTS.tentacles;
@@ -352,8 +351,9 @@ const scoreOn = (m, left, y = C.GROUND_Y - 60, speed = 600) => {
   // PACE the ball had not reached the defender yet. And hold the defender on the volley's
   // line every tick: it flies above a standing head by design, and gravity pulls a defender
   // out of its path in a handful of frames.
-  for (let i = 0; i < 240 && b.hp >= 1; i++) { inLine(m, b); step(m, NONE); }
-  ok('tentacles damage the defender like anything else', b.hp < 1, `hp=${b.hp.toFixed(2)}`);
+  for (let i = 0; i < 240 && m.ball.power; i++) { inLine(m, b); step(m, NONE); }
+  ok('tentacles are blocked like anything else', m.events.some((e) => e.type === 'blocked' && e.player === 1),
+     m.events.map((e) => e.type).join(','));
   const x0 = b.x;
   run(m, 20, [{}, { left: true }]);
   ok('and the defender can still walk away', Math.abs(b.x - x0) > 10,
@@ -414,7 +414,9 @@ const scoreOn = (m, left, y = C.GROUND_Y - 60, speed = 600) => {
   ok('a defender in the path blocks it', m.events.some((e) => e.type === 'blocked') || !m.ball.power,
      'shot went through');
   ok('a blocked shot comes back out', m.ball.vx <= 0 || !m.ball.power, `vx=${m.ball.vx.toFixed(0)}`);
-  ok('but the blocker pays for it', b.hp < 1, `blocking was free (hp ${b.hp.toFixed(2)})`);
+  // It used to cost the blocker health here ("but the blocker pays for it"). No health now:
+  // the deflection is the whole of the block, and the blocker is not knocked down by it.
+  ok('and the blocker is not knocked down by it', b.stunned === 0, `stunned=${b.stunned}`);
 }
 {
   // ARMED BEATS INCOMING: a defender who is ALSO armed and gets hit by the incoming shot does
@@ -432,7 +434,7 @@ const scoreOn = (m, left, y = C.GROUND_Y - 60, speed = 600) => {
   m.ball.x = b.x; m.ball.y = headY(b); m.ball.vx = 0; m.ball.vy = 0;
   m.events.length = 0;
   step(m, [{}, {}]);
-  ok('b took no damage', b.hp === 1, `hp=${b.hp.toFixed(2)}`);
+  ok('b was not knocked down', b.stunned === 0, `stunned=${b.stunned}`);
   ok('the touch fired b\'s own shot, not a\'s', m.ball.power && m.ball.power.shot.id === 'wave',
      `shot=${m.ball.power?.shot.id}`);
   ok('ownership moved to b', m.ball.power && m.ball.power.owner === 1);
@@ -444,7 +446,7 @@ const scoreOn = (m, left, y = C.GROUND_Y - 60, speed = 600) => {
   // EVERY CHARACTER'S POWER LANDS THE SAME CONSEQUENCE, and that is the change. This used to
   // assert the opposite — that the five shots produced at least three DIFFERENT effects — back
   // when each one left its own lockout on whoever blocked it. The lockouts are gone, so what
-  // is left to differ is speed and colour, and the consequence is one number for all of them.
+  // is left to differ is speed and colour, and the consequence — a deflection — is the same.
   for (const id of Object.keys(SHOTS)) {
     const shot = SHOTS[id];
     ok(`${id} no longer carries a signature effect`, shot.effect === undefined);
@@ -458,9 +460,9 @@ const scoreOn = (m, left, y = C.GROUND_Y - 60, speed = 600) => {
     firePower(m, 0);
     inLine(m, d);
     run(m, 30);
-    return +(1 - d.hp).toFixed(4);
+    return `${m.events.some((e) => e.type === 'blocked' && e.player === 1)}|${d.stunned}`;
   });
-  ok('and every one of them costs the same health', new Set(dmg).size === 1, dmg.join(','));
+  ok('and every one of them is blocked the same way', new Set(dmg).size === 1 && dmg[0] === 'true|0', dmg.join(','));
 }
 
 // --- the head deadens too, just less -----------------------------------------
@@ -515,18 +517,19 @@ const scoreOn = (m, left, y = C.GROUND_Y - 60, speed = 600) => {
   a.gauge = 0;
   step(m, [{ kick: true }, {}]);
   ok('kicking the opponent lands a tackle', m.events.some((e) => e.type === 'tackle'));
-  // Not exactly TACKLE_GAUGE: the ordinary per-tick charge lands in the same step.
-  ok('the tackler gains gauge', a.gauge >= C.TACKLE_GAUGE && a.gauge < C.TACKLE_GAUGE + 0.01,
+  // A TACKLE PAYS NO GAUGE (Head Soccer): the tackler's meter moves by exactly one tick of the
+  // clock and not a hair more. It used to pay TACKLE_GAUGE, a fifth of a meter a hit.
+  ok('the tackler gains no gauge from it', Math.abs(a.gauge - C.TICK * C.GAUGE_PASSIVE) < 1e-9,
      `gauge=${a.gauge.toFixed(4)}`);
-  ok('the victim takes damage', b.hp < 1 && b.hp >= 1 - C.KICK_DAMAGE * C.KICK_DAMAGE_BACK - 1e-9,
-     `hp=${b.hp.toFixed(3)}`);
-  // Within a tick of regen of the live value, not equal to it: the victim's own stepPlayer
-  // runs after the tackler's in the same tick and mends HP_REGEN * dt of it straight away.
-  ok('the tackle event reports what it took off',
-     m.events.some((e) => e.type === 'tackle' && e.damage > 0
-                       && Math.abs(e.hp - b.hp) <= C.HP_REGEN * C.TICK + 1e-9),
+  ok('and the victim\'s meter is not touched either', Math.abs(b.gauge - C.TICK * C.GAUGE_PASSIVE) < 1e-9,
+     `gauge=${b.gauge.toFixed(4)}`);
+  ok('the victim takes no damage and is not knocked down', !('hp' in b) && b.stunned === 0);
+  ok('the tackle event carries no health', m.events.some((e) => e.type === 'tackle' && !('hp' in e) && !('damage' in e)),
      JSON.stringify(m.events.filter((e) => e.type === 'tackle')));
   ok('the victim is knocked back', Math.abs(b.vx) > 100, `vx=${b.vx.toFixed(0)}`);
+  // …TOWARD THEIR OWN GOAL. b is player 1, who defends the RIGHT net (side -1), so the shove
+  // is +x — here that is also away from the tackler, which the next block pulls apart.
+  ok('toward their own goal', Math.sign(b.vx) === -b.side, `vx=${b.vx.toFixed(0)} side=${b.side}`);
   ok('a tackle grants immunity', b.tackleImmune > 0);
   ok('a tackle causes hit-stop', m.hitStop > 0);
 }
@@ -655,12 +658,23 @@ const scoreOn = (m, left, y = C.GROUND_Y - 60, speed = 600) => {
 
 // --- gauge & clock ----------------------------------------------------------
 {
+  // THE GAUGE IS A CLOCK (Head Soccer). Nobody touches anything: both meters go from empty to
+  // full in 1 / GAUGE_PASSIVE seconds — 20s with the placeholder rate — and then stay full.
   const m = fresh();
-  run(m, Math.round(C.GAUGE_FULL / C.TICK));
-  // The gauge is EARNED off the opponent now — GAUGE_PASSIVE is 0, so a minute of standing
-  // about buys nothing. What fills it is tested with the power move at the bottom of this
-  // file; this one only guards that the clock stays switched off.
-  ok('the clock alone does not fill the gauge', m.players[0].gauge === 0, `gauge=${m.players[0].gauge.toFixed(3)}`);
+  const full = 1 / C.GAUGE_PASSIVE;
+  ok('(the placeholder fill time is 20s)', Math.abs(full - 20) < 1e-9, `${full}s`);
+  run(m, Math.round((full - 0.5) / C.TICK));
+  const [p0, p1] = m.players;
+  ok('half a second short of it, the gauge is not yet full', p0.gauge < 1 && p0.gauge > 0.95,
+     `gauge=${p0.gauge.toFixed(3)}`);
+  ok('and it has filled at the clock\'s rate', Math.abs(p0.gauge - m.t * C.GAUGE_PASSIVE) < 1e-6,
+     `${p0.gauge.toFixed(4)} after ${m.t.toFixed(2)}s`);
+  run(m, Math.round(1 / C.TICK));
+  ok('half a second past it, both gauges are full', p0.gauge === 1 && p1.gauge === 1,
+     `${p0.gauge} / ${p1.gauge}`);
+  run(m, Math.round(5 / C.TICK));
+  ok('and a full gauge stays full, never past it', p0.gauge === 1 && p1.gauge === 1);
+  ok('the clock alone arms nobody', p0.armed === 0 && p1.armed === 0);
 }
 {
   const m = fresh({ duration: 0.5 });
@@ -761,10 +775,9 @@ const scoreOn = (m, left, y = C.GROUND_Y - 60, speed = 600) => {
 }
 
 // ── A TACKLE FROM BEHIND ──────────────────────────────────────────────────────
-// Same button, two outcomes, decided by where you are standing: a hit to the front SHOVES
-// them, a hit to the back FREEZES them. Kicking someone in the back is the one hit they had
-// no chance to read, so it is the one that stops them dead — and it deliberately shoves them
-// less, or a freeze would also slide them out of the fight.
+// Same button, two strengths, decided by where you are standing: a hit you never saw coming
+// shoves you less (TACKLE_PUSH_BACK). It used to FREEZE you, and later to cost half again as
+// much hidden health; both are gone, and both hits push the victim toward their OWN goal.
 {
   const hit = (fromBehind) => {
     const m = fresh();
@@ -777,19 +790,15 @@ const scoreOn = (m, left, y = C.GROUND_Y - 60, speed = 600) => {
     a.kickCd = 0; a.prev = {}; m.hitStop = 0;
     step(m, [{ kick: true }, {}]);
     const ev = m.events.find((e) => e.type === 'tackle');
-    return { hurt: 1 - b.hp, vx: Math.abs(b.vx), behind: ev && ev.behind, stunned: b.stunned };
+    return { dir: Math.sign(b.vx), side: b.side, vx: Math.abs(b.vx), behind: ev && ev.behind, stunned: b.stunned };
   };
   const front = hit(false), back = hit(true);
   // Against the LIVE constant, not the authored one: TACKLE_PUSH rides the PACE dial, so a
   // literal here would fail every time someone slowed the game down.
   ok('a tackle from the front is a shove', front.vx > C.TACKLE_PUSH * 0.9,
      `push ${front.vx.toFixed(0)} of ${C.TACKLE_PUSH.toFixed(0)}`);
-  // THE DISTINCTION MOVED, from the lockout to the damage. A back hit used to FREEZE you for
-  // three times as long; it now HURTS you half again as much, and neither hit stops you
-  // playing at all. Same read for the player — get behind them, it is worth more — bought
-  // without taking anybody's controls away.
-  ok('a tackle from behind hurts more', back.hurt > front.hurt * 1.4,
-     `${front.hurt.toFixed(3)} front vs ${back.hurt.toFixed(3)} behind`);
+  ok('both push the victim toward their own goal', front.dir === -front.side && back.dir === -back.side,
+     `front ${front.dir}, back ${back.dir}, victim side ${front.side}`);
   ok('and neither one freezes anybody', front.stunned === 0 && back.stunned === 0);
   ok('and it shoves them less, not more', back.vx < front.vx,
      `${front.vx.toFixed(0)} front vs ${back.vx.toFixed(0)} behind`);
@@ -867,30 +876,34 @@ const scoreOn = (m, left, y = C.GROUND_Y - 60, speed = 600) => {
 
 // ── THE POWER MOVE: EARNED, CHARGED, VOLLEYED ─────────────────────────────────
 {
-  // 1. THE GAUGE IS EARNED OFF THE OPPONENT. It used to fill on a clock whether you played
-  // or not; now three tackles buy a volley and standing still buys nothing.
+  // 1. THE GAUGE IS A CLOCK, AND NOTHING ELSE FILLS IT. It used to be earned off the opponent
+  // (five tackles bought a volley, TACKLE_GAUGE) and standing still bought nothing. Head Soccer
+  // is the other way round, so this asserts both halves: three seconds of nothing buys exactly
+  // three seconds of GAUGE_PASSIVE, and a string of landed tackles buys not a hair more than
+  // the ticks they took.
   const m = fresh();
   const [a, b] = m.players;
-  const before = a.gauge;
   run(m, 180);                                        // three seconds of doing nothing
-  ok('the gauge does not fill on its own', a.gauge === before, `${before} -> ${a.gauge}`);
+  ok('the gauge fills on its own', Math.abs(a.gauge - 180 * C.TICK * C.GAUGE_PASSIVE) < 1e-9,
+     `gauge ${a.gauge.toFixed(4)} after 3s`);
 
-  // Count the tackles that LAND, not the swings taken: a swing that misses is not what the
-  // rule is about, and counting attempts made this read as four when it is three.
-  let landed = 0;
-  for (let i = 0; i < 9 && a.gauge < 1; i++) {
+  const before = [a.gauge, b.gauge];
+  let landed = 0, ticks = 0;
+  // Count the tackles that LAND, not the swings taken (a swing can miss a victim still in the
+  // air from the last one), and charge the clock for every tick either way.
+  for (let i = 0; i < 9 && landed < 5; i++) {
     a.x = 500; b.x = 500 + 34; b.y = a.y; a.facing = 1; b.facing = -1;
-    a.kickCd = 0; a.prev = {}; b.tackleImmune = 0; b.hp = 1; b.stunned = 0; m.hitStop = 0;
-    step(m, [{ kick: true }, {}]);
+    a.kickCd = 0; a.prev = {}; b.tackleImmune = 0; b.stunned = 0; m.hitStop = 0;
+    step(m, [{ kick: true }, {}]); ticks++;
     if (m.events.some((e) => e.type === 'tackle')) landed++;
     m.events.length = 0;
   }
-  // FIVE now, not three: TACKLE_GAUGE came down to 0.2 when a three-tackle volley turned out
-  // to be cheap enough for two bots to trade ten of them a match. Derived from the constant so
-  // the next retune does not need this line edited.
-  const want = Math.ceil(1 / C.TACKLE_GAUGE);
-  ok('a handful of kicks into the opponent fills it', a.gauge >= 1 && landed === want,
-     `${landed} landed tackles (wanted ${want}), gauge ${a.gauge.toFixed(2)}`);
+  const clock = ticks * C.TICK * C.GAUGE_PASSIVE;
+  ok('(the tackles landed)', landed === 5, `${landed}/5`);
+  ok('tackling adds nothing to the tackler\'s gauge', Math.abs(a.gauge - before[0] - clock) < 1e-9,
+     `+${(a.gauge - before[0]).toFixed(4)} over ${ticks} ticks (clock ${clock.toFixed(4)})`);
+  ok('and takes nothing off the victim\'s', Math.abs(b.gauge - before[1] - clock) < 1e-9,
+     `+${(b.gauge - before[1]).toFixed(4)}`);
 }
 {
   // 2. PRESSING POWER ONLY ARMS. It fires nothing, it spends nothing, and it does not go
@@ -957,7 +970,7 @@ const scoreOn = (m, left, y = C.GROUND_Y - 60, speed = 600) => {
     if (m.score[0] > 0) break;
   }
   ok('a body in its path blocks it', blocked, `score ${m.score[0]}`);
-  ok('and the blocker pays for it in health', d.hp < 1, `blocking was free (hp ${d.hp.toFixed(2)})`);
+  ok('and the block is a deflection, not a knockdown', d.stunned === 0, `stunned=${d.stunned}`);
 }
 {
   // 6. YOU CANNOT ARM WITHOUT THE METER, OR TWICE OFF ONE PRESS.
@@ -1608,10 +1621,9 @@ const scoreOn = (m, left, y = C.GROUND_Y - 60, speed = 600) => {
 // ── THE SNAPSHOT CARRIES EVERY LIVE FIELD ─────────────────────────────────────
 //
 // P_FIELDS is the wire schema, and a field left out of it is a field a reconciling client
-// silently loses. The pair in that seat now is `hp`/`stunned`, and they are the same shape of
-// hazard the old `effectId`/`effectT` were: `hp` barely moves the physics, so nothing else
-// would catch it, but the character's damaged look is derived from it and from nothing else —
-// leave it out and every reconcile flickers a hurt player back to healthy.
+// silently loses. `stunned` sits in the seat the old `effectId`/`effectT` (and later `hp`) sat
+// in: it decides whether input is read at all, and the renderer draws the slump off it — leave
+// it out and every reconcile flickers a downed player back onto their feet.
 //
 // Written as "no live field is missing" rather than "these two are present", so the next field
 // somebody adds to a player has to be classified rather than quietly dropped.
@@ -1626,21 +1638,22 @@ const scoreOn = (m, left, y = C.GROUND_Y - 60, speed = 600) => {
   const p = m.players[0];
   p.gauge = 0.37; p.armed = 1; p.coyote = 0.04; p.jumpBuf = 0.03;
   p.tackleImmune = 0.55; p.shoved = 0.13;
-  p.hp = 0.37; p.stunned = 0.66; p.kickLob = true; p.kickDir = -1;
+  p.stunned = 0.66; p.kickLob = true; p.kickDir = -1;
   restore(m2, serialize(m));
   const lost = live.filter((k) => m2.players[0][k] !== p[k]);
   ok('every live player field survives serialize -> restore', lost.length === 0, `lost: ${lost.join(', ')}`);
-  ok('health and the stun survive a reconcile',
-     m2.players[0].hp === 0.37 && m2.players[0].stunned === 0.66,
-     `${m2.players[0].hp} / ${m2.players[0].stunned}`);
+  ok('the stun survives a reconcile', m2.players[0].stunned === 0.66, `${m2.players[0].stunned}`);
+  ok('and the snapshot has no health seat any more', !('hp' in m2.players[0]) && !JSON.stringify(s).includes('"hp"'));
 }
 
-// ══ HEALTH, DAMAGE AND THE ONE STUN ═══════════════════════════════════════════
+// ══ NO HEALTH: A TACKLE IS KNOCKBACK, AND THE ONE STUN IS A TIMER ═══════════════
 //
-// The system that replaced the signature effects. The rule it is built to keep is a single
-// sentence: BEING HIT COSTS YOU CONDITION, AND ONLY BOTTOMING OUT COSTS YOU CONTROL. Health is
-// invisible — no bar, no number, nothing in the HUD — so the character's own face is the only
-// readout, and hurtTier is the one place the thresholds are written down.
+// This section used to fence the hidden-health system: KICK_DAMAGE off every boot, the face
+// bruising through four hurtTier looks, a 1.75s stun at 0%, regeneration, a revive at 40%.
+// Head Soccer has none of it, so it was removed (hs-parity, Phase C1) and these tests now fence
+// the other side: nothing about being hit takes health or controls, a tackle shoves the victim
+// toward their OWN goal, and the stun that survives is a plain timer (stun()/tickStun()) that
+// the arcade's knockdown powers — and later HS's ailments — set directly.
 {
   // Put the victim on the tackler's boot and press. Returns the match so a test can keep going.
   const tackle = (m, attacker = 0) => {
@@ -1648,13 +1661,12 @@ const scoreOn = (m, left, y = C.GROUND_Y - 60, speed = 600) => {
     m.ball.x = C.W / 2; m.ball.y = 100;                 // ball nowhere near: this is a tackle
     v.x = a.x + Math.sign(v.x - a.x || 1) * C.KICK_REACH;
     a.facing = Math.sign(v.x - a.x) || 1;
-    v.facing = -a.facing;                               // face them: a FRONT hit, the cheap one
+    v.facing = -a.facing;                               // face them: a FRONT hit
     a.kickCd = 0; a.prev = {}; v.tackleImmune = 0; m.hitStop = 0;
     step(m, attacker === 0 ? [{ kick: true }, {}] : [{}, { kick: true }]);
     m.hitStop = 0;
     return m;
   };
-  const events = (m) => m.events.filter((e) => e.type === 'tackle');
   // Land `n` tackles on the victim, clearing the immunity between them. Returns the events.
   const beat = (m, n, attacker = 0) => {
     const seen = [];
@@ -1666,27 +1678,28 @@ const scoreOn = (m, left, y = C.GROUND_Y - 60, speed = 600) => {
     }
     return seen;
   };
+  // Knock player `i` down for `secs` through the sim's own stun(), as a power would.
+  const down = (m, i, secs = C.STUN_TIME) => stun(m, m.players[i], secs);
 
-  // ---- 1. health exists, starts full, and is not on screen -----------------
+  // ---- 1. there is no health ------------------------------------------------
   {
     const m = fresh();
-    ok('both players start at full health', m.players[0].hp === 1 && m.players[1].hp === 1);
+    ok('a player has no health field', m.players.every((p) => !('hp' in p)));
     ok('and neither starts stunned', m.players[0].stunned === 0 && m.players[1].stunned === 0);
-    ok('health is a fraction, not a percentage', m.players[0].hp === 1);
+    const seen = beat(m, 12);
+    ok('twelve tackles in a row never knock anybody down', m.players[1].stunned === 0
+       && !seen.some((e) => e.type === 'stunned'), seen.filter((e) => e.type === 'stunned').length + ' stuns');
+    ok('and no damage event exists any more', !seen.some((e) => e.type === 'damage'));
   }
 
-  // ---- 2. a kick damages, and does NOT grey / slow / stick -----------------
+  // ---- 2. a kick shoves, and does NOT grey / slow / stick --------------------
   {
     const m = fresh();
     const v = m.players[1];
     tackle(m);
-    ok('a kick damages the opponent', v.hp < 1, `hp=${v.hp.toFixed(3)}`);
-    ok('…by KICK_DAMAGE', Math.abs((1 - v.hp) - C.KICK_DAMAGE) < C.HP_REGEN * C.TICK + 1e-9,
-       `took ${(1 - v.hp).toFixed(4)}, expected ${C.KICK_DAMAGE}`);
-    ok('a damage event says so', m.events.some((e) => e.type === 'damage' && e.player === 1));
-    // The three fields the old effect lived in are gone from the player entirely. Asserted as
-    // ABSENT rather than zero, so re-adding one is a failure rather than a silent revival.
-    for (const dead of ['knocked', 'rooted', 'slow', 'effectId', 'effectT']) {
+    // The fields the old effect and the old health lived in are gone from the player entirely.
+    // Asserted as ABSENT rather than zero, so re-adding one is a failure, not a silent revival.
+    for (const dead of ['knocked', 'rooted', 'slow', 'effectId', 'effectT', 'hp']) {
       ok(`a kicked player has no '${dead}' state any more`, !(dead in v), `${dead}=${v[dead]}`);
     }
     ok('and a kick does not stun', v.stunned === 0);
@@ -1702,150 +1715,81 @@ const scoreOn = (m, left, y = C.GROUND_Y - 60, speed = 600) => {
     ok('a kicked player keeps normal movement',
        Math.abs(Math.abs(hit.players[1].vx) - Math.abs(clean.players[1].vx)) < 1,
        `${hit.players[1].vx.toFixed(0)} vs ${clean.players[1].vx.toFixed(0)}`);
-    ok('…and normal jumping', hit.players[1].hp < 1
-       && (run(hit, 2, [{}, { jump: true }]), hit.players[1].vy < -100), `vy=${hit.players[1].vy.toFixed(0)}`);
+    ok('…and normal jumping', (run(hit, 2, [{}, { jump: true }]), hit.players[1].vy < -100),
+       `vy=${hit.players[1].vy.toFixed(0)}`);
   }
 
-  // ---- 3. a power hit damages, harder ---------------------------------------
+  // ---- 3. the knockback is toward the victim's OWN goal -----------------------
   {
-    const m = fresh();
-    const a = m.players[0], d = m.players[1];
-    a.shot = SHOTS.blaze;
-    d.x = a.x + 300;
-    firePower(m, 0);
-    inLine(m, d);
-    run(m, 30);
-    ok('a power hit damages the opponent', d.hp < 1, `hp=${d.hp.toFixed(3)}`);
-    ok('…by more than a kick', 1 - d.hp > C.KICK_DAMAGE, `${(1 - d.hp).toFixed(3)} vs ${C.KICK_DAMAGE}`);
-    ok('and it does not stun on its own', d.stunned === 0);
-  }
-
-  // ---- 4. the thresholds, and what the character shows ----------------------
-  {
-    ok('above 80% the character is untouched', hurtTier(1) === 0 && hurtTier(0.81) === 0);
-    ok('80% or lower is the first red', hurtTier(0.8) === 1 && hurtTier(0.61) === 1);
-    ok('60% or lower is stronger', hurtTier(0.6) === 2 && hurtTier(0.41) === 2);
-    ok('40% or lower brings the blue marks', hurtTier(0.4) === 3 && hurtTier(0.01) === 3);
-    ok('0% is the critical look', hurtTier(0) === 4);
-    // Monotonic: a player who is getting worse never looks better on the way down.
-    let worst = 0, drops = 0;
-    for (let hp = 1; hp >= 0; hp -= 0.005) {
-      const t = hurtTier(Math.max(0, +hp.toFixed(4)));
-      if (t < worst) drops++;
-      worst = Math.max(worst, t);
+    // Both directions: player 0 shoving player 1 (who defends the RIGHT net) and back.
+    for (const attacker of [0, 1]) {
+      const m = fresh();
+      const v = m.players[1 - attacker];
+      tackle(m, attacker);
+      ok(`player ${attacker} tackling sends player ${1 - attacker} toward their own goal`,
+         Math.sign(v.vx) === -v.side && Math.abs(v.vx) > C.TACKLE_PUSH * 0.9,
+         `vx=${v.vx.toFixed(0)} side=${v.side}`);
     }
-    ok('the damaged look only ever gets worse as health falls', drops === 0, `${drops} reversals`);
   }
   {
-    // …and the tier really does follow damage as it lands, tick by tick, on a live match.
+    // …and whichever side the boot came from. A victim tucked in just BEHIND the tackler's hip
+    // is still inside the swing, and used to be shoved AWAY FROM THE TACKLER — toward the goal
+    // they attack. Head Soccer's rule is the victim's own goal, every time.
     const m = fresh();
-    const v = m.players[1];
-    const tiers = [hurtTier(v.hp)];
-    for (let i = 0; i < 6; i++) { tackle(m); m.events.length = 0; v.tackleImmune = 0; tiers.push(hurtTier(v.hp)); }
-    ok('the character visibly worsens as the kicks land', tiers[0] === 0 && tiers[tiers.length - 1] >= 3,
-       tiers.join('->'));
+    const [a, v] = m.players;
+    m.ball.x = C.W / 2; m.ball.y = 100;
+    a.x = 500; a.facing = 1; v.x = 490; v.y = a.y; v.facing = 1;
+    a.kickCd = 0; a.prev = {}; v.tackleImmune = 0; m.hitStop = 0;
+    step(m, [{ kick: true }, {}]);
+    const ev = m.events.find((e) => e.type === 'tackle');
+    ok('(a victim behind the tackler is still tackled)', !!ev, m.events.map((e) => e.type).join(','));
+    ok('and is shoved toward their own goal, not away from the tackler', ev && Math.sign(v.vx) === -v.side,
+       `vx=${v.vx.toFixed(0)} side=${v.side}`);
   }
 
-  // ---- 5. ONE stun at 0%, 1.5-2s, no duplicates ----------------------------
+  // ---- 4. the stun: one timer, set once, taken off on time ------------------
   {
-    ok('the stun is between 1.5 and 2 seconds', C.HP_STUN_TIME >= 1.5 && C.HP_STUN_TIME <= 2,
-       `${C.HP_STUN_TIME}s`);
     const m = fresh();
     const v = m.players[1];
-    const seen = beat(m, 12);                            // more than enough to bottom them out
-    const stuns = seen.filter((e) => e.type === 'stunned' && e.player === 1);
-    ok('bottoming out stuns the player', stuns.length >= 1, `${stuns.length} stuns`);
-    ok('…exactly once, however many hits land', stuns.length === 1, `${stuns.length} stuns`);
-    ok('the stun is set to HP_STUN_TIME', Math.abs(stuns[0].time - C.HP_STUN_TIME) < 1e-9);
-    ok('and the character is at its critical look', hurtTier(v.hp) === 4, `hp=${v.hp}`);
-    // Keep kicking a player who is already down: no second stun, and the clock does not grow.
+    ok('stun() knocks a player down for the time asked', down(m, 1) && Math.abs(v.stunned - C.STUN_TIME) < 1e-9,
+       `stunned=${v.stunned}`);
+    ok('and says so in an event', m.events.some((e) => e.type === 'stunned' && e.player === 1 && e.time === C.STUN_TIME));
     const before = v.stunned;
-    const more = beat(m, 4);
-    ok('a stunned player cannot be re-stunned', !more.some((e) => e.type === 'stunned'));
-    ok('and hitting them does not extend it', v.stunned <= before + 1e-9,
-       `${before.toFixed(2)} -> ${v.stunned.toFixed(2)}`);
-    ok('nor damage them further', v.hp === 0, `hp=${v.hp}`);
+    ok('a stunned player cannot be re-stunned', down(m, 1, 5) === false);
+    ok('and a second stun does not extend the first', v.stunned === before, `${before} -> ${v.stunned}`);
   }
   {
     // A stun takes the controls, and gives them back. Both halves, on one match.
-    const m = fresh();
+    const m = fresh(), ctrl = fresh();
     const v = m.players[1];
-    beat(m, 12);
+    down(m, 1); down(ctrl, 1);
     m.events.length = 0;
-    ok('(the victim is down)', v.stunned > 0);
-    // Against a control, the way the old knockdown test did it: a stunned player still COASTS
-    // — the tackle's shove is decaying under them — so "cannot walk" cannot be a distance. It
-    // is "input changes nothing", which is the property that actually matters.
-    const ctrl = fresh();
-    beat(ctrl, 12);
+    // Against a control: "input changes nothing" is the property that actually matters.
     run(m, 20, [{}, { right: true }]);
     run(ctrl, 20, NONE);
     ok('a stunned player ignores the controls',
        Math.abs(v.x - ctrl.players[1].x) < 0.001 && Math.abs(v.vx - ctrl.players[1].vx) < 0.001,
        `${v.x.toFixed(2)} vs ${ctrl.players[1].x.toFixed(2)}`);
-    // Run out what is LEFT of the stun, timed against the clock it is actually holding: the
-    // ticks above have already eaten some of it. The cap is generous on purpose — what is
-    // asserted is that it ENDS, and a stun that never did would fail here rather than hang.
     const left = v.stunned;
     let t = 0;
     for (; t < 400 && v.stunned > 0; t++) { m.hitStop = 0; step(m, NONE); }
     ok('the stun always ends', v.stunned === 0, `still stunned after ${t} ticks`);
     ok('…and runs exactly the clock it was given', Math.abs(t * C.TICK - left) <= C.TICK + 1e-9,
        `${(t * C.TICK).toFixed(3)}s of ${left.toFixed(3)}s`);
-    ok('and it comes back at about 40%', Math.abs(v.hp - C.HP_AFTER_STUN) < 0.02, `hp=${v.hp.toFixed(3)}`);
-    ok('the player is still visibly hurt', hurtTier(v.hp) === 3, `tier ${hurtTier(v.hp)}`);
     ok('a revive event reports the handover', m.events.some((e) => e.type === 'revive' && e.player === 1));
+    ok('and getting up buys a tackle-immunity window', v.tackleImmune > 0, `immune ${v.tackleImmune.toFixed(2)}`);
     const x1 = v.x;
     run(m, 30, [{}, { right: true }]);
-    ok('and the controls come back with them', Math.abs(v.x - x1) > 20,
-       `moved ${Math.abs(v.x - x1).toFixed(1)}px`);
+    ok('and the controls come back with them', Math.abs(v.x - x1) > 20, `moved ${Math.abs(v.x - x1).toFixed(1)}px`);
   }
   {
-    // A CHAIN-STUN TAKES LONGER THAN THE FIRST ONE, on request — coming back at 40% used to
-    // mean two more boots, under 1.2s of continuous kicking, put the same player straight back
-    // down. HP_REVIVE_GRACE buys one extra TACKLE_IMMUNE window right on revival so a repeat
-    // knockdown costs roughly the length of the example given: ~4-5s from full, ~3s from a
-    // revive. Driven by mashing kick every tick against a stationary victim, the way a human
-    // holding the button down against someone AFK actually plays.
-    const mash = (m, attacker, victim, cond, maxTicks) => {
-      let key = false;
-      for (let t = 0; t < maxTicks; t++) {
-        m.hitStop = 0; key = !key;
-        victim.x = attacker.x + C.KICK_REACH; victim.vx = 0; victim.y = C.GROUND_Y; victim.onGround = true;
-        const input = [{}, {}]; input[attacker.index] = { kick: key };
-        step(m, input);
-        m.events.length = 0;
-        if (cond()) return t * C.TICK;
-      }
-      return -1;
-    };
-    const m = fresh();
-    const a = m.players[0], v = m.players[1];
-    m.ball.x = 9999; m.ball.y = 9999;                    // out of the way
-    const firstStun = mash(m, a, v, () => v.stunned > 0, 600);
-    ok('mashed from full health, the first stun lands in about 4-5s',
-       firstStun >= 3.5 && firstStun <= 6, `${firstStun.toFixed(2)}s`);
-    let t = 0;
-    for (; t < 400 && v.stunned > 0; t++) { m.hitStop = 0; step(m, NONE); }
-    ok('(revived)', v.stunned === 0 && Math.abs(v.hp - C.HP_AFTER_STUN) < 1e-9);
-    const secondStun = mash(m, a, v, () => v.stunned > 0, 600);
-    ok('mashed again right after revival, the second stun takes about 3s',
-       secondStun >= 2.3 && secondStun <= 3.8, `${secondStun.toFixed(2)}s`);
-    ok('…clearly longer than a bare two-hit gap would give without the grace',
-       secondStun > C.TACKLE_IMMUNE * 1.3, `${secondStun.toFixed(2)}s vs immune ${C.TACKLE_IMMUNE}s`);
-  }
-
-  {
-    // THE STUN IS A WALL CLOCK, and hit-stop is the thing that used to bend it. step() returns
-    // before any player is stepped for the length of a hit-stop, so a stun that spanned a few
-    // of them ran long — measured at 1.98s against an authored 1.75s, and a player standing
-    // over a downed opponent could keep adding to it. Now the countdown runs through the pause
-    // and a downed player cannot be tackled at all.
+    // THE STUN IS A WALL CLOCK. step() returns before any player is stepped for the length of a
+    // hit-stop, so a stun that spanned a few of them used to run long. The countdown runs
+    // through the pause now.
     const lengthOf = (withHitStops) => {
       const m = fresh();
       const v = m.players[1];
-      beat(m, 12);
-      m.events.length = 0;
+      down(m, 1);
       let t = 0;
       for (; t < 600 && v.stunned > 0; t++) {
         if (!withHitStops) m.hitStop = 0;
@@ -1857,128 +1801,68 @@ const scoreOn = (m, left, y = C.GROUND_Y - 60, speed = 600) => {
     const quiet = lengthOf(false), busy = lengthOf(true);
     ok('a stun spanning hit-stops still runs its own clock', Math.abs(busy - quiet) <= C.TICK * 2 + 1e-9,
        `${quiet.toFixed(3)}s quiet vs ${busy.toFixed(3)}s under constant hit-stop`);
-    ok('…and both are inside the 1.5-2s the brief asks for',
-       quiet >= 1.5 && quiet <= 2 && busy >= 1.5 && busy <= 2, `${quiet.toFixed(2)} / ${busy.toFixed(2)}`);
+    ok('…and both are STUN_TIME long', Math.abs(quiet - C.STUN_TIME) <= C.TICK * 2 && Math.abs(busy - C.STUN_TIME) <= C.TICK * 2,
+       `${quiet.toFixed(2)} / ${busy.toFixed(2)} of ${C.STUN_TIME}`);
   }
   {
-    // A downed player is not a target. Booting one used to pay the tackler gauge for nothing
-    // and stretch the victim's time on the floor with every hit-stop it made.
+    // A downed player is not a target: booting one would stretch their time on the floor with
+    // every hit-stop it made.
     const m = fresh();
-    const a = m.players[0], v = m.players[1];
-    beat(m, 12);
-    ok('(the victim is down)', v.stunned > 0);
-    const gauge = a.gauge;
+    down(m, 1);
     m.events.length = 0;
     beat(m, 5);
-    ok('a stunned player cannot be tackled', !m.events.some((e) => e.type === 'tackle')
-       && !events(m).length, JSON.stringify(m.events.map((e) => e.type)));
-    ok('…so nobody farms meter off them', Math.abs(a.gauge - gauge) < 0.02,
-       `${gauge.toFixed(3)} -> ${a.gauge.toFixed(3)}`);
+    ok('a stunned player cannot be tackled', !m.events.some((e) => e.type === 'tackle'),
+       JSON.stringify(m.events.map((e) => e.type)));
   }
 
-  // ---- 6. regeneration ------------------------------------------------------
-  {
-    const m = fresh();
-    const v = m.players[1];
-    tackle(m);
-    const hurt = v.hp;
-    run(m, 30);
-    ok('health regenerates on its own', v.hp > hurt, `${hurt.toFixed(3)} -> ${v.hp.toFixed(3)}`);
-    ok('…gradually, not in a jump', v.hp - hurt < 0.1, `+${(v.hp - hurt).toFixed(3)} in half a second`);
-    // All the way back, and no further. 100% is a ceiling, not a target it overshoots.
-    run(m, 60 * 30);
-    ok('it reaches full health', Math.abs(v.hp - 1) < 1e-9, `hp=${v.hp}`);
-    ok('and never exceeds it', v.hp <= 1);
-    ok('the character looks untouched again', hurtTier(v.hp) === 0);
-  }
-  {
-    // The visuals have to follow the mend, not just the damage — a player who has regenerated
-    // past a threshold must LOOK better before they are all the way back.
-    const m = fresh();
-    const v = m.players[1];
-    beat(m, 12);
-    for (let i = 0; i < 400 && v.stunned > 0; i++) { m.hitStop = 0; step(m, NONE); }
-    const tiers = [hurtTier(v.hp)];                      // 3, at 40%
-    // HP_REGEN is slow on purpose now (40% -> full in ~30s), so the sample window has to
-    // cover that whole climb rather than the first 12 seconds of it.
-    for (let i = 0; i < 32; i++) { run(m, 60); tiers.push(hurtTier(v.hp)); }
-    ok('the damaged look lifts as health comes back', tiers[0] === 3 && tiers[tiers.length - 1] === 0,
-       tiers.join('->'));
-    ok('…passing through every tier on the way', tiers.includes(2) && tiers.includes(1),
-       tiers.join('->'));
-    ok('and it never worsens while mending',
-       tiers.every((t, i) => i === 0 || t <= tiers[i - 1]), tiers.join('->'));
-  }
-
-  // ---- 7. both players, the same rules -------------------------------------
+  // ---- 5. both players, the same rules -------------------------------------
   {
     const outcome = (attacker) => {
       const m = fresh();
       const v = m.players[1 - attacker];
-      const seen = beat(m, 12, attacker);
-      const stun = seen.find((e) => e.type === 'stunned');
-      let t = 0;
-      for (; t < 400 && v.stunned > 0; t++) { m.hitStop = 0; step(m, NONE); }
-      return { hurt: +(1 - m.players[1 - attacker].hp).toFixed(6), stunT: stun && stun.time,
-               victim: stun && stun.player, ticks: t, after: +v.hp.toFixed(6) };
+      tackle(m, attacker);
+      return { vx: +v.vx.toFixed(6), vy: +v.vy.toFixed(6), immune: +v.tackleImmune.toFixed(6) };
     };
     const byP0 = outcome(0), byP1 = outcome(1);
-    ok('player 1 takes damage from player 0 exactly as player 0 does from player 1',
-       byP0.hurt === byP1.hurt && byP0.stunT === byP1.stunT && byP0.after === byP1.after,
-       `${JSON.stringify(byP0)} vs ${JSON.stringify(byP1)}`);
-    // Within a tick, not equal: the two players are stepped in index order, so a victim who is
-    // player 1 has their stun counted down once in the very tick it was set and a victim who is
-    // player 0 does not. One frame, and it belongs to the step order, not to the rules.
-    ok('…and both stuns last the same time to within a tick', Math.abs(byP0.ticks - byP1.ticks) <= 1,
-       `${byP0.ticks} vs ${byP1.ticks} ticks`);
-    ok('…and the stun lands on the one who was hit, both ways',
-       byP0.victim === 1 && byP1.victim === 0, `${byP0.victim} / ${byP1.victim}`);
+    // The shove itself is exactly mirrored. Lift and immunity only to within a tick: players
+    // are stepped in index order, so a victim who is player 1 is integrated (and has a tick of
+    // immunity counted off) in the very tick the boot landed, and one who is player 0 is not.
+    ok('player 1 is shoved by player 0 exactly as player 0 is by player 1, mirrored',
+       byP0.vx === -byP1.vx && byP0.vx !== 0, `${JSON.stringify(byP0)} vs ${JSON.stringify(byP1)}`);
+    ok('…with the same immunity to within a tick', Math.abs(byP0.immune - byP1.immune) <= C.TICK + 1e-6,
+       `${byP0.immune} vs ${byP1.immune}`);
   }
 
-  // ---- 8. a goal restart clears the STUN, not the health --------------------
-  //
-  // Changed on request: a beating is meant to carry across the whole match, so a goal no
-  // longer heals either player back to full. What it still has to do is release a stun — a
-  // kickoff nobody can move for is a bug no matter whose fault the health is.
+  // ---- 6. a goal restart clears the stun -------------------------------------
   {
     const m = fresh();
     const v = m.players[1];
-    beat(m, 12);
-    const hpBefore = v.hp;
-    ok('(somebody is hurt and down)', v.hp === 0 && v.stunned > 0);
+    down(m, 1, 30);                                      // longer than the goal takes
     scoreOn(m, true);                                    // drive a ball into the left net
     ok('(the goal went in)', m.score[1] === 1, `score ${m.score}`);
-    ok('a goal restart does NOT heal health back to full',
-       v.hp === hpBefore, `${hpBefore} -> ${v.hp}`);
-    ok('…but it does clear the stun', v.stunned === 0);
+    ok('a goal restart clears the stun', v.stunned === 0);
     m.freeze = 0; m.phase = 'play';                      // past the post-goal freeze
     run(m, 20, [{}, { right: true }]);
-    ok('…so the hurt character can move again immediately',
-       Math.abs(v.vx) > 20, `vx=${v.vx.toFixed(0)}`);
+    ok('…so the downed character can move again immediately', Math.abs(v.vx) > 20, `vx=${v.vx.toFixed(0)}`);
   }
   {
-    // A NEW MATCH IS A NEW MATCH. createMatch builds fresh players, so this is really a guard
-    // against health ever being hung off something module-level that outlives one of them.
+    // A NEW MATCH IS A NEW MATCH: nothing module-level outlives one.
     const m = fresh();
-    beat(m, 12);
+    down(m, 1, 30);
     const next = fresh();
-    ok('a new match starts both players at full health',
-       next.players[0].hp === 1 && next.players[1].hp === 1);
-    ok('and neither of them is carrying a stun into it',
-       next.players[0].stunned === 0 && next.players[1].stunned === 0);
+    ok('a new match carries no stun into it', next.players[0].stunned === 0 && next.players[1].stunned === 0);
   }
 
-  // ---- 9. nothing else moved -----------------------------------------------
+  // ---- 7. nothing else moved -----------------------------------------------
   {
-    // Damage must not pay a meter, move a score or touch the ball. The tackler's gauge gain is
-    // TACKLE_GAUGE and was already there; what is asserted is that damage adds nothing to it.
+    // A tackle must not pay a meter, move a score or touch the ball.
     const m = fresh();
     const a = m.players[0], v = m.players[1];
     tackle(m);
-    ok('damage does not move the score', m.score[0] === 0 && m.score[1] === 0);
-    ok('damage does not touch the victim\'s meter', v.gauge < 0.01, `gauge=${v.gauge.toFixed(3)}`);
-    ok('and the tackler still gets exactly TACKLE_GAUGE',
-       a.gauge >= C.TACKLE_GAUGE && a.gauge < C.TACKLE_GAUGE + 0.01, `gauge=${a.gauge.toFixed(4)}`);
+    ok('a tackle does not move the score', m.score[0] === 0 && m.score[1] === 0);
+    ok('a tackle pays neither meter anything past the clock',
+       Math.abs(a.gauge - C.TICK * C.GAUGE_PASSIVE) < 1e-9 && Math.abs(v.gauge - C.TICK * C.GAUGE_PASSIVE) < 1e-9,
+       `${a.gauge.toFixed(4)} / ${v.gauge.toFixed(4)}`);
     // Against a control stepped the same way without the kick — the ball is falling under
     // gravity in both, so the question is whether the tackle STRUCK it, not whether it moved.
     const ctrl = fresh();

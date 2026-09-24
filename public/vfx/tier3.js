@@ -693,7 +693,7 @@ export default {
     doc: {
       fantasy: 'The champion boots the ball into orbit and it comes back down as a flaming meteor, straight into the net.',
       purpose: 'The first shot of the tier that is not flat: it climbs, turns and dives, so a keeper who reads flat lines is beaten from above — it teaches looking up.',
-      player: 'Fill the meter, press POWER, then touch the ball with head or body. The ball rockets up at 1.25× power-shot speed (drifting 0.3× forward) until 60 px under the ceiling or 0.55 s, then dives at 1.1× speed at the goal mouth, 45% of the way up the goal. It lives 2.2 s. Blockable by a body (it costs health) and counterable by a timed kick like any power shot.',
+      player: 'Fill the meter, press POWER, then touch the ball with head or body. The ball rockets up at 1.25× power-shot speed (drifting 0.3× forward) until 60 px under the ceiling or 0.55 s, then dives at 1.1× speed at the goal mouth, 45% of the way up the goal. It lives 2.2 s. Blockable by a body (it deflects) and counterable by a timed kick like any power shot.',
       bot: 'Arms only on attack (POWERS.meteor.arm = "attack": the ball past 40% of the pitch toward the far goal and not behind it); striker style (+0.06 aggression, normal tackling).',
       sequence: {
         anticipation: 'While armed three big molten-rimmed rocks orbit the champion\'s head, each lit by its own orange glow, with embers rising off them.',
@@ -1232,7 +1232,7 @@ export default {
     doc: {
       fantasy: 'The champion stamps and the pitch splits: a glowing fissure races to the opponent and throws him into the air.',
       purpose: 'The violent control power: the victim is hurled up (1.25× a jump) and sideways, takes 10% damage and has no control for 0.9 s while the ball hops forward — a clean look at goal.',
-      player: 'Fill the meter, press POWER, then touch the ball with head or body. The opponent is thrown into the air and frozen for 0.9 s (−10% health); the ball jumps forward (0.6× a kick, 1.5× lift) for you to chase.',
+      player: 'Fill the meter, press POWER, then touch the ball with head or body. The opponent is thrown into the air and frozen for 0.9 s; the ball jumps forward (0.6× a kick, 1.5× lift) for you to chase.',
       bot: 'Arms the moment it can (POWERS.quake.arm = "any"); brawler style (no extra aggression, 1.35× tackling) — it fires in close quarters.',
       sequence: {
         anticipation: 'While armed long cracks glowing with magma pulse in the ground under the champion\'s feet in a warm glow, pebbles hop off the grass and big tremor marks shiver beside his body.',
@@ -1244,7 +1244,7 @@ export default {
       },
       layers: 'Cut-in: focus lines, full-width fissure with magma core, slabs, boulder, glow. Back: dust wash, 1 + ≤8 magma drawGlow, 4 lava geysers (2 tapered flames each, lighter), fissure (dark gap, magma core line, pale lip), branches, hairline cracks, ≤10 outlined rock slabs. Front: tremor zigzags beside the victim. Particles: glow, rays, stamp, confetti, shards, rubble, pebbles, dust smoke, embers, streaks, rings.',
       camera: 'Shake 12 on the stamp, 18 over 0.9 s on the quake event (the tier\'s strongest), 5 on the settle; a 1.4 s brown vignette on the stamp, a 1.6 s brown tint (0.12) and orange vignette on the quake.',
-      hud: 'The engine\'s 🌋 pill with its 0.9 s ring over the victim; the health bar shows the 10% hit.',
+      hud: 'The engine\'s 🌋 pill with its 0.9 s ring over the victim.',
       audio: 'Fire: a sub-bass stomp with a gravel crunch. Impact: a long rolling rumble with cracking rock. End: a rattle of settling gravel.',
       counterplay: 'Keep your distance — the champion has to touch the ball first — and land ready to defend: the ball it knocked forward is loose, not a shot.',
       perf: '~80 particles on the stamp, ~60 on the quake event, ≤4 a frame while alive, ~60 on the settle; crack ≤52 vertices, ≤10 slabs, 4 geysers and ≤9 drawGlow a frame; no shadowBlur.',
@@ -1759,7 +1759,7 @@ export default {
     doc: {
       fantasy: 'Somebody hit PAUSE on the tape: the shot freezes mid-air, glitching — then it fast-forwards into the net.',
       purpose: 'A timing trap: the shot flies, stops dead for 0.44 s, then leaves at 1.5× speed. Keepers who dive at the first flight are beaten by the second.',
-      player: 'Fill the meter, press POWER, then touch the ball with head or body. The ball flies flat at 1.0× power-shot speed for 0.28 s, hangs still for 0.44 s, then bursts forward at 1.5× with a little sag. It lives 2.04 s, and is blockable (costs health) and counterable like any power shot.',
+      player: 'Fill the meter, press POWER, then touch the ball with head or body. The ball flies flat at 1.0× power-shot speed for 0.28 s, hangs still for 0.44 s, then bursts forward at 1.5× with a little sag. It lives 2.04 s, and is blockable (it deflects) and counterable like any power shot.',
       bot: 'Arms only on attack (POWERS.stutter.arm = "attack": ball past 40% of the pitch toward the far goal, not behind it); striker style (+0.06 aggression, normal tackling).',
       sequence: {
         anticipation: 'While armed six VHS tracking bars in red and cyan flicker beside the champion, a big blinking ▶ with an RGB shadow hangs over his head in a cyan glow, and a red REC dot pulses.',

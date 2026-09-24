@@ -1,7 +1,7 @@
 // THE 45 CHAMPION POWERS — what the ultimate DOES in the arcade.
 //
 // The trigger is not new, and that is deliberate: it is the ultimate this game already has.
-// The meter fills off the opponent, POWER arms it, and the next real touch of the ball by your
+// The meter fills on the clock, POWER arms it, and the next real touch of the ball by your
 // head or torso fires it (fireUltimateOnContact in sim.js). Every rule the README spends pages
 // on — the press never fires anything, the glow waits, a goal does not spend the meter — holds
 // here untouched. What a champion changes is the one line that used to say launchPowerShot().
@@ -10,7 +10,7 @@
 // state and they are the whole engine:
 //
 //   • a CHAMPION SHOT — the ball becomes a power ball, exactly like the ordinary one (blockable
-//     by a body, counterable by a timed kick, it costs the blocker health), with its own
+//     by a body, counterable by a timed kick, it deflects off the blocker), with its own
 //     `flight` instead of dead flat, and optionally its own answer to being blocked.
 //   • an EFFECT — a timed record in m.champ.effects. Effects bend the rules through a fixed,
 //     small set of seams: player MODS (speed, jump, head size, controls…), the ball's FIELD
@@ -40,7 +40,7 @@ const shotSpeed = (k) => C.POWER_SHOT_SPEED * k;
 // MODS: every way an effect can change a player. Numbers multiply, flags OR together, so two
 // effects on one player stack instead of the newer silently replacing the older.
 export const BASE_MODS = Object.freeze({
-  speed: 1, accel: 1, jump: 1, grav: 1, head: 1, kick: 1, time: 1, regen: 1,
+  speed: 1, accel: 1, jump: 1, grav: 1, head: 1, kick: 1, time: 1,
   friction: 0,            // 0 = the normal ground friction; anything else replaces it (ice)
   airJumps: 0,            // extra jumps in the air
   reverse: false,         // left and right swapped
@@ -183,7 +183,7 @@ function bounceCircle(b, cx, cy, rad, rest, vx = 0, vy = 0) {
   return true;
 }
 // A body the ball can be blocked by, when it is not the body's own side's power ball: the
-// clone keeper and the goal wall both stop a shot the way a defender does, minus the health.
+// clone keeper and the goal wall both stop a shot the way a defender does — a deflection, nothing more.
 function blockPowerBall(m, b, ownerIndex, awayDir, fx, what) {
   if (!b.power || b.power.owner === ownerIndex) return false;
   const color = b.power.color;
@@ -232,13 +232,13 @@ const EFFECTS = {
     },
   },
 
-  // Health lost a little at a time. Through kit.damage, which is the only thing that writes hp.
+  // Burning. It used to take health a little at a time; there is no health any more (Head
+  // Soccer has none), so a burn is now a SLOW — e.mods on the target, like wind's — and the
+  // flames the renderer draws off this effect. The tick clock (`next`/`every`) is kept only as
+  // the beat the flames flare on. Replaced wholesale by the HS burn ailment later.
   burn: {
-    step(e, m, dt, kit) {
-      while (e.t >= e.next && e.next < e.life) {
-        kit.damage(m, m.players[e.target], e.dmg);
-        e.next += e.every;
-      }
+    step(e) {
+      while (e.t >= e.next && e.next < e.life) e.next += e.every;
     },
   },
 
@@ -290,7 +290,7 @@ const EFFECTS = {
         const onHead = Math.hypot(c.x - q.x, c.y - hy) < hr + 7;
         const onBody = Math.abs(c.x - q.x) < C.BODY_W / 2 + 7 && c.y > q.y - C.BODY_H && c.y < q.y;
         if (onHead || onBody) {
-          kit.damage(m, q, e.dmg);
+          // A coin shoves; it used to hurt too, but there is no health to take any more.
           q.vx += (Math.sign(q.x - c.x) || 1) * 70;
           m.events.push({ type: 'coinHit', player: q.index });
           fx.hit(c.x, c.y, POWERS.coins.color, 0.8);
@@ -371,7 +371,6 @@ const EFFECTS = {
         q.vx = (Math.sign(q.x - e.x) || -e.dir) * C.TACKLE_PUSH * 0.9;
         q.vy = Math.min(q.vy, -C.TACKLE_LIFT * 1.4);
         q.onGround = false;
-        kit.damage(m, q, 0.05);
         e.hitCd = 0.5;
         m.events.push({ type: 'blown', player: q.index });
       }
@@ -413,12 +412,12 @@ export const POWERS = {
     '#5ce15c', '#c8ffb0', '🪱', 'effect', 'any', 'brawler', 3, {
       fire(ctx) { const { m, p, foe, b } = ctx; strike(ctx); modsOn(m, 'tentacles', p.index, foe.index, 3, { noJump: true, speed: 0.8 }); },
     }),
-  blaze: mk('blaze', 'מנגל בוער', 'כדור אש ישר לשער. מי שחוסם אותו נשרף ומאבד בריאות לאורך 2.5 שניות.',
+  blaze: mk('blaze', 'מנגל בוער', 'כדור אש ישר לשער. מי שחוסם אותו נשרף ומואט לאורך 2.5 שניות.',
     '#ff7a18', '#ffd166', '🔥', 'shot', 'attack', 'striker', 2.5, {
       fire(ctx) { launch(ctx, 1.02); },
       flight: flatFlight,
       afterBlock(pw, q, m) {
-        addEffect(m, { type: 'burn', power: 'blaze', owner: pw.owner, target: q.index, life: 2.5, every: 0.25, next: 0.25, dmg: 0.03 });
+        addEffect(m, { type: 'burn', power: 'blaze', owner: pw.owner, target: q.index, life: 2.5, every: 0.25, next: 0.25, mods: { speed: 0.75 } });
       },
     }),
   mud: mk('mud', 'בוץ', 'היריב שוקע בבוץ: 4 שניות של חצי מהירות ובלי ריצה.',
@@ -434,12 +433,12 @@ export const POWERS = {
         addEffect(m, { type: 'wall', power: 'goalwall', owner: p.index, target: null, life: 3.5, x, top: barTop() - 2 });
       },
     }),
-  coins: mk('coins', 'גשם מטבעות', 'מטבעות נופלים על היריב 4.5 שניות. כל מטבע שפוגע כואב — זוז!',
+  coins: mk('coins', 'גשם מטבעות', 'מטבעות נופלים על היריב 4.5 שניות. כל מטבע שפוגע הודף אותו — זוז!',
     '#ffc400', '#fff3b0', '🪙', 'effect', 'any', 'brawler', 4.5, {
       fire(ctx) {
         const { m, p, foe, b } = ctx;
         strike(ctx);
-        addEffect(m, { type: 'coins', power: 'coins', owner: p.index, target: foe.index, life: 4.5, every: 0.26, next: 0, n: 0, dmg: 0.06, coins: [] });
+        addEffect(m, { type: 'coins', power: 'coins', owner: p.index, target: foe.index, life: 4.5, every: 0.26, next: 0, n: 0, coins: [] });
       },
     }),
   spring: mk('spring', 'קפיץ', 'קפיצה גבוהה יותר וקפיצה נוספת באוויר ל-7 שניות. הכדור מוקפץ אליך.',
@@ -574,7 +573,6 @@ export const POWERS = {
         foe.vy = -C.JUMP_V * 1.25;
         foe.vx = (Math.sign(foe.x - b.x) || foe.side) * C.TACKLE_PUSH * 0.6;
         foe.onGround = false; foe.dashT = 0;
-        kit.damage(m, foe, 0.1);
         modsOn(m, 'quake', p.index, foe.index, 0.9, { frozen: true });
         b.power = null;
         b.vx = p.side * C.KICK_POWER * 0.6;
@@ -647,7 +645,6 @@ export const POWERS = {
       block(pw, q, b, m, kit, fx) {
         if (!(pw.drill > 0)) return false;
         pw.drill--;
-        kit.damage(m, q, C.POWER_DAMAGE * 0.8);
         q.vy = -C.TACKLE_LIFT * 1.2; q.vx = pw.dir * C.TACKLE_PUSH * 0.5; q.onGround = false;
         const to = q.x + pw.dir * (kit.headR(m, q) + b.r + 6);
         b.x = kit.keepOutOfGoal(b.x, b.y, to, b.y, b.r);
@@ -674,13 +671,16 @@ export const POWERS = {
         addEffect(m, { type: 'drag', power: 'keeperpull', owner: p.index, target: foe.index, life: 2.5, rate: 175, mods: { speed: 0.8 } });
       },
     }),
-  vampire: mk('vampire', 'ערפד', 'שואב 45% מהבריאות של היריב אליך, וההחלמה שלו נעצרת ל-5 שניות.',
+  vampire: mk('vampire', 'ערפד', 'נשיכה שמפילה את היריב: 1.25 שניות בלי שליטה, ולילה של ירח דם ל-5 שניות.',
     '#b3001b', '#ff8fa3', '🧛', 'effect', 'any', 'brawler', 5, {
       fire(ctx) {
         const { m, p, foe, b, kit } = ctx;
-        const dealt = kit.damage(m, foe, 0.45);
-        p.hp = Math.min(1, p.hp + dealt);
-        modsOn(m, 'vampire', p.index, foe.index, 5, { regen: 0 });
+        // The bite used to drain 45% of a hidden health bar into the champion and stop the
+        // foe's regen for 5s. With no health, it knocks the foe down instead — the same generic
+        // stun a power has always been able to cause — and the 5s mods record is kept (empty)
+        // so the renderer's blood-moon night still has its full length to draw.
+        kit.stun(m, foe, C.STUN_TIME);
+        modsOn(m, 'vampire', p.index, foe.index, 5, {});
         strike(ctx);
       },
     }),

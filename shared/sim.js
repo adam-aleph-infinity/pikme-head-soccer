@@ -37,8 +37,8 @@ const clamp = (v, lo, hi) => (v < lo ? lo : v > hi ? hi : v);
 export const NO_FX = { trail() {}, shockwave() {}, grab() {}, hit() {}, goal() {} };
 
 // What a champion power is allowed to reach inside the sim. Passed in rather than imported, so
-// powers.js does not import this file back and every hit still goes through damage().
-const KIT = { damage, headY, headR, keepOutOfGoal, launch: launchPowerShot };
+// powers.js does not import this file back and every knockdown still goes through stun().
+const KIT = { stun, headY, headR, keepOutOfGoal, launch: launchPowerShot };
 
 function makePlayer(index, char) {
   const side = index === 0 ? 1 : -1;       // +1 attacks the RIGHT goal
@@ -55,7 +55,7 @@ function makePlayer(index, char) {
     dashT: 0, dashCd: 0, dashDir: 0,
     tapDir: 0, tapT: 0,
     // THE ULTIMATE, in two numbers and nothing else.
-    //   gauge — the power meter, 0..1, earned off the opponent (see TACKLE_GAUGE).
+    //   gauge — the power meter, 0..1, filled by the clock (see GAUGE_PASSIVE).
     //   armed — seconds of ARMED left. > 0 means "glowing, waiting for a touch on the ball".
     // There is deliberately no third field for "pending", "activating" or "charging": every
     // one of those was somewhere a previous match's state could hide. Arming writes `armed`,
@@ -65,10 +65,10 @@ function makePlayer(index, char) {
     shoved: 0,
     coyote: 0, jumpBuf: 0,          // jump forgiveness (see COYOTE_TIME / JUMP_BUFFER)
     tackleImmune: 0,                // s before the same player can be tackled again
-    // CONDITION, in two numbers. `hp` is 1 at full and never shown as a number or a bar —
-    // the character's own face is the readout (hurtTier). `stunned` is the one and only way
-    // the controls are ever taken off a player, and it only ever happens at hp 0.
-    hp: 1, stunned: 0,
+    // `stunned` is the one and only way the controls are ever taken off a player: seconds
+    // left on the floor, set by stun() and counted down by tickStun(). There is no health —
+    // Head Soccer has none — so nothing a boot or a blocked shot does ever sets it.
+    stunned: 0,
     prev: {},
     stats_: null,
   };
@@ -129,8 +129,8 @@ export function createMatch(charA, charB, opts = {}) {
 // conceder's to zero-plus-the-bonus, so an 80% meter came out of somebody else's goal at 25%.
 // It also cancelled an arm that had been paid for and was still waiting for its touch.
 //
-// So: a goal moves bodies and the ball (resetPositions), and adds to one meter
-// (awardConcedeMeter). It does not come through here.
+// So: a goal moves bodies and the ball (resetPositions), and leaves both meters alone. It does
+// not come through here.
 function clearUltimate(m, p) {
   const wasArmed = p.armed > 0;
   p.armed = 0;
@@ -141,39 +141,30 @@ function clearUltimate(m, p) {
 export { clearUltimate };
 
 // ---------------------------------------------------------------------------
-// EVERY HIT IN THE GAME COMES THROUGH HERE, and nothing else writes `hp`.
+// THE STUN, and the only thing that ever sets it.
 //
-// Returns how much was actually taken off, so the caller can put it in its own event without
-// re-deriving it. Two rules, and they are the whole of the anti-stun-lock design:
+// This used to be damage(): the tail end of a hidden-health system in which a player who hit 0%
+// was stunned for 1.75s. The health is gone (Head Soccer has none), but a timer that takes the
+// controls away for a moment is still what the arcade's knockdown powers need, and what HS's own
+// ailments will need, so the timer is kept and given a plain name.
 //
-//   · a player who is already stunned takes NO damage and cannot be re-stunned. Without this
-//     the two hits that land inside one stun would each queue another, and a pair of bots
-//     trading boots could hold somebody at 0% for the rest of the match.
-//   · hp floors at 0 and the stun is set exactly once, on the transition to 0. It is never
-//     topped up, so its length is always HP_STUN_TIME and never a sum of them.
-//
-// The stun is the ONLY thing in the game that takes a player's controls away. See stepPlayer.
-function damage(m, p, amount) {
-  if (p.stunned > 0 || amount <= 0) return 0;
-  const before = p.hp;
-  p.hp = Math.max(0, p.hp - amount);
-  const dealt = before - p.hp;
-  m.events.push({ type: 'damage', player: p.index, amount: dealt, hp: p.hp });
-  if (p.hp <= 0) {
-    p.stunned = C.HP_STUN_TIME;
-    m.events.push({ type: 'stunned', player: p.index, time: p.stunned });
-  }
-  return dealt;
+// One rule, and it is the whole of the anti-stun-lock design: a player who is already down
+// cannot be re-stunned or topped up. Its length is always what the caller asked for, never a
+// sum of them. Returns whether the stun landed.
+function stun(m, p, time) {
+  if (p.stunned > 0 || !(time > 0)) return false;
+  p.stunned = time;
+  m.events.push({ type: 'stunned', player: p.index, time: p.stunned });
+  return true;
 }
-export { damage };
+export { stun };
 
 // THE STUN CLOCK, and it runs on WALL TIME.
 //
 // Pulled out of stepPlayer because stepPlayer is not the only place it has to tick. step()
 // returns early for the length of a hit-stop, before any player is stepped, so a stun that
-// spanned a few hit-stops used to run long in real seconds — measured at 1.98s against an
-// authored 1.75s, and every hit landed anywhere on the pitch made it longer. The brief asks
-// for 1.5-2 seconds, so the countdown has to be independent of how eventful the pause is.
+// spanned a few hit-stops used to run long in real seconds — every hit landed anywhere on the
+// pitch made it longer. The countdown has to be independent of how eventful the pause is.
 //
 // Returns true while the player is still down.
 function tickStun(m, p, dt) {
@@ -181,51 +172,12 @@ function tickStun(m, p, dt) {
   p.stunned -= dt;
   if (p.stunned > 0) return true;
   p.stunned = 0;
-  p.hp = C.HP_AFTER_STUN;
-  // A MOMENT TO GET UP. Without this, coming back at 40% meant the very next couple of boots
-  // — under 1.2s of real time — put you straight back down, which is a stun-lock rather than
-  // a knockdown. This does not touch how long the FIRST stun takes (nothing sets it outside a
-  // revive), only how long the same player can be chain-stunned afterwards.
-  p.tackleImmune = Math.max(p.tackleImmune, C.HP_REVIVE_GRACE);
-  m.events.push({ type: 'revive', player: p.index, hp: p.hp });
+  // A MOMENT TO GET UP: one tackle-immunity window on the way back, so a player cannot be
+  // booted the instant their controls return.
+  p.tackleImmune = Math.max(p.tackleImmune, C.TACKLE_IMMUNE);
+  m.events.push({ type: 'revive', player: p.index });
   return false;
 }
-
-// HOW HURT A CHARACTER LOOKS, 0 (untouched) to 4 (bottomed out).
-//
-// The one place the thresholds are written down, because the renderer and the tests both have
-// to agree about them and there is no health bar for either of them to read instead. The
-// renderer turns this straight into a class — .head.hurt1..4 in public/style.css — so the
-// damage is legible on the CHARACTER and nowhere else on screen.
-//
-// Deliberately a function of hp ALONE, not of `stunned`: the critical look belongs to being at
-// zero, and a player is at zero for exactly as long as they are stunned.
-export function hurtTier(hp) {
-  if (hp <= 0) return 4;                 // critical
-  if (hp <= C.HP_HURT3) return 3;        // red, and bruising blue
-  if (hp <= C.HP_HURT2) return 2;        // properly red
-  if (hp <= C.HP_HURT1) return 1;        // a flush of red
-  return 0;                              // untouched
-}
-
-// WHAT A GOAL DOES TO THE METERS. One function, one direction, called once per goal.
-//
-// The player who CONCEDED gains GAUGE_CONCEDE_BONUS on top of what they already had; the
-// player who SCORED is not touched at all. Clamped at a full meter. Nothing here assigns and
-// nothing here zeroes — `+=` and a clamp is the entire body, which is the property the whole
-// fix rests on.
-//
-// `scorer` is the index that just scored, so the recipient is `1 - scorer`. Getting that
-// inversion backwards turns the comeback mechanic into a runaway one and looks completely
-// normal from the outside — the meters still fill, just for the wrong player — so it is
-// written once, here, and test-ultimate asserts both directions separately rather than
-// assuming one implies the other.
-function awardConcedeMeter(m, scorer) {
-  const conceded = m.players[1 - scorer];
-  conceded.gauge = Math.min(1, conceded.gauge + C.GAUGE_CONCEDE_BONUS);
-  return conceded.gauge;
-}
-export { awardConcedeMeter };
 
 // Bodies and ball back to the spot. Called by a goal, and by nothing else.
 //
@@ -244,9 +196,7 @@ function resetPositions(m, towards) {
     p.shoved = 0;
     p.tackleImmune = 0; p.coyote = 0; p.jumpBuf = 0;
     p.jumps = C.MAX_JUMPS;
-    // HEALTH CARRIES THROUGH A GOAL — on request: a beating is meant to matter for the whole
-    // match, not just until the next restart. Only the STUN clears, because a kickoff nobody
-    // can move for is a bug regardless of whose fault the hp is.
+    // The STUN clears, because a kickoff nobody can move for is a bug whoever caused it.
     p.stunned = 0;
   }
   const b = m.ball;
@@ -422,10 +372,11 @@ function chargeGauge(m, p, dt) {
   // Sudden death freezes the gauges — the wiki's rule, and it stops overtime becoming
   // a power-shot slugfest where positioning stops mattering.
   if (m.golden) return;
-  // The gauge is earned off the OPPONENT now (see TACKLE_GAUGE). GAUGE_PASSIVE is the old
-  // clock, kept as a dial and set to zero: a super move that arrives whether or not you
-  // played is a thing that happens to a match rather than something a player did.
-  if (p.gauge < 1 && C.GAUGE_PASSIVE > 0) p.gauge = Math.min(1, p.gauge + dt * C.GAUGE_PASSIVE);
+  // THE CLOCK IS THE ONLY SOURCE, as in Head Soccer: no tackle, touch or goal adds to it.
+  // An arcade champion's meter may run faster (meterRate climbs with the stage), and the
+  // arcade's drain power can lock it for a few seconds. Everywhere else it is 1x.
+  const rate = m.champ ? (p.mods.meterLock ? 0 : p.meterRate) : 1;
+  if (p.gauge < 1 && C.GAUGE_PASSIVE > 0) p.gauge = Math.min(1, p.gauge + dt * C.GAUGE_PASSIVE * rate);
 }
 
 function stepPlayer(m, p, input, dt, fx) {
@@ -445,10 +396,10 @@ function stepPlayer(m, p, input, dt, fx) {
   if (p.shoved > 0) p.shoved -= dt;
   if (p.tackleImmune > 0) p.tackleImmune -= dt;
 
-  // BOTTOMED OUT. The only place in the sim that takes a player's controls away, and it is
-  // always the same length and always ends: `stunned` counts down in real seconds and the
-  // player is handed back at HP_AFTER_STUN, hurt but playable. Nothing can extend it — damage()
-  // refuses to touch a player who is already down — so there is no stun-lock to walk into.
+  // KNOCKED DOWN. The only place in the sim that takes a player's controls away, and it is
+  // always the same length and always ends: `stunned` counts down in real seconds. Nothing can
+  // extend it — stun() refuses to touch a player who is already down — so there is no
+  // stun-lock to walk into.
   if (p.stunned > 0) {
     tickStun(m, p, dt);
     p.vx *= 0.86;
@@ -456,10 +407,6 @@ function stepPlayer(m, p, input, dt, fx) {
     p.prev = { ...input };
     return;                             // out on your feet = no input at all
   }
-
-  // …and otherwise you are always mending. Gradual and unconditional: there is no "out of
-  // combat" timer to game, so the only way to keep somebody down is to keep hitting them.
-  if (p.hp < 1) p.hp = Math.min(1, p.hp + C.HP_REGEN * dt * (md ? md.regen : 1));
 
   const prev = p.prev || {};
   const dir = (input.right ? 1 : 0) - (input.left ? 1 : 0);
@@ -939,7 +886,7 @@ function tryCounter(m, p, fx) {
 //
 // Resolved on the kick's rising edge, not per-frame, so one press is one tackle.
 // A deliberate header: the ball is at your head and you pressed kick. Distinct from the
-// PASSIVE head touch in stepBall, which cushions — see HEAD_POWER. This one is a shot.
+// PASSIVE head touch in stepBall, which cushions — see HEAD_DEADEN. This one is a shot.
 function tryHeader(m, p, fx) {
   const b = m.ball;
   if (b.power) return false;                       // a live power shot is not headable
@@ -1008,10 +955,8 @@ function tryHeader(m, p, fx) {
 
 function tryTackle(m, p, fx) {
   const foe = m.players[1 - p.index];
-  // Nothing to tackle: they are already down. This is the guard that used to read
-  // `foe.knocked > 0`, kept pointed at the state that replaced it — without it, booting a
-  // stunned player pays the tackler gauge for free and, worse, each boot's hit-stop stretches
-  // the time they spend on the floor.
+  // Nothing to tackle: they are already down. Without this each boot's hit-stop would stretch
+  // the time a stunned player spends on the floor.
   if (foe.tackleImmune > 0 || foe.stunned > 0) return false;
 
   // Where the boot IS, which is now always out in front of the attacking side — the same
@@ -1034,42 +979,31 @@ function tryTackle(m, p, fx) {
   const hitBody = Math.hypot(legX - nx, ky - ny) < C.KICK_R;
   if (!hitHead && !hitBody) return false;
 
-  const dir = Math.sign(foe.x - p.x) || p.facing;
+  // Which way the boot came from — only used to tell a hit in the back from one in the face.
+  const from = Math.sign(foe.x - p.x) || p.facing;
 
-  // A TACKLE IS A TACKLE, ARMED OR NOT.
+  // A TACKLE IS A TACKLE, ARMED OR NOT: the arm survives it untouched, since the ball is the
+  // only thing that spends it (fireUltimateOnContact).
   //
-  // Booting the opponent while armed used to spend the ultimate on them — signature effect,
-  // arm gone, meter gone, no shot. Under "the ultimate activates on contact with the BALL"
-  // that is an activation from an unrelated collision, and it is the one that costs you a
-  // full meter without ever producing the shot you armed for. So the arm now survives a
-  // tackle untouched: you keep glowing, and the ball is still the only thing that spends it.
-  // A HIT COSTS CONDITION, NOT CONTROL.
+  // AND A TACKLE IS KNOCKBACK, NOTHING ELSE — Head Soccer's rule. The victim is shoved toward
+  // their OWN goal (-foe.side), whichever side the boot came from; there is no gauge in it for
+  // the tackler and no health to take. It used to push AWAY FROM THE TACKLER, pay a fifth of a
+  // gauge and take a quarter of a hidden health bar; all three are gone.
   //
-  // This used to set `slow` and `rooted`: the victim went grey, walked at 55% for 1.7s and
-  // could not act at all for a fifth of a second — three quarters of a second if it landed
-  // from behind. That is the hit the brief calls "grey, slow, stuck", and the trouble with it
-  // is that the punishment for being hit was not being allowed to play. Now the boot takes
-  // health, which the player can see on their own face and can play around, and the shove is
-  // all that happens to their movement.
-  //
-  // The front/back distinction survives, moved from the lockout to the damage: a hit you
-  // never saw hurts half again as much and shoves you less, so walking round behind somebody
-  // is still worth doing.
-  const behind = foe.facing === dir;
+  // The front/back distinction survives on the shove alone: a hit you never saw shoves you
+  // TACKLE_PUSH_BACK as far. Measured HS values (and any hits->stars knockout) come later.
+  const dir = -foe.side;
+  const behind = foe.facing === from;
   foe.vx = dir * C.TACKLE_PUSH * (behind ? C.TACKLE_PUSH_BACK : 1);
   foe.vy = Math.min(foe.vy, -C.TACKLE_LIFT * (behind ? C.TACKLE_PUSH_BACK : 1));
   foe.onGround = false;
   foe.dashT = 0;
-  // An arcade champion's bot may earn it faster (meterRate climbs with the stage), and the
-  // arcade's גניבת כוח can lock it for a few seconds. Everywhere else it is one slice a hit.
-  p.gauge = Math.min(1, p.gauge + C.TACKLE_GAUGE * (m.champ ? (p.mods.meterLock ? 0 : p.meterRate) : 1));
   foe.tackleImmune = C.TACKLE_IMMUNE;
-  const dealt = damage(m, foe, C.KICK_DAMAGE * (behind ? C.KICK_DAMAGE_BACK : 1));
 
   p.kickT = 0;                                   // the boot is spent on them, not the ball
   m.hitStop = Math.max(m.hitStop, C.HIT_STOP_TACKLE);
   m.events.push({ type: 'tackle', by: p.index, on: foe.index, x: kx, y: ky,
-                 powered: false, behind, shot: null, damage: dealt, hp: foe.hp });
+                 powered: false, behind, shot: null });
   fx.hit(kx, ky, '#ffd166', 1.6);
   return true;
 }
@@ -1121,7 +1055,7 @@ function resolveBallPlayers(m, fx, alpha = 1) {
     // A STUNNED PLAYER IS STILL A BODY. They are out on their feet, not on the floor, so
     // the ball goes on bouncing off them — there is no window here where a player becomes
     // scenery. (There used to be: a knocked-down defender was pass-through, which is how a
-    // power shot bought itself an undefended goal. Power shots cost health now, not presence.)
+    // power shot bought itself an undefended goal.)
 
     // The pose this sub-step collides against: swept from where the player started the tick
     // to where they finished it. Without it every test runs against the end pose and a
@@ -1398,7 +1332,7 @@ function resolveBallPlayers(m, fx, alpha = 1) {
 // A live ball can already be someone ELSE's power shot when this runs — the two call sites in
 // resolveBallPlayers try this before hitByPowerShot whenever the toucher is armed. Converting
 // it is fine: it is still a real touch of the silhouette, the same touch that would otherwise
-// have cost this player a block's worth of health. Only a shot already flying under this
+// have blocked it. Only a shot already flying under this
 // player's OWN name is off-limits, since there is nothing left there to spend the arm on.
 function fireUltimateOnContact(m, p, b, fx) {
   if (p.armed <= 0) return false;
@@ -1432,21 +1366,18 @@ function fireUltimateOnContact(m, p, b, fx) {
 // A power shot that reaches a defender is BLOCKED, not a battering ram. It used to punch
 // straight through and knock them down, which made every power shot an automatic goal and
 // left the defender nothing to do. Now getting in the way — usually by jumping into its
-// path — actually saves it. The block still costs you: you take the shot on the body, which
-// is the heaviest hit in the game, so you save the goal and pay for it.
+// path — actually saves it, and the ball deflects back off the body.
 //
-// What you pay is HEALTH. This used to call applyEffect and hand you the shooter's signature
-// consequence — burned, rooted, slowed, shoved — which meant the reward for the best defensive
-// act in the game was a second of not being allowed to play. POWER_DAMAGE is more than twice a
-// boot, so three blocks still bottom a defender out; they just spend that time playing.
+// It costs the blocker NOTHING else. It used to take half a hidden health bar (and before that
+// hand you the shooter's signature consequence); Head Soccer has no health, so a block is a
+// deflection and that is all. The family-specific ailments (burn, freeze, ...) arrive with the
+// HS shot families; the arcade's champion shots already add theirs in champAfterBlock.
 function hitByPowerShot(m, p, b, fx) {
   const pw = b.power;
   const shot = pw.shot;
   m.hitStop = Math.max(m.hitStop, C.HIT_STOP_POWER);
   // A champion shot may answer a block its own way (the drill bores through it).
   if (m.champ && pw.champ && champBlock(m, p, b, KIT, fx)) return;
-
-  const dealt = damage(m, p, C.POWER_DAMAGE);
 
   // The ball comes off the block, back toward the pitch.
   b.vx = -pw.dir * Math.abs(b.vx) * C.POWER_BLOCK_REBOUND;
@@ -1455,8 +1386,7 @@ function hitByPowerShot(m, p, b, fx) {
   b.x = keepOutOfGoal(b.x, b.y, p.x - pw.dir * (headR(m, p) + b.r + 4), b.y, b.r);
   m.idle = 0;
 
-  m.events.push({ type: 'blocked', player: p.index, by: pw.owner, shot: shot.id,
-                 damage: dealt, hp: p.hp });
+  m.events.push({ type: 'blocked', player: p.index, by: pw.owner, shot: shot.id });
   fx.shockwave(p.x, headY(p), shot.color);
   // …and may leave something on the blocker after it (knocked back, burning, paralysed).
   if (m.champ && pw.champ) champAfterBlock(m, pw, p, KIT, fx);
@@ -1488,9 +1418,8 @@ function checkGoal(m, fx, scorer) {
   // or the meter — those follow the ordinary rules just below.)
   if (m.champ) champClear(m);
 
-  // The only thing a goal does to a meter, and it is an addition to the player who conceded.
-  // Ahead of the golden-goal branch so the rule reads the same either way.
-  awardConcedeMeter(m, scorer);
+  // A goal does NOTHING to either meter. It used to pay the conceder a quarter of a gauge
+  // (awardConcedeMeter); Head Soccer's gauge is a clock and nothing else, so that is gone.
 
   if (m.golden) {
     m.phase = 'over';
@@ -1533,13 +1462,9 @@ const P_FIELDS = [
   // Added with the tackle + jump-feel pass. Anything that can change a future step has to
   // travel, or a reconciling client re-runs the last 30 ticks with the wrong state.
   'tackleImmune', 'coyote', 'jumpBuf',
-  // CONDITION. `stunned` obviously has to travel — it decides whether input is read at all —
-  // and `hp` does too for two separate reasons: it is what the next hit is subtracted from,
-  // so a stale one changes whether that hit stuns, and it is the only thing the character's
-  // damaged look is derived from. This is the seat the old `effectId`/`effectT` pair sat in,
-  // and it is here for the same reason they were: leave a field the PICTURE reads out of this
-  // list and every reconcile flickers it back to healthy a few times a second.
-  'hp', 'stunned',
+  // `stunned` has to travel: it decides whether input is read at all, and the renderer draws
+  // the slump off it. (`hp` sat next to it until the hidden health was removed.)
+  'stunned',
 ];
 
 export function serialize(m) {

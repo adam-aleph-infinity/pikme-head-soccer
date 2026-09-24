@@ -31,7 +31,7 @@ export function render() {
   out.push('');
   out.push('The arcade (שחקן יחיד) is 45 stages, one champion each. Stage *n* is legendary card *n*, and nothing is skipped: beating a stage opens only the next one. The structure comes from Head Soccer\'s arcade, where opponents open one at a time down a fixed list, the difficulty climbs, and every character has its own power. The names, powers, art and sounds here are original.');
   out.push('');
-  out.push('Every power uses the ultimate the game already has. Fill the meter, press POWER to arm it, and the next head or body touch of the ball fires the power. The meter is the cooldown: it refills from zero off tackles and play, at the stage\'s `meterRate` for the champion\'s bot. What the power does lives in `shared/powers.js`. How it looks and sounds lives in `public/vfx/tierN.js`, which runs six phases: anticipation, activation, main, impact, aftermath and cleanup (see `public/champ-vfx.js`).');
+  out.push('Every power uses the ultimate the game already has. Fill the meter, press POWER to arm it, and the next head or body touch of the ball fires the power. The meter is the cooldown: it refills from zero on the clock (GAUGE_PASSIVE), at the stage\'s `meterRate` times that for the champion\'s bot. What the power does lives in `shared/powers.js`. How it looks and sounds lives in `public/vfx/tierN.js`, which runs six phases: anticipation, activation, main, impact, aftermath and cleanup (see `public/champ-vfx.js`).');
   out.push('');
   out.push('## Uniqueness matrix');
   out.push('');

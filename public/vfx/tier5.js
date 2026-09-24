@@ -1556,7 +1556,7 @@ export default {
     doc: {
       fantasy: 'You project a hologram of yourself into your own goal: a light-keeper that walks to the ball, jumps and blocks.',
       purpose: 'A second defender for 6 seconds, so the champion can attack and still be covered. It teaches that a goal can be guarded by something with no head of its own to fake.',
-      player: 'Fill the meter, press POWER, then touch the ball: it is struck forward (1.0× kick, 0.9 lift) and a clone appears 60px out from your goal line for 6s. It patrols 26–120px from the line tracking the ball at player speed, jumps (1.02× jump) at balls coming above its head within 150px, and blocks power shots like a defender (no health lost).',
+      player: 'Fill the meter, press POWER, then touch the ball: it is struck forward (1.0× kick, 0.9 lift) and a clone appears 60px out from your goal line for 6s. It patrols 26–120px from the line tracking the ball at player speed, jumps (1.02× jump) at balls coming above its head within 150px, and blocks power shots like a defender (a deflection).',
       bot: 'Arms on defence (POWERS.clone.arm = "defend": the ball in its own half) with the keeper style (aggression −0.1, tackle 0.9): it sets the clone up, then pushes forward itself.',
       sequence: {
         anticipation: 'While armed, a flickering holographic double hangs just behind the champion in a blue glow, fed by a thin projector line, on its own small wireframe pad. Round the whole body turns the finale\'s tell: a fat ring of dark-edged dashes in the power\'s colour with a pulse racing out of it and a light pool — unmistakable over the gold armed glow.',

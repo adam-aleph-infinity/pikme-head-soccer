@@ -57,7 +57,7 @@ const strip = `(() => {
     g.translate(col * CW - 200 + CW / 2, row * CH - window.C.GROUND_Y + CH - 8);
     window.drawBody(g, {
       index, side, x: 200, y: window.C.GROUND_Y, vx: 0, vy: 0, onGround: true,
-      stunned: 0, hp: 1, kickT: kick * window.C.KICK_TIME, gauge: 0, stats: { kick: 1 },
+      stunned: 0, kickT: kick * window.C.KICK_TIME, gauge: 0, stats: { kick: 1 },
     });
     g.restore();
   });

@@ -151,7 +151,7 @@ several moving parts:
 | אגדות | 37-45 | a mirror, a teleporting shot, a ball glued to the boot, a ghost shot, slow motion, a clone keeper, a three-way split, a tornado, time stop |
 
 A power is either a **champion shot** or an **effect**. A champion shot is an ordinary power
-ball: blockable by a body, counterable by a timed kick, and it costs the blocker health. It just
+ball: blockable by a body (it deflects off them), counterable by a timed kick. It just
 has its own flight, and sometimes its own answer to being blocked. An effect is a timed record
 that changes the rules through a small, fixed set of seams: player mods (speed, jump, head size,
 controls), the ball's field (gravity, bounce, wind, pulls), barriers, and a per-tick step for
@@ -162,7 +162,8 @@ ordinary rules.
 match (`createMatch(a, b, { champions: true })`), and only the arcade passes that option. Every
 seam in `sim.js` is skipped without it, or multiplies by exactly 1. `test-arcade.mjs` carries a
 SHA-256 of three whole bot-vs-bot matches (every snapshot field and every event), recorded before
-any arcade code existed, and it still matches on Node 22 and 24.
+any arcade code existed. It was re-recorded exactly once, on purpose, when the Head Soccer parity
+pass removed health and the tackle/concede meter from the ordinary sim; nothing arcade-only moved it.
 
 **The difficulty ladder is measured, and it had to be built on two sets of dials.** The bot's own
 dials go from stage 1 = קל מאוד to stage 45 = just short of אגדי: reaction, misread, aim,
@@ -183,7 +184,10 @@ one fixed opponent (the tier-3 bot on legendary 3), 300 matches a stage:
 | 4 אלופים | +0.39 | 58% |
 | 5 אגדות | +0.52 | 60% |
 
-Read the tier column. One stage over 300 matches is only good to about ±0.15 goals. The boomerang's
+Read the tier column. One stage over 300 matches is only good to about ±0.15 goals. **These
+numbers predate the clock meter**: they were measured when the meter was earned by tackling, and
+`meterRate` now multiplies the clock instead (stage 45 fills in ~10.5s against stage 1's 20s). Re-run
+`_ladder.mjs` before trusting them; the ladder is retuned with the HS stats in Phase D. The boomerang's
 return used to be aimed before its swing, so it cleared the bar and never scored. Fixed, and then
 aimed at mid-mouth rather than under the bar: the version that scored under the bar measured +0.96,
 the hardest stage of its tier by far. It is +0.48 now.
@@ -249,9 +253,12 @@ the pad is allowed to hide. **שמירה / ביטול / איפוס** — a draft
 first thing anyone does in a layout editor is drag something somewhere worse. Saved per
 device as fractions of the stage, so a layout dragged in landscape survives the rotation.
 
-**POWER arms the ultimate. Touching the ball fires it.** The meter fills off the OPPONENT and
-nothing else — five tackles buy one — so it is something you go and take rather than
-something the clock hands you.
+**POWER arms the ultimate. Touching the ball fires it.** The meter fills **on the clock and
+nothing else**, as in Head Soccer: `GAUGE_PASSIVE` of it per second, empty to full in **20s**.
+That number is a **placeholder** until the real fill time is measured from video (it will
+become per-character, from the Power stat). No tackle, touch or goal adds to it; it stays full
+until spent, and it freezes in sudden death. (It used to be earned off the opponent — five
+tackles bought one — with a quarter-meter for conceding. Both are gone.)
 
 Press it with a full meter and **nothing happens yet**: you start glowing in the power bar's
 own gold, and the meter stays full. The shot goes off the next time **your body reaches the
@@ -274,25 +281,23 @@ Three things follow from that, and they are the whole reason it is shaped this w
 **A goal does not touch the ultimate.** Scoring used to run both players through
 `clearUltimate`, which wiped every point of power either of them had earned and cancelled an
 arm that had already been paid for: an 80% meter came out of somebody else's goal at 25%,
-and the scorer's came out at 0. Now a goal moves the bodies and the ball, and adds to exactly
-one meter:
+and the scorer's came out at 0. Now a goal moves the bodies and the ball and nothing else:
 
 | | scorer | conceder |
 |---|---|---|
-| meter | untouched | **+25 points**, clamped at 100% |
+| meter | untouched | untouched |
 | armed / glow | kept | kept |
 
-So 80% + a conceded goal is 100%, 100% stays 100%, and 40% becomes 65%. The one place that
-arithmetic lives is `awardConcedeMeter()` in `shared/sim.js` — one direction, written once,
-because a reversed scorer/recipient turns the comeback mechanic into a runaway one and still
-looks perfectly normal from the outside.
+(For a while the conceder was paid +25 points — `awardConcedeMeter()` / `GAUGE_CONCEDE_BONUS`.
+Head Soccer has no such bonus, so it was removed with the tackle fill.)
 
 An arm survives the goal, the restart and the kickoff freeze, and still fires on the first
 touch afterwards. **Only** full time and a new match clear it (`clearUltimate`, and those are
 its only two callers).
 
-**Measured:** bot-vs-bot the ultimate fires about **2.8 times a match** with the meter
-carrying properly, against 0.5 while goals were wiping it.
+**Measured:** bot-vs-bot (`_feel 3,3`) the ultimate fires about **5.1 times a match** on the
+20s clock, against 1.9 when the meter was earned by tackles and conceding (and 0.5, earlier
+still, while goals were wiping it).
 
 <details><summary>The committed volley (superseded)</summary>
 
@@ -404,9 +409,17 @@ they switched — see `archive/README.md`.
 
 </details>
 
-**Kick the opponent to TACKLE them** — no ball required. Pays you a slice of power gauge and
-leaves them slowed for ~1.7s. There is a 1.1s immunity window afterwards so nobody can be
-stun-locked out of a match.
+**Kick the opponent to TACKLE them** — no ball required. It is **knockback and nothing else**:
+the victim is shoved back **toward their own goal** (`TACKLE_PUSH`, less from behind), whichever
+side the boot came from. It pays no power gauge and takes no health — **there is no health**:
+the hidden health bar, the bruising faces (`hurtTier`, `.head.hurt1..4`) and the stun at 0%
+were all removed because Head Soccer has none of them. A blocked power shot likewise just
+deflects. There is a 1.1s immunity window after a tackle so nobody can be juggled out of a
+match. (Repeated hurts knocking a player out with stars, as HS does, waits on measurements.)
+
+The one thing that still takes a player's controls away is the generic **stun timer**
+(`p.stunned`, `stun()` / `tickStun()` in `shared/sim.js`): a single wall-clock countdown that
+cannot be re-set or extended while it runs. Only the arcade's knockdown powers set it today.
 
 **The touch pad scales with the device.** Every dimension derives from one thumb unit,
 `--u`, which `resize()` computes from the **stage** box — not the viewport, because the pitch
@@ -426,8 +439,8 @@ mechanics that actually define it, not just the look:
 - **The power gauge fills with match time**, not with touches. When it's full the POWER
   button lights; pressing it **arms** you, and the *next* ball contact fires your shot.
 - **Five shot families** from the wiki's taxonomy — `straight`, `arc`, `trap`, `wave`,
-  `homing` — see [`shared/powershots.js`](shared/powershots.js). A shot that connects
-  knocks the defender down and punches through.
+  `homing` — see [`shared/powershots.js`](shared/powershots.js). A body in the way blocks
+  it, and the ball deflects back off them.
 - **Counter attacks.** Kick a live power ball at the right moment and it reverses *and you
   inherit their shot*. That's the skill ceiling.
 - **Sudden death** on a draw, with both gauges frozen — so overtime is decided by play.
