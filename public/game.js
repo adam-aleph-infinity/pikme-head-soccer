@@ -9,6 +9,7 @@ import { goalBox, goalAt, depthPoint, INSIDE_Z } from '../shared/goalbox.js';
 import { createEditor, applyLayout, applyOpacity, loadOpacity } from './padlayout.js';
 import { walkPick, resolveWalk } from './walkpad.js';
 import { headCrop } from './head-crop.js';
+import { characterFor, charUrl, expressionFor, CHAR_BOX, EXPRESSIONS as CHAR_EXPRESSIONS } from './characters.js';
 import { clockText, gaugeView } from './hud.js';
 import { createNet } from './net.js';
 import { playEvent, SFX, setAudioEnabled, audioEnabled, synth } from './audio.js';
@@ -55,10 +56,38 @@ function paintHead(el, r, n, sizePx, opts) {
   // anchors were measured asking for a window bigger than the card or too near an edge, and
   // an unclamped crop shows the card's edge and blank space beyond it — which is why some
   // faces sat off centre on a phone.
+  // A card with a drawn character (characters.js) shows the cartoon instead of its photo.
+  const ch = characterFor(r, n);
+  if (!ch && el.classList.contains('char-face')) el.style.transform = '';
+  el.classList.toggle('char-face', !!ch);
+  if (ch) { paintCharPortrait(el, ch, sizePx, opts); return; }
   const c = headCrop(anchorFor(r, n), ANCHORS.cardW, ANCHORS.cardH, sizePx, opts);
   el.style.backgroundImage = `url("${cardUrl(r, n)}")`;
   el.style.backgroundSize = `${c.width}px ${c.height}px`;
   el.style.backgroundPosition = `${c.x}px ${c.y}px`;
+}
+
+// THE DRAWN CHARACTERS. Every expression of a character is fetched the first time it shows
+// anywhere, so the first goal or stun does not blink while its face loads.
+const CHAR_WARM = new Set();
+function warmCharacter(ch) {
+  if (CHAR_WARM.has(ch.dir)) return;
+  CHAR_WARM.add(ch.dir);
+  for (const e of CHAR_EXPRESSIONS) { const im = new Image(); im.src = charUrl(ch, e); }
+}
+// A portrait (pick slot, arcade hexagons, scoreboard): the whole head, hair included, fitted
+// into the box with the drawn head box `fill` of its width, a touch above centre so the hair
+// has room. `opts.expr` picks the face, `opts.flip` mirrors it to face left.
+function paintCharPortrait(el, ch, sizePx, opts = {}) {
+  warmCharacter(ch);
+  const hPx = opts.h || sizePx;
+  const u = sizePx * (opts.fill || 0.84) / CHAR_BOX.boxW;          // px per head-box unit
+  const w = CHAR_BOX.w * u, h = CHAR_BOX.h * u;
+  const cx = CHAR_BOX.x + CHAR_BOX.boxW / 2, cy = CHAR_BOX.y + CHAR_BOX.boxH * 0.44;
+  el.style.backgroundImage = `url("${charUrl(ch, opts.expr)}")`;
+  el.style.backgroundSize = `${w}px ${h}px`;
+  el.style.backgroundPosition = `${sizePx / 2 - cx * u}px ${hPx / 2 - cy * u}px`;
+  el.style.transform = opts.flip ? 'scaleX(-1)' : '';        // mirrored about its own centre
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -142,7 +171,10 @@ function renderSlots() {
   for (const who of ['me', 'foe']) {
     const slot = $(who === 'me' ? '#slotMe' : '#slotFoe');
     const c = pick[who];
-    paintHead(slot.querySelector('.slot-art'), c.rarity, c.number, 72);
+    // sized from the element: phone layouts shrink the slot to 34-38px, and a crop worked out
+    // for 72 there shows only the top of the hair
+    const art = slot.querySelector('.slot-art');
+    paintHead(art, c.rarity, c.number, art.clientWidth || 72, { flip: who === 'me' });   // RTL: you are on the right, facing the VS
     const shot = shotFor(c.rarity, c.number);
     slot.querySelector('.slot-shot').textContent = shot.name;
     slot.classList.toggle('active', pick.target === who);
@@ -315,7 +347,7 @@ function renderArcade() {
     // Painted at full size once; the reel's scale does the shrinking. Only near the middle, so
     // opening the board does not fetch all 45 cards at once.
     const px = Math.round(REEL_H * 0.82);
-    if (REEL_H && Math.abs(n - ARC_SEL) <= 3 && f.dataset.card !== String(px)) { paintHead(f, 'legendary', n, px); f.dataset.card = String(px); }
+    if (REEL_H && Math.abs(n - ARC_SEL) <= 3 && f.dataset.card !== String(px)) { paintHead(f, 'legendary', n, px, { flip: true }); f.dataset.card = String(px); }
   }
   if (!reel.classList.contains('dragging')) placeReel(ARC_SEL);
   $('#arcCount').textContent = `${c.stage} / ${ARC.STAGE_COUNT}`;
@@ -990,6 +1022,12 @@ function endMatch() {
   $('#back').textContent = 'קלפים';
   if (ARCADE) arcadeResult(iWon);
   $('#over').classList.remove('hidden');
+  // The two heads either side of the score: the winner happy, the loser sad and greyed (HS).
+  for (let i = 0; i < 2; i++) {
+    const el = $('#ovFace' + i), won = M.score[i] > M.score[1 - i], { rarity, number } = M.players[i].char;
+    paintHead(el, rarity, number, el.clientWidth || 84, { expr: won ? 'happy' : a === b ? 'normal' : 'sad', flip: i === 1, fill: 0.74 });
+    el.classList.toggle('lost', !won && a !== b);
+  }
 }
 
 // A stage was won or lost: record it, save it, and say what it means.
@@ -2537,6 +2575,24 @@ function headBox(p) {
   const d = headR(M, p) * 2 * SC;
   return { w: d * HEAD_W, h: d * HEAD_H };
 }
+// A DRAWN CHARACTER ON THE GRASS. The SVG carries its own keyline, shading and silhouette (the
+// same HEAD_SHAPE, docs/CHARACTERS.md), so the card layers stand down (.head.char in style.css)
+// and the art is laid over the head box at its authored scale: the box is 100 units wide, and the
+// file reaches CHAR_BOX.x/y units beyond it on the left/top so the hair can break the outline
+// the way HS hair does. Characters are drawn facing right; player two's is mirrored.
+function paintPitchChar(inner, ch, w, expr, flip) {
+  warmCharacter(ch);
+  const u = w / CHAR_BOX.boxW;
+  Object.assign(inner.style, {
+    left: `${-CHAR_BOX.x * u}px`, top: `${-CHAR_BOX.y * u}px`, right: 'auto', bottom: 'auto',
+    width: `${CHAR_BOX.w * u}px`, height: `${CHAR_BOX.h * u}px`,
+    backgroundImage: `url("${charUrl(ch, expr)}")`, backgroundSize: '100% 100%', backgroundPosition: '0 0',
+    transform: flip ? 'scaleX(-1)' : '',
+  });
+}
+function clearPitchChar(inner) {
+  for (const k of ['left', 'top', 'right', 'bottom', 'width', 'height', 'transform']) inner.style[k] = '';
+}
 function drawHeads() {
   for (let i = 0; i < 2; i++) {
     const p = M.players[i];
@@ -2546,15 +2602,27 @@ function drawHeads() {
     const { w, h } = headBox(p);
     const el = HUD.head[i];
     const key = `${p.char.rarity}_${p.char.number}_${Math.round(w)}`;
+    const ch = characterFor(p.char.rarity, p.char.number);
+    const expr = ch ? expressionFor(M, p) : '';
     if (el.dataset.card !== key) {
       // the keyline is about one texel of the half-res canvas, whatever size the head is
       const ol = Math.max(1.5, h * 0.05);
       el.style.width = w + 'px';
       el.style.height = h + 'px';
       el.style.setProperty('--ol', ol.toFixed(1) + 'px');
-      // The card is painted into the box INSIDE the keyline, so it is cropped for that box.
-      paintHead(el.firstElementChild, p.char.rarity, p.char.number, w - 2 * ol, { ...HEAD_CROP, h: h - 2 * ol });
+      el.classList.toggle('char', !!ch);
+      if (ch) paintPitchChar(el.firstElementChild, ch, w, expr, i === 1);
+      else {
+        clearPitchChar(el.firstElementChild);
+        // The card is painted into the box INSIDE the keyline, so it is cropped for that box.
+        paintHead(el.firstElementChild, p.char.rarity, p.char.number, w - 2 * ol, { ...HEAD_CROP, h: h - 2 * ol });
+      }
       el.dataset.card = key;
+      el.dataset.expr = expr;
+    } else if (ch && el.dataset.expr !== expr) {
+      // Only the face changes: the same box, a different file (all of them already fetched).
+      el.firstElementChild.style.backgroundImage = `url("${charUrl(ch, expr)}")`;
+      el.dataset.expr = expr;
     }
     // Through the same projection as the body, or a player walking into the goal leaves their
     // head behind on the goal line.
@@ -2593,7 +2661,7 @@ function drawHeadGhosts(i, el, w, h) {
   while (pool.length < want.length) {
     const gh = el.cloneNode(true);
     gh.removeAttribute('id');
-    gh.className = `head ghost g${i}`;
+    gh.className = `head ghost g${i}${el.classList.contains('char') ? ' char' : ''}`;
     el.parentNode.insertBefore(gh, el);               // under the live head
     pool.push(gh);
   }
@@ -2688,10 +2756,12 @@ function paintFaces() {
   if (!M) return;
   for (let i = 0; i < 2; i++) {
     const el = HUD.face[i];
-    const { rarity, number } = M.players[i].char;
-    const key = `${rarity}_${number}_${FACE_PX}`;
+    const p = M.players[i], { rarity, number } = p.char;
+    // A drawn character pulls the same face up here as on the grass (and faces the middle).
+    const expr = characterFor(rarity, number) ? expressionFor(M, p) : '';
+    const key = `${rarity}_${number}_${FACE_PX}_${expr}`;
     if (el.dataset.card === key) continue;
-    paintHead(el.firstElementChild, rarity, number, FACE_PX);
+    paintHead(el.firstElementChild, rarity, number, FACE_PX, { expr, flip: i === 1 });
     el.dataset.card = key;
   }
 }
@@ -2912,6 +2982,8 @@ Object.defineProperty(window, 'ARCADE_PROGRESS', { get: () => PROG });
 // The measured head anchors, for the crop tools — see head-crop.js and test-heads.mjs.
 Object.defineProperty(window, '__ANCHORS', { get: () => ANCHORS });
 Object.assign(window, { headCrop });
+// The drawn characters, for _charfaces.mjs: re-render the pick slots, end a match on demand.
+Object.assign(window, { renderSlots, endMatch, characterFor });
 Object.defineProperty(window, 'MATCH', { get: () => M });
 Object.defineProperty(window, 'HELD', { get: () => held });
 Object.defineProperty(window, 'EVENTS', { get: () => EVENT_LOG });
