@@ -1126,14 +1126,18 @@ let SC = 1, OX = 0, OY = 0, crowd = [];
 // free. Drawing "pixel-style" at full res never convinces — the edges stay clean.
 const PIXEL = 2;
 
-// How much sky may be cropped to fill more of the screen — and the number is set by the
-// BALL, not by taste. The pitch is 960x530 (1.81:1) against a phone's 2.16:1, so filling the
-// width completely would mean hiding 86px off the top. Measured over twelve bot matches, the
-// ball reaches y=42 and spends 4.5% of the playing time above that line: a full-bleed fit
-// would lose the ball off the top of the screen one tick in twenty-two. So the crop stops
-// short of the highest the ball ever gets, and whatever is left over stays as bars — painted
-// the colour of the sky (see paintLetterbox) rather than black.
-const MAX_CROP_PX = 34;               // world units, against a measured ball ceiling of 42
+// HOW MUCH SKY. The camera used to crop up to 34px off the top of the 530px world to fill a
+// phone's width, which left 401px of sky over the grass on an 844x390 phone. Head Soccer shows
+// 487 (C.VIEW_ABOVE_GROUND, off Idan's recordings: the grass at frame y 489 of 590, and the
+// ball flies over the HUD), so every header or lob between 401 and 487 up vanished here and
+// stayed on screen there — "the ball goes too far up and hides". The fit now always keeps
+// VIEW_ABOVE_GROUND of sky, and the canvas reaches ABOVE world y=0 to draw it (SKY_TOP).
+// A phone pays in width: the pitch renders ~18% smaller than it did, with sky-coloured bars at
+// the sides — the same trade HS makes, whose pitch also leaves bars on a 2.16:1 screen.
+//
+// SKY_TOP: world px of canvas above y=0. Even, so the world origin stays on a texel (PIXEL 2).
+const skyTop = () => Math.max(0, 2 * Math.ceil((C.VIEW_ABOVE_GROUND - C.GROUND_Y) / 2));
+let SKY_TOP = skyTop();              // re-read on resize: GROUND_Y is live-tunable
 
 // Decorative grass drawn BELOW the world, never simulated and never reachable. It exists so
 // that lifting the pitch above the controls does not leave a void under it: the pitch ends
@@ -1142,6 +1146,7 @@ const BLEED = 170;
 
 function resize() {
   const vw = innerWidth, vh = innerHeight;
+  SKY_TOP = skyTop();
   const ratio = C.W / C.H;
 
   // THE CONTROL BAND. The buttons used to sit ON the pitch — players stood in them, and the
@@ -1153,8 +1158,8 @@ function resize() {
   // trade, and it is the right way round — a bar at the edge costs you nothing, a thumb over
   // the six-yard box costs you the goal.
   const band = padUnit(vw, vh) * 1.17 + safeInset('b');     // button + its edge margin
-  const scale = Math.min(vw / C.W, (vh - band) / (C.GROUND_Y - MAX_CROP_PX));
-  const w = C.W * scale, h = (C.H + BLEED) * scale;
+  const scale = Math.min(vw / C.W, (vh - band) / C.VIEW_ABOVE_GROUND);
+  const w = C.W * scale, h = (SKY_TOP + C.H + BLEED) * scale;
 
   // The stage is the whole viewport, so the HUD and the pad — which are positioned against
   // the stage — stay where a thumb expects them instead of riding with the canvas.
@@ -1169,7 +1174,7 @@ function resize() {
   OY = (vh - band) - C.GROUND_Y * scale;
   for (const el of [cv, cvNet]) {
     el.style.left = OX + 'px';
-    el.style.top = OY + 'px';
+    el.style.top = (OY - SKY_TOP * scale) + 'px';     // the canvas starts SKY_TOP above y=0
     el.style.width = w + 'px';
     el.style.height = h + 'px';
   }
@@ -1185,8 +1190,8 @@ function resize() {
   applyLayout($('#pad'), { w: sw, h: sh });
   for (const [el, c] of [[cv, ctx], [cvNet, ctxNet]]) {
     el.width = Math.ceil(C.W / PIXEL);
-    el.height = Math.ceil((C.H + BLEED) / PIXEL);
-    c.setTransform(1 / PIXEL, 0, 0, 1 / PIXEL, 0, 0);   // draw in WORLD units, land on texels
+    el.height = Math.ceil((SKY_TOP + C.H + BLEED) / PIXEL);
+    c.setTransform(1 / PIXEL, 0, 0, 1 / PIXEL, 0, SKY_TOP / PIXEL);   // draw in WORLD units, land on texels
     c.imageSmoothingEnabled = false;
   }
   if (!crowd.length) {
@@ -1307,7 +1312,7 @@ function paintLetterbox() {
   if (!STAGE) return;
   if (STAGE.id !== barStage) {
     try {
-      const d = ctx.getImageData(2, 2, 1, 1).data;
+      const d = ctx.getImageData(2, SKY_TOP / PIXEL + 2, 1, 1).data;   // raw pixels: below the sky strip
       barSky = `rgb(${d[0]}, ${d[1]}, ${d[2]})`;
       barStage = STAGE.id;
     } catch { return; }        // a tainted canvas would throw; the default background is fine
@@ -1344,7 +1349,7 @@ function applyBars() {
 
 function draw() {
   const g = ctx;
-  g.clearRect(0, 0, C.W, C.H + BLEED);
+  g.clearRect(0, -SKY_TOP, C.W, SKY_TOP + C.H + BLEED);
   // A frozen frame on its own just looks like a dropped frame. A couple of pixels of shake
   // during hit-stop is what turns it into an impact.
   // Not under a cut-in: that pause is 1.34s long, and 80px of shake is not an impact.
@@ -1366,6 +1371,7 @@ function draw() {
   for (const p of M.players) drawBody(g, p);
   drawParts(g, false);
   drawBall(g, M.ball);
+  drawBallMarker(g, M.ball);
   if (M.champ) drawChampFront(g);
   drawParts(g, true);
   drawGoalFront(g, true);            // the net you look through, over whatever is in the goal
@@ -1377,13 +1383,40 @@ function draw() {
     g.save();
     g.globalAlpha = (flashT / flashLife) * 0.75;
     g.fillStyle = flashCol;
-    g.fillRect(0, 0, C.W, C.H);
+    g.fillRect(0, -SKY_TOP, C.W, SKY_TOP + C.H);
     g.restore();
   }
   drawHeads();
   drawHeadNet();                     // …and the near net again, over a head that is in the goal
   drawCutin(ctxNet);                 // over the heads too: the whole screen darkens but the shooter
   if (M.banner && M.bannerT > 0 && M.phase !== 'over') drawReady(g);
+}
+
+// THE BALL ABOVE THE PICTURE. The camera keeps Head Soccer's 487px of sky, but the ceiling is
+// higher than that (C.CEIL_Y), so a skied ball can still leave the top — in HS too, ~4% of live
+// play. HS simply clips it; here a small chevron sits on the top edge under the ball's x so you
+// can still read where it will come down. Subtle on purpose: it fades as the ball climbs away.
+function drawBallMarker(g, b) {
+  if (M.ballWait > 0 || (b.power && b.power.hidden)) return;
+  // The world y the viewer's top edge shows: the canvas top, or lower when the stage is taller
+  // than the canvas is wide enough to fill (then the canvas top is the edge).
+  const top = Math.max(-SKY_TOP, SC > 0 ? -OY / SC : -SKY_TOP);
+  if (b.y + b.r >= top) return;
+  const s = 10;                      // world px: ~6 CSS px on an 844x390 phone
+  const x = Math.max(s + 4, Math.min(C.W - s - 4, b.x)), y = top + 3;
+  g.save();
+  g.globalAlpha = Math.max(0.35, 0.8 - (top - b.y) / 400);
+  g.beginPath();
+  g.moveTo(x, y);
+  g.lineTo(x + s, y + s);
+  g.lineTo(x - s, y + s);
+  g.closePath();
+  g.fillStyle = '#ffffff';
+  g.fill();
+  g.lineWidth = 2;
+  g.strokeStyle = OUTLINE;
+  g.stroke();
+  g.restore();
 }
 
 // THE CUT-IN, as a picture. The pause itself is the sim's (m.cutin: 1.34s, HS M4) and an online
@@ -1407,7 +1440,7 @@ function drawCutin(g) {
   dark.addColorStop(1, 'rgba(6,3,14,0.8)');
   g.globalAlpha = fade;
   g.fillStyle = dark;
-  g.fillRect(0, 0, C.W, C.H);
+  g.fillRect(0, -SKY_TOP, C.W, SKY_TOP + C.H);
   // The rays start clear of the face — the shooter is who the moment is about.
   g.globalCompositeOperation = 'lighter';
   g.translate(h.x, h.y);
@@ -1447,7 +1480,7 @@ function drawCutin(g) {
 // frame the player's middle crosses the line. The bounding test below skips the work when the
 // head is nowhere near a goal and can change nothing, so it cannot pop either.
 function drawHeadNet() {
-  ctxNet.clearRect(0, 0, C.W, C.H + BLEED);
+  ctxNet.clearRect(0, -SKY_TOP, C.W, SKY_TOP + C.H + BLEED);
   for (const p of M.players) {
     const h = depthPoint(p.x, headY(p));
     // Exactly the head's own disc. Wider and the wash would land on pixels the main canvas
@@ -1533,6 +1566,9 @@ function drawStadium(g) {
     crowdBot: standBot - 8,
     gy,
   }), 0, 0, C.W, C.H + BLEED);
+  // The strip above world y=0 (SKY_TOP) is sky the stage art does not reach: carry on its top
+  // colour, the same sample the letterbox bars are painted with.
+  if (SKY_TOP > 0 && barSky) R2(g, 0, -SKY_TOP, C.W, SKY_TOP + 1, barSky);
 
   // railing across the front of the crowd, common to every stage
   R2(g, 0, standBot - 6, C.W, 6, OUTLINE);
@@ -2296,7 +2332,7 @@ function drawReady(g) {
   if (M.phase !== 'kickoff') return;
   g.save();
   g.fillStyle = '#000000b0';
-  g.fillRect(0, 0, C.W, C.H);
+  g.fillRect(0, -SKY_TOP, C.W, SKY_TOP + C.H);
   g.textAlign = 'center';
   g.textBaseline = 'middle';
   const txt = 'KICK OFF';

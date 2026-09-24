@@ -58,8 +58,10 @@ Those are two code paths, and only `--album` reaches the second one without a re
 
 The controls used to sit ON the pitch — players stood inside the buttons. The ground line is
 now placed at the top of the band the controls occupy, so the whole playable half of the world
-is clear of them. It costs width: on a 390px-tall phone the pitch renders at about 83% of the
-screen with bars at the sides, and those bars are painted to match the pitch at that height —
+is clear of them. And above the grass the camera always keeps Head Soccer's **487px of sky**
+(`VIEW_ABOVE_GROUND`, measured off the recordings), drawn up past world y = 0 — it used to crop
+to 401 and every header between the two heights vanished off the top. Together these cost width:
+on an 844x390 phone the pitch renders at about 77% of the screen with bars at the sides, and those bars are painted to match the pitch at that height —
 sky above the ground line, grass below. A bar at the edge costs you nothing; a thumb over the
 six-yard box costs you the goal.
 
@@ -476,6 +478,8 @@ fit over our sim. There is no platformer dressing left on it:
 | kick | leg out **0.26s**, repeat **0.349s** | timing only; the contact model is a later pass |
 | geometry | head **52.8px**, crossbar top **138px**, mouth **57px** deep, roof **154px** | the ball lands on the goal's roof, not the bar |
 | ceiling | **off-screen** at y = −130, restitution **0.41**, kills sideways speed | a skied ball just leaves the top of the picture |
+| sky | **487px** shown above the grass; the ball is off the top **~4%** of live play | a chevron on the top edge marks a ball above the picture |
+| headers | jump into a falling ball → **~626 px/s**, apex **~311px** (median of 12) | ours: 587 / 326. Our lob (not an HS move) is capped at ~350px up |
 | bounce | grass **0.65**, goal roof **0.67** | |
 
 Coyote time and the jump buffer are kept but cut to 3 frames: HS shows no input lag at all.

@@ -41,6 +41,10 @@ import TIER3 from './vfx/tier3.js';
 import TIER4 from './vfx/tier4.js';
 import TIER5 from './vfx/tier5.js';
 
+// The canvas reaches above world y=0 (game.js SKY_TOP: the camera keeps C.VIEW_ABOVE_GROUND of
+// sky). A full-picture grade has to cover that strip too; the canvas clips whatever is spare.
+const SKY_PAD = Math.max(0, C.VIEW_ABOVE_GROUND - C.GROUND_Y) + 8;
+
 export const PHASES = ['anticipation', 'activation', 'main', 'impact', 'aftermath', 'cleanup'];
 export const DOC_FIELDS = ['fantasy', 'purpose', 'player', 'bot', 'layers', 'camera', 'hud', 'audio', 'counterplay', 'perf', 'helpers'];
 export const SOUND_KINDS = ['thud', 'sweep', 'blip', 'crowd'];
@@ -298,8 +302,8 @@ export function createVfx({ synth = () => {}, now = () => performance.now() / 10
     drawStageDim(g) {
       if (!(dim > 0)) return;
       g.save();
-      g.globalAlpha = 0.58 * dim; g.fillStyle = '#05030c'; g.fillRect(0, 0, C.W, C.H);
-      g.globalAlpha = 0.12 * dim; g.fillStyle = dimCol; g.fillRect(0, 0, C.W, C.H);
+      g.globalAlpha = 0.58 * dim; g.fillStyle = '#05030c'; g.fillRect(0, -SKY_PAD, C.W, C.H + SKY_PAD);
+      g.globalAlpha = 0.12 * dim; g.fillStyle = dimCol; g.fillRect(0, -SKY_PAD, C.W, C.H + SKY_PAD);
       g.restore();
     },
     drawEffects(g, layer) {
@@ -318,17 +322,17 @@ export function createVfx({ synth = () => {}, now = () => performance.now() / 10
     drawGrade(g) {
       if (cam.tint > 0) {
         const k = Math.min(1, (cam.tint / cam.tintLife) * 3);   // holds, then fades in its last third
-        g.save(); g.globalAlpha = cam.tintA * k; g.fillStyle = cam.tintCol; g.fillRect(0, 0, C.W, C.H); g.restore();
+        g.save(); g.globalAlpha = cam.tintA * k; g.fillStyle = cam.tintCol; g.fillRect(0, -SKY_PAD, C.W, C.H + SKY_PAD); g.restore();
       }
       if (cam.vig > 0) {
         const k = Math.min(1, (cam.vig / cam.vigLife) * 2.5);
         const gr = g.createRadialGradient(C.W / 2, C.H / 2, C.H * 0.45, C.W / 2, C.H / 2, C.W * 0.62);
         gr.addColorStop(0, rgba(cam.vigCol, 0));
         gr.addColorStop(1, rgba(cam.vigCol, cam.vigA * k));
-        g.save(); g.fillStyle = gr; g.fillRect(0, 0, C.W, C.H); g.restore();
+        g.save(); g.fillStyle = gr; g.fillRect(0, -SKY_PAD, C.W, C.H + SKY_PAD); g.restore();
       }
       if (cam.flash > 0) {
-        g.save(); g.globalAlpha = cam.flashA * (cam.flash / cam.flashLife); g.fillStyle = cam.flashCol; g.fillRect(0, 0, C.W, C.H); g.restore();
+        g.save(); g.globalAlpha = cam.flashA * (cam.flash / cam.flashLife); g.fillStyle = cam.flashCol; g.fillRect(0, -SKY_PAD, C.W, C.H + SKY_PAD); g.restore();
       }
     },
 
@@ -343,7 +347,7 @@ export function createVfx({ synth = () => {}, now = () => performance.now() / 10
       const col = (V.palette && V.palette[0]) || P.color, col2 = (V.palette && V.palette[1]) || P.glow;
       const hx = owner.x, hy = headY(owner);
       g.save();
-      g.globalAlpha = 0.42 * fade; g.fillStyle = '#05030a'; g.fillRect(0, 0, C.W, C.H);
+      g.globalAlpha = 0.42 * fade; g.fillStyle = '#05030a'; g.fillRect(0, -SKY_PAD, C.W, C.H + SKY_PAD);
       // the sunburst behind the champion
       g.globalCompositeOperation = 'lighter';
       g.translate(hx, hy); g.rotate(cut.t * 1.6);
