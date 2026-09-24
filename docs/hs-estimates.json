@@ -585,5 +585,91 @@
     ],
     "source": "M3 13.43–14.13 s",
     "note": "Takeoff to landing, in a match. M4's clean standstill jumps give 0.74."
+  },
+  {
+    "id": "ball.launchSpeed.header",
+    "value": 626,
+    "unit": "px/s",
+    "sd": 181,
+    "n": 12,
+    "tol": 130,
+    "clips": [
+      "M4"
+    ],
+    "scenario": "headerKick",
+    "source": "M4 jumping headers into a falling ball (ball in at a median 511 px/s): 52.80, 56.26, 84.98, 87.00, 90.37, 99.72, 106.13, 131.86, 133.95, 160.34, 167.90, 178.62 s",
+    "how": "scratchpad m4/flights.mjs: the ball track cut into free flights (fixed-g 583 parabola in y, line in x, < 5px residual); the launch is the flight that starts at the head. Each contact checked by eye on frame strips.",
+    "note": "Median; range 346–841 (p25 415, p75 735). Angle median 74° (the ball arrives falling, so it goes back up). Our aimed header (KICK at the head) is compared: a passive head touch in our sim is still a dead cushion (HEAD_DEADEN), which HS does not have — a separate parity item."
+  },
+  {
+    "id": "ball.headerApex",
+    "value": 311,
+    "unit": "px",
+    "sd": 139,
+    "n": 12,
+    "tol": 80,
+    "clips": [
+      "M4"
+    ],
+    "scenario": "headerKick",
+    "source": "M4 jumping headers into a falling ball (ball in at a median 511 px/s): 52.80, 56.26, 84.98, 87.00, 90.37, 99.72, 106.13, 131.86, 133.95, 160.34, 167.90, 178.62 s",
+    "how": "Apex of the same flights, ball-centre rise above a ball resting on the grass; flights that reach the ceiling count as the ceiling (553).",
+    "note": "p25 267, p75 485; 2 of 12 reach the ceiling. Over all 20 head-height touches in M4 (these plus 48.41, 59.37, 88.81, 102.2, 129.81, 155.99, 161.86, 171.48 s) the apex is p25 252 / p50 304 / p75 509, 6 of 20 above the top of the picture (475) and 3 of 20 at the ceiling."
+  },
+  {
+    "id": "kick.head.speed",
+    "value": 391,
+    "unit": "px/s",
+    "sd": 135,
+    "n": 4,
+    "tol": 135,
+    "clips": [
+      "M4"
+    ],
+    "source": "M4 a ball met almost still at head height (ball in < 150 px/s): 48.41, 88.81, 155.99, 161.86 s",
+    "note": "379, 356, 647, 402 — the median; HS shows no separate header button, so these are head-height touches of a still ball, which our kickHead (KICK with the ball at the head) re-enacts."
+  },
+  {
+    "id": "kick.head.angle",
+    "value": 66,
+    "unit": "deg",
+    "sd": 22,
+    "n": 4,
+    "tol": 25,
+    "clips": [
+      "M4"
+    ],
+    "source": "M4 a ball met almost still at head height (ball in < 150 px/s): 48.41, 88.81, 155.99, 161.86 s",
+    "note": "51, 88, 80, 44°."
+  },
+  {
+    "id": "ball.kickApex.head",
+    "value": 286,
+    "unit": "px",
+    "sd": 139,
+    "n": 4,
+    "tol": 140,
+    "clips": [
+      "M4"
+    ],
+    "scenario": "kickHead",
+    "source": "M4 a ball met almost still at head height (ball in < 150 px/s): 48.41, 88.81, 155.99, 161.86 s",
+    "note": "187, 324, 508, 248."
+  },
+  {
+    "id": "ball.offscreenFrac",
+    "value": 4,
+    "unit": "%",
+    "sd": 1.6,
+    "n": 10,
+    "tol": 3,
+    "clips": [
+      "M4"
+    ],
+    "scenario": "botLong",
+    "prefer": true,
+    "source": "M4 live play (ball in → goal, less cut-ins), 125 s: off the top at 50.04, 55.06, 67.86, 100.92, 103.07, 130.31, 132.54, 134.37, 156.59, 159.01 s — 5.0 s in all",
+    "how": "scratchpad m4/offtop.mjs: a gap in the ball track that starts and ends at the top edge (centre above frame y 70) is time off the top; spot-checked on frame strips.",
+    "note": "Match 1 2.2% (3.4% without the drills before 46 s), match 2 5.4%; longest single exit 0.9 s. It is played by Idan against a weak CPU; ours is bot-vs-bot over ten minutes, so the tolerance is wide. The M3 track cannot measure it (its tracker stops at the HUD, 382px up)."
   }
 ]

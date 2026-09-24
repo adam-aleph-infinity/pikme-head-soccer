@@ -691,6 +691,42 @@ function blockRebound(doc) {
   return { value: vb && va && Math.sign(va) !== Math.sign(vb) ? 1 : 0, sd: 0, n: 1 };
 }
 
+// How HIGH a struck ball goes: the top of the flight after the first contact tagged `type`
+// (with `note`), as the ball centre's rise above a ball resting on the grass. The flight ends
+// at the next contact the track shows, so a ball stopped by the ceiling reads the ceiling.
+function apexAfter(doc, type, note = null) {
+  const t = tagT(doc, type, note ? { note } : {})[0];
+  if (t == null || !doc.calib) return NONE;
+  const pts = ball(doc);
+  const next = allCuts(doc, pts).filter((c) => c > t + 0.05).sort((a, b) => a - b)[0] ?? Infinity;
+  const fl = pts.filter((p) => p.t > t && p.t <= Math.min(next, t + 3));
+  if (fl.length < 3) return NONE;
+  const r = doc.frames.find((f) => f.ball)?.ball.r ?? 0;
+  return { value: doc.calib.groundY - r - Math.min(...fl.map((p) => p.y)), sd: 2, n: 1 };
+}
+
+// Share of LIVE play (percent) the ball's centre is above the top edge of the picture. Live:
+// from each ball-in (ready_off) to the next goal, less the power-shot cut-ins. The top edge is
+// calib.viewTop (world y), or for a video calibration the frame's own top (groundY - y0·scale).
+function offscreenFrac(doc) {
+  const c = doc.calib || {};
+  const top = c.viewTop ?? (c.y0 != null && c.scale != null ? c.groundY - c.y0 * c.scale : null);
+  const starts = tagT(doc, 'ready_off');
+  if (top == null || !starts.length) return NONE;
+  const goals = tagT(doc, 'goal'), cutOn = tagT(doc, 'cutin_on'), cutOff = tagT(doc, 'cutin_off');
+  const end = endT(doc) ?? 0;
+  const live = starts.map((s) => [s, goals.find((g) => g > s) ?? end + 1]);
+  const cuts = cutOn.map((s) => [s, cutOff.find((e) => e > s) ?? end + 1]);
+  const inAny = (t, iv) => iv.some(([a, b]) => t >= a && t < b);
+  let n = 0, off = 0;
+  for (const f of doc.frames) {
+    if (f.dup || !inAny(f.t, live) || inAny(f.t, cuts)) continue;
+    n++;
+    if (f.ball && f.ball.y < top) off++;
+  }
+  return n ? { value: (100 * off) / n, sd: 0.5, n: 1 } : NONE;
+}
+
 const calibCheck = (key) => (doc) => {
   const v = doc.calib?.checks?.[key];
   return v != null ? { value: v, sd: 0, n: 1 } : NONE;
@@ -768,6 +804,17 @@ export const METRICS = [
   { id: 'header.speed', unit: 'px/s', clips: ['C8'], scenario: 'header', fit: (d) => fitLaunchSpeed(ball(d), tagT(d, 'touch', { note: 'jump' })) },
   { id: 'header.angle', unit: 'deg', clips: ['C8'], scenario: 'header', fit: (d) => fitLaunchAngle(ball(d), tagT(d, 'touch', { note: 'jump' })) },
 
+  // C8 again, headed ON PURPOSE (jump into the drop, KICK as it reaches the head — tag 'kick',
+  // note 'header'): how fast it leaves and how high it goes. These are the numbers that decide
+  // whether a header stays in the picture.
+  { id: 'ball.launchSpeed.header', unit: 'px/s', clips: ['C8'], scenario: 'headerKick', fit: (d) => fitLaunchSpeed(ball(d), tagT(d, 'kick', { note: 'header' })) },
+  { id: 'ball.headerApex', unit: 'px', clips: ['C8'], scenario: 'headerKick', fit: (d) => apexAfter(d, 'kick', 'header') },
+  // C7 — how high the plain kick of a ball at the feet goes.
+  { id: 'ball.kickApex.feet', unit: 'px', clips: ['C7'], scenario: 'kickFeet', fit: (d) => apexAfter(d, 'kick', 'feet') },
+  { id: 'ball.kickApex.head', unit: 'px', clips: ['C7'], scenario: 'kickHead', fit: (d) => apexAfter(d, 'kick', 'head') },
+  // The lob is ours, not HS's (HS has no hold-to-lob); HS's nearest thing is the jumping kick.
+  { id: 'ball.kickApex.lob', unit: 'px', clips: ['C7'], scenario: 'kickLob', fit: (d) => apexAfter(d, 'kick', 'lob') },
+
   // C9 — the ball off each surface; tag the bounce with the surface's name.
   { id: 'ball.wallRestitution', unit: '', clips: ['C9'], scenario: 'wallBounce', fit: (d) => restitution(d, 'wall', 'x') },
   { id: 'ball.barRestitution', unit: '', clips: ['C9'], scenario: 'barBounce', fit: (d) => restitution(d, 'bar') },
@@ -814,6 +861,8 @@ export const METRICS = [
   // M — whole matches.
   { id: 'match.goals', unit: 'goals', clips: ['M*'], scenario: 'botMatch',
     fit: (d) => ({ value: d.tags.filter((t) => t.type === 'goal').length, sd: 0, n: 1 }) },
+  // …and how much of the live play the ball spends off the top of the picture.
+  { id: 'ball.offscreenFrac', unit: '%', clips: ['M*'], scenario: 'botLong', fit: offscreenFrac },
 ];
 
 export const METRIC_BY_ID = new Map(METRICS.map((m) => [m.id, m]));

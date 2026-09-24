@@ -112,6 +112,10 @@ export const SCENARIOS = {
   kickJump: { clip: 'C7', ticks: 120, kickTag: 'strike', kickNote: 'jump', setup: (m) => { openPlay(m); parkBall(m); },
     during: (m, i) => { if (i === 12) { const p = m.players[0]; place(m.ball, p.x + p.facing * 50, p.y - C.BODY_H * 0.45); } },
     input: (i) => ({ jump: i === 1, kick: i === 12 }) },
+  // Our lob (not an HS move): KICK with JUMP held, from the halfway line, ball at the feet.
+  kickLob: { clip: 'C7', ticks: 180, kickTag: 'strike', kickNote: 'lob',
+    setup: (m) => { openPlay(m); const p = m.players[0]; p.x = C.W / 2 - 45; parkP1(m); place(m.ball, p.x + p.facing * 45, C.GROUND_Y - C.BALL_R); },
+    input: (i) => ({ jump: i >= 5 && i < 12, kick: i === 5 }) },
   kickRun: { clip: 'C7', ticks: 120, kickTag: 'strike', kickNote: 'run',
     setup: (m) => { openPlay(m); m.players[0].x = 120; parkP1(m); place(m.ball, 420, C.GROUND_Y - C.BALL_R); },
     input: (i, m, ctx) => {
@@ -139,6 +143,19 @@ export const SCENARIOS = {
       const p = m.players[0], b = m.ball;
       const j = !ctx.jumped && headY(p) - b.y < 150; if (j) ctx.jumped = true;
       return { jump: j };
+    } },
+
+  // The same drop, headed on purpose: jump into it and press KICK as it reaches the head (our
+  // aimed header, tryHeader). The ball arrives falling at ~490 px/s, the median of the HS M4
+  // jumping headers it is compared with (ball.launchSpeed.header, ball.headerApex).
+  headerKick: { clip: 'C8', ticks: 150, kickTag: 'strike', kickNote: 'header',
+    setup: (m) => { openPlay(m); const p = m.players[0]; place(m.ball, p.x + 6, headY(p) - 260); },
+    input: (i, m, ctx) => {
+      const p = m.players[0], b = m.ball;
+      const j = !ctx.jumped && headY(p) - b.y < 150; if (j) ctx.jumped = true;
+      const k = ctx.jumped && !ctx.kicked && Math.hypot(b.x - p.x, b.y - headY(p)) < C.HEAD_R + b.r + 8;
+      if (k) ctx.kicked = true;
+      return { jump: j, kick: k };
     } },
 
   // C9 — the ball off each surface.
@@ -198,6 +215,13 @@ export const SCENARIOS = {
   goalReset: { clip: 'C17', ticks: 60 * 5, setup: (m) => { openPlay(m); place(m.ball, C.W - 150, C.GROUND_Y - 60, 600, 0); }, input: () => ({}) },
   // C19 — a whole bot-vs-bot match.
   botMatch: { clip: 'M', ticks: 60 * 200, setup: () => {},
+    input: (i, m, ctx) => {
+      ctx.bots ??= [createBot(2, rng(11)), createBot(2, rng(23))];
+      return [botInput(ctx.bots[0], m, 0, C.TICK), botInput(ctx.bots[1], m, 1, C.TICK)];
+    } },
+  // Ten minutes of bot-vs-bot on one clock, for shares of play time (a 60 s match is a handful
+  // of high balls; ten minutes is enough of them to be a share).
+  botLong: { clip: 'M', ticks: 60 * 600, setup: (m) => { m.clock = 600; },
     input: (i, m, ctx) => {
       ctx.bots ??= [createBot(2, rng(11)), createBot(2, rng(23))];
       return [botInput(ctx.bots[0], m, 0, C.TICK), botInput(ctx.bots[1], m, 1, C.TICK)];
@@ -332,7 +356,8 @@ export function runScenario(name) {
   tags.sort((p, q) => p.t - q.t);
   return {
     scenario: name, clip: sc.clip, fps: 1 / C.TICK, frames, tags,
-    calib: { groundY: C.GROUND_Y, W: C.W, checks: sc.calib ? sc.calib() : {} },
+    // viewTop: the world y of the picture's top edge, as the HS camera frames it.
+    calib: { groundY: C.GROUND_Y, W: C.W, viewTop: C.GROUND_Y - C.VIEW_ABOVE_GROUND, checks: sc.calib ? sc.calib() : {} },
   };
 }
 

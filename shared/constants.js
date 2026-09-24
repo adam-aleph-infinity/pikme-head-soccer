@@ -40,6 +40,12 @@ export let CEIL_KEEP_X = 0;
 // was the same number as the ball's ceiling until the ceiling moved off-screen; the effects
 // are pictures and stay inside the picture.
 export const SKY_Y = 30;
+// HOW MUCH SKY THE CAMERA SHOWS: world px from the grass to the top edge of the picture. HS
+// M3/M4 calibration: the grass line sits at frame y 489 of 590 and the whole screen height is
+// the game (the ball flies over the HUD), so 489 x 0.9953 = 487 px of sky. The renderer fits at
+// least this much above the ground; with the ceiling at -130 a ball can still leave the top —
+// as it does in HS, ~4% of live play (docs/hs-estimates.json ball.offscreenFrac).
+export const VIEW_ABOVE_GROUND = 487;
 
 export const TICK = 1 / 60;           // sim step (fixed)
 
@@ -182,9 +188,14 @@ export let KICK_POWER = 367;         // 540 at the old PACE 0.68 — the kick co
 // Most of the gap is flat shots hitting a defender's body instead of sailing over it, which
 // is the trade the flat shot is supposed to make.
 export let KICK_LIFT = 272;          // 400 x the old PACE 0.68
-export let LOB_LIFT = 2.5;            // hold JUMP while kicking: more air, less drive. Restated
-                                      // against the cut in KICK_LIFT so the lob is untouched:
-                                      // 2.5 x 400 is the 1.62 x 620 it replaces.
+// hold JUMP while kicking: more air, less drive. It was 2.5, and from the halfway line (where
+// the bow adds its third) that sent the ball 539px up — to within a ball of the ceiling and
+// ~0.9s off the top of the picture, every time. On a phone JUMP is often still held when KICK
+// goes in, so this was the commonest way to lose the ball upward. Head Soccer has no lob; its
+// jumping kick tops out ~340px (HS M4 167.9 s), and 1.9 puts the halfway-line lob at 352 —
+// still well over a jumping defender (crown ~116px up), and inside the 475 the camera shows
+// (VIEW_ABOVE_GROUND). Measured by ball.kickApex.lob (hs-scenarios kickLob).
+export let LOB_LIFT = 1.9;
 export let LOB_DRIVE = 0.62;
 // Body contact KILLS the ball's pace (Adam: 'if it dosnt kick, the ball kinda stops and
 // rolles'). The head still bounces — that is the aerial tool — but your torso deadens.
@@ -291,6 +302,10 @@ export let HEADER_POWER = 0.72;      // of a kick, horizontally
 // 620 to 400 to stop the kick going up. The header is the AERIAL tool and wants to keep going
 // up, so the multiple rises to hold the same 680 it had. It is now well above 1 because the
 // header really is the lofted strike and the kick really is not.
+// HS M4 checked it (docs/hs-estimates.json ball.launchSpeed.header / ball.headerApex): a jump
+// into a ball falling at ~490 px/s leaves at 587 px/s and tops out 326px up; HS's median over
+// 12 such headers is 590 and 310. The header was never what sent the ball off the screen —
+// the camera was (see VIEW_ABOVE_GROUND) — so it stays.
 export let HEADER_LIFT = 1.7;        // and more of the lift
 export let HEADER_R = 16;            // px of slack around the head circle that still counts
 
