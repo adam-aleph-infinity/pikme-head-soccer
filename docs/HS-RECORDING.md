@@ -88,6 +88,15 @@ node -e "for (const r of require('./docs/hs-reference.json')) console.log(r.stat
   gauge full, power press, cut-in on/off, jump tap/hold, dash, release.
   - Put the surface or the variant in *note*: `wall`, `bar`, `top`, `ceiling`, `feet`, `knee`,
     `head`, `jump`, `run`.
+  - The full tag list the fits read (and the sim side emits) is in the metric table at the end
+    of `tools/hs-fit-lib.mjs` — including `kick_end`, `reverse`, `stand_on`/`stand_off`,
+    `stun_on`/`stun_off`, `blocked`, `counter`, `armed`/`armed_end`, `resume`, and `attempt`
+    (a yes/no number, like "can you stand on a head", is only answered on a take tagged as trying).
+- Numbers that no tagged take shows yet go in `docs/hs-estimates.json` with clip, timestamps and a
+  one-line `how`. `bound: "min"`/`"max"` marks a lower/upper bound, `metric` points a variant row
+  at the metric that measures it, `prefer` lets a by-eye number beat a script-tagged fit.
+- `node test-hs-parity.mjs` runs every reference row's scenario in our sim through the same
+  fit and prints `id | HS value | our sim | diff % | tol | ok/OFF`.
 - **Save** writes `docs/hs-clips/<clip>.tracks.json`. Commit those files.
 
 Numbers that can't be recorded (for example power shots you don't own) go in

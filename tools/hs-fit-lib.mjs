@@ -167,7 +167,11 @@ export function fitGravity(pts, contactTimes = null, { minPts = 6, axis = 'y' } 
   const cuts = contactTimes ?? detectContacts(pts, { axis });
   const per = [];
   for (const seg of freeFlights(pts, cuts, { minPts })) {
-    const f = polyfit(seg.map((p) => p.t), seg.map((p) => p[axis]), 2);
+    // A ball lying still is not a flight: its parabola is a flat line with a tiny error bar,
+    // and weighted in with the real flights it drags the gravity to zero.
+    const ys = seg.map((p) => p[axis]);
+    if (Math.max(...ys) - Math.min(...ys) < 3) continue;
+    const f = polyfit(seg.map((p) => p.t), ys, 2);
     if (f) per.push({ value: 2 * f.c[2], sd: 2 * f.se[2], n: 1 });
   }
   return weighted(per);
@@ -194,7 +198,13 @@ function weighted(per) {
 //        contactTimes still bounds the flights — a ground bounce next to a wall bounce must
 //        not leak into the wall bounce's fit.
 export function fitRestitution(pts, contactTimes = null, { axis = 'y', win = 10, minPts = 3, at = null } = {}) {
-  const cuts = [...new Set([...(contactTimes ?? detectContacts(pts, { axis })), ...(at ?? [])])].sort((a, b) => a - b);
+  // A contact the track shows a frame away from where it was TAGGED is the same contact (the
+  // bounce lands between frames, and the eye and the velocity jump pick neighbouring ones), so
+  // a cut within 1.5 frames of an evaluated contact is dropped rather than left to starve it.
+  const near = 1.5 * (median(pts.slice(1).map((p, k) => p.t - pts[k].t)) || 1 / 60);
+  const cuts = [...new Set([...(contactTimes ?? detectContacts(pts, { axis })), ...(at ?? [])])]
+    .filter((t) => !at || at.some((s) => Math.abs(s - t) < 1e-6) || !at.some((s) => Math.abs(s - t) < near))
+    .sort((a, b) => a - b);
   const per = [];
   for (let c = 0; c < cuts.length; c++) {
     const tc0 = cuts[c];
@@ -388,7 +398,13 @@ export function fitJumpGravity(pts, opts = {}) {
 // under a known gravity g, which needs fewer frames). Evaluated at the kick time.
 //   speed  px/s          angle  degrees ABOVE horizontal, whichever way the ball goes
 export function launch(pts, tKick, { n = 5, g = null } = {}) {
-  const s = pts.filter((p) => p.t > tKick + 1e-6).slice(0, n);
+  // A hit-stop holds the ball where it was struck for a few frames (on video and in our sim
+  // alike); the launch is the motion AFTER it, so leading frames that have not moved are skipped
+  // and the fit is evaluated where the ball starts to move.
+  let after = pts.filter((p) => p.t > tKick + 1e-6);
+  const k = after.findIndex((p, j) => j > 0 && Math.hypot(p.x - after[j - 1].x, p.y - after[j - 1].y) > 0.5);
+  if (k > 1) { tKick = after[k - 1].t; after = after.slice(k); }
+  const s = after.slice(0, n);
   if (s.length < 3) return null;
   const fx = polyfit(s.map((p) => p.t), s.map((p) => p.x), 1, tKick);
   let fy;
@@ -451,5 +467,367 @@ export function burst(pts, tStart, { axis = 'x', window = 0.8, baseSpeed = 0 } =
   const up = crossing(sp, mid, 1, true) ?? s[0].t;
   const k = sp.findIndex((q) => q.t >= up);
   const down = crossing(sp, mid, Math.max(1, k), false);
-  return { peak, duration: down != null ? down - up : null };
+  return { peak, duration: down != null ? down - up : null, up, down };
+}
+
+// Position along `axis` at time t, linearly interpolated between the samples either side.
+export function posAt(pts, t, axis = 'x') {
+  if (!pts.length) return null;
+  if (t <= pts[0].t) return pts[0][axis];
+  for (let k = 1; k < pts.length; k++) {
+    if (pts[k].t >= t) {
+      const a = pts[k - 1], b = pts[k];
+      return a[axis] + ((t - a.t) / (b.t - a.t || 1)) * (b[axis] - a[axis]);
+    }
+  }
+  return pts[pts.length - 1][axis];
+}
+
+// ─── THE METRIC TABLE ─────────────────────────────────────────────────────────────────────────
+//
+// Every number the reference holds, as a function of ONE track document — the .tracks.json
+// shape: {frames, tags, fps, calib}. `_hs-fit.mjs` runs these over the video tracks; the parity
+// harness (test-hs-parity.mjs) runs the very same entries, through measureTracks(), over tracks
+// recorded from our sim by hs-scenarios.mjs. The id is the one name both sides use.
+//
+// Tag vocabulary (video: tagged in tools/hs-measure; sim: emitted by hs-scenarios.mjs):
+//   ready_on ready_off resume goal gauge_full power_press cutin_on cutin_off armed armed_end
+//   jump_tap jump_hold land dash release reverse kick kick_end touch bounce blocked counter
+//   stun_on stun_off stand_on stand_off attempt
+// `note` carries the variant: a bounce's surface (ground wall bar top ceiling), a kick's
+// contact (feet knee head jump run), a touch made jumping ('jump'), and for `attempt` the
+// name of the thing tried — a yes/no metric is only answered on a track that says it tried.
+
+const hasWord = (note, word) => (note || '').toLowerCase().split(/[\s,;/]+/).includes(word);
+// Tag times of one type, optionally only those whose note has / lacks a word.
+export const tagT = (doc, type, { note = null, not = null } = {}) =>
+  doc.tags.filter((t) => t.type === type && (!note || hasWord(t.note, note)) && (!not || !hasWord(t.note, not))).map((t) => t.t);
+const contactsOf = (doc) => doc.tags.filter((t) => ['kick', 'bounce', 'touch'].includes(t.type)).map((t) => t.t);
+const dtOf = (doc) => 1 / (doc.fps || 60);
+const ball = (doc) => series(doc.frames, 'ball');
+const p0 = (doc) => series(doc.frames, 'p0');
+const p1 = (doc) => series(doc.frames, 'p1');
+const attempted = (doc, what) => doc.tags.some((t) => t.type === 'attempt' && hasWord(t.note, what));
+const yesNo = (what, type) => (doc) => (attempted(doc, what) ? { value: doc.tags.some((t) => t.type === type) ? 1 : 0, sd: 0, n: 1 } : NONE);
+const endT = (doc) => doc.frames.length ? doc.frames[doc.frames.length - 1].t : null;
+
+// Every contact that bounds a ball flight: all tagged ones plus the ones the track shows.
+const allCuts = (doc, pts, axis = 'y') => [...contactsOf(doc), ...detectContacts(pts, { axis })];
+
+// Restitution at the bounces tagged with `note` (e.g. 'wall'); for the ground, untagged-note
+// bounces too, and when nothing is tagged at all, every detected bounce.
+function restitution(doc, note, axis = 'y') {
+  const pts = ball(doc);
+  let at = note === 'ground'
+    ? doc.tags.filter((t) => t.type === 'bounce' && (!t.note || hasWord(t.note, 'ground'))).map((t) => t.t)
+    : tagT(doc, 'bounce', { note });
+  if (!at.length && note === 'ground') at = detectContacts(pts, { axis });
+  if (!at.length) return NONE;
+  return fitRestitution(pts, allCuts(doc, pts, axis), { axis, at });
+}
+
+// Jumps by tag: tap jumps are tagged jump_tap, held ones jump_hold. With no jump tags at all
+// every jump counts as a tap.
+function jumpOpts(doc, kind) {
+  const taps = tagT(doc, 'jump_tap'), holds = tagT(doc, 'jump_hold');
+  if (!taps.length && !holds.length) return kind === 'tap' ? {} : null;
+  const st = kind === 'tap' ? taps : holds;
+  return st.length ? { startTimes: st } : null;
+}
+const jumpMetric = (fn, kind) => (doc) => { const o = jumpOpts(doc, kind); return o ? fn(p0(doc), o) : NONE; };
+
+// Takeoff speed: a parabola through the RISING half only (a game may fall faster than it
+// rises), its velocity where it leaves the standing line.
+function takeoffSpeed(doc) {
+  const o = jumpOpts(doc, 'tap'); if (!o) return NONE;
+  const pts = p0(doc), base = baseline(pts);
+  const vals = [];
+  for (const j of jumps(pts, o)) {
+    const rise = pts.filter((p) => p.t > j.takeoff && p.t < j.land && base - p.y > 1);
+    const k = rise.reduce((b, p, i) => (p.y < rise[b].y ? i : b), 0);
+    const up = rise.slice(0, k + 1);
+    if (up.length < 4) continue;
+    const f = polyfit(up.map((p) => p.t), up.map((p) => p.y), 2);
+    if (f) vals.push(Math.abs(evalVel(f, j.takeoff)));
+  }
+  return summarise(vals, 5);
+}
+
+const kickMetric = (note, what) => (doc) => {
+  const ts = note ? tagT(doc, 'kick', { note }) : tagT(doc, 'kick');
+  return what === 'speed' ? fitLaunchSpeed(ball(doc), ts) : fitLaunchAngle(ball(doc), ts);
+};
+
+const dur = (a, b, opts) => (doc) => duration(doc.tags, a, b, { dt: dtOf(doc), ...opts });
+
+// The first ready_off of the clip to the first gauge_full: a gauge filling from empty at kickoff.
+function firstFill(doc) {
+  const a = tagT(doc, 'ready_off')[0], b = tagT(doc, 'gauge_full').find((t) => t > (a ?? Infinity));
+  return a != null && b != null ? { value: b - a, sd: dtOf(doc), n: 1 } : NONE;
+}
+
+// How long something held, from its start tag to its end tag — or to the end of the track
+// when it never ended (a LOWER BOUND, which is what the reference row's `bound: 'min'` says).
+// Every stretch counts and the LONGEST is reported: each one is itself a lower bound on how long
+// the thing can hold, and a stretch cut short by the player (a press) says nothing more.
+const heldFor = (a, b, { cancel = null } = {}) => (doc) => {
+  const starts = tagT(doc, a);
+  if (!starts.length) return NONE;
+  const ends = [b, ...(cancel ? [cancel] : [])].flatMap((ty) => tagT(doc, ty)).sort((x, y) => x - y);
+  const spans = starts.map((s) => { const e = ends.find((t) => t > s); return { v: (e ?? endT(doc)) - s, open: e == null }; });
+  const best = spans.reduce((p, q) => (q.v > p.v ? q : p));
+  return { value: best.v, sd: dtOf(doc), n: spans.length, open: best.open };
+};
+
+function dash(doc, what) {
+  const pts = p0(doc);
+  const run = fitTopSpeed(pts.filter((p) => p.t < (tagT(doc, 'dash')[0] ?? Infinity)));
+  const bs = tagT(doc, 'dash').map((t) => burst(pts, t, { baseSpeed: run.value ?? 0 })).filter(Boolean);
+  const vals = bs.map((b) => {
+    if (what === 'speed') return b.peak;
+    if (what === 'duration') return b.duration;
+    return b.down != null ? Math.abs(posAt(pts, b.down) - posAt(pts, b.up)) : null;   // distance
+  }).filter((v) => v != null);
+  const sd0 = what === 'duration' ? dtOf(doc) : 0.05 * (vals[0] ?? 0);
+  return vals.length ? { value: mean(vals), sd: vals.length > 1 ? sampleSd(vals) : sd0, n: vals.length } : NONE;
+}
+
+// After a tagged release: how long, and how far, the body slides to a stop (speed < 10% top).
+function stopping(doc, what) {
+  const pts = p0(doc), rel = tagT(doc, 'release')[0];
+  const top = fitTopSpeed(pts.filter((p) => p.t <= (rel ?? Infinity)));
+  if (rel == null || top.value == null) return NONE;
+  const sp = speeds(pts, 'x', 1);
+  const k = sp.findIndex((s) => s.t >= rel && Math.abs(s.v) <= 0.1 * top.value);
+  if (k < 0) return NONE;
+  const tStop = sp[k].t;
+  const value = what === 'time' ? tStop - rel : Math.abs(posAt(pts, tStop) - posAt(pts, rel));
+  return { value, sd: what === 'time' ? dtOf(doc) : top.value * dtOf(doc) / 2, n: 1 };
+}
+
+// A tagged reversal: from the press the other way to 90% of top speed in the new direction.
+function reverseTime(doc) {
+  const pts = p0(doc), rv = tagT(doc, 'reverse')[0];
+  if (rv == null) return NONE;
+  const top = fitTopSpeed(pts.filter((p) => p.t <= rv));
+  if (top.value == null) return NONE;
+  const sp = speeds(pts, 'x', 1);
+  const before = Math.sign(sp.filter((s) => s.t <= rv).pop()?.v || 0);
+  const hit = sp.find((s) => s.t > rv && Math.sign(s.v) === -before && Math.abs(s.v) >= 0.9 * top.value);
+  return hit ? { value: hit.t - rv, sd: dtOf(doc), n: 1 } : NONE;
+}
+
+// The upper player's own drift while standing on the other's head (stand_on … stand_off).
+function carrySpeed(doc) {
+  const a = tagT(doc, 'stand_on')[0];
+  if (a == null) return NONE;                 // never stood: there is no carry to measure
+  const b = tagT(doc, 'stand_off').find((t) => t > a) ?? endT(doc);
+  const s = p0(doc).filter((p) => p.t >= a && p.t <= b);
+  if (s.length < 4) return NONE;
+  const f = polyfit(s.map((p) => p.t), s.map((p) => p.x), 1);
+  return f ? { value: Math.abs(f.c[1]), sd: f.se[1], n: 1 } : NONE;
+}
+
+// Dash under an airborne opponent: how much HIGHER p1's second jump (the one dashed under)
+// peaks than its first (undisturbed) one. 0 = no launch.
+function dashUnderLaunch(doc) {
+  const js = jumps(p1(doc));
+  return js.length >= 2 ? { value: js[1].apex - js[0].apex, sd: 1, n: 1 } : NONE;
+}
+
+// The ball at a surface tagged `note`: its centre height there, and what share of its
+// horizontal speed survives the touch.
+function atSurface(doc, note, what) {
+  const t = tagT(doc, 'bounce', { note })[0];
+  if (t == null) return NONE;
+  const pts = ball(doc);
+  if (what === 'y') {
+    const near = pts.filter((p) => Math.abs(p.t - t) <= 2.5 * dtOf(doc));
+    if (!near.length) return NONE;
+    const y = note === 'ceiling' ? Math.min(...near.map((p) => p.y)) : Math.max(...near.map((p) => p.y));
+    const r = doc.frames.find((f) => f.ball)?.ball.r ?? 0;
+    // Ceiling: the ball-centre y (world). Goal top: the surface height above the grass.
+    return { value: note === 'ceiling' ? y : doc.calib.groundY - (y + r), sd: 1, n: 1 };
+  }
+  const before = pts.filter((p) => p.t < t - 1e-6).slice(-6), after = pts.filter((p) => p.t > t + 1e-6).slice(0, 6);
+  if (before.length < 3 || after.length < 3) return NONE;
+  const fb = polyfit(before.map((p) => p.t), before.map((p) => p.x), 1), fa = polyfit(after.map((p) => p.t), after.map((p) => p.x), 1);
+  if (!fb || !fa || Math.abs(fb.c[1]) < 1) return NONE;
+  return { value: Math.abs(fa.c[1]) / Math.abs(fb.c[1]), sd: 0.05, n: 1 };
+}
+
+// Does the ball come to rest on the goal top? 1 if it stays within 3px of where it landed for
+// half a second after a 'top' bounce.
+function restsOnBar(doc) {
+  const t = tagT(doc, 'bounce', { note: 'top' })[0];
+  if (t == null) return attempted(doc, 'goaltop') ? { value: 0, sd: 0, n: 1 } : NONE;
+  const pts = ball(doc).filter((p) => p.t >= t);
+  if (!pts.length) return NONE;
+  const y0 = pts[0].y;
+  const stay = pts.findIndex((p) => Math.abs(p.y - y0) > 3);
+  const held = (stay < 0 ? pts[pts.length - 1].t : pts[stay].t) - t;
+  return { value: held >= 0.5 ? 1 : 0, sd: 0, n: 1 };
+}
+
+// A power shot blocked by an unarmed body: how long the blocker is stunned (0 = not at all),
+// and whether the ball comes back off them.
+function blockStun(doc) {
+  const b = tagT(doc, 'blocked')[0];
+  if (b == null) return NONE;
+  const on = tagT(doc, 'stun_on').find((t) => t >= b - 0.05);
+  if (on == null) return { value: 0, sd: 0, n: 1 };
+  const off = tagT(doc, 'stun_off').find((t) => t > on) ?? endT(doc);
+  return { value: off - on, sd: dtOf(doc), n: 1 };
+}
+function blockRebound(doc) {
+  const b = tagT(doc, 'blocked')[0];
+  if (b == null) return NONE;
+  const pts = ball(doc);
+  const v = (s) => { const f = s.length >= 2 ? polyfit(s.map((p) => p.t), s.map((p) => p.x), 1) : null; return f ? f.c[1] : 0; };
+  const vb = v(pts.filter((p) => p.t < b).slice(-4)), va = v(pts.filter((p) => p.t > b + 0.1).slice(0, 4));
+  return { value: vb && va && Math.sign(va) !== Math.sign(vb) ? 1 : 0, sd: 0, n: 1 };
+}
+
+const calibCheck = (key) => (doc) => {
+  const v = doc.calib?.checks?.[key];
+  return v != null ? { value: v, sd: 0, n: 1 } : NONE;
+};
+
+// id: dotted name both sides key on · unit · clips it is measured from · scenario the sim side
+// builds (hs-scenarios.mjs) · timing: tolerance floor of one frame · fit: (doc) → {value, sd, n}
+export const METRICS = [
+  // Geometry, from every clip's calibration clicks — the cross-checks of the mapping itself.
+  { id: 'geom.goalHeight', unit: 'px', clips: ['*'], scenario: 'geometry', fit: calibCheck('goalHeight') },
+  { id: 'geom.headDiameter', unit: 'px', clips: ['*'], scenario: 'geometry', fit: calibCheck('headDiameter') },
+  { id: 'geom.goalMouthX', unit: 'px', clips: ['*'], scenario: 'geometry', fit: calibCheck('goalMouthX') },
+
+  // C1 — stand still at kickoff.
+  { id: 'kickoff.readyTime', unit: 's', clips: ['C1', 'C17', 'M*'], scenario: 'kickoff', timing: true, fit: dur('ready_on', 'ready_off') },
+  { id: 'ball.spawnHeight', unit: 'px', clips: ['C1'], scenario: 'kickoff',
+    fit: (d) => { const b = ball(d)[0]; return b ? { value: d.calib.groundY - b.y, sd: 1, n: 1 } : NONE; } },
+  { id: 'ball.gravity', unit: 'px/s²', clips: ['C1', 'C8', 'C9'], scenario: 'drop',
+    fit: (d) => { const pts = ball(d); return fitGravity(pts, allCuts(d, pts)); } },
+  { id: 'ball.groundRestitution', unit: '', clips: ['C1', 'C9'], scenario: 'drop', fit: (d) => restitution(d, 'ground') },
+
+  // C2 — run from standstill and release (tag 'release'); C2/C4 reversal (tag 'reverse').
+  { id: 'player.topSpeed', unit: 'px/s', clips: ['C2'], scenario: 'run', fit: (d) => fitTopSpeed(p0(d)) },
+  { id: 'player.accel', unit: 'px/s²', clips: ['C2'], scenario: 'run', fit: (d) => fitAccel(p0(d)) },
+  { id: 'player.accelTime', unit: 's', clips: ['C2'], scenario: 'run', timing: true,
+    fit: (d) => { const a = fitAccel(p0(d)); return a.value != null ? { value: a.rise, sd: dtOf(d), n: 1 } : NONE; } },
+  { id: 'player.decel', unit: 'px/s²', clips: ['C2'], scenario: 'run', fit: (d) => fitDecel(p0(d)) },
+  { id: 'player.stopTime', unit: 's', clips: ['C2'], scenario: 'run', timing: true, fit: (d) => stopping(d, 'time') },
+  { id: 'player.stopDistance', unit: 'px', clips: ['C2'], scenario: 'run', fit: (d) => stopping(d, 'distance') },
+  { id: 'player.reverseTime', unit: 's', clips: ['C2', 'C4'], scenario: 'runReverse', timing: true, fit: reverseTime },
+
+  // C3 — tap jumps and held jumps.
+  { id: 'jump.apex.tap', unit: 'px', clips: ['C3'], scenario: 'jumpTap', fit: jumpMetric(fitApex, 'tap') },
+  { id: 'jump.apex.hold', unit: 'px', clips: ['C3'], scenario: 'jumpHold', fit: jumpMetric(fitApex, 'hold') },
+  { id: 'jump.airtime.tap', unit: 's', clips: ['C3'], scenario: 'jumpTap', timing: true, fit: jumpMetric(fitAirtime, 'tap') },
+  { id: 'jump.airtime.hold', unit: 's', clips: ['C3'], scenario: 'jumpHold', timing: true, fit: jumpMetric(fitAirtime, 'hold') },
+  { id: 'player.gravity', unit: 'px/s²', clips: ['C3'], scenario: 'jumpTap', fit: jumpMetric(fitJumpGravity, 'tap') },
+  { id: 'jump.takeoffSpeed', unit: 'px/s', clips: ['C3'], scenario: 'jumpTap', fit: takeoffSpeed },
+  // Holding JUMP through a landing: time from touchdown to the next (automatic) takeoff.
+  { id: 'jump.holdRejump', unit: 's', clips: ['C3'], scenario: 'jumpHold', timing: true,
+    fit: (d) => { const l = tagT(d, 'land')[0]; const n = l != null && tagT(d, 'jump_hold').find((t) => t > l);
+      return n != null && n !== false ? { value: n - l, sd: dtOf(d), n: 1 } : NONE; } },
+
+  // C4 — running jump. Horizontal speed kept through the air.
+  { id: 'jump.airSpeed', unit: 'px/s', clips: ['C4'], scenario: 'runJump',
+    fit: (d) => { const js = jumps(p0(d)); const pts = p0(d).filter((p) => js.some((j) => p.t > j.takeoff && p.t < j.land)); return fitTopSpeed(pts); } },
+
+  // C5 — dash, then dash-spam (tag each dash that actually happened).
+  { id: 'dash.speed', unit: 'px/s', clips: ['C5'], scenario: 'dash', fit: (d) => dash(d, 'speed') },
+  { id: 'dash.duration', unit: 's', clips: ['C5'], scenario: 'dash', timing: true, fit: (d) => dash(d, 'duration') },
+  { id: 'dash.distance', unit: 'px', clips: ['C5'], scenario: 'dash', fit: (d) => dash(d, 'distance') },
+  { id: 'dash.cooldown', unit: 's', clips: ['C5'], scenario: 'dashSpam', timing: true, fit: (d) => spacing(d.tags, 'dash', { dt: dtOf(d) }) },
+
+  // C6 — mash kick, no ball: the repeat, and how long the leg stays out (kick → kick_end).
+  { id: 'kick.cooldown', unit: 's', clips: ['C6'], scenario: 'kickMash', timing: true, fit: (d) => spacing(d.tags, 'kick', { dt: dtOf(d) }) },
+  // A kick re-swung before the leg came back ends the first one there, so each kick is paired
+  // with whichever comes first: its kick_end or the next kick.
+  { id: 'kick.duration', unit: 's', clips: ['C6'], scenario: 'kickMash', timing: true,
+    fit: (d) => { const ks = tagT(d, 'kick'), es = tagT(d, 'kick_end');
+      const v = ks.map((t, j) => Math.min(es.find((q) => q > t) ?? Infinity, ks[j + 1] ?? Infinity) - t).filter(Number.isFinite);
+      return summarise(v, dtOf(d)); } },
+
+  // C7 — the kick model: tag each kick with where the ball was (feet / knee / head / jump / run).
+  ...['feet', 'knee', 'head', 'jump', 'run'].flatMap((w) => {
+    const sc = 'kick' + w[0].toUpperCase() + w.slice(1);
+    return [
+      { id: `kick.${w}.speed`, unit: 'px/s', clips: ['C7'], scenario: sc, fit: kickMetric(w, 'speed') },
+      { id: `kick.${w}.angle`, unit: 'deg', clips: ['C7'], scenario: sc, fit: kickMetric(w, 'angle') },
+    ];
+  }),
+
+  // C8 — ball dropped on a standing head (touch), then jumping into it (touch, note "jump").
+  { id: 'ball.headRestitution', unit: '', clips: ['C8'], scenario: 'headDrop',
+    fit: (d) => { const pts = ball(d); const at = tagT(d, 'touch', { not: 'jump' }); return at.length ? fitRestitution(pts, allCuts(d, pts), { at }) : NONE; } },
+  { id: 'header.speed', unit: 'px/s', clips: ['C8'], scenario: 'header', fit: (d) => fitLaunchSpeed(ball(d), tagT(d, 'touch', { note: 'jump' })) },
+  { id: 'header.angle', unit: 'deg', clips: ['C8'], scenario: 'header', fit: (d) => fitLaunchAngle(ball(d), tagT(d, 'touch', { note: 'jump' })) },
+
+  // C9 — the ball off each surface; tag the bounce with the surface's name.
+  { id: 'ball.wallRestitution', unit: '', clips: ['C9'], scenario: 'wallBounce', fit: (d) => restitution(d, 'wall', 'x') },
+  { id: 'ball.barRestitution', unit: '', clips: ['C9'], scenario: 'barBounce', fit: (d) => restitution(d, 'bar') },
+  { id: 'ball.goalTopRestitution', unit: '', clips: ['C9'], scenario: 'goalTopBounce', fit: (d) => restitution(d, 'top') },
+  { id: 'ball.ceilingRestitution', unit: '', clips: ['C9'], scenario: 'ceilingBounce', fit: (d) => restitution(d, 'ceiling') },
+  { id: 'ball.ceilingKeepX', unit: '', clips: ['C9'], scenario: 'ceilingBounce', fit: (d) => atSurface(d, 'ceiling', 'vx') },
+  { id: 'geom.ceilingY', unit: 'px', clips: ['C9'], scenario: 'ceilingBounce', fit: (d) => atSurface(d, 'ceiling', 'y') },
+  { id: 'geom.goalTopY', unit: 'px', clips: ['C9'], scenario: 'goalTopBounce', fit: (d) => atSurface(d, 'top', 'y') },
+  { id: 'ball.restsOnBar', unit: 'yes/no', clips: ['C9'], scenario: 'goalTopBounce', fit: restsOnBar },
+
+  // C10 — bodies: standing on the opponent's head, and dashing under them in the air.
+  { id: 'headStand.happens', unit: 'yes/no', clips: ['C10'], scenario: 'headStand', fit: yesNo('headstand', 'stand_on') },
+  { id: 'headStand.carrySpeed', unit: 'px/s', clips: ['C10'], scenario: 'headStand', fit: carrySpeed },
+  { id: 'dashUnder.launch', unit: 'px', clips: ['C10'], scenario: 'dashUnder', fit: dashUnderLaunch },
+  { id: 'dashUnder.headLandTime', unit: 's', clips: ['C10'], scenario: 'dashUnder', timing: true,
+    fit: (d) => (tagT(d, 'stand_on').length ? dur('stand_on', 'stand_off')(d) : attempted(d, 'dashunder') ? { value: 0, sd: 0, n: 1 } : NONE) },
+
+  // C12 — hardest kick across the pitch: the fastest launch of each take.
+  { id: 'ball.maxSpeed', unit: 'px/s', clips: ['C12'], scenario: 'kickMax',
+    fit: (d) => { const ls = tagT(d, 'kick').map((t) => launch(ball(d), t)).filter(Boolean); if (!ls.length) return NONE;
+      const b = ls.reduce((a, c) => (c.speed > a.speed ? c : a)); return { value: b.speed, sd: b.speedSd, n: 1 }; } },
+
+  // C13 / M — the power gauge.
+  { id: 'gauge.fillTime', unit: 's', clips: ['C13', 'M*'], scenario: 'gauge', timing: true, fit: firstFill },
+  { id: 'gauge.refillTime', unit: 's', clips: ['C13', 'M*'], scenario: 'gauge', timing: true, fit: dur('power_press', 'gauge_full') },
+  // A full gauge left alone: how long it stays full (a lower bound when it never drains).
+  { id: 'gauge.fullHold', unit: 's', clips: ['C13', 'M*'], scenario: 'gaugeHold', timing: true, fit: heldFor('gauge_full', 'gauge_drop', { cancel: 'power_press' }) },
+  // The darkened spotlight when a power shot FIRES (on the touch after arming — pressing
+  // POWER only arms it, so press → cut-in is however long the player took to reach the ball).
+  { id: 'power.cutinTime', unit: 's', clips: ['C14', 'M*'], scenario: 'powerCutin', timing: true, fit: dur('cutin_on', 'cutin_off') },
+
+  // C14 / C15 — arming, countering, blocking.
+  { id: 'power.armHold', unit: 's', clips: ['C14', 'M*'], scenario: 'armWait', timing: true, fit: heldFor('armed', 'armed_end') },
+  { id: 'power.armedCounter', unit: 'yes/no', clips: ['C15', 'M*'], scenario: 'armedCounter', fit: yesNo('armedcounter', 'counter') },
+  { id: 'power.blockStun', unit: 's', clips: ['C15', 'M*'], scenario: 'powerBlock', timing: true, fit: blockStun },
+  { id: 'power.blockRebound', unit: 'yes/no', clips: ['C15', 'M*'], scenario: 'powerBlock', fit: blockRebound },
+
+  // C17 / M — goals and the reset after them.
+  { id: 'goal.resetTime', unit: 's', clips: ['C17', 'M*'], scenario: 'goalReset', timing: true, fit: dur('goal', 'ready_on') },
+  { id: 'goal.toPlayTime', unit: 's', clips: ['C17', 'M*'], scenario: 'goalReset', timing: true, fit: dur('goal', 'ready_off') },
+  { id: 'goal.resumeTime', unit: 's', clips: ['C17', 'M*'], scenario: 'goalReset', timing: true, fit: dur('goal', 'resume') },
+  { id: 'goal.bannerTime', unit: 's', clips: ['C17', 'M*'], scenario: 'goalReset', timing: true, fit: dur('goal', 'banner_off') },
+
+  // M — whole matches.
+  { id: 'match.goals', unit: 'goals', clips: ['M*'], scenario: 'botMatch',
+    fit: (d) => ({ value: d.tags.filter((t) => t.type === 'goal').length, sd: 0, n: 1 }) },
+];
+
+export const METRIC_BY_ID = new Map(METRICS.map((m) => [m.id, m]));
+
+// THE SEAM THE PARITY HARNESS USES. One track document in, {id: {value, sd, n}} out, through
+// exactly the fit the video side runs for that id. `metricIds` null means every metric; an id
+// with no entry in the table comes back NONE rather than throwing, so a reference row naming a
+// metric nobody has written yet reads as "unrunnable", not as a crash.
+export function measureTracks(tracks, metricIds = null) {
+  const doc = { tags: [], frames: [], fps: 60, calib: null, ...tracks };
+  const ids = metricIds ?? METRICS.map((m) => m.id);
+  const out = {};
+  for (const id of ids) {
+    const m = METRIC_BY_ID.get(id);
+    let r = NONE;
+    if (m) { try { r = m.fit(doc) ?? NONE; } catch { r = NONE; } }
+    out[id] = r;
+  }
+  return out;
 }

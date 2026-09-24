@@ -222,5 +222,29 @@ function dropTrack({ g = 1500, e = 0.7, y0 = 100, floor = 410, vx = 0, T = 3, am
   near('container fps 60', effectiveFps(times, null), 60, 0.001);
 }
 
+// ─── the seam: one metric table for both sides ───────────────────────────────────────────────
+// measureTracks must be exactly the table's own fit, every reference row must name a metric
+// and a scenario that exist, and the sim side must hand back a document the fits can read.
+{
+  const { SCENARIOS, runScenario } = await import('./hs-scenarios.mjs');
+  const fs = await import('node:fs');
+  const t = [], frames = [];
+  for (let k = 0; k < 90; k++) { const tt = k * DT; t.push(tt); frames.push({ i: k, t: tt, ball: { x: 100, y: 100 + 0.5 * 900 * tt * tt, r: 12 } }); }
+  const doc = { frames, tags: [], fps: 60, calib: { groundY: 435 } };
+  const viaSeam = F.measureTracks(doc, ['ball.gravity'])['ball.gravity'];
+  const direct = F.METRIC_BY_ID.get('ball.gravity').fit(doc);
+  ok('measureTracks is the table\'s own fit', viaSeam.value === direct.value);
+  near('…and it fits a 900 px/s² fall', viaSeam.value, 900, 0.01);
+  ok('an unknown metric comes back empty, not thrown', F.measureTracks(doc, ['no.such'])['no.such'].value === null);
+  ok('every METRICS scenario exists in hs-scenarios.mjs', F.METRICS.every((m) => SCENARIOS[m.scenario]),
+    F.METRICS.filter((m) => !SCENARIOS[m.scenario]).map((m) => m.scenario).join(' '));
+  const ref = JSON.parse(fs.readFileSync(new URL('./docs/hs-reference.json', import.meta.url), 'utf8'));
+  const bad = ref.filter((r) => r.status !== 'unmeasured' && (!F.METRIC_BY_ID.has(r.metric || r.id) || !SCENARIOS[r.scenario]));
+  ok('every live reference row has a metric and a scenario', !bad.length, bad.map((r) => r.id).join(' '));
+  const sim = runScenario('jumpTap');
+  ok('a sim track has the tracks.json shape', sim.frames[0].p0 && sim.frames[0].ball && Array.isArray(sim.tags) && sim.calib.groundY === C.GROUND_Y);
+  ok('the sim jump is seen by the same fit', F.measureTracks(sim, ['jump.apex.tap'])['jump.apex.tap'].value > 5);
+}
+
 console.log(`test-hs-fit: ${pass} passed, ${fail} failed`);
 if (fail) process.exit(1);
