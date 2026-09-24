@@ -324,6 +324,8 @@ export function runScenario(name) {
     // The gauge and the arm, as the HUD shows them.
     if (st.gauge < 1 && a.gauge >= 1) tag(i, 'gauge_full');
     if (st.gauge >= 1 && a.gauge < 1 && a.armed <= 0 && st.armed <= 0) tag(i, 'gauge_drop');
+    if (st.gauge > 0 && a.gauge <= 0) tag(i, 'gauge_empty');
+    if (st.gauge <= 0 && a.gauge > 0) tag(i, 'gauge_rise');
     if (st.armed > 0 && a.armed <= 0) tag(i, 'armed_end');
     st.gauge = a.gauge; st.armed = a.armed;
     // Buttons, as a person reads them off the thumbs: letting go, turning round.

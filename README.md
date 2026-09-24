@@ -439,7 +439,10 @@ mechanics that actually define it, not just the look:
 
 - **Five buttons, nothing else.** Left, right, jump, kick, power. Dash is a double-tap.
 - **The power gauge fills with match time**, not with touches. When it's full the POWER
-  button lights; pressing it **arms** you, and the *next* ball contact fires your shot.
+  button lights; pressing it **arms** you (you glow), **empties the bar and hides the button**,
+  and the *next* ball contact fires your shot. The refill starts on the press, so it is already
+  climbing while you walk to the ball; the button comes back when the bar is full again (a
+  second arm waits until the first shot has fired).
 - **Five shot families** from the wiki's taxonomy — `straight`, `arc`, `trap`, `wave`,
   `homing` — see [`shared/powershots.js`](shared/powershots.js). A body in the way blocks
   it, and the ball deflects back off them.
@@ -500,11 +503,16 @@ A power shot that hits an unarmed player dazes them for **0.5s** and rebounds.
 move again at **2.24s**, and the ball drops in at the centre **2.795s** after the goal —
 302px up, drifting 138 px/s toward whoever conceded. Both banners are timed by the sim.
 
-**The gauge** fills on a wall clock at **1/13 per second** — through goal restarts and
-cut-ins — after a **2s lead** at the start of a match, and not under the KICK OFF banner. That
-one model gives both of HS's numbers: first fill 15.0s after the banner, refill 13.0s (the refill
-window had 3.6s of pauses in it and was still shorter, so it cannot be a play-time clock; the
-2s gap is the same in two recordings with different characters, so it is a delay, not a rate).
+**The gauge** fills at **1/15 per second of play**: not under the KICK OFF banner, not through
+a goal's restart (it stops at the goal and starts again when the ball drops in), and straight
+through cut-ins. **The POWER press empties it** and the refill starts right there — HS M4: pressed
+at 36.49s, empty at 36.56s, visibly climbing at 36.67s, while the shot only fires on the touch at
+41.93s (M3 likewise: the bar climbs straight through the cut-in at 71.5s). Timed from the press,
+M4's refill is 18.39s to the plaque (54.88s) with the bar flat for 3.19s across a goal
+(43.40→46.59s): 15.2s of play, the same as the first fill (15.0s after the banner). The old
+model (1/13 of wall clock plus a 2s lead) was fitted to a refill timed from the *fire* (13.0s),
+which had the 5.4s of refill between press and fire cut off. Rows: `gauge.emptyOnPress`,
+`gauge.refillStart`, `gauge.refillTime` in `docs/hs-estimates.json`.
 
 ## Pace — REMOVED
 

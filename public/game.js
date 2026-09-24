@@ -9,7 +9,7 @@ import { goalBox, goalAt, depthPoint, INSIDE_Z } from '../shared/goalbox.js';
 import { createEditor, applyLayout, applyOpacity, loadOpacity } from './padlayout.js';
 import { walkPick, resolveWalk } from './walkpad.js';
 import { headCrop } from './head-crop.js';
-import { clockText } from './hud.js';
+import { clockText, gaugeView } from './hud.js';
 import { createNet } from './net.js';
 import { playEvent, SFX, setAudioEnabled, audioEnabled, synth } from './audio.js';
 import { STAGES, randomStage, stageById } from './stages.js';
@@ -2683,19 +2683,19 @@ function syncHud() {
   for (let i = 0; i < 2; i++) {
     const p = M.players[i];
     const gEl = HUD.gauge[i];
-    const armed = p.armed > 0;
-    // ARMED KEEPS THE BAR FULL. It used to count DOWN while the move was live, because the
-    // move WAS the countdown. Now the meter is not spent until the ball is touched, so a
-    // draining bar would be lying about what you still have: the bar stays at 100% and the
-    // `armed` class is what says "loaded, go and touch the ball".
+    const gv = gaugeView(p);
+    const armed = gv.armed;
+    // THE PRESS EMPTIES THE BAR (HS M4 36.49 s) and the refill climbs from there while the
+    // head glows; the `armed` class and the ⚡ in the name are what say "loaded, go and touch
+    // the ball". See gaugeView.
     //
     // The fill is ONE continuous ramp painted across the whole track and revealed by a
     // clip, rather than a growing box. Growing a box squeezes the gradient into whatever
     // is filled, so the colour under the tip never changes and you get a shorter rainbow
     // instead of a climbing one. Revealing a fixed ramp is what makes the leading edge
     // travel green -> yellow -> orange -> red with nothing to step over.
-    prop(gEl, '--p', (p.gauge * 100).toFixed(2) + '%');
-    gEl.classList.toggle('full', p.gauge >= 1);
+    prop(gEl, '--p', gv.pct.toFixed(2) + '%');
+    gEl.classList.toggle('full', gv.full);
     gEl.classList.toggle('powered', armed);
     const nm = powerName(p);
     txt(HUD.gaugeName[i], armed ? `${nm} ⚡` : nm);
@@ -2703,11 +2703,9 @@ function syncHud() {
   const me = ONLINE ? NET.you : 0;
   const mine = M.players[me];
   const pb = HUD.power;
-  // Lit when a full meter means you can arm, and held lit while you ARE armed — the button
-  // is the same thing the head's glow is saying, and it has nothing left to count down.
-  pb.classList.toggle('ready', mine.gauge >= 1 && mine.armed <= 0);
-  pb.classList.toggle('live', mine.armed > 0);
-  txt(pb, mine.armed > 0 ? '⚡' : 'POWER');
+  // Up only when a press would arm: HS hides the POWER plaque on the press and shows it again
+  // when the bar is full (M4 36.56 s → 54.88 s). The glow on the head is what says armed.
+  pb.classList.toggle('ready', gaugeView(mine).button);
   txt(HUD.rtt, ONLINE ? `${NET.rtt}ms` : '');
 }
 

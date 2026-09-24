@@ -5,9 +5,9 @@
 // one thing on the board that is computed rather than positioned: the clock's text. It runs
 // here, in node, on every `npm test`, because "0:59" vs "59" is a rule and not a picture.
 import { readFileSync } from 'node:fs';
-import { clockText } from './public/hud.js';
+import { clockText, gaugeView } from './public/hud.js';
 import * as C from './shared/constants.js';
-import { createMatch, serialize } from './shared/sim.js';
+import { createMatch, serialize, step, headY } from './shared/sim.js';
 
 let pass = 0, fail = 0;
 const ok = (name, cond, extra = '') => {
@@ -91,6 +91,41 @@ ok('every second of it formats to four characters',
   ok('a player carries no health', m.players.every((p) => !('hp' in p) && !('health' in p)));
   ok('nor does the match', !('hp' in m) && !('health' in m));
   ok('and the snapshot has no seat for it', !JSON.stringify(serialize(m)).includes('"hp"'));
+}
+
+// ── THE POWER BAR AND BUTTON THROUGH A PRESS ─────────────────────────────────
+// "When you use the power it's not resetting the bar." HS M4: POWER at 36.49 s, the bar empty
+// by 36.56 s and refilling from there, the POWER plaque gone until the bar is full (54.88 s).
+// Driven through the real sim, so the HUD is judged on what a match actually does.
+{
+  const m = createMatch({ rarity: 'legendary', number: 3 }, { rarity: 'legendary', number: 2 }, {});
+  m.phase = 'play'; m.freeze = 0; m.banner = null; m.bannerT = 0; m.gaugeLead = 0;
+  const p = m.players[0];
+  const park = () => { m.ball.x = C.W / 2; m.ball.y = C.CEIL_Y + C.BALL_R + 2; m.ball.vx = 0; m.ball.vy = 0; m.hitStop = 0; };
+  p.gauge = 1; park();
+  let v = gaugeView(p);
+  ok('a full bar shows the POWER button', v.full && v.button && v.pct === 100, JSON.stringify(v));
+  step(m, [{ power: true }, {}]);
+  v = gaugeView(p);
+  ok('the press empties the bar', v.pct === 0 && !v.full, JSON.stringify(v));
+  ok('and hides the button', !v.button);
+  ok('while the player is armed (the glow)', v.armed);
+  for (let i = 0; i < 120; i++) { park(); step(m, [{}, {}]); }
+  v = gaugeView(p);
+  ok('two seconds on, the bar is refilling', Math.abs(v.pct - 120 * C.TICK * C.GAUGE_PASSIVE * 100) < 1e-6, v.pct.toFixed(3));
+  ok('the button is still hidden, the arm still waiting', !v.button && v.armed);
+  // Full again before the shot: the arm still has to fire first, so no button yet.
+  p.gauge = 1;
+  v = gaugeView(p);
+  ok('a bar full again while still armed keeps the button hidden', v.full && !v.button, JSON.stringify(v));
+  for (let t = 0; t < 30 && !m.ball.power; t++) { m.hitStop = 0; m.ball.x = p.x; m.ball.y = headY(p); m.ball.vx = m.ball.vy = 0; step(m, [{}, {}]); }
+  v = gaugeView(p);
+  ok('the touch fires the shot and the button comes back on the full bar', !!m.ball.power && !v.armed && v.button, JSON.stringify(v));
+  ok('a bad gauge value reads as empty', gaugeView({ gauge: NaN, armed: 0 }).pct === 0);
+  // The renderer paints the bar and the button off gaugeView and nothing else.
+  const js = readFileSync(new URL('./public/game.js', import.meta.url), 'utf8');
+  ok('game.js lights the button off gaugeView', /toggle\('ready', gaugeView\(mine\)\.button\)/.test(js));
+  ok('and paints the bar off it', /prop\(gEl, '--p', gv\.pct/.test(js));
 }
 
 console.log(`hud: ${pass} passed, ${fail} failed`);

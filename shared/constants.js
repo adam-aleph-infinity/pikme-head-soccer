@@ -370,21 +370,22 @@ export let HIT_STOP_TACKLE = 0;
 // both are gone, so the meter is a clock both players can read and neither can farm. It stays
 // full until spent and freezes in sudden death (chargeGauge in shared/sim.js).
 //
-// HOW FAST, measured, and the two measurements disagree in an informative way. HS M4, the
-// starter character:
-//   first fill  15.0s  — the KICK OFF banner going to the POWER plaque (no goal, no cut-in)
-//   refill      13.0s  — the gauge emptying (a counter at 41.9s) to the plaque, and in that
-//                        window a 1.34s cut-in AND a goal's 2.24s restart: 3.6s of pause.
-// The refill is SHORTER, and it had the pauses in it, so the gauge cannot be a play-time clock
-// (the refill would take 15 + 3.6 = 18.6s). A plain wall clock at 1/15 cannot make 13 either.
-// One rate does fit both: a WALL clock at 1/13 per second that runs through the goal restarts
-// and the cut-ins, plus a fixed LEAD at the start of a match before it starts at all. The
-// lead is the same size in both recordings — M4 15.0 vs 13.0, M1–M3 18.1 vs 16.3 (another
-// character) — so it is a delay, not a rate: a rate difference would scale with the fill.
-// It does NOT fill during the kickoff banner (M4 times the first fill from the banner's end).
+// HOW FAST, measured, HS M4 (the starter character), with the refill timed from the PRESS —
+// which is where it starts (M4 36.49 s: empty by 36.56 s, climbing at 36.67 s, 5.4 s before
+// the shot fires at 41.93 s; see gauge.emptyOnPress / gauge.refillStart):
+//   first fill  15.0s  — the KICK OFF banner going to the POWER plaque (19.57 → 34.56 s)
+//   refill      15.2s  — press (36.49 s) → plaque (54.88 s) is 18.4 s, and the bar stands
+//                        still for 3.2 s of it: from the goal at 43.40 s until the ball drops
+//                        in at 46.59 s. The cut-ins in the window (40.44, 41.97 s) do not
+//                        stop it; the bar climbs 17.5 px/s through both.
+// The two agree, so it is ONE play-time clock at 1/15 with no head start: it stops under
+// the kickoff banner and through a goal's restart (until the ball is back), and runs
+// through cut-ins. (It used to be 1/13 of wall clock plus a 2 s lead — a fit to a refill
+// timed from the FIRE, 13.0 s, which had the press-to-fire 5.4 s cut off its front.)
+// M3 (another character) climbs at the same 17.4 px/s and stops at its goals too.
 // Per-character fill (the Power stat) comes with the arcade's stats; this is the starter's.
-export let GAUGE_PASSIVE = 1 / 13;   // fraction of the gauge per second
-export let GAUGE_LEAD = 2.0;         // s of play after the kickoff before the gauge starts
+export let GAUGE_PASSIVE = 1 / 15;   // fraction of the gauge per second of play
+export let GAUGE_LEAD = 0;           // s of play after the kickoff before the gauge starts
 
 // ── THE ULTIMATE: ARM, THEN TOUCH THE BALL ───────────────────────────────────
 // Three shapes, and the third is the one that is in the game.
