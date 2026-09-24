@@ -286,8 +286,8 @@ function botInputRaw(bot, m, index, dt) {
     // Recovery dash: too far from home with the ball coming, burn the dash to get back.
     bot.wantDash = incoming && Math.abs(p.x - myGoalX) > 260 && (bot.aim - p.x) * p.side < 0;
 
-    // Tackle when the OPPONENT is in boot range and the ball is not — free gauge, and it
-    // slows them. Skill-scaled: a weak bot rarely spots it, the legendary one always does.
+    // Tackle when the OPPONENT is in boot range — the boot shoves them back toward their own
+    // goal, off the ball. Skill-scaled: a weak bot rarely spots it, the legendary one always does.
     const foeNear = Math.abs(foe.x - p.x) < C.KICK_REACH + C.KICK_R * 0.8 &&
                     Math.abs(foe.y - p.y) < C.BODY_H + C.HEAD_R;
     // Tackling is an OFF-BALL move. Gating it only on "the ball is not on my boot" made the
@@ -298,25 +298,15 @@ function botInputRaw(bot, m, index, dt) {
     // both players chase the same ball, so they are close to each other exactly when the ball
     // is close too. Measured: 0 tackles a match. The only condition that really matters is
     // not turning your back on a ball heading for your own goal.
-    const ballFar = Math.abs(b.x - p.x) > 140;
-    // Tackling is how the power gauge is earned now — three hits buy a volley — so a bot with
-    // an empty gauge should WANT the hit rather than take it only when it happens to be
-    // convenient. Measured before this line existed: a level-1 bot charged 78 times over
-    // sixteen matches and a level-5 bot six, because the good bot plays positionally and the
-    // flailing one blunders into people. That is the gradient upside down.
-    // `ballFar` used to be part of this, and under the new gauge rule it inverted the whole
-    // ladder: a good bot is nearly always ON the ball, so it never met the condition, never
-    // tackled, and never earned a volley — while a bad bot, who loses the ball constantly,
-    // farmed the gauge by blundering into people. Measured over twenty matches: the level-2
-    // bot charged 101 times to the level-5 bot's 11, and won.
     //
-    // So with an empty gauge, a hit on the man is worth taking even when the ball is right
-    // there. Going for the man to earn the super IS the game Adam described; the better bot
-    // should understand that first.
-    const needGauge = p.gauge < 1;
+    // It used to matter far more: tackling was how the power gauge was EARNED, and the bot
+    // wanted the hit whenever its gauge was empty — which was nearly always, so in practice the
+    // rule below is what it did. The gauge is a clock now (Head Soccer's rule) and a tackle pays
+    // nothing into it, but the shove itself is still worth having, and a `ballFar` gate on it is
+    // known to invert the ladder (a good bot is always ON the ball, so it never tackled). So the
+    // old empty-gauge rate is kept as the rate, without the reason that used to go with it.
     bot.wantTackle = foeNear && !incoming && foe.tackleImmune <= 0
-                     && (ballFar || needGauge)
-                     && bot.rng() < Math.min(0.95, d.aim * (needGauge ? 1.5 : 1) * (d.tackle ?? 1));
+                     && bot.rng() < Math.min(0.95, d.aim * 1.5 * (d.tackle ?? 1));
 
     // Jump when the ball is genuinely headable, not just "high".
     const dxb = Math.abs(b.x - p.x);
@@ -441,8 +431,8 @@ function botInputRaw(bot, m, index, dt) {
   // kickoff no matter what state came before:
   //
   //   m.phase === 'play' — never during the kickoff freeze or a goal restart.
-  //   p.gauge >= 1       — and the meter is now zeroed at every kickoff (clearUltimate), so
-  //                        it can only be full again after tackles THIS passage of play.
+  //   p.gauge >= 1       — the meter fills on the clock (GAUGE_PASSIVE) and starts every
+  //                        match at zero (clearUltimate), so it is never full at kickoff.
   //   p.armed <= 0       — no re-pressing something already armed.
   //   armDelay           — a beat of ordinary football after kickoff before the bot will even
   //                        consider it, measured on the MATCH clock rather than on bot.t, so a

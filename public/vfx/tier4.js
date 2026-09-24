@@ -1402,8 +1402,8 @@ export default {
     palette: ['#7a0010', '#c1121f', '#2b0a12', '#efe8f5', '#5a1a3a'],
     doc: {
       fantasy: 'The champion is a vampire: one touch and he feeds, draining the rival\'s blood into his own veins under a blood moon.',
-      purpose: 'Takes 45% health off the foe and heals the champion by what was actually dealt, then stops the foe\'s health regen (regen 0) for 5s — the only power that swings health both ways at once. Also strikes the ball goalward.',
-      player: 'Fill the meter, press POWER to arm, then touch the ball with head or body. The drain is instant; the regen block lasts 5s.',
+      purpose: 'The bite knocks the foe down: 1.25s (STUN_TIME) with no controls at all. It used to drain 45% of a hidden health bar; there is no health any more. Also strikes the ball goalward.',
+      player: 'Fill the meter, press POWER to arm, then touch the ball with head or body. The bite is instant and puts the foe down for 1.25s; the blood-moon night lasts 5s.',
       bot: "Arms on 'any' moment and plays as a 'brawler' — it goes for the man to earn the meter, then fires it whenever it gets the touch.",
       sequence: {
         anticipation: "While armed a spinning blood-red halo rings the champion's head with eight white fangs bristling off it, a dark cape with a crimson lining flares behind him, a crimson glow pools at his feet, a pale moon halo rims his head and five bats circle him.",
@@ -1415,9 +1415,9 @@ export default {
       },
       layers: "Aura halo and fangs, cape, glow, moon halo and bats; cut-in blood moon and bats; drain beam, sunbursts, rings, stamp, blood, bats; back: night fill, sky shade, moon glows, castles, moon, bat swarm, blood drips, fog, withered mist, leech line and its glowing pulses, cracked halo; front: droplets (one shadowBlur), owner glow, fangs, circling bats; mist/drip particles, crossing 🦇.",
       camera: "Shake 8, a 0.2s crimson flash, a 0.6s night grade and a crimson vignette on the bite; the α 0.2 night and the sky shade while it holds.",
-      hud: 'The engine\'s status pill over the foe with its 5s ring; the health bars show the 45% themselves.',
+      hud: 'The engine\'s status pill over the foe with its 5s ring over the foe, who is down for the first 1.25s of it.',
       audio: 'Fire: a dark detuned sawtooth sweep down over a wet thud. Impact: a high shriek blip pair (the bats). End: a soft falling triangle sigh.',
-      counterplay: 'It is a touch, not a shot — deny the champion the ball when he is armed, or stay at high health so 45% is not a kill. For 5s you do not heal: avoid body blocks until it runs out.',
+      counterplay: 'It is a touch, not a shot — deny the champion the ball when he is armed, or be well clear of your goal when it lands so 1.25s on the floor is not a goal.',
       perf: "≈95 particles on the bite, ≤40 on landing, ≤3 per frame while held, ≤8 drawGlow per frame, one shadowBlur on the lead droplet, one radial and one linear gradient per frame, 18 drips.",
       helpers: "fx.beam, fx.rays, fx.glow, fx.stamp, fx.glyph, fx.vignette, fx.drawGlow, fx.burst, fx.ring, fx.flash, fx.tint, fx.shake; drawBat(), drawCastle(), haloRing(), skyShade().",
     },

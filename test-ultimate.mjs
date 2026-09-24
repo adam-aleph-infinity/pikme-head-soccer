@@ -104,7 +104,11 @@ function arm(m, i) {
   }
   ok('the rival does not arm in the first second and a half', !armedEarly);
   ok('and fires no ultimate there', !firedEarly);
-  ok('the rival meter is still empty', m.players[1].gauge === 0, `gauge=${m.players[1].gauge}`);
+  // The meter fills on the clock now (Head Soccer), so after 1.5s it holds exactly the clock's
+  // share and not a hair more — and that is nowhere near a full one.
+  ok('the rival meter holds only what the clock gave it',
+     m.players[1].gauge <= 90 * C.TICK * C.GAUGE_PASSIVE + 1e-9 && m.players[1].gauge < 0.5,
+     `gauge=${m.players[1].gauge}`);
 }
 {
   // A REUSED BOT OBJECT. `bot.t` is never reset by a new match, so every gate the bot keeps
@@ -367,76 +371,49 @@ function arm(m, i) {
     m.events.length = 0;
   }
   ok('and the touch after the goal fires it, exactly once', shots === 1, `${shots} shots`);
-  ok('and NOW the meter is spent', p.gauge === 0, `gauge=${p.gauge}`);
+  // Spent to zero on the touch; the clock starts refilling it on the very next tick, so what is
+  // left after the 30-tick loop is at most 30 ticks' worth of GAUGE_PASSIVE.
+  ok('and NOW the meter is spent', p.gauge <= 30 * C.TICK * C.GAUGE_PASSIVE + 1e-9, `gauge=${p.gauge}`);
 }
-// ═══ 7b. WHAT A GOAL DOES TO THE METERS: IT ADDS, AND ONLY TO THE CONCEDER ═══
+// ═══ 7b. WHAT A GOAL DOES TO THE METERS: NOTHING ═══════════════════════════════
 //
-// Scoring a goal, in normal play, with both meters part-filled. Driven through a real goal
-// rather than by calling awardConcedeMeter directly, so the DIRECTION is tested end to end —
-// a reversed scorer/recipient is the one mistake here that still looks normal from outside.
+// It used to pay the CONCEDER a quarter of a meter (awardConcedeMeter, GAUGE_CONCEDE_BONUS).
+// Head Soccer's meter is a clock and nothing else, so a goal now leaves both meters exactly
+// where they were. Driven through a real goal, both directions, with the clock itself stopped
+// (GAUGE_PASSIVE 0) for the few ticks it takes — so the only thing that could move a meter
+// here is the goal, and it must not.
 {
   const goalBy = (who, meters) => {
-    const m = fresh();
-    m.players[0].gauge = meters[0];
-    m.players[1].gauge = meters[1];
-    // who = 0 scores into the RIGHT net, who = 1 into the LEFT one.
-    m.ball.y = C.GROUND_Y - 30;
-    if (who === 0) { m.ball.x = C.W - C.GOAL_W - C.BALL_R - 2; m.ball.vx = 700; }
-    else { m.ball.x = C.GOAL_W + C.BALL_R + 2; m.ball.vx = -700; }
-    for (let i = 0; i < 20 && m.score[who] === 0; i++) { m.hitStop = 0; step(m, NONE); }
-    return { scored: m.score[who] === 1, g: [m.players[0].gauge, m.players[1].gauge] };
+    const passive = C.GAUGE_PASSIVE;
+    C.tune({ GAUGE_PASSIVE: 0 });
+    try {
+      const m = fresh();
+      m.players[0].gauge = meters[0];
+      m.players[1].gauge = meters[1];
+      // who = 0 scores into the RIGHT net, who = 1 into the LEFT one.
+      m.ball.y = C.GROUND_Y - 30;
+      if (who === 0) { m.ball.x = C.W - C.GOAL_W - C.BALL_R - 2; m.ball.vx = 700; }
+      else { m.ball.x = C.GOAL_W + C.BALL_R + 2; m.ball.vx = -700; }
+      for (let i = 0; i < 20 && m.score[who] === 0; i++) { m.hitStop = 0; step(m, NONE); }
+      return { scored: m.score[who] === 1, g: [m.players[0].gauge, m.players[1].gauge] };
+    } finally { C.tune({ GAUGE_PASSIVE: passive }); }
   };
-  const near = (a, b) => Math.abs(a - b) < 1e-9;
-
-  // Player 1 (index 0) scores → player 2 (index 1) gains 25 points, player 1 is untouched.
-  {
-    const r = goalBy(0, [0.40, 0.40]);
-    ok('(player 1 scored)', r.scored, r.g.join(' / '));
-    ok('P1 scoring adds 25 points to P2', near(r.g[1], 0.65), `P2 = ${r.g[1]}`);
-    ok('and leaves P1 exactly where it was', near(r.g[0], 0.40), `P1 = ${r.g[0]}`);
-  }
-  // …and the other way round, which is NOT implied by the first.
-  {
-    const r = goalBy(1, [0.40, 0.40]);
-    ok('(player 2 scored)', r.scored, r.g.join(' / '));
-    ok('P2 scoring adds 25 points to P1', near(r.g[0], 0.65), `P1 = ${r.g[0]}`);
-    ok('and leaves P2 exactly where it was', near(r.g[1], 0.40), `P2 = ${r.g[1]}`);
-  }
-  // The brief's three worked examples, verbatim.
-  {
-    const r = goalBy(1, [0.80, 0.30]);
-    ok('P1 at 80% + a P2 goal clamps to 100%', near(r.g[0], 1), `P1 = ${r.g[0]}`);
-    ok('and P2 stays at its own value', near(r.g[1], 0.30), `P2 = ${r.g[1]}`);
-  }
-  {
-    const r = goalBy(1, [1, 0.30]);
-    ok('P1 already at 100% stays at 100%', near(r.g[0], 1), `P1 = ${r.g[0]}`);
-  }
-  {
-    const r = goalBy(0, [0.55, 0.40]);
-    ok('P2 at 40% + a P1 goal becomes 65%', near(r.g[1], 0.65), `P2 = ${r.g[1]}`);
-    ok('and P1 stays at its own value', near(r.g[0], 0.55), `P1 = ${r.g[0]}`);
-  }
-  // NOTHING is ever zeroed by a goal, from any starting pair.
-  {
-    let zeroed = 0;
-    for (const who of [0, 1]) {
-      for (const pair of [[0.1, 0.9], [0.9, 0.1], [1, 1], [0.5, 0], [0, 0.5], [0.25, 0.75]]) {
-        const r = goalBy(who, pair);
-        if (!r.scored) continue;
-        // A meter may only be >= what it started at. Never zero, never assigned.
-        if (r.g[0] < pair[0] - 1e-9 || r.g[1] < pair[1] - 1e-9) zeroed++;
-      }
+  let moved = 0, scored = 0;
+  for (const who of [0, 1]) {
+    for (const pair of [[0.4, 0.4], [0.8, 0.3], [1, 0.3], [0.55, 0.4], [0.1, 0.9], [0, 0.5], [1, 1]]) {
+      const r = goalBy(who, pair);
+      if (!r.scored) continue;
+      scored++;
+      if (r.g[0] !== pair[0] || r.g[1] !== pair[1]) moved++;
     }
-    ok('no goal, from any starting pair, ever lowers a meter', zeroed === 0, `${zeroed} did`);
   }
-  // …and the bonus really is 25 points, not whatever the constant drifts to.
-  ok('the concede bonus is 25 percentage points',
-     near(C.GAUGE_CONCEDE_BONUS, 0.25), String(C.GAUGE_CONCEDE_BONUS));
+  ok('(the goals were scored)', scored === 14, `${scored}/14`);
+  ok('no goal, by either player from any starting pair, moves either meter', moved === 0, `${moved} did`);
+  ok('the concede bonus is gone', !('GAUGE_CONCEDE_BONUS' in C), String(C.GAUGE_CONCEDE_BONUS));
 }
 {
   // A FULL METER STAYS FULL ACROSS A GOAL — for the scorer, who gets nothing added, and for
-  // the conceder, whose addition is clamped rather than wrapped.
+  // the conceder, and the clock's clamp at 1 is what keeps both there.
   const m = fresh();
   m.players[0].gauge = 1; m.players[1].gauge = 1;
   m.ball.x = C.W - C.GOAL_W - C.BALL_R - 2; m.ball.y = C.GROUND_Y - 30; m.ball.vx = 700;

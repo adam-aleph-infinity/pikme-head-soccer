@@ -60,7 +60,7 @@ export function stageDifficulty(stage) {
     // the climb: the middle tier's powers already take the opponent's controls away, the last
     // tiers' mostly do not, and the scoreline showed it — measured, _ladder in the README.
     aggression: round(0.16 + 0.5 * t ** 1.5, 4),   // how often it presses    0.16 → 0.66
-    meterRate: round(1 + 0.9 * t ** 1.5, 4),       // its tackles fill        1.0  → 1.9 of a meter slice
+    meterRate: round(1 + 0.9 * t ** 1.5, 4),       // its meter fills         1.0  → 1.9 × the clock
     // The body, as a multiple of its legendary card's own stats (1.05 jump, 1.06 run, 1.08
     // boot). Stage 45 tops out just past parity with a legendary card of the player's.
     body: {

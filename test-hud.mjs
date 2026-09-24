@@ -7,7 +7,7 @@
 import { readFileSync } from 'node:fs';
 import { clockText } from './public/hud.js';
 import * as C from './shared/constants.js';
-import { createMatch, hurtTier } from './shared/sim.js';
+import { createMatch, serialize } from './shared/sim.js';
 
 let pass = 0, fail = 0;
 const ok = (name, cond, extra = '') => {
@@ -49,12 +49,12 @@ ok('every second of it formats to four characters',
    Array.from({ length: Math.ceil(C.MATCH_DURATION) + 1 }, (_, i) => clockText(i))
      .every((t) => /^\d:[0-5]\d$/.test(t)));
 
-// ── HEALTH IS INVISIBLE ───────────────────────────────────────────────────────
+// ── THERE IS NO HEALTH ────────────────────────────────────────────────────────
 //
-// The brief that added damage asked for it twice and in both directions: show the damage on
-// the CHARACTER, and put no health bar, health number or health UI on the screen. The first
-// half is fenced in test-sim (hurtTier) and in the browser by _hudshots/_shot; this is the
-// second half, and it is written as a guard rather than a picture because the failure mode is
+// Head Soccer has no health, so neither does this game any more: the hidden health bar and the
+// bruised faces it drove (hurtTier, .head.hurt1..4) were removed in the HS parity pass. What is
+// fenced here is that nothing of it survives or creeps back — no health widget, no bruise tier,
+// no `hp` on a player or in the snapshot — written as a guard because the failure mode is
 // somebody adding a perfectly reasonable little bar later on.
 {
   const html = readFileSync(new URL('./public/index.html', import.meta.url), 'utf8');
@@ -70,30 +70,27 @@ ok('every second of it formats to four characters',
   ok('the stylesheet has no health bar', !/\.(hp|health|damage)-?(bar|meter|fill)?\s*[{,]/i.test(css),
      (css.match(/\.(hp|health|damage)[^\s{,]*\s*[{,]/i) || [])[0]);
 
-  // The renderer never prints health as text. Every textContent/innerHTML the HUD writes is
-  // checked for an hp expression — a number on the screen is exactly what was ruled out.
+  // The renderer never prints health as text.
   const writes = js.match(/\.(textContent|innerHTML|innerText)\s*=\s*[^;]+;/g) || [];
   const leaks = writes.filter((w) => /\bhp\b|health/i.test(w));
   ok('the HUD never writes health as text', leaks.length === 0, leaks.join(' | '));
 
-  // What the renderer IS allowed to do with hp: turn it into a class on the character. This is
-  // the positive half — if it ever stops doing that, damage becomes invisible rather than
-  // merely unbarred.
-  ok('the renderer reads health only through hurtTier', /hurtTier\(p\.hp\)/.test(js));
-  ok('…and spends it on the character\'s own classes', /classList\.toggle\('hurt'/.test(js));
-  ok('the stylesheet gives every tier a look',
-     [1, 2, 3, 4].every((t) => new RegExp(`\\.head\\.hurt${t}\\s*[{,]`).test(css)));
-  // The three markers the damage system replaced are gone from both sides.
+  // The bruises are gone from both sides: no tier is styled and the renderer sets none.
+  ok('no bruise tier survives in the stylesheet',
+     [1, 2, 3, 4].every((t) => !new RegExp(`\\.head\\.hurt${t}\\s*[{,:]`).test(css)));
+  ok('and the renderer never reads health or sets a hurt class',
+     !/hurtTier|p\.hp\b/.test(js) && !/classList\.toggle\('hurt'/.test(js));
+  // The three markers the damage system replaced are gone from both sides too.
   for (const dead of ['hexed', 'slowed', 'knocked']) {
     ok(`no .head.${dead} rule survives`, !new RegExp(`\\.head\\.${dead}\\s*[{,]`).test(css));
     ok(`and the renderer never sets '${dead}'`, !new RegExp(`toggle\\('${dead}'`).test(js));
   }
 
-  // The state itself is on the player and nowhere near the HUD's own data.
+  // And the state itself is gone: not on the player, not on the match, not on the wire.
   const m = createMatch({ rarity: 'legendary', number: 3 }, { rarity: 'legendary', number: 2 }, {});
-  ok('health lives on the player', typeof m.players[0].hp === 'number');
-  ok('and is not part of the scoreboard', !('hp' in m) && !('health' in m));
-  ok('a full-health character has no damage class', hurtTier(m.players[0].hp) === 0);
+  ok('a player carries no health', m.players.every((p) => !('hp' in p) && !('health' in p)));
+  ok('nor does the match', !('hp' in m) && !('health' in m));
+  ok('and the snapshot has no seat for it', !JSON.stringify(serialize(m)).includes('"hp"'));
 }
 
 console.log(`hud: ${pass} passed, ${fail} failed`);

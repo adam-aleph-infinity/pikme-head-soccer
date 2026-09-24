@@ -19,8 +19,8 @@
 // it — burned, drowned, rooted, swept away — implemented as knocked/rooted/slow plus a grey
 // head. That is gone. It read as "you defended well, now sit out the next second and a half",
 // and a consequence you cannot play through is not a consequence, it is a pause. A blocked
-// shot costs the defender HEALTH now (C.POWER_DAMAGE, applied in hitByPowerShot), which shows
-// on the character's face and can be played around and mended.
+// shot now simply deflects off the defender (hitByPowerShot) — for a while it also took a
+// slice of a hidden health bar, which is gone with the rest of the health (HS has none).
 
 import * as C from './constants.js';
 

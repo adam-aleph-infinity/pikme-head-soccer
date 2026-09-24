@@ -188,9 +188,13 @@ const CHECKS = {
   },
   blaze(n, i) {
     const c = setup(n, i, { qx: 700 }); fire(c);
-    let hpAt = null;
-    run(c, 2.6, { each(t, ev) { if (hpAt === null && ev.some((e) => e.type === 'blocked')) hpAt = c.q.hp; } });
-    return [hpAt !== null && c.q.hp < hpAt - 0.08, `hp at block ${hpAt?.toFixed(2)} → ${c.q.hp.toFixed(2)} later`];
+    // No health any more: the burn is a SLOW on the blocker for its length.
+    let blocked = false, slowest = 1;
+    run(c, 2.6, { each(t, ev) {
+      if (ev.some((e) => e.type === 'blocked')) blocked = true;
+      if (blocked) slowest = Math.min(slowest, c.q.mods.speed);
+    } });
+    return [blocked && slowest < 1, `blocked ${blocked}, blocker's speed down to ×${slowest.toFixed(2)}`];
   },
   mud(n, i) {
     const c = setup(n, i, { qx: 600 }); fire(c);
@@ -213,7 +217,7 @@ const CHECKS = {
     const c = setup(n, i); fire(c);
     run(c, 4.6, { parkBall: true });
     const hits = c.log.filter((e) => e.type === 'coinHit').length;
-    return [hits > 0 && c.q.hp < 1, `${hits} coins landed, hp ${c.q.hp.toFixed(2)}`];
+    return [hits > 0, `${hits} coins landed`];
   },
   spring(n, i) {
     const ctl = setup(n, i, { champions: false });
@@ -328,7 +332,11 @@ const CHECKS = {
     const c = setup(n, i);
     c.q.gauge = 0.9;
     fire(c); run(c, 0.1, { parkBall: true });
-    return [c.q.gauge === 0 && Math.abs(c.p.gauge - 0.54) < 1e-9 && c.q.mods.meterLock === true,
+    // 0.54 stolen (a hair more: the victim's meter ticked once before the touch), plus whatever
+    // the clock added to the champion's own meter over the 0.1s after it — GAUGE_PASSIVE × its
+    // meterRate. Bounded generously at twice that. The victim's stays at 0: that is the lock.
+    const clock = 0.2 * C.GAUGE_PASSIVE * c.p.meterRate + 1e-9;
+    return [c.q.gauge === 0 && c.p.gauge >= 0.54 - 1e-9 && c.p.gauge <= 0.54 + clock && c.q.mods.meterLock === true,
             `their meter ${c.q.gauge}, mine ${c.p.gauge.toFixed(2)}, lock ${c.q.mods.meterLock}`];
   },
   quake(n, i) {
@@ -383,7 +391,7 @@ const CHECKS = {
     const c = setup(n, i, { qx: 700 }); fire(c);
     let through = false;
     run(c, 1.2, { each() { const b = b0(c); if (b.power && (b.x - c.q.x) * c.side > 20 && has(c, 'drilled')) through = true; } });
-    return [has(c, 'drilled') && through && c.q.hp < 1 && !has(c, 'blocked'), `drilled ${has(c, 'drilled')}, through ${through}, hp ${c.q.hp.toFixed(2)}`];
+    return [has(c, 'drilled') && through && !has(c, 'blocked'), `drilled ${has(c, 'drilled')}, through ${through}`];
   },
   goalmagnet(n, i) {
     const c = setup(n, i, { px: 200, qx: 300 }); fire(c); settle(c);
@@ -402,12 +410,12 @@ const CHECKS = {
   },
   vampire(n, i) {
     const c = setup(n, i);
-    c.p.hp = 0.5;
+    // It used to drain health; with no health, the bite is a knockdown of STUN_TIME.
     fire(c);
-    const [mine, theirs] = [c.p.hp, c.q.hp];
+    const down = c.q.stunned;
     run(c, 2.0, { parkBall: true });
-    return [Math.abs(theirs - 0.55) < 1e-9 && Math.abs(mine - 0.95) < 0.005 && c.q.hp <= theirs + 1e-9,
-            `mine 0.5 → ${mine.toFixed(2)}, theirs 1 → ${theirs.toFixed(2)} → ${c.q.hp.toFixed(2)} (no regen)`];
+    return [Math.abs(down - C.STUN_TIME) < 1e-9 && c.q.stunned === 0 && has(c, 'revive', (e) => e.player === c.q.index),
+            `stunned ${down.toFixed(2)}s on the bite, ${c.q.stunned.toFixed(2)} left after 2s`];
   },
   superboot(n, i) {
     const v0 = kickSpeed(setup(n, i, { qx: 900 }), 'p');
@@ -538,7 +546,7 @@ const CHECKS = {
     const P = POWERS[id];
     const q = c.q;
     return JSON.stringify({
-      touch: { ball: [Math.round(b.vx), Math.round(b.vy), !!pw], foe: [Math.round(q.x), Math.round(q.vy), +q.hp.toFixed(3), q.gauge] },
+      touch: { ball: [Math.round(b.vx), Math.round(b.vy), !!pw], foe: [Math.round(q.x), Math.round(q.vy), +q.stunned.toFixed(3), q.gauge] },
       shot: pw ? { k: pw.k, flags: Object.keys(pw).filter((k) => !['id', 'owner', 'dir', 't', 'life', 'mult', 'color', 'glow', 'shot', 'champ', 'k'].includes(k)).sort(),
         flight: String(P.flight), block: String(P.block), afterBlock: String(P.afterBlock) } : null,
       effects: c.m.champ.effects.map((e) => [e.type, e.life, e.mods, e.field, Object.keys(e).sort()]),
@@ -682,7 +690,13 @@ const CHECKS = {
       lo += flip ? m.score[0] : m.score[1];
     }
   }
-  ok('stage 45\'s champion beats stage 1\'s head to head', hi > lo * 1.2, `${hi} : ${lo} over 32 matches`);
+  // Was `hi > lo * 1.2`. That margin was measured when the gauge was EARNED by tackling, which
+  // the stage-45 bot did far more of (and its meterRate multiplied). Under Head Soccer's clock
+  // fill both champions get their power on a timer — stage 1's cannon about three times a match
+  // where it used to earn it rarely — and the head-to-head narrowed to 55 : 51 (swept over fill
+  // rates 1/40–1/20 s: 1.1–1.5x, noisy). The ladder is retuned with Phase D's HS stats; until
+  // then this asserts only that the last stage still beats the first.
+  ok('stage 45\'s champion beats stage 1\'s head to head', hi > lo, `${hi} : ${lo} over 32 matches`);
 }
 
 // ═══ 7. PROGRESS ════════════════════════════════════════════════════════════
@@ -754,7 +768,11 @@ const CHECKS = {
 // three whole bot-vs-bot matches, legendary and not, which is what the server runs for a room
 // (createMatch(a.card, b.card, {})). If it moves, something outside the arcade changed.
 {
-  const GOLDEN = '5b6eec39b429defc3135647cf1beee85947a83ca362d194b6ed130cdaa9a0635';
+  // RE-RECORDED once, deliberately, for the Head Soccer parity pass (hs-parity, Phase C1): the
+  // hidden health (`hp` left the snapshot), tackle/concede gauge fill (the gauge is a clock now)
+  // and push-away-from-the-tackler (a tackle now shoves toward the victim's own goal) were all
+  // removed from the NON-arcade sim, so this digest had to move. Nothing arcade-only did.
+  const GOLDEN = 'afeffc64fc31997c61a342316bab3a499bbeef66c29b370c66389ab79db09fa6';
   const h = createHash('sha256');
   const cases = [
     [{ rarity: 'legendary', number: 3 }, { rarity: 'legendary', number: 2 }, 3, 3, 11],
@@ -773,7 +791,8 @@ const CHECKS = {
     }
     h.update(JSON.stringify(m.score));
   }
-  ok('the non-arcade sim is bit-for-bit what it was before the arcade', h.digest('hex') === GOLDEN);
+  const digest = h.digest('hex');
+  ok('the non-arcade sim is bit-for-bit what it was before the arcade', digest === GOLDEN, digest);
 
   const m = createMatch({ rarity: 'legendary', number: 3 }, { rarity: 'legendary', number: 2 }, {});
   ok('a match without the arcade flag has no champions', m.champ === undefined && m.players.every((p) => p.champ === undefined && p.mods === undefined));
@@ -785,7 +804,7 @@ const CHECKS = {
     return m.ball.power && !m.ball.power.champ && m.events.some((e) => e.type === 'powershot' && !e.champ);
   })());
   ok('the snapshot schema is unchanged', JSON.stringify(Object.keys(serialize(m))) === JSON.stringify(['t', 'clock', 'phase', 'freeze', 'hitStop', 'idle', 'score', 'golden', 'lastScorer', 'p', 'b']) &&
-     serialize(m).p[0].length === 25);
+     serialize(m).p[0].length === 24);
   ok('an ordinary bot is still exactly its tier', createBot(3).d === DIFFICULTIES[3]);
 }
 
