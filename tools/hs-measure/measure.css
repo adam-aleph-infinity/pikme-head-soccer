@@ -1,0 +1,25 @@
+* { box-sizing: border-box; }
+body { margin: 0; font: 13px/1.35 -apple-system, system-ui, sans-serif; background: #1b1d21; color: #ddd; display: flex; flex-direction: column; height: 100vh; }
+header, footer { padding: 6px 10px; background: #25282d; display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+header .sep { width: 1px; height: 18px; background: #444; }
+#status { margin-left: auto; color: #9c9; }
+#status.err { color: #f88; }
+main { flex: 1; display: flex; min-height: 0; }
+#stage { flex: 1; position: relative; overflow: auto; }
+#view { display: block; cursor: crosshair; }
+#loupe { position: absolute; right: 8px; top: 8px; border: 1px solid #888; background: #000; image-rendering: pixelated; pointer-events: none; }
+aside { width: 300px; overflow: auto; padding: 6px 10px; background: #202328; }
+aside h3 { margin: 10px 0 4px; font-size: 12px; text-transform: uppercase; color: #999; }
+#calibpts li { cursor: pointer; }
+#calibpts li.cur { color: #ffd84a; font-weight: 600; }
+#calibpts li.done::marker { color: #6c6; }
+#tagbtns button { margin: 2px; font-size: 11px; }
+#tags { padding-left: 16px; max-height: 240px; overflow: auto; }
+#tags li { cursor: pointer; }
+#tags li span.x { color: #f77; margin-left: 6px; }
+.help p { color: #999; font-size: 12px; }
+footer input { flex: 1; }
+input[type=number] { width: 52px; }
+button { background: #3a3f47; color: #eee; border: 1px solid #555; border-radius: 3px; padding: 3px 8px; cursor: pointer; }
+button:hover { background: #4a505a; }
+select, input { background: #2d3137; color: #eee; border: 1px solid #555; }

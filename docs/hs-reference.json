@@ -1,0 +1,654 @@
+[
+  {
+    "id": "geom.goalHeight",
+    "value": 138.3474,
+    "unit": "px",
+    "clips": [
+      "M3"
+    ],
+    "n": 1,
+    "sd": 0,
+    "tol": 4.1504,
+    "scenario": "geometry",
+    "status": "estimated",
+    "takes": 1
+  },
+  {
+    "id": "geom.headDiameter",
+    "value": 52.7512,
+    "unit": "px",
+    "clips": [
+      "M3"
+    ],
+    "n": 1,
+    "sd": 0,
+    "tol": 1.5825,
+    "scenario": "geometry",
+    "status": "estimated",
+    "takes": 1
+  },
+  {
+    "id": "geom.goalMouthX",
+    "value": 56.7324,
+    "unit": "px",
+    "clips": [
+      "M3"
+    ],
+    "n": 1,
+    "sd": 0,
+    "tol": 1.702,
+    "scenario": "geometry",
+    "status": "estimated",
+    "takes": 1
+  },
+  {
+    "id": "kickoff.readyTime",
+    "value": 2.1633,
+    "unit": "s",
+    "clips": [
+      "M3"
+    ],
+    "n": 1,
+    "sd": 0.0167,
+    "tol": 0.0649,
+    "scenario": "kickoff",
+    "status": "estimated",
+    "takes": 1
+  },
+  {
+    "id": "ball.spawnHeight",
+    "value": 302,
+    "unit": "px",
+    "clips": [
+      "M3"
+    ],
+    "n": 7,
+    "sd": 2,
+    "tol": 9.06,
+    "scenario": "kickoff",
+    "status": "estimated",
+    "source": "M3 respawn after every goal: 14.16, 31.97, 41.85, 48.60, 54.00, 62.30, 88.03 s",
+    "note": "The ball centre, above the ground line. The ball appears at the pitch centre with vy ≈ 0 and drifts ±138 px/s sideways."
+  },
+  {
+    "id": "ball.gravity",
+    "value": 561,
+    "unit": "px/s²",
+    "clips": [
+      "M3"
+    ],
+    "n": 8,
+    "sd": 10,
+    "tol": 20,
+    "scenario": "drop",
+    "status": "estimated",
+    "source": "M3 ball falls after each respawn: 6.92, 14.16, 31.96, 41.82, 48.55, 53.95, 62.23, 87.92 s",
+    "note": "One parabola per fall, 30–45 frames each, fit rmse ≈ 1 px. The ball in HS falls far slower than a head jumps."
+  },
+  {
+    "id": "ball.groundRestitution",
+    "value": 0.65,
+    "unit": "",
+    "clips": [
+      "M3"
+    ],
+    "n": 5,
+    "sd": 0.05,
+    "tol": 0.1,
+    "scenario": "drop",
+    "status": "estimated",
+    "source": "M3 ground bounces at 7.67, 9.15, 17.29, 58.82, 87.26 s",
+    "note": "Low confidence: auto-tracked, and some bounces may have been touched. The single values were 0.62, 0.70, 0.58, 0.64 and 0.70."
+  },
+  {
+    "id": "player.topSpeed",
+    "value": 260,
+    "unit": "px/s",
+    "clips": [
+      "M3"
+    ],
+    "n": 6,
+    "sd": 35,
+    "tol": 70,
+    "scenario": "run",
+    "status": "estimated",
+    "source": "M3 6.66–11.42 s: the left player walks back and forth; six runs of 0.5–0.8 s",
+    "note": "Low confidence: an auto head track, and the runs may be too short to reach top speed."
+  },
+  {
+    "id": "player.accel",
+    "value": null,
+    "unit": "px/s²",
+    "clips": [
+      "C2"
+    ],
+    "n": 0,
+    "sd": null,
+    "tol": null,
+    "scenario": "run",
+    "status": "unmeasured"
+  },
+  {
+    "id": "player.accelTime",
+    "value": null,
+    "unit": "s",
+    "clips": [
+      "C2"
+    ],
+    "n": 0,
+    "sd": null,
+    "tol": null,
+    "scenario": "run",
+    "status": "unmeasured"
+  },
+  {
+    "id": "player.decel",
+    "value": null,
+    "unit": "px/s²",
+    "clips": [
+      "C2"
+    ],
+    "n": 0,
+    "sd": null,
+    "tol": null,
+    "scenario": "run",
+    "status": "unmeasured"
+  },
+  {
+    "id": "jump.apex.tap",
+    "value": null,
+    "unit": "px",
+    "clips": [
+      "C3"
+    ],
+    "n": 0,
+    "sd": null,
+    "tol": null,
+    "scenario": "jumpTap",
+    "status": "unmeasured"
+  },
+  {
+    "id": "jump.apex.hold",
+    "value": null,
+    "unit": "px",
+    "clips": [
+      "C3"
+    ],
+    "n": 0,
+    "sd": null,
+    "tol": null,
+    "scenario": "jumpHold",
+    "status": "unmeasured"
+  },
+  {
+    "id": "jump.airtime.tap",
+    "value": null,
+    "unit": "s",
+    "clips": [
+      "C3"
+    ],
+    "n": 0,
+    "sd": null,
+    "tol": null,
+    "scenario": "jumpTap",
+    "status": "unmeasured"
+  },
+  {
+    "id": "jump.airtime.hold",
+    "value": null,
+    "unit": "s",
+    "clips": [
+      "C3"
+    ],
+    "n": 0,
+    "sd": null,
+    "tol": null,
+    "scenario": "jumpHold",
+    "status": "unmeasured"
+  },
+  {
+    "id": "player.gravity",
+    "value": null,
+    "unit": "px/s²",
+    "clips": [
+      "C3"
+    ],
+    "n": 0,
+    "sd": null,
+    "tol": null,
+    "scenario": "jumpTap",
+    "status": "unmeasured"
+  },
+  {
+    "id": "jump.airSpeed",
+    "value": null,
+    "unit": "px/s",
+    "clips": [
+      "C4"
+    ],
+    "n": 0,
+    "sd": null,
+    "tol": null,
+    "scenario": "runJump",
+    "status": "unmeasured"
+  },
+  {
+    "id": "dash.speed",
+    "value": null,
+    "unit": "px/s",
+    "clips": [
+      "C5"
+    ],
+    "n": 0,
+    "sd": null,
+    "tol": null,
+    "scenario": "dash",
+    "status": "unmeasured"
+  },
+  {
+    "id": "dash.duration",
+    "value": null,
+    "unit": "s",
+    "clips": [
+      "C5"
+    ],
+    "n": 0,
+    "sd": null,
+    "tol": null,
+    "scenario": "dash",
+    "status": "unmeasured"
+  },
+  {
+    "id": "dash.cooldown",
+    "value": null,
+    "unit": "s",
+    "clips": [
+      "C5"
+    ],
+    "n": 0,
+    "sd": null,
+    "tol": null,
+    "scenario": "dashSpam",
+    "status": "unmeasured"
+  },
+  {
+    "id": "kick.cooldown",
+    "value": null,
+    "unit": "s",
+    "clips": [
+      "C6"
+    ],
+    "n": 0,
+    "sd": null,
+    "tol": null,
+    "scenario": "kickMash",
+    "status": "unmeasured"
+  },
+  {
+    "id": "kick.feet.speed",
+    "value": null,
+    "unit": "px/s",
+    "clips": [
+      "C7"
+    ],
+    "n": 0,
+    "sd": null,
+    "tol": null,
+    "scenario": "kickFeet",
+    "status": "unmeasured"
+  },
+  {
+    "id": "kick.feet.angle",
+    "value": null,
+    "unit": "deg",
+    "clips": [
+      "C7"
+    ],
+    "n": 0,
+    "sd": null,
+    "tol": null,
+    "scenario": "kickFeet",
+    "status": "unmeasured"
+  },
+  {
+    "id": "kick.knee.speed",
+    "value": null,
+    "unit": "px/s",
+    "clips": [
+      "C7"
+    ],
+    "n": 0,
+    "sd": null,
+    "tol": null,
+    "scenario": "kickKnee",
+    "status": "unmeasured"
+  },
+  {
+    "id": "kick.knee.angle",
+    "value": null,
+    "unit": "deg",
+    "clips": [
+      "C7"
+    ],
+    "n": 0,
+    "sd": null,
+    "tol": null,
+    "scenario": "kickKnee",
+    "status": "unmeasured"
+  },
+  {
+    "id": "kick.head.speed",
+    "value": null,
+    "unit": "px/s",
+    "clips": [
+      "C7"
+    ],
+    "n": 0,
+    "sd": null,
+    "tol": null,
+    "scenario": "kickHead",
+    "status": "unmeasured"
+  },
+  {
+    "id": "kick.head.angle",
+    "value": null,
+    "unit": "deg",
+    "clips": [
+      "C7"
+    ],
+    "n": 0,
+    "sd": null,
+    "tol": null,
+    "scenario": "kickHead",
+    "status": "unmeasured"
+  },
+  {
+    "id": "kick.jump.speed",
+    "value": null,
+    "unit": "px/s",
+    "clips": [
+      "C7"
+    ],
+    "n": 0,
+    "sd": null,
+    "tol": null,
+    "scenario": "kickJump",
+    "status": "unmeasured"
+  },
+  {
+    "id": "kick.jump.angle",
+    "value": null,
+    "unit": "deg",
+    "clips": [
+      "C7"
+    ],
+    "n": 0,
+    "sd": null,
+    "tol": null,
+    "scenario": "kickJump",
+    "status": "unmeasured"
+  },
+  {
+    "id": "kick.run.speed",
+    "value": null,
+    "unit": "px/s",
+    "clips": [
+      "C7"
+    ],
+    "n": 0,
+    "sd": null,
+    "tol": null,
+    "scenario": "kickRun",
+    "status": "unmeasured"
+  },
+  {
+    "id": "kick.run.angle",
+    "value": null,
+    "unit": "deg",
+    "clips": [
+      "C7"
+    ],
+    "n": 0,
+    "sd": null,
+    "tol": null,
+    "scenario": "kickRun",
+    "status": "unmeasured"
+  },
+  {
+    "id": "ball.headRestitution",
+    "value": null,
+    "unit": "",
+    "clips": [
+      "C8"
+    ],
+    "n": 0,
+    "sd": null,
+    "tol": null,
+    "scenario": "headDrop",
+    "status": "unmeasured"
+  },
+  {
+    "id": "header.speed",
+    "value": null,
+    "unit": "px/s",
+    "clips": [
+      "C8"
+    ],
+    "n": 0,
+    "sd": null,
+    "tol": null,
+    "scenario": "header",
+    "status": "unmeasured"
+  },
+  {
+    "id": "header.angle",
+    "value": null,
+    "unit": "deg",
+    "clips": [
+      "C8"
+    ],
+    "n": 0,
+    "sd": null,
+    "tol": null,
+    "scenario": "header",
+    "status": "unmeasured"
+  },
+  {
+    "id": "ball.wallRestitution",
+    "value": null,
+    "unit": "",
+    "clips": [
+      "C9"
+    ],
+    "n": 0,
+    "sd": null,
+    "tol": null,
+    "scenario": "wallBounce",
+    "status": "unmeasured"
+  },
+  {
+    "id": "ball.barRestitution",
+    "value": null,
+    "unit": "",
+    "clips": [
+      "C9"
+    ],
+    "n": 0,
+    "sd": null,
+    "tol": null,
+    "scenario": "barBounce",
+    "status": "unmeasured"
+  },
+  {
+    "id": "ball.goalTopRestitution",
+    "value": null,
+    "unit": "",
+    "clips": [
+      "C9"
+    ],
+    "n": 0,
+    "sd": null,
+    "tol": null,
+    "scenario": "goalTopBounce",
+    "status": "unmeasured"
+  },
+  {
+    "id": "ball.ceilingRestitution",
+    "value": null,
+    "unit": "",
+    "clips": [
+      "C9"
+    ],
+    "n": 0,
+    "sd": null,
+    "tol": null,
+    "scenario": "ceilingBounce",
+    "status": "unmeasured"
+  },
+  {
+    "id": "ball.maxSpeed",
+    "value": null,
+    "unit": "px/s",
+    "clips": [
+      "C12"
+    ],
+    "n": 0,
+    "sd": null,
+    "tol": null,
+    "scenario": "kickMax",
+    "status": "unmeasured"
+  },
+  {
+    "id": "gauge.fillTime",
+    "value": 18.1367,
+    "unit": "s",
+    "clips": [
+      "M3"
+    ],
+    "n": 1,
+    "sd": 0.0167,
+    "tol": 0.5441,
+    "scenario": "gauge",
+    "status": "estimated",
+    "takes": 1
+  },
+  {
+    "id": "gauge.refillTime",
+    "value": 16.2733,
+    "unit": "s",
+    "clips": [
+      "M3"
+    ],
+    "n": 2,
+    "sd": 1.1526,
+    "tol": 2.3052,
+    "scenario": "gauge",
+    "status": "estimated",
+    "takes": 1
+  },
+  {
+    "id": "power.cutinTime",
+    "value": 1.2456,
+    "unit": "s",
+    "clips": [
+      "M1",
+      "M2",
+      "M3"
+    ],
+    "n": 18,
+    "sd": 0.0067,
+    "tol": 0.0374,
+    "scenario": "powerCutin",
+    "status": "estimated",
+    "takes": 3
+  },
+  {
+    "id": "goal.resetTime",
+    "value": null,
+    "unit": "s",
+    "clips": [
+      "C17",
+      "M*"
+    ],
+    "n": 0,
+    "sd": null,
+    "tol": null,
+    "scenario": "goalReset",
+    "status": "unmeasured"
+  },
+  {
+    "id": "goal.toPlayTime",
+    "value": 2.795,
+    "unit": "s",
+    "clips": [
+      "M3"
+    ],
+    "n": 7,
+    "sd": 0,
+    "tol": 0.0839,
+    "scenario": "goalReset",
+    "status": "estimated",
+    "takes": 1
+  },
+  {
+    "id": "match.goals",
+    "value": 8.6667,
+    "unit": "goals",
+    "clips": [
+      "M1",
+      "M2",
+      "M3"
+    ],
+    "n": 3,
+    "sd": 2.0817,
+    "tol": 4.1633,
+    "scenario": "botMatch",
+    "status": "estimated",
+    "takes": 3
+  },
+  {
+    "id": "goal.bannerTime",
+    "value": 2.05,
+    "unit": "s",
+    "clips": [
+      "M3"
+    ],
+    "n": 7,
+    "sd": 0.1,
+    "tol": 0.2,
+    "scenario": "goalReset",
+    "status": "estimated",
+    "source": "M3 goals at 11.37, 29.15, 39.01, 45.74, 51.13, 59.42, 85.11 s",
+    "note": "From the GOAL! banner appearing to the screen clearing. The ball respawns 0.75 s after that (see goal.toPlayTime)."
+  },
+  {
+    "id": "jump.apex.match",
+    "value": 45,
+    "unit": "px",
+    "clips": [
+      "M3"
+    ],
+    "n": 2,
+    "sd": 3,
+    "tol": 6,
+    "scenario": "jumpTap",
+    "status": "estimated",
+    "source": "M3 13.43–14.13 s and 15.16–15.66 s: the left player jumps in place",
+    "note": "The head's rise above standing. Tap or hold is unknown. The top is FLAT for ≈ 0.2 s (12 frames), not a parabola."
+  },
+  {
+    "id": "jump.airtime.match",
+    "value": 0.7,
+    "unit": "s",
+    "clips": [
+      "M3"
+    ],
+    "n": 1,
+    "sd": 0.03,
+    "tol": 0.06,
+    "scenario": "jumpTap",
+    "status": "estimated",
+    "source": "M3 13.43–14.13 s",
+    "note": "Takeoff to landing. Tap or hold is unknown."
+  }
+]
