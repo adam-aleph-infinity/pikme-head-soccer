@@ -14,7 +14,8 @@ assert.deepEqual(rows.map((r) => r.stage).sort((a, b) => a - b), Array.from({ le
 rows.sort((a, b) => a.stage - b.stage);
 
 const counts = {};
-let prevTotal = null, prevStars = -Infinity;
+let prevTotal = null, prevStars = -Infinity, prevIntensity = 0, prevRadius = 0;
+const radiusByTier = {};
 for (const r of rows) {
   const at = `stage ${r.stage}`;
   assert.ok(FAMILIES.includes(r.family), `${at}: family ${r.family}`);
@@ -29,10 +30,21 @@ for (const r of rows) {
   assert.equal(r.statTotal, total, `${at}: statTotal`);
   if (prevTotal !== null) assert.ok(Math.abs(total - prevTotal) <= 2 && total >= prevTotal - 2, `${at}: total ${prevTotal}→${total}`);
   assert.ok(r.stars >= 0.5 && r.stars <= 5 && r.stars >= prevStars, `${at}: stars ${r.stars}`);
+  assert.ok(typeof r.intensity === 'number' && r.intensity >= 0 && r.intensity <= 1, `${at}: intensity ${r.intensity}`);
+  if (r.gentle) assert.ok(r.intensity <= 0.15, `${at}: gentle but intensity ${r.intensity}`);
+  else { assert.ok(r.intensity >= prevIntensity, `${at}: intensity ${prevIntensity}→${r.intensity}`); prevIntensity = r.intensity; }
+  if (r.aura === 'none') assert.equal(r.auraRadius, 0, `${at}: no aura, radius ${r.auraRadius}`);
+  else {
+    assert.ok(r.auraRadius > 0 && r.auraRadius >= prevRadius, `${at}: aura radius ${prevRadius}→${r.auraRadius}`);
+    radiusByTier[r.tier] = radiusByTier[r.tier] ?? r.auraRadius;
+    assert.equal(r.auraRadius, radiusByTier[r.tier], `${at}: one radius per tier`);
+    prevRadius = r.auraRadius;
+  }
   prevTotal = total; prevStars = r.stars;
   counts[r.family] = (counts[r.family] || 0) + 1;
 }
 assert.ok(rows[44].statTotal > rows[0].statTotal, 'totals climb overall');
+assert.deepEqual(rows.filter((r) => r.gentle).map((r) => r.stage), [2, 6], 'gentle rows are stages 2 and 6');
 for (const f of FAMILIES) assert.ok(counts[f] >= 3 && counts[f] <= 6, `family ${f}: ${counts[f]}`);
 
 console.log('test-hs-champion-map: ok');

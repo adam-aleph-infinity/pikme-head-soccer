@@ -13,6 +13,9 @@
     "family": "destructive",
     "ailment": null,
     "aura": "none",
+    "auraRadius": 0,
+    "intensity": 0.1,
+    "gentle": false,
     "profile": "power",
     "stats": {
       "speed": 2,
@@ -39,6 +42,9 @@
     "family": "grab",
     "ailment": "shock",
     "aura": "none",
+    "auraRadius": 0,
+    "intensity": 0.1,
+    "gentle": true,
     "profile": "tricky",
     "stats": {
       "speed": 3,
@@ -65,6 +71,9 @@
     "family": "straight",
     "ailment": "burn",
     "aura": "none",
+    "auraRadius": 0,
+    "intensity": 0.14,
+    "gentle": false,
     "profile": "kicker",
     "stats": {
       "speed": 2,
@@ -91,6 +100,9 @@
     "family": "ground",
     "ailment": "shock",
     "aura": "none",
+    "auraRadius": 0,
+    "intensity": 0.16,
+    "gentle": false,
     "profile": "tank",
     "stats": {
       "speed": 2,
@@ -117,6 +129,9 @@
     "family": "ground",
     "ailment": null,
     "aura": "none",
+    "auraRadius": 0,
+    "intensity": 0.18,
+    "gentle": false,
     "profile": "tank",
     "stats": {
       "speed": 2,
@@ -143,6 +158,9 @@
     "family": "multiball",
     "ailment": null,
     "aura": "none",
+    "auraRadius": 0,
+    "intensity": 0.1,
+    "gentle": true,
     "profile": "balanced",
     "stats": {
       "speed": 4,
@@ -169,6 +187,9 @@
     "family": "aerial",
     "ailment": null,
     "aura": "none",
+    "auraRadius": 0,
+    "intensity": 0.22,
+    "gentle": false,
     "profile": "jumper",
     "stats": {
       "speed": 3,
@@ -195,6 +216,9 @@
     "family": "straight",
     "ailment": null,
     "aura": "none",
+    "auraRadius": 0,
+    "intensity": 0.24,
+    "gentle": false,
     "profile": "kicker",
     "stats": {
       "speed": 3,
@@ -221,6 +245,9 @@
     "family": "updown",
     "ailment": null,
     "aura": "none",
+    "auraRadius": 0,
+    "intensity": 0.26,
+    "gentle": false,
     "profile": "balanced",
     "stats": {
       "speed": 4,
@@ -247,6 +274,9 @@
     "family": "downward",
     "ailment": null,
     "aura": "none",
+    "auraRadius": 0,
+    "intensity": 0.28,
+    "gentle": false,
     "profile": "tank",
     "stats": {
       "speed": 3,
@@ -273,6 +303,9 @@
     "family": "ailment",
     "ailment": "beheaded",
     "aura": "none",
+    "auraRadius": 0,
+    "intensity": 0.3,
+    "gentle": false,
     "profile": "tricky",
     "stats": {
       "speed": 5,
@@ -299,6 +332,9 @@
     "family": "aerial",
     "ailment": null,
     "aura": "none",
+    "auraRadius": 0,
+    "intensity": 0.33,
+    "gentle": false,
     "profile": "jumper",
     "stats": {
       "speed": 4,
@@ -325,6 +361,9 @@
     "family": "ground",
     "ailment": null,
     "aura": "none",
+    "auraRadius": 0,
+    "intensity": 0.35,
+    "gentle": false,
     "profile": "kicker",
     "stats": {
       "speed": 4,
@@ -351,6 +390,9 @@
     "family": "straight",
     "ailment": null,
     "aura": "none",
+    "auraRadius": 0,
+    "intensity": 0.37,
+    "gentle": false,
     "profile": "fast",
     "stats": {
       "speed": 6,
@@ -377,6 +419,9 @@
     "family": "downward",
     "ailment": "shock",
     "aura": "none",
+    "auraRadius": 0,
+    "intensity": 0.39,
+    "gentle": false,
     "profile": "power",
     "stats": {
       "speed": 3,
@@ -403,6 +448,9 @@
     "family": "ground",
     "ailment": null,
     "aura": "none",
+    "auraRadius": 0,
+    "intensity": 0.41,
+    "gentle": false,
     "profile": "kicker",
     "stats": {
       "speed": 4,
@@ -429,6 +477,9 @@
     "family": "straight",
     "ailment": null,
     "aura": "push",
+    "auraRadius": 88,
+    "intensity": 0.43,
+    "gentle": false,
     "profile": "fast",
     "stats": {
       "speed": 7,
@@ -455,6 +506,9 @@
     "family": "destructive",
     "ailment": "stars",
     "aura": "stun",
+    "auraRadius": 88,
+    "intensity": 0.45,
+    "gentle": false,
     "profile": "kicker",
     "stats": {
       "speed": 4,
@@ -481,6 +535,9 @@
     "family": "ailment",
     "ailment": "reverse",
     "aura": "reverse",
+    "auraRadius": 105,
+    "intensity": 0.47,
+    "gentle": false,
     "profile": "tricky",
     "stats": {
       "speed": 7,
@@ -507,6 +564,9 @@
     "family": "ailment",
     "ailment": "freeze",
     "aura": "freeze",
+    "auraRadius": 105,
+    "intensity": 0.49,
+    "gentle": false,
     "profile": "tricky",
     "stats": {
       "speed": 7,
@@ -533,6 +593,9 @@
     "family": "downward",
     "ailment": "burn",
     "aura": "none",
+    "auraRadius": 0,
+    "intensity": 0.51,
+    "gentle": false,
     "profile": "jumper",
     "stats": {
       "speed": 5,
@@ -559,6 +622,9 @@
     "family": "ailment",
     "ailment": "shock",
     "aura": "none",
+    "auraRadius": 0,
+    "intensity": 0.53,
+    "gentle": false,
     "profile": "tricky",
     "stats": {
       "speed": 7,
@@ -585,6 +651,9 @@
     "family": "destructive",
     "ailment": "stars",
     "aura": "push",
+    "auraRadius": 105,
+    "intensity": 0.55,
+    "gentle": false,
     "profile": "power",
     "stats": {
       "speed": 4,
@@ -611,6 +680,9 @@
     "family": "updown",
     "ailment": null,
     "aura": "none",
+    "auraRadius": 0,
+    "intensity": 0.57,
+    "gentle": false,
     "profile": "jumper",
     "stats": {
       "speed": 5,
@@ -637,6 +709,9 @@
     "family": "delay",
     "ailment": null,
     "aura": "none",
+    "auraRadius": 0,
+    "intensity": 0.59,
+    "gentle": false,
     "profile": "kicker",
     "stats": {
       "speed": 5,
@@ -663,6 +738,9 @@
     "family": "ground",
     "ailment": "freeze",
     "aura": "none",
+    "auraRadius": 0,
+    "intensity": 0.61,
+    "gentle": false,
     "profile": "fast",
     "stats": {
       "speed": 9,
@@ -689,6 +767,9 @@
     "family": "delay",
     "ailment": null,
     "aura": "none",
+    "auraRadius": 0,
+    "intensity": 0.63,
+    "gentle": false,
     "profile": "tricky",
     "stats": {
       "speed": 8,
@@ -715,6 +796,9 @@
     "family": "aerial",
     "ailment": null,
     "aura": "none",
+    "auraRadius": 0,
+    "intensity": 0.65,
+    "gentle": false,
     "profile": "kicker",
     "stats": {
       "speed": 5,
@@ -741,6 +825,9 @@
     "family": "destructive",
     "ailment": null,
     "aura": "push",
+    "auraRadius": 123,
+    "intensity": 0.67,
+    "gentle": false,
     "profile": "power",
     "stats": {
       "speed": 5,
@@ -767,6 +854,9 @@
     "family": "downward",
     "ailment": null,
     "aura": "none",
+    "auraRadius": 0,
+    "intensity": 0.69,
+    "gentle": false,
     "profile": "kicker",
     "stats": {
       "speed": 6,
@@ -793,6 +883,9 @@
     "family": "grab",
     "ailment": null,
     "aura": "push",
+    "auraRadius": 123,
+    "intensity": 0.71,
+    "gentle": false,
     "profile": "power",
     "stats": {
       "speed": 5,
@@ -819,6 +912,9 @@
     "family": "grab",
     "ailment": "burn",
     "aura": "stun",
+    "auraRadius": 123,
+    "intensity": 0.73,
+    "gentle": false,
     "profile": "tricky",
     "stats": {
       "speed": 9,
@@ -845,6 +941,9 @@
     "family": "critical",
     "ailment": null,
     "aura": "push",
+    "auraRadius": 123,
+    "intensity": 0.75,
+    "gentle": false,
     "profile": "kicker",
     "stats": {
       "speed": 6,
@@ -871,6 +970,9 @@
     "family": "aerial",
     "ailment": "shock",
     "aura": "none",
+    "auraRadius": 0,
+    "intensity": 0.77,
+    "gentle": false,
     "profile": "balanced",
     "stats": {
       "speed": 8,
@@ -897,6 +999,9 @@
     "family": "critical",
     "ailment": null,
     "aura": "none",
+    "auraRadius": 0,
+    "intensity": 0.8,
+    "gentle": false,
     "profile": "kicker",
     "stats": {
       "speed": 8,
@@ -923,6 +1028,9 @@
     "family": "updown",
     "ailment": "reverse",
     "aura": "reverse",
+    "auraRadius": 123,
+    "intensity": 0.82,
+    "gentle": false,
     "profile": "jumper",
     "stats": {
       "speed": 8,
@@ -949,6 +1057,9 @@
     "family": "critical",
     "ailment": "reverse",
     "aura": "reverse",
+    "auraRadius": 140,
+    "intensity": 0.84,
+    "gentle": false,
     "profile": "balanced",
     "stats": {
       "speed": 8,
@@ -975,6 +1086,9 @@
     "family": "critical",
     "ailment": null,
     "aura": "stun",
+    "auraRadius": 140,
+    "intensity": 0.86,
+    "gentle": false,
     "profile": "fast",
     "stats": {
       "speed": 10,
@@ -1001,6 +1115,9 @@
     "family": "grab",
     "ailment": null,
     "aura": "push",
+    "auraRadius": 140,
+    "intensity": 0.88,
+    "gentle": false,
     "profile": "fast",
     "stats": {
       "speed": 10,
@@ -1027,6 +1144,9 @@
     "family": "multiball",
     "ailment": null,
     "aura": "stun",
+    "auraRadius": 140,
+    "intensity": 0.9,
+    "gentle": false,
     "profile": "fast",
     "stats": {
       "speed": 10,
@@ -1053,6 +1173,9 @@
     "family": "delay",
     "ailment": "shock",
     "aura": "freeze",
+    "auraRadius": 140,
+    "intensity": 0.92,
+    "gentle": false,
     "profile": "tricky",
     "stats": {
       "speed": 10,
@@ -1079,6 +1202,9 @@
     "family": "multiball",
     "ailment": null,
     "aura": "push",
+    "auraRadius": 140,
+    "intensity": 0.94,
+    "gentle": false,
     "profile": "balanced",
     "stats": {
       "speed": 9,
@@ -1105,6 +1231,9 @@
     "family": "multiball",
     "ailment": null,
     "aura": "stun",
+    "auraRadius": 140,
+    "intensity": 0.96,
+    "gentle": false,
     "profile": "kicker",
     "stats": {
       "speed": 10,
@@ -1131,6 +1260,9 @@
     "family": "updown",
     "ailment": "stars",
     "aura": "push",
+    "auraRadius": 140,
+    "intensity": 0.98,
+    "gentle": false,
     "profile": "power",
     "stats": {
       "speed": 8,
@@ -1157,6 +1289,9 @@
     "family": "delay",
     "ailment": "freeze",
     "aura": "freeze",
+    "auraRadius": 140,
+    "intensity": 1,
+    "gentle": false,
     "profile": "balanced",
     "stats": {
       "speed": 9,
