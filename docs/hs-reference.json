@@ -1,0 +1,597 @@
+[
+  {
+    "id": "geom.goalHeight",
+    "value": null,
+    "unit": "px",
+    "clips": [
+      "*"
+    ],
+    "n": 0,
+    "sd": null,
+    "tol": null,
+    "scenario": "geometry",
+    "status": "unmeasured"
+  },
+  {
+    "id": "geom.headDiameter",
+    "value": null,
+    "unit": "px",
+    "clips": [
+      "*"
+    ],
+    "n": 0,
+    "sd": null,
+    "tol": null,
+    "scenario": "geometry",
+    "status": "unmeasured"
+  },
+  {
+    "id": "geom.goalMouthX",
+    "value": null,
+    "unit": "px",
+    "clips": [
+      "*"
+    ],
+    "n": 0,
+    "sd": null,
+    "tol": null,
+    "scenario": "geometry",
+    "status": "unmeasured"
+  },
+  {
+    "id": "kickoff.readyTime",
+    "value": null,
+    "unit": "s",
+    "clips": [
+      "C1",
+      "C17",
+      "M*"
+    ],
+    "n": 0,
+    "sd": null,
+    "tol": null,
+    "scenario": "kickoff",
+    "status": "unmeasured"
+  },
+  {
+    "id": "ball.spawnHeight",
+    "value": null,
+    "unit": "px",
+    "clips": [
+      "C1"
+    ],
+    "n": 0,
+    "sd": null,
+    "tol": null,
+    "scenario": "kickoff",
+    "status": "unmeasured"
+  },
+  {
+    "id": "ball.gravity",
+    "value": null,
+    "unit": "px/s²",
+    "clips": [
+      "C1",
+      "C8",
+      "C9"
+    ],
+    "n": 0,
+    "sd": null,
+    "tol": null,
+    "scenario": "drop",
+    "status": "unmeasured"
+  },
+  {
+    "id": "ball.groundRestitution",
+    "value": null,
+    "unit": "",
+    "clips": [
+      "C1",
+      "C9"
+    ],
+    "n": 0,
+    "sd": null,
+    "tol": null,
+    "scenario": "drop",
+    "status": "unmeasured"
+  },
+  {
+    "id": "player.topSpeed",
+    "value": null,
+    "unit": "px/s",
+    "clips": [
+      "C2"
+    ],
+    "n": 0,
+    "sd": null,
+    "tol": null,
+    "scenario": "run",
+    "status": "unmeasured"
+  },
+  {
+    "id": "player.accel",
+    "value": null,
+    "unit": "px/s²",
+    "clips": [
+      "C2"
+    ],
+    "n": 0,
+    "sd": null,
+    "tol": null,
+    "scenario": "run",
+    "status": "unmeasured"
+  },
+  {
+    "id": "player.accelTime",
+    "value": null,
+    "unit": "s",
+    "clips": [
+      "C2"
+    ],
+    "n": 0,
+    "sd": null,
+    "tol": null,
+    "scenario": "run",
+    "status": "unmeasured"
+  },
+  {
+    "id": "player.decel",
+    "value": null,
+    "unit": "px/s²",
+    "clips": [
+      "C2"
+    ],
+    "n": 0,
+    "sd": null,
+    "tol": null,
+    "scenario": "run",
+    "status": "unmeasured"
+  },
+  {
+    "id": "jump.apex.tap",
+    "value": null,
+    "unit": "px",
+    "clips": [
+      "C3"
+    ],
+    "n": 0,
+    "sd": null,
+    "tol": null,
+    "scenario": "jumpTap",
+    "status": "unmeasured"
+  },
+  {
+    "id": "jump.apex.hold",
+    "value": null,
+    "unit": "px",
+    "clips": [
+      "C3"
+    ],
+    "n": 0,
+    "sd": null,
+    "tol": null,
+    "scenario": "jumpHold",
+    "status": "unmeasured"
+  },
+  {
+    "id": "jump.airtime.tap",
+    "value": null,
+    "unit": "s",
+    "clips": [
+      "C3"
+    ],
+    "n": 0,
+    "sd": null,
+    "tol": null,
+    "scenario": "jumpTap",
+    "status": "unmeasured"
+  },
+  {
+    "id": "jump.airtime.hold",
+    "value": null,
+    "unit": "s",
+    "clips": [
+      "C3"
+    ],
+    "n": 0,
+    "sd": null,
+    "tol": null,
+    "scenario": "jumpHold",
+    "status": "unmeasured"
+  },
+  {
+    "id": "player.gravity",
+    "value": null,
+    "unit": "px/s²",
+    "clips": [
+      "C3"
+    ],
+    "n": 0,
+    "sd": null,
+    "tol": null,
+    "scenario": "jumpTap",
+    "status": "unmeasured"
+  },
+  {
+    "id": "jump.airSpeed",
+    "value": null,
+    "unit": "px/s",
+    "clips": [
+      "C4"
+    ],
+    "n": 0,
+    "sd": null,
+    "tol": null,
+    "scenario": "runJump",
+    "status": "unmeasured"
+  },
+  {
+    "id": "dash.speed",
+    "value": null,
+    "unit": "px/s",
+    "clips": [
+      "C5"
+    ],
+    "n": 0,
+    "sd": null,
+    "tol": null,
+    "scenario": "dash",
+    "status": "unmeasured"
+  },
+  {
+    "id": "dash.duration",
+    "value": null,
+    "unit": "s",
+    "clips": [
+      "C5"
+    ],
+    "n": 0,
+    "sd": null,
+    "tol": null,
+    "scenario": "dash",
+    "status": "unmeasured"
+  },
+  {
+    "id": "dash.cooldown",
+    "value": null,
+    "unit": "s",
+    "clips": [
+      "C5"
+    ],
+    "n": 0,
+    "sd": null,
+    "tol": null,
+    "scenario": "dashSpam",
+    "status": "unmeasured"
+  },
+  {
+    "id": "kick.cooldown",
+    "value": null,
+    "unit": "s",
+    "clips": [
+      "C6"
+    ],
+    "n": 0,
+    "sd": null,
+    "tol": null,
+    "scenario": "kickMash",
+    "status": "unmeasured"
+  },
+  {
+    "id": "kick.feet.speed",
+    "value": null,
+    "unit": "px/s",
+    "clips": [
+      "C7"
+    ],
+    "n": 0,
+    "sd": null,
+    "tol": null,
+    "scenario": "kickFeet",
+    "status": "unmeasured"
+  },
+  {
+    "id": "kick.feet.angle",
+    "value": null,
+    "unit": "deg",
+    "clips": [
+      "C7"
+    ],
+    "n": 0,
+    "sd": null,
+    "tol": null,
+    "scenario": "kickFeet",
+    "status": "unmeasured"
+  },
+  {
+    "id": "kick.knee.speed",
+    "value": null,
+    "unit": "px/s",
+    "clips": [
+      "C7"
+    ],
+    "n": 0,
+    "sd": null,
+    "tol": null,
+    "scenario": "kickKnee",
+    "status": "unmeasured"
+  },
+  {
+    "id": "kick.knee.angle",
+    "value": null,
+    "unit": "deg",
+    "clips": [
+      "C7"
+    ],
+    "n": 0,
+    "sd": null,
+    "tol": null,
+    "scenario": "kickKnee",
+    "status": "unmeasured"
+  },
+  {
+    "id": "kick.head.speed",
+    "value": null,
+    "unit": "px/s",
+    "clips": [
+      "C7"
+    ],
+    "n": 0,
+    "sd": null,
+    "tol": null,
+    "scenario": "kickHead",
+    "status": "unmeasured"
+  },
+  {
+    "id": "kick.head.angle",
+    "value": null,
+    "unit": "deg",
+    "clips": [
+      "C7"
+    ],
+    "n": 0,
+    "sd": null,
+    "tol": null,
+    "scenario": "kickHead",
+    "status": "unmeasured"
+  },
+  {
+    "id": "kick.jump.speed",
+    "value": null,
+    "unit": "px/s",
+    "clips": [
+      "C7"
+    ],
+    "n": 0,
+    "sd": null,
+    "tol": null,
+    "scenario": "kickJump",
+    "status": "unmeasured"
+  },
+  {
+    "id": "kick.jump.angle",
+    "value": null,
+    "unit": "deg",
+    "clips": [
+      "C7"
+    ],
+    "n": 0,
+    "sd": null,
+    "tol": null,
+    "scenario": "kickJump",
+    "status": "unmeasured"
+  },
+  {
+    "id": "kick.run.speed",
+    "value": null,
+    "unit": "px/s",
+    "clips": [
+      "C7"
+    ],
+    "n": 0,
+    "sd": null,
+    "tol": null,
+    "scenario": "kickRun",
+    "status": "unmeasured"
+  },
+  {
+    "id": "kick.run.angle",
+    "value": null,
+    "unit": "deg",
+    "clips": [
+      "C7"
+    ],
+    "n": 0,
+    "sd": null,
+    "tol": null,
+    "scenario": "kickRun",
+    "status": "unmeasured"
+  },
+  {
+    "id": "ball.headRestitution",
+    "value": null,
+    "unit": "",
+    "clips": [
+      "C8"
+    ],
+    "n": 0,
+    "sd": null,
+    "tol": null,
+    "scenario": "headDrop",
+    "status": "unmeasured"
+  },
+  {
+    "id": "header.speed",
+    "value": null,
+    "unit": "px/s",
+    "clips": [
+      "C8"
+    ],
+    "n": 0,
+    "sd": null,
+    "tol": null,
+    "scenario": "header",
+    "status": "unmeasured"
+  },
+  {
+    "id": "header.angle",
+    "value": null,
+    "unit": "deg",
+    "clips": [
+      "C8"
+    ],
+    "n": 0,
+    "sd": null,
+    "tol": null,
+    "scenario": "header",
+    "status": "unmeasured"
+  },
+  {
+    "id": "ball.wallRestitution",
+    "value": null,
+    "unit": "",
+    "clips": [
+      "C9"
+    ],
+    "n": 0,
+    "sd": null,
+    "tol": null,
+    "scenario": "wallBounce",
+    "status": "unmeasured"
+  },
+  {
+    "id": "ball.barRestitution",
+    "value": null,
+    "unit": "",
+    "clips": [
+      "C9"
+    ],
+    "n": 0,
+    "sd": null,
+    "tol": null,
+    "scenario": "barBounce",
+    "status": "unmeasured"
+  },
+  {
+    "id": "ball.goalTopRestitution",
+    "value": null,
+    "unit": "",
+    "clips": [
+      "C9"
+    ],
+    "n": 0,
+    "sd": null,
+    "tol": null,
+    "scenario": "goalTopBounce",
+    "status": "unmeasured"
+  },
+  {
+    "id": "ball.ceilingRestitution",
+    "value": null,
+    "unit": "",
+    "clips": [
+      "C9"
+    ],
+    "n": 0,
+    "sd": null,
+    "tol": null,
+    "scenario": "ceilingBounce",
+    "status": "unmeasured"
+  },
+  {
+    "id": "ball.maxSpeed",
+    "value": null,
+    "unit": "px/s",
+    "clips": [
+      "C12"
+    ],
+    "n": 0,
+    "sd": null,
+    "tol": null,
+    "scenario": "kickMax",
+    "status": "unmeasured"
+  },
+  {
+    "id": "gauge.fillTime",
+    "value": null,
+    "unit": "s",
+    "clips": [
+      "C13",
+      "M*"
+    ],
+    "n": 0,
+    "sd": null,
+    "tol": null,
+    "scenario": "gauge",
+    "status": "unmeasured"
+  },
+  {
+    "id": "gauge.refillTime",
+    "value": null,
+    "unit": "s",
+    "clips": [
+      "C13",
+      "M*"
+    ],
+    "n": 0,
+    "sd": null,
+    "tol": null,
+    "scenario": "gauge",
+    "status": "unmeasured"
+  },
+  {
+    "id": "power.cutinTime",
+    "value": null,
+    "unit": "s",
+    "clips": [
+      "C14",
+      "M*"
+    ],
+    "n": 0,
+    "sd": null,
+    "tol": null,
+    "scenario": "powerCutin",
+    "status": "unmeasured"
+  },
+  {
+    "id": "goal.resetTime",
+    "value": null,
+    "unit": "s",
+    "clips": [
+      "C17",
+      "M*"
+    ],
+    "n": 0,
+    "sd": null,
+    "tol": null,
+    "scenario": "goalReset",
+    "status": "unmeasured"
+  },
+  {
+    "id": "goal.toPlayTime",
+    "value": null,
+    "unit": "s",
+    "clips": [
+      "C17",
+      "M*"
+    ],
+    "n": 0,
+    "sd": null,
+    "tol": null,
+    "scenario": "goalReset",
+    "status": "unmeasured"
+  },
+  {
+    "id": "match.goals",
+    "value": null,
+    "unit": "goals",
+    "clips": [
+      "M*"
+    ],
+    "n": 0,
+    "sd": null,
+    "tol": null,
+    "scenario": "botMatch",
+    "status": "unmeasured"
+  }
+]

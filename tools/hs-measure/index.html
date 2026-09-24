@@ -1,0 +1,71 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>hs-measure</title>
+<link rel="stylesheet" href="measure.css">
+</head>
+<body>
+<!-- The measuring page. Served by _hs-measure.mjs on 127.0.0.1 only — never by server.js.
+     Everything it does is in measure.js; the maths it relies on is in ../hs-calib.mjs and
+     ../hs-track.mjs, which test-hs-fit.mjs checks. -->
+<header>
+  <select id="clip"></select>
+  <button id="load">Load</button>
+  <span class="sep"></span>
+  <label><input type="radio" name="mode" value="calib" checked> Calibrate</label>
+  <label><input type="radio" name="mode" value="track"> Track</label>
+  <span class="sep"></span>
+  <span id="objs">
+    <label><input type="radio" name="obj" value="ball" checked> 1 ball</label>
+    <label><input type="radio" name="obj" value="p0"> 2 p0 (you)</label>
+    <label><input type="radio" name="obj" value="p1"> 3 p1 (CPU)</label>
+  </span>
+  <label title="refine a click to the nearest moving blob"><input type="checkbox" id="snap" checked> snap</label>
+  <button id="auto" title="T">Auto-track ▶</button>
+  <span class="sep"></span>
+  <button id="save">Save</button>
+  <span id="status"></span>
+</header>
+<main>
+  <div id="stage"><canvas id="view"></canvas><canvas id="loupe" width="180" height="180"></canvas></div>
+  <aside>
+    <section>
+      <h3>Frame</h3>
+      <div id="frameinfo">—</div>
+      <div id="posinfo"></div>
+      <div id="mouseinfo"></div>
+    </section>
+    <section id="calibpanel">
+      <h3>Calibration</h3>
+      <ol id="calibpts"></ol>
+      <div id="checks"></div>
+    </section>
+    <section>
+      <h3>Background</h3>
+      <label>from <input id="bg0" type="number" value="0" step="0.1" size="3"></label>
+      <label>to <input id="bg1" type="number" value="1" step="0.1" size="3"> s</label>
+      <button id="bgbuild">Rebuild</button>
+      <br><label>ball thr <input id="thrBall" type="number" value="150" title="whiteness above background"></label>
+      <label>head thr <input id="thr" type="number" value="30" title="brightness difference"></label>
+    </section>
+    <section>
+      <h3>Tags</h3>
+      <div id="tagbtns"></div>
+      <label>note <input id="note" placeholder="e.g. wall, bar, tap"></label>
+      <ul id="tags"></ul>
+    </section>
+    <section class="help">
+      <h3>Keys</h3>
+      <p>← → frame · shift ×10 · alt: skip duplicates<br>
+      1 2 3 object · T auto-track · Esc stop · Del clear object here<br>
+      tag letters as on the buttons · click a tag to jump to it</p>
+    </section>
+  </aside>
+</main>
+<footer>
+  <input id="slider" type="range" min="0" max="0" value="0">
+</footer>
+<script type="module" src="measure.js"></script>
+</body>
+</html>
