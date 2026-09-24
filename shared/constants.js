@@ -454,7 +454,9 @@ export let POWER_BLOCK_STUN = 0.5;
 // half a second, 2.6x the hardest kick. Each family flies a multiple of it (shared/hs-powers.js).
 export let POWER_SHOT_SPEED = 2150;
 export let POWER_SHOT_LIFE = 2.0;     // s of flight before a power ball reverts to an ordinary one
-export let POWER_BLOCK_REBOUND = 0.55; // pace a HIT ball keeps as it carries on past the defender
+// The pace a power ball keeps as it bounces off a player it HITS (not a kick-block): M3
+// 38.30–38.45 s, ~1800 px/s back off the Mexico keeper from a 2150 px/s shot.
+export let POWER_BLOCK_REBOUND = 0.84;
 // The bot's reach for a kick-block (shared/bot.js). HS has no unarmed counter, so this is no
 // longer a counter radius in the sim: a kick BLOCKS (hs-powers contact / earlyBlock).
 export let COUNTER_WINDOW = 130;

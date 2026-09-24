@@ -9,7 +9,7 @@
 //   the shot meets the other player:
 //       armed     → COUNTER: their own shot goes back (sim.js fireUltimateOnContact)
 //       kicking   → BLOCK: the ball grinds on the boot, drops dead, then fires back as theirs
-//       otherwise → HIT: knocked back with the ball, dazed, and any AILMENT lands
+//       otherwise → HIT: knocked back and dazed, any AILMENT lands, the ball bounces off him
 //     …except where the family says otherwise (a Ground shot cannot be blocked, a Grab carries
 //     the defender, a Destructive or Critical shot smashes through a block).
 //
@@ -127,13 +127,14 @@ function makeShot(family, o = {}) {
 }
 
 // ── stats ───────────────────────────────────────────────────────────────────────
-// HS's 1–10 stat levels → multipliers (estimated spread: level 1 is ~14% under an average body,
-// level 10 ~14% over). Only an arcade champion has levels; everyone else is EQUAL.
+// HS's 1–10 stat levels → multipliers (estimated spread: level 1 runs and kicks ~20% under an
+// average body and jumps ~14% under, level 10 as far over). Only an arcade champion has levels;
+// everyone else is EQUAL.
 export const EQUAL_STATS = Object.freeze({ speed: 1, jump: 1, kick: 1 });
 const lvl = (L, lo, hi) => lo + (hi - lo) * (Math.max(1, Math.min(10, L || 5.5)) - 1) / 9;
 export function statsFor(levels) {
   if (!levels) return EQUAL_STATS;
-  return { speed: lvl(levels.speed, 0.86, 1.14), jump: lvl(levels.jump, 0.9, 1.1), kick: lvl(levels.kick, 0.86, 1.14) };
+  return { speed: lvl(levels.speed, 0.8, 1.2), jump: lvl(levels.jump, 0.86, 1.14), kick: lvl(levels.kick, 0.8, 1.2) };
 }
 // The POWER stat is how fast the gauge fills: level 5–6 is the starter's 15s, 10 is 25% faster.
 export const meterRateFor = (L) => (L ? 0.8 + (Math.max(1, Math.min(10, L)) - 1) * 0.05 : 1);
@@ -308,7 +309,7 @@ export function stepPower(m, b, dt, kit, fx) {
     case 'hold':
       b.vx = 0; b.vy = 0;
       pw.k += dt;
-      if (pw.k >= 0.45 + 0.75 * pw.int) {
+      if (pw.k >= 0.35 + 0.45 * pw.int) {
         pw.ph = 'fly'; pw.t = 0;
         const dx = goalLineX(pw.dir) - b.x, dy = (C.GROUND_Y - C.GOAL_H * 0.45) - b.y;
         const d = Math.hypot(dx, dy) || 1;
@@ -356,7 +357,8 @@ export function skipContact(b, p) {
   const pw = b.power;
   if (!pw) return false;
   if (pw.owner === p.index) return true;
-  if (pw.ph === 'grind' || pw.ph === 'rest' || pw.ph === 'grab' || pw.ph === 'up' || pw.ph === 'wait') return true;
+  // (a Delay hanging in the air is frozen in time: nothing touches it until it goes on)
+  if (pw.ph === 'grind' || pw.ph === 'rest' || pw.ph === 'grab' || pw.ph === 'up' || pw.ph === 'wait' || pw.ph === 'hold') return true;
   return (pw.pass & (1 << p.index)) !== 0;
 }
 
@@ -413,7 +415,7 @@ export function contact(m, p, b, kit, fx) {
     m.events.push({ type: 'blocked', player: p.index, by: pw.owner, fam: pw.fam, shot: pw.fam });
     return 'block';
   }
-  // THE HIT (§4 M4 43.33): knocked back with the ball, dazed; the ball keeps going.
+  // THE HIT (§4 M4 43.33, M3 38.25): knocked back and dazed; the ball bounces off (below).
   m.hitStop = Math.max(m.hitStop, C.HIT_STOP_POWER);
   const smash = mode === 'smash' || mode === 'through';
   knock(m, p, pw, kit, smash ? HS.SMASH_KNOCK : HS.HIT_KNOCK, C.POWER_BLOCK_STUN);
@@ -421,13 +423,30 @@ export function contact(m, p, b, kit, fx) {
   const how = mode === 'through' ? 'through' : smash ? 'smash' : 'hit';
   m.events.push({ type: 'powerHit', player: p.index, by: pw.owner, fam: pw.fam, how, x: b.x, y: b.y });
   if (mode === 'through') { pw.pass |= 1 << p.index; return how; }
-  // The ball goes on THROUGH him — still the shot, carrying him back (M4 43.33: ball and defender
-  // into the net together) — slower, and falling now (`hit` flies ballistic, drawn as the ball's
-  // after-images rather than the comet).
-  const keep = mode === 'smash' ? 0.75 : C.POWER_BLOCK_REBOUND;
-  pw.pass |= 1 << p.index; pw.hit = 1; pw.ph = 'fly';
-  pw.vx0 = pw.dir * Math.max(Math.abs(b.vx), Math.hypot(b.vx, b.vy)) * keep;
-  b.vx = pw.vx0; b.vy = -120;
+  if (mode === 'smash') {
+    // A strong Destructive smashes on through him, still the shot, slower and falling now.
+    pw.pass |= 1 << p.index; pw.hit = 1; pw.ph = 'fly';
+    pw.vx0 = pw.dir * Math.max(Math.abs(b.vx), Math.hypot(b.vx, b.vy)) * 0.75;
+    b.vx = pw.vx0; b.vy = -120;
+    return how;
+  }
+  // …and the ball BOUNCES OFF HIM, as off any body, keeping most of its pace, no longer the shot:
+  // square on, it flies straight back (M3 38.25 s: off the Mexico keeper and all the way into the
+  // shooter's own empty net, ~1800 of the comet's 2150 px/s); grazing the crown, it carries on
+  // past him (M4 43.30–43.40 s: over the head and into the goal behind). Drawn as the ball's
+  // after-images (champ-vfx), not a comet.
+  const hy = kit.headY(p);
+  let nx, ny;
+  if (b.y < p.y - C.BODY_H) { nx = b.x - p.x; ny = b.y - hy; }        // the head: its circle's normal
+  else { nx = Math.sign(b.x - p.x) || -pw.dir; ny = 0; }               // the body: square
+  const d = Math.hypot(nx, ny) || 1; nx /= d; ny /= d;
+  const vn = b.vx * nx + b.vy * ny;
+  if (vn < 0) { b.vx -= 2 * vn * nx; b.vy -= 2 * vn * ny; }
+  b.vx *= C.POWER_BLOCK_REBOUND; b.vy *= C.POWER_BLOCK_REBOUND;
+  b.power = null;
+  const r0 = (b.y < p.y - C.BODY_H ? C.HEAD_R : C.BODY_W / 2) + b.r + 2;
+  const tx = (b.y < p.y - C.BODY_H ? p.x : p.x) + nx * r0, ty = (b.y < p.y - C.BODY_H ? hy + ny * r0 : b.y);
+  b.x = kit.keepOutOfGoal(b.x, b.y, tx, ty, b.r); b.y = Math.min(ty, C.GROUND_Y - b.r);
   return how;
 }
 

@@ -25,7 +25,7 @@ function playMatch(levelA, levelB, seed, duration = C.MATCH_DURATION) {
   const rng = mulberry32(seed);
   const m = createMatch({ rarity: 'legendary', number: 3 }, { rarity: 'legendary', number: 2 }, { duration });
   const bots = [createBot(levelA, rng), createBot(levelB, rng)];
-  const stats = { touches: 0, kicks: 0, powershots: 0, counters: 0, knocks: 0, tackles: 0, powerGoals: [0, 0], moved: [0, 0], maxTicks: 0 };
+  const stats = { touches: 0, kicks: 0, powershots: 0, counters: 0, knocks: 0, tackles: 0, powerGoals: [0, 0], blocks: [0, 0], hits: [0, 0], moved: [0, 0], maxTicks: 0 };
   const startX = m.players.map((p) => p.x);
   let ticks = 0;
   // Every goal freezes the clock for ~2s, so a high-scoring match needs generous headroom.
@@ -42,6 +42,8 @@ function playMatch(levelA, levelB, seed, duration = C.MATCH_DURATION) {
       if (e.type === 'knocked') stats.knocks++;
       if (e.type === 'tackle') stats.tackles++;
       if (e.type === 'goal' && e.power) stats.powerGoals[e.player]++;
+      if (e.type === 'blocked' && !e.extra) stats.blocks[e.player]++;          // e.player kicked it away
+      if (e.type === 'powerHit' || e.type === 'grabbed') stats.hits[e.player]++; // e.player was hit by it
     }
     m.events.length = 0;
     for (let i = 0; i < 2; i++) stats.moved[i] = Math.max(stats.moved[i], Math.abs(m.players[i].x - startX[i]));
@@ -155,23 +157,27 @@ function playMatch(levelA, levelB, seed, duration = C.MATCH_DURATION) {
 // Mean over the three sets: old -5, new -5. So "diff > 0" on seed 4000 had been landing the
 // right way up by luck, exactly as the paragraph above says the 16-match version did.
 //
-// What the dial DOES reliably buy, in every one of those six runs, is the power-shot exchange:
-// the hard bot counters more and its power shots score 2-5x as often (26 : 8 on this set). That
-// is what is asserted now. The goal difference is still printed so the ladder stays visible,
-// and goes back to being asserted when the bot model is rebuilt on HS movement (Phase C/D).
+// What the dial DOES reliably buy is the power-shot exchange. It used to be read off POWER GOALS
+// (the hard bot's scored 2-5x as often) — but with Head Soccer's rules a power shot that meets a
+// standing player BOUNCES OFF him (docs/HS-POWER-SHOTS.md §4) and a goal off that bounce is not a
+// power goal, so the count stopped meaning anything. The skill is now where HS puts it: KICKING
+// the other bot's shot away (a block) instead of standing in it and being hit. That is asserted:
+// the hard bot blocks a far larger share (30 points more) of incoming shots than the very-easy one. The goal
+// difference is still printed; it is asserted again when the bot is rebuilt on HS (Phase E).
 {
   let diff = 0, hardWins = 0, easyWins = 0;
-  const pg = [0, 0];
+  const bl = [0, 0], hi = [0, 0];
   const N = 48;
   for (let s = 0; s < N; s++) {
     const { m, stats } = playMatch(5, 0, 4000 + s * 37);      // legendary bot vs very-easy bot
     diff += m.score[0] - m.score[1];
-    pg[0] += stats.powerGoals[0]; pg[1] += stats.powerGoals[1];
+    for (const i of [0, 1]) { bl[i] += stats.blocks[i]; hi[i] += stats.hits[i]; }
     if (m.score[0] > m.score[1]) hardWins++;
     else if (m.score[1] > m.score[0]) easyWins++;
   }
-  ok('the hardest bot wins the power-shot exchange', pg[0] > pg[1] * 2,
-     `power-shot goals ${pg[0]} : ${pg[1]} over ${N} matches`);
+  const share = (i) => bl[i] / Math.max(1, bl[i] + hi[i]);
+  ok('the hardest bot wins the power-shot exchange: it kicks the shots away, the easy one is hit by them',
+     share(0) > share(1) + 0.3 && bl[0] > 20, `blocked ${bl[0]} / hit ${hi[0]} vs blocked ${bl[1]} / hit ${hi[1]} over ${N} matches`);
   console.log(`  (info) hardest vs easiest goal difference ${diff > 0 ? '+' : ''}${diff} over ${N} matches (${hardWins}W ${easyWins}L) — not asserted, see above`);
 }
 {

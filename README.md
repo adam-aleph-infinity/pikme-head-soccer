@@ -153,8 +153,8 @@ How a power shot plays is Head Soccer's, as filmed (`docs/HS-POWER-SHOTS.md`): t
 (a crackling gold rim), the next touch fires, the screen darkens 1.34s round the shooter and the
 ball leaves 0.97s in at 2150 px/s (the Straight comet), flying under the dark. At the other player:
 **armed** → he counters with his own shot; **kicking** → he blocks it (0.8s grinding on the boot,
-0.4s dead, then it fires back as his); **standing** → he is knocked back into his net with it, dazed
-0.5s with three stars, and the ailment lands. Ground cannot be blocked, Critical goes through a
+0.4s dead, then it fires back as his); **standing** → he is knocked back, dazed 0.5s with three
+stars, the ailment lands, and the ball bounces off him. Ground cannot be blocked, Critical goes through a
 block, a Grab carries a defender who does not kick it toward his own goal.
 
 **Online 1v1 is fair, and that is enforced, not promised.** Champions are opt-in on the match
@@ -444,7 +444,7 @@ mechanics that actually define it, not just the look:
   second arm waits until the first shot has fired).
 - **Eleven shot families** from Head Soccer — see [`shared/hs-powers.js`](shared/hs-powers.js)
   and [`docs/HS-POWER-SHOTS.md`](docs/HS-POWER-SHOTS.md). Kick into one to block it (it grinds
-  on your boot and fires back as yours); stand in its way and it knocks you into your own net.
+  on your boot and fires back as yours); stand in its way and it knocks you flat and bounces off you.
 - **Counter attacks.** Touch a live power ball while armed and your own shot goes back instead,
   with your own cut-in. That's the skill ceiling.
 - **Sudden death** on a draw, with both gauges frozen — so overtime is decided by play.

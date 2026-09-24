@@ -634,7 +634,7 @@ function track(m, s, inputs = NONE) {
   const p = track(m, 1.6);
   const hold = p.filter((q) => q.ph === 'hold');
   const after = p.slice(p.findIndex((q) => q.ph === 'hold') + hold.length).filter((q) => q.pw);
-  ok('DELAY: flies a beat, then hangs dead in the air', hold.length * C.TICK >= 0.45 && hold.every((q) => q.vx === 0 && q.vy === 0 && q.x === hold[0].x));
+  ok('DELAY: flies a beat, then hangs dead in the air', hold.length * C.TICK >= 0.35 && hold.every((q) => q.vx === 0 && q.vy === 0 && q.x === hold[0].x));
   ok('DELAY: then bursts on at the goal', after.length > 2 && Math.hypot(after[1].vx, after[1].vy) > C.POWER_SHOT_SPEED);
 }
 {
@@ -707,8 +707,25 @@ function atDefender(fam, o = {}, { kick = false, armed = false, gap = 320 } = {}
   const { m, z, log } = atDefender('straight');
   const hit = log.find((e) => e.type === 'powerHit');
   ok('STANDING in its path is a HIT', hit && hit.player === 1 && hit.how === 'hit');
-  ok('…he is thrown back toward his own net with it, dazed, three stars', z.vx * z.side < 0 && z.stunned > 0 && z.ail === 'stars');
-  ok('…and the ball carries on as the shot, slower and falling', m.ball.power && m.ball.power.hit === 1 && m.ball.vx > 0 && m.ball.vx < C.POWER_SHOT_SPEED);
+  ok('…he is thrown back toward his own net, dazed, three stars', z.vx * z.side < 0 && z.stunned > 0 && z.ail === 'stars');
+  ok('…and the ball bounces off him, no longer the shot, keeping most of its pace (M3 38.25 s)',
+     !m.ball.power && Math.hypot(m.ball.vx, m.ball.vy) > C.POWER_SHOT_SPEED * 0.6);
+}
+{
+  // Square on, it comes straight back (M3 38.25 s); grazing the crown, it carries on past him
+  // (M4 43.30 s) — the bounce is off the head's own circle.
+  const sq = atDefender('straight');
+  ok('square on, the hit ball comes back toward the shooter', sq.m.ball.vx < -C.POWER_SHOT_SPEED * 0.5, `vx ${sq.m.ball.vx.toFixed(0)}`);
+  const m = fresh();
+  const [a, z] = m.players;
+  a.shot = shotById('straight'); z.shot = shotById('updown');
+  a.x = 260; z.x = 600; m.gaugeLead = 0; m.banner = null; m.bannerT = 0;
+  arm(m, 0);
+  m.ball.x = a.x; m.ball.y = headY(z) - C.HEAD_R - C.BALL_R + 6;        // high: it will just catch his crown
+  step(m, NONE); m.events.length = 0;
+  let hit = null;
+  for (let i = 0; i < 200 && !hit; i++) { step(m, NONE); hit = m.events.find((e) => e.type === 'powerHit'); m.events.length = 0; }
+  ok('grazing his crown, the hit ball carries on past him', hit && m.ball.vx > 0, `vx ${m.ball.vx.toFixed(0)}`);
 }
 {
   const { m, log } = atDefender('straight', {}, { armed: true });

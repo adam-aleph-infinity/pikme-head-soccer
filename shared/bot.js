@@ -180,7 +180,7 @@ function botInputRaw(bot, m, index, dt) {
       out.jump = bot.holdJump > 0;
       if (bot.holdJump > 0) bot.holdJump--;
       // THE BLOCK IS A KICK (docs/HS-POWER-SHOTS.md §4): standing in its path only gets you
-      // knocked into your own net with it. So kick on TIME-TO-ARRIVAL — a power shot crosses the
+      // knocked flat by it. So kick on TIME-TO-ARRIVAL — a power shot crosses the
       // pitch in half a second, and a kick pressed on distance lands after the ball has. A better
       // bot presses earlier and surer; a 'counter' plan (armed or not) swings just as early.
       const kickEta = bot.powerPlan === 'counter' ? 0.16 : 0.07 + d.aim * 0.08;

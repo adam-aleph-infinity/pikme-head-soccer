@@ -362,8 +362,8 @@ function kickInto(m, i, reach = 130, ticks = 90) {
      m.ball.power && m.ball.power.owner === 1 && m.ball.vx * b.side > 0, JSON.stringify(m.ball.power && { o: m.ball.power.owner, vx: m.ball.vx }));
 }
 {
-  // STANDING IN ITS PATH IS NOT A BLOCK (M4 43.33 s): the defender is knocked back toward his own
-  // net with the ball, dazed with three stars, and the ball carries on as the shot.
+  // STANDING IN ITS PATH IS NOT A BLOCK (M3 38.25 s, M4 43.33 s): the defender is knocked back
+  // toward his own net, dazed with three stars, and the ball bounces off him.
   const m = fresh();
   const a = m.players[0], b = m.players[1];
   a.shot = shotById('straight');
@@ -374,7 +374,7 @@ function kickInto(m, i, reach = 130, ticks = 90) {
   ok('a standing defender is hit, not blocking', log.some((e) => e.type === 'powerHit' && e.player === 1) && !log.some((e) => e.type === 'blocked'));
   ok('he is thrown toward his own goal', b.vx * b.side < 0 || b.x > a.x + 300, `vx=${b.vx.toFixed(0)}`);
   ok('dazed for POWER_BLOCK_STUN, with the stars', log.some((e) => e.type === 'stunned' && e.player === 1 && Math.abs(e.time - C.POWER_BLOCK_STUN) < 1e-9) && b.ail === 'stars');
-  ok('and the ball goes on through him', m.ball.vx * a.side > 0, `vx=${m.ball.vx.toFixed(0)}`);
+  ok('and the ball bounces off him, no longer the shot', !m.ball.power, `vx=${m.ball.vx.toFixed(0)}`);
 }
 {
   // Head Soccer has no unarmed COUNTER: a kick from out of reach does nothing to a power ball.

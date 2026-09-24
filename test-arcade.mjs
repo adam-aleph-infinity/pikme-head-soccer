@@ -388,7 +388,7 @@ function fireChampion(stage, i, gap = 460) {
   // AND for the HS power-shot pass (hs/power-shots): every card now fires its Head Soccer family
   // at the filmed comet's speed, a kick blocks and a stand gets you hit, the cut-in's dark
   // outlasts its hold, and online stats are EQUAL — all non-arcade changes by design.
-  const GOLDEN = 'bf0c20adb4d6ef4c2726f437abbc26edbf097a375c840e0356ce4be4be21c59a';
+  const GOLDEN = 'b1d944b996da5cd52189483e6df5709217a0653f07d2853a0fdd92252f3f96ed';
   const h = createHash('sha256');
   const cases = [
     [{ rarity: 'legendary', number: 3 }, { rarity: 'legendary', number: 2 }, 3, 3, 11],

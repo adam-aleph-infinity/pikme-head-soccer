@@ -207,6 +207,9 @@ export const SCENARIOS = {
       const p = m.players[0];
       if (!ctx.fired && p.gauge >= 1 && !ctx.armAt) ctx.armAt = i + 2;
       if (i === ctx.armAt) { place(m.ball, p.x, headY(p) - C.HEAD_R - C.BALL_R + 3); ctx.fired = true; }
+      // The shot is away (the cut-in has started): take it off the pitch, so what this measures is
+      // the gauge and not whether a 2150 px/s comet happened to score (a goal's restart stops the fill).
+      if (ctx.fired && i === ctx.armAt + 3) { m.ball.power = null; parkBall(m); }
     },
     input: (i, m, ctx) => ({ power: i === ctx.armAt }) },
   gaugeHold: { clip: 'C13', ticks: 60 * 92, setup: () => {}, input: () => ({}) },
