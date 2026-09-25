@@ -1218,9 +1218,33 @@ function frame(now) {
   VFXR.update(dt);
   if (bannerT > 0) bannerT -= dt;
   if (flashT > 0) flashT -= dt;
+  // SMOOTH BETWEEN TICKS: the sim runs at 60 Hz, a 90/120/144 Hz screen draws in between. Drawn
+  // at the tick's own positions the picture holds a frame then jumps; carried on along its own
+  // velocity for the `acc` not yet simulated, it moves on every refresh — forward only, and no
+  // added lag (interpolating back from the last tick costs a tick). At 60 Hz `acc` is ~0 and this
+  // draws the tick exactly. Offline only: the net module owns the clock online.
+  const lerped = !ONLINE && running && !paused && lerpIn(acc);
   draw();
   syncHud();
+  if (lerped) lerpOut();
 }
+
+// The real positions while a frame is drawn a fraction of a tick ahead.
+let REAL = null;
+const bodies = () => (M ? [M.ball, ...M.players] : []);
+function lerpIn(ahead) {
+  // nothing moves under a hit-stop, a freeze, or before the ball is back in
+  if (!(ahead > 1e-4 && ahead < C.TICK) || M.hitStop > 0 || M.freeze > 0 || M.phase !== 'play') return false;
+  const bs = bodies();
+  REAL = bs.map((o) => [o.x, o.y]);
+  for (const o of bs) {
+    if (o === M.ball && M.ballWait > 0) continue;
+    const dy = o.onGround ? 0 : (o.vy || 0) * ahead;       // a body on the grass stays on it
+    o.x += (o.vx || 0) * ahead; o.y += dy;
+  }
+  return true;
+}
+function lerpOut() { bodies().forEach((o, i) => { [o.x, o.y] = REAL[i]; }); REAL = null; }
 
 // ═══════════════════════════════════════════════════════════════════════════
 // RENDER
@@ -2248,7 +2272,9 @@ function drawBall(g, b) {
   if (VFXR.drawBall(g, b)) return;
   g.save();
   g.translate(d.x, d.y);
-  const spin = (b.spin || 0) * .12 + b.x * .012;
+  // It ROLLS: turned by the distance it has travelled over its own radius (it was 1/5 of that,
+  // so a ball skidding across the grass looked like it was sliding on ice).
+  const spin = b.x / b.r;
   g.rotate(spin);
   const r = b.r;
   g.fillStyle = '#f6f9ff';

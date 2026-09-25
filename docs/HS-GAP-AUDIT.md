@@ -7,7 +7,7 @@ Every place where our game is not exactly like real Head Soccer (HS). Duplicates
 
 Already decided, so not listed as gaps: no in-match items, HS-style power shots, HS stats in the arcade only, the custom sim, exact head size.
 
-✅ = fixed on branch `hs/gap-fixes`. Parity was 82/88 at the audit; after stage 1 it is 87–88/88 (only `cpu.rangeConv` still wobbles at the edge of its tolerance).
+✅ = fixed on branch `hs/gap-fixes`. 🎥 = waiting for a new HS recording (Idan's rule: every feel number traces to a measurement). ❓ = needs Idan's decision. Parity was 82/88 at the audit; after stage 1 it is 87–88/88 (only `cpu.rangeConv` still wobbles at the edge of its tolerance).
 
 At the audit, `node test-hs-parity.mjs` passed 82 of 88 rows. The 6 failures are the headers (×2), the goal-restart timing, the 5★ CPU's position, the 5★ CPU's touch rate, and the kick repeat rate.
 
@@ -22,8 +22,8 @@ At the audit, `node test-hs-parity.mjs` passed 82 of 88 rows. The 6 failures are
 | K3 ✅ | M | A header teleports the ball 40–60 px up in one frame | `sim.js:1242-1243` | No teleport | code |
 | K4 ✅ | H | The kick is a fixed circle at ground height that stays live for the whole 0.26 s. A ball 70–90 px up in front is missed completely | `KICK_REACH` 62, `KICK_R` 22, `sim.js:1421-1491` | The boot is at knee height for ~2 frames, then ~51 px ahead and ~52 px up for the rest of the swing | meas (M4 frames) |
 | K5 ✅ | M | Holding jump while kicking lobs, a modifier HS doesn't have. A jumping kick without it only peaks at 101 px | `sim.js:584`, `LOB_LIFT` 1.9 | A jump kick peaks around 340 px, with no modifier | 1 sample + know |
-| K6 | M | A ground kick is probably too flat | 478 px/s at 32°, 57 px apex | Arcs higher | know (unmeasured) |
-| K7 | M | A dash kick goes out as a flat 14° drive | `sim.js:1489` | "Up diagonally quickly" | wiki |
+| K6 🎥 | M | A ground kick is probably too flat | 478 px/s at 32°, 57 px apex | Arcs higher | know (unmeasured) |
+| K7 🎥 | M | A dash kick goes out as a flat 14° drive | `sim.js:1489` | "Up diagonally quickly" | wiki |
 | K8 | L | The kick repeats slightly slower than HS | 0.367 s | 0.349 s | meas |
 | K9 | L | Kick contact may reach too far | up to ~100 px from the body's centre | unmeasured | — |
 
@@ -31,14 +31,14 @@ At the audit, `node test-hs-parity.mjs` passed 82 of 88 rows. The 6 failures are
 
 | # | Sev | Gap | Ours | HS | Source |
 |---|---|---|---|---|---|
-| P1 | M | The body kills the ball instead of bouncing it | `BODY_DEADEN` 0.18 `constants.js:215`; walking into the ball pushes it at 228 px/s | Bounces off the chest and shins at roughly 390 px/s | wiki + Box2D |
+| P1 ❓ | M | **Needs Idan:** `BODY_DEADEN` was Adam's explicit request ("the ball kinda stops and rolls"). HS bounces it. The body kills the ball instead of bouncing it | `BODY_DEADEN` 0.18 `constants.js:215`; walking into the ball pushes it at 228 px/s | Bounces off the chest and shins at roughly 390 px/s | wiki + Box2D |
 | P2 ✅ | M | Walls and posts bounce too much | walls 0.86 `constants.js:81`, post 0.78 `sim.js:1163` | every measured surface is 0.63–0.79 (our crossbar is 0.67) | meas (other surfaces) |
 | P3 ✅ | M | Air drag is too strong, so long balls land ~40 px short | 0.184/s `constants.js:78` | 0.099/s (17 M4 flights, IQR 0.095–0.105) | meas |
 | P4 ✅ | H | A rolling ball stops far too soon | decays at 0.73/s: an 80 px/s ball stops after 111 px | 0.11–0.21/s: a roll lasted 6.6 s over 404 px | meas (n=2) |
 | P5 ✅ | M | The speed cap is too low | 816 `constants.js:91` | ordinary touches reach 1001–1091 px/s (4 in M4) | meas |
 | P7 ✅ | L | A ball left untouched for 6 s teleports to the centre | `sim.js:378-386`, `constants.js:513` | No such rule; none of the 4 clips show it | meas |
-| P10 | L | The body box may be narrow | 28 px | ~35 px in the HS art | meas (art) |
-| P9 | L | No smoothing between frames, so it judders on 90/144 Hz screens | — | — | code |
+| P10 🎥 | L | The body box may be narrow | 28 px | ~35 px in the HS art | meas (art) |
+| P9 ✅ | L | No smoothing between frames, so it judders on 90/144 Hz screens | — | — | code |
 
 ## 3. Powers, gauge and ailments
 
@@ -113,7 +113,7 @@ At the audit, `node test-hs-parity.mjs` passed 82 of 88 rows. The 6 failures are
 | V8 | M | Flat pitch floor: stripes, a centre line, half a circle | `game.js:1738` | Perspective floor with penalty boxes | meas |
 | V9 | L | The crowd bobs, redrawn 12 times a second | — | Completely still | meas |
 | V10 | L | The ad boards scroll one repeated SALTIZ strip | — | Still and varied | meas |
-| V11 | L | The ball turns ~5× too slowly for how fast it moves | `game.js:2236` | Rolls properly | physics |
+| V11 ✅ | L | The ball turns ~5× too slowly for how fast it moves | `game.js:2236` | Rolls properly | physics |
 | V12 | L | The 20 small pitch sprites (`px-*.webp`) are built but never used; `CHARACTERS.md` wrongly says the characters change expression | — | — | code |
 
 ## 7. Code hygiene found on the way
