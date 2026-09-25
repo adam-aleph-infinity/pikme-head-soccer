@@ -981,8 +981,10 @@ function collideBounds(m, b, fx, dt = C.TICK) {
     if (b.vy > 0) {
       if (b.power) { b.vy = -Math.abs(b.vy) * 0.45; }
       else {
+        const v = b.vy;
         b.vy = -b.vy * C.BALL_BOUNCE;
         if (Math.abs(b.vy) < 60) b.vy = 0;
+        else m.events.push({ type: 'bounce', v });   // the thump on the grass (audio)
         fx.hit(b.x, b.y, '#ffffff', 0.4);
       }
     }
@@ -1014,14 +1016,16 @@ function collideBounds(m, b, fx, dt = C.TICK) {
   // crossbars: a full bar over each net, the ROOF EDGE where the drawn box overhangs that bar,
   // and the front post all of it hangs off
   const barY = C.GROUND_Y - C.GOAL_H;
-  bounceOffBar(b, 0, barY, C.GOAL_W, barY, fx);
-  bounceOffBar(b, C.W - C.GOAL_W, barY, C.W, barY, fx);
+  const v0 = Math.hypot(b.vx, b.vy);
+  let rang = bounceOffBar(b, 0, barY, C.GOAL_W, barY, fx);
+  rang = bounceOffBar(b, C.W - C.GOAL_W, barY, C.W, barY, fx) || rang;
   bounceOffRoofEdge(b, true, fx);
   bounceOffRoofEdge(b, false, fx);
   bounceOffRoof(b, true, fx);
   bounceOffRoof(b, false, fx);
-  bounceOffPost(b, C.GOAL_W, barY, fx);
-  bounceOffPost(b, C.W - C.GOAL_W, barY, fx);
+  rang = bounceOffPost(b, C.GOAL_W, barY, fx) || rang;
+  rang = bounceOffPost(b, C.W - C.GOAL_W, barY, fx) || rang;
+  if (rang && v0 > 80) m.events.push({ type: 'post', v: v0 });   // the ring of the frame (audio)
 }
 
 // THE ROOF EDGE — the half of the crossbar that was drawn and never existed.
@@ -1168,6 +1172,7 @@ function bounceOffBar(b, ax, ay, bx, by, fx, fromAboveOnly = false) {
     if (along < 70) b.vx += (70 - along) * towardPitch;
   }
   fx.hit(px, py, '#ffe08a', 1);
+  return true;
 }
 
 function bounceOffPost(b, px, py, fx) {
@@ -1182,6 +1187,7 @@ function bounceOffPost(b, px, py, fx) {
   b.vx = (b.vx - 2 * dot * nx) * C.BAR_BOUNCE;
   b.vy = (b.vy - 2 * dot * ny) * C.BAR_BOUNCE;
   fx.hit(px, py, '#ffe08a', 1);
+  return true;
 }
 
 // ---------------------------------------------------------------------------

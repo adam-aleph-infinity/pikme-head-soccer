@@ -160,10 +160,96 @@ export const SFX = {
   win()       { [523, 659, 784, 1047, 1319].forEach((f, i) => blip({ freq: f, type: 'square', peak: 0.36, dur: 0.2, t: i * 0.1 })); crowd({ dur: 2.2, peak: 0.5 }); },
   lose()      { [523, 466, 392, 311].forEach((f, i) => blip({ freq: f, type: 'square', peak: 0.32, dur: 0.28, t: i * 0.14 })); },
   reset()     { blip({ freq: 880, type: 'triangle', peak: 0.22, dur: 0.1 }); },
+
+  // ── the sounds HS has that this kit did not (HS-GAP-AUDIT V7) ──
+  // The ball on the grass: a soft low thump, as loud as the bounce was hard.
+  bounce(e)   { const k = Math.min(1, Math.abs(e?.v || 300) / 900); thud({ freq: 140 + 60 * k, q: 1.4, peak: 0.12 + 0.45 * k, decay: 0.07 + 0.05 * k }); },
+  // A boot that lands on a body every fifth time: a dull knock and a yelp.
+  hurt()      { thud({ freq: 320, peak: 0.8, decay: 0.12 }); sweep({ from: 900, to: 1500, type: 'triangle', peak: 0.18, dur: 0.12, t: 0.03 }); },
+  // Knocked out: the fall, then the stars going round.
+  stunned()   {
+    sweep({ from: 700, to: 140, type: 'triangle', peak: 0.3, dur: 0.4 });
+    [1568, 2093, 1760, 2349].forEach((f, i) => blip({ freq: f, type: 'triangle', peak: 0.14, dur: 0.12, t: 0.35 + i * 0.12 }));
+  },
+  revive()    { sweep({ from: 400, to: 900, type: 'triangle', peak: 0.16, dur: 0.14 }); },
+  // A power shot landing on a player: the heaviest thing in the kit.
+  powerHit()  { thud({ freq: 120, peak: 1.0, decay: 0.32 }); thud({ freq: 1900, q: 3, peak: 0.55, decay: 0.1 }); sweep({ from: 500, to: 60, type: 'sawtooth', peak: 0.3, dur: 0.3 }); },
+  // Each ailment its own colour of sound.
+  ailment(e)  {
+    switch (e?.ail) {
+      case 'freeze': case 'iced':
+        [2637, 3136, 3951].forEach((f, i) => blip({ freq: f, type: 'sine', peak: 0.2, dur: 0.35, t: i * 0.05 })); thud({ freq: 4000, q: 4, peak: 0.3, decay: 0.2 }); break;
+      case 'burn':
+        thud({ freq: 900, q: 0.5, peak: 0.5, decay: 0.5 }); sweep({ from: 200, to: 90, type: 'sawtooth', peak: 0.2, dur: 0.45 }); break;
+      case 'shock':
+        for (let i = 0; i < 6; i++) blip({ freq: 110 + (i % 2) * 40, type: 'sawtooth', peak: 0.25, dur: 0.05, t: i * 0.05 }); break;
+      case 'reverse':
+        sweep({ from: 600, to: 300, type: 'sine', peak: 0.25, dur: 0.18 }); sweep({ from: 300, to: 600, type: 'sine', peak: 0.25, dur: 0.18, t: 0.18 }); break;
+      case 'thrown': case 'twister':
+        sweep({ from: 300, to: 1400, type: 'sawtooth', peak: 0.25, dur: 0.5 }); break;
+      default:
+        [1568, 2093, 1760].forEach((f, i) => blip({ freq: f, type: 'triangle', peak: 0.14, dur: 0.12, t: i * 0.1 }));
+    }
+  },
 };
+
+// A power shot's own sound, by FAMILY (the powershot event carries it): the shared whoosh,
+// pitched and coloured per family so a Tornado does not sound like a Thunderbolt.
+const FAMILY_VOICE = {
+  straight: { from: 1400, to: 300 }, aerial: { from: 400, to: 2200 }, grab: { from: 300, to: 120, type: 'square' },
+  delay: { from: 900, to: 900, type: 'square' }, ground: { from: 300, to: 60 }, destructive: { from: 1000, to: 80 },
+  critical: { from: 2400, to: 200 }, downward: { from: 2000, to: 150 }, multiball: { from: 700, to: 1400, type: 'square' },
+  updown: { from: 500, to: 1600, type: 'triangle' }, ailment: { from: 1200, to: 400, type: 'triangle' },
+};
+const basePowershot = SFX.powershot;
+SFX.powershot = (e) => {
+  basePowershot();
+  const v = FAMILY_VOICE[e?.fam];
+  if (v) sweep({ from: v.from, to: v.to, type: v.type || 'sawtooth', peak: 0.28, dur: 0.3, t: 0.04, detune: 7 });
+};
+
+// ── THE MATCH BED: music and crowd (HS-GAP-AUDIT V4, V5) ─────────────────────────
+// HS plays music under the whole match (its M3/M4 audio has no silence longer than 1.5 s, with
+// a steady beat) over a crowd that never quite stops. Both are synthesised here, original, and
+// scheduled a beat ahead on the audio clock so a busy frame cannot make them stutter.
+const BPM = 124, BEAT = 60 / BPM;
+// A four-bar loop in A minor: a bass note per beat, a stab on the off-beats of 2 and 4.
+const BASS = [110, 110, 130.8, 110, 98, 98, 123.5, 98, 87.3, 87.3, 110, 87.3, 98, 98, 123.5, 146.8];
+const STAB = [[440, 523, 659], [392, 494, 587], [349, 440, 523], [392, 494, 587]];
+let bed = null;
+function bedTick() {
+  const a = ctx();
+  while (bed.next < a.currentTime + 0.25) {
+    const t = bed.next - a.currentTime, i = bed.step % 16, bar = Math.floor(bed.step / 4) % 4;
+    thud({ freq: 90, q: 1, peak: 0.34, decay: 0.12, t });                                   // kick
+    blip({ freq: BASS[i], type: 'triangle', peak: 0.22, dur: BEAT * 0.8, t });              // bass
+    if (bed.step % 2 === 1) STAB[bar].forEach((f) => blip({ freq: f, type: 'square', peak: 0.045, dur: 0.09, t: t + BEAT / 2 }));
+    thud({ freq: 7000, q: 5, peak: 0.08, decay: 0.03, t: t + BEAT / 2 });                   // hat
+    bed.next += BEAT; bed.step++;
+  }
+}
+export function startBed() {
+  if (bed || !enabled) return;
+  const a = ctx();
+  // the crowd: a looped murmur, band-limited so it sits under everything else
+  const src = noise(); src.loop = true;
+  const bp = a.createBiquadFilter(); bp.type = 'bandpass'; bp.frequency.value = 650; bp.Q.value = 0.5;
+  const lp = a.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 1800;
+  const g = a.createGain(); g.gain.value = 0.07;
+  src.connect(bp); bp.connect(lp); lp.connect(g); g.connect(master);
+  src.start();
+  bed = { next: a.currentTime + 0.1, step: 0, crowd: src, timer: setInterval(() => { try { bedTick(); } catch { /* never worth a frame */ } }, 100) };
+}
+export function stopBed() {
+  if (!bed) return;
+  clearInterval(bed.timer);
+  try { bed.crowd.stop(); } catch { /* already stopped */ }
+  bed = null;
+}
 
 export function setAudioEnabled(v) {
   enabled = v;
+  if (!v) stopBed();
   if (master) master.gain.value = v ? 0.32 : 0;
 }
 export const audioEnabled = () => enabled;
@@ -178,8 +264,8 @@ export function synth(list) {
 
 // Forward a sim event to the kit. Unknown events are silently ignored, so adding an event
 // to the sim never breaks audio and never needs a matching change here.
-export function playEvent(type) {
+export function playEvent(type, e) {
   if (!enabled) return;
   const fn = SFX[type];
-  if (fn) { try { fn(); } catch { /* audio is never worth crashing a frame for */ } }
+  if (fn) { try { fn(e); } catch { /* audio is never worth crashing a frame for */ } }
 }

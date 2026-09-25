@@ -12,7 +12,7 @@ import { headCrop } from './head-crop.js';
 import { characterFor, kitFor, charUrl, expressionFor, CHAR_BOX, EXPRESSIONS as CHAR_EXPRESSIONS } from './characters.js';
 import { clockText, gaugeView } from './hud.js';
 import { createNet } from './net.js';
-import { playEvent, SFX, setAudioEnabled, audioEnabled, synth } from './audio.js';
+import { playEvent, SFX, setAudioEnabled, audioEnabled, startBed, stopBed } from './audio.js';
 import { STAGES, randomStage, stageById } from './stages.js';
 import { DIRECTIONS } from './art-directions.js';
 import { CHAMPIONS, TIERS, stageConfig, championForStage } from '../shared/champions.js';
@@ -919,6 +919,7 @@ function startOnlineMatch(msg) {
   running = true;
   ARCADE = null;
   show('match');
+  startBed();
   $('#over').classList.add('hidden');
   for (let i = 0; i < 2; i++) {
     $('#head' + i).className = 'head p' + i;
@@ -995,6 +996,7 @@ function beginLocal(me, foe, opts, bot) {
   }
   resize();
   playEvent('whistle');
+  startBed();                        // HS's music and crowd under the match
   cancelAnimationFrame(raf);
   raf = requestAnimationFrame(frame);
 }
@@ -1004,6 +1006,7 @@ const powerName = (p) => p.shot.name;
 
 function endMatch() {
   running = false;
+  stopBed();
   const [a, b] = M.score;
   const iWon = a > b;
   $('#overTitle').textContent = iWon ? 'ניצחת!' : 'הפסדת';
@@ -1088,8 +1091,8 @@ function setPaused(on) {
   paused = on;
   $('#pause').classList.toggle('hidden', !on);
   $('#retry').hidden = !!ONLINE;
-  if (on) releaseAll();
-  else { acc = 0; last = performance.now(); }
+  if (on) { releaseAll(); stopBed(); }
+  else { acc = 0; last = performance.now(); startBed(); }
 }
 $('#pauseBtn').onclick = () => { if (running) setPaused(true); };
 $('#resume').onclick = () => setPaused(false);
@@ -1102,6 +1105,7 @@ $('#gear').hidden = !new URLSearchParams(location.search).has('dev');
 
 $('#back').onclick = $('#quit').onclick = () => {
   if (paused) setPaused(false);
+  stopBed();
   running = false;
   cancelAnimationFrame(raf);
   // Leaving an arcade match early records nothing: a quit is neither a win nor a loss.
@@ -1153,7 +1157,7 @@ function drainEvents() {
     if (EVENT_LOG.length > 200) EVENT_LOG.shift();
     // The sim's event names ARE the sound names, so a new event gets audio for free and a
     // missing one is silently ignored rather than throwing mid-frame.
-    playEvent(e.type === 'strike' ? (e.head ? 'head' : 'kick') : e.type);
+    playEvent(e.type === 'strike' ? (e.head ? 'head' : 'kick') : e.type, e);
     VFXR.onEvent(e);
     // NO WORDS FOR A POWER SHOT. Head Soccer puts no text on the press, the cut-in, the shot, a
     // block or a counter (docs/HS-POWER-SHOTS.md §2) — the picture says it (champ-vfx.js). The
@@ -2841,6 +2845,7 @@ $('#sndBtn').onclick = () => {
   $('#sndBtn').textContent = on ? '🔊' : '🔇';
   $('#sndBtn').classList.toggle('off', !on);
   if (on) SFX.whistle();          // also serves as the WKWebView audio unlock gesture
+  if (on && running && !paused) startBed();
 };
 $('#tunerClose').onclick = () => $('#tuner').classList.add('hidden');
 $('#tunerReset').onclick = () => { C.tune(BASE); buildTuner(); for (let i = 0; i < 2; i++) $('#head' + i).dataset.card = ''; };
