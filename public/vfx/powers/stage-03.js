@@ -4,91 +4,64 @@
 // "the shot bounces up and down very quickly"; "if the tornado touches the opponent, they fly and
 // spin in the air and they stay unconscious for 3 seconds". Power_Shot_Guide: "you can also get
 // hit by the power shot when you jump" — the whirlwind is tall.
-// So: a sandy grey funnel standing on the grass round the ball — narrow at the foot, wide at the
-// top, ≈ 150 px tall (twice a player), its rings spinning, swaying a little, dust kicked up at its
-// base and a short dust wake behind; the ball hopping inside near the bottom. The one it catches
-// spins up inside a small whirl (ailments.js `twister`).
-// Armed: HS's gold rim, with a little dust devil circling the feet (ours).
+// Not in our footage, so painted at the filmed effects' quality (fx-kit.js whirl): a translucent
+// spinning funnel of grey-sand dust ≈ 150 px tall (twice a player), narrow at the foot and flaring
+// to ≈ 140 px across at the top — helical bands and turbulent grain turning round it (an 8-frame
+// flipbook, ≈ 3 turns a second), its silhouette denser than its middle, leaning back from where it
+// runs and swaying; a ring of dust kicked up round its foot, a dust wake behind, the ball hopping
+// inside near the bottom. The one it catches spins up inside a smaller one (ailments.js twister).
+// Armed: Head Soccer's own yellow flame licks (fx-kit drawArmedGlow) — the same for everyone.
 
-import { TAU, puff } from './common.js';
+import { whirl, smoke, blit, glow, TAU } from '../fx-kit.js';
 import * as C from '../../../shared/constants.js';
 
-const H = 150;                          // funnel height, world px (champion-powers CP.TORNADO_H)
+const H = 150;                          // funnel height, world px (champion-powers TORNADO.H)
+const W = 150;                          // its drawn width (the texture flares to ≈ 0.98 of it at the top)
+export const SAND = () => whirl('sand', '#f1e8d4', '#7a6a50');
 
-// the funnel with its foot at (x, gy), `sway` px of lean at the top, `spin` the ring phase
-export function funnel(g, x, gy, h, spin, sway, a = 1, wTop = 70, wBot = 16) {
-  const top = gy - h;
+// The funnel with its foot at (x, gy): `h` tall, `lean` px the top is carried back, `t` the clock.
+export function drawFunnel(g, x, gy, h, lean, t, a = 1, w = W * (h / H)) {
+  const bk = SAND(), f = Math.floor(t * 24) % bk.length;
   g.save();
-  // the body: a translucent sandy silhouette
-  const lg = g.createLinearGradient(0, top, 0, gy);
-  lg.addColorStop(0, 'rgba(224,212,186,0.72)'); lg.addColorStop(0.6, 'rgba(190,172,138,0.78)'); lg.addColorStop(1, 'rgba(150,130,96,0.85)');
-  g.globalAlpha = a; g.fillStyle = lg;
-  g.beginPath();
-  g.moveTo(x - wBot, gy);
-  g.quadraticCurveTo(x - wBot * 1.4 + sway * 0.3, gy - h * 0.55, x - wTop + sway, top);
-  g.lineTo(x + wTop + sway, top);
-  g.quadraticCurveTo(x + wBot * 1.4 + sway * 0.3, gy - h * 0.55, x + wBot, gy);
-  g.closePath(); g.fill();
-  // the spinning rings: flat ellipses up the funnel, each a bright front arc over a darker back
-  g.lineCap = 'round';
-  const n = 8;
-  for (let i = 0; i < n; i++) {
-    const f = i / (n - 1), y = gy - 6 - f * (h - 10);
-    const w = wBot + (wTop - wBot) * f * f * 0.85 + (wTop - wBot) * f * 0.15, cx = x + sway * f * f;
-    const ry = 3 + w * 0.2, ph = spin * (1.4 - f * 0.5) + i * 1.3;
-    g.globalAlpha = 0.55 * a; g.strokeStyle = '#8a7654'; g.lineWidth = 3;
-    g.beginPath(); g.ellipse(cx, y, w, ry, 0, Math.PI + ph % 1, TAU - 0.2); g.stroke();
-    g.globalAlpha = 0.95 * a; g.strokeStyle = i % 2 ? '#f4ecd8' : '#e2d6b8'; g.lineWidth = i % 2 ? 2.2 : 3;
-    const s0 = (ph % TAU);
-    g.beginPath(); g.ellipse(cx, y, w, ry, 0, s0, s0 + 2.2); g.stroke();
-  }
-  // streak lines running up it
-  g.globalAlpha = 0.5 * a; g.strokeStyle = '#fff8e6'; g.lineWidth = 1.5;
-  for (let k = 0; k < 3; k++) {
-    const o = Math.sin(spin * 2 + k * 2.1);
-    g.beginPath(); g.moveTo(x + o * wBot, gy - 4); g.quadraticCurveTo(x + o * wTop * 0.5 + sway * 0.3, gy - h * 0.5, x + o * wTop * 0.9 + sway, top + 4); g.stroke();
-  }
+  g.globalAlpha = a;
+  g.translate(x, gy);
+  g.transform(1, 0, -lean / h, 1, 0, 0);                      // lean: the top trails the foot
+  g.drawImage(bk[f], -w / 2, -h, w, h * 1.02);
   g.restore();
+}
+// Dust boiling round the foot: puffs orbiting a flat ellipse, the near ones in front.
+function footDust(g, x, gy, t, dir, a = 1) {
+  for (let i = 0; i < 6; i++) {
+    const an = t * 9 + (i / 6) * TAU, z = Math.sin(an);
+    const r = 16 + 10 * ((i * 37) % 5) / 5;
+    blit(g, smoke(i, '#d9ccb0'), x + Math.cos(an) * 30 - dir * 6, gy - 8 + z * 6, r * 2, r * 1.6, an, (0.45 + 0.25 * z) * a, false);
+  }
 }
 
 export default {
   id: 'tornado',
   palette: ['#f4ecd8', '#c9b48a', '#8a7654'],
+  warm() { SAND(); for (let i = 0; i < 4; i++) smoke(i, '#d9ccb0'); },
   draw(g, b, s) {
-    const dir = s.pw.dir || 1, gy = C.GROUND_Y;
-    const spin = s.now * 16, sway = -dir * 16 + Math.sin(s.now * 5) * 8;
+    const dir = s.pw.dir || 1, gy = C.GROUND_Y, t = s.now;
+    const sway = Math.sin(t * 5) * 10;
     if (s.pw.ph === 'drop') {
       // coming down onto the grass: the funnel already spinning up under it
-      funnel(g, s.x, gy, H * 0.6, spin, sway * 0.5, 0.7);
+      drawFunnel(g, s.x, gy, H * 0.6, -dir * 10 + sway * 0.5, t, 0.75);
+      footDust(g, s.x, gy, t, dir, 0.6);
       return false;
     }
     // the dust wake behind it
     if (s.hist) {
-      for (let i = 3; i < s.hist.length; i += 4) {
-        const h = s.hist[i];
-        puff(g, h.x, gy - 8, 16 + i, '#b9a57e', 0.28 * (1 - i / s.hist.length));
+      for (let i = 2; i < s.hist.length; i += 3) {
+        const h = s.hist[i], f = i / s.hist.length;
+        blit(g, smoke(i, '#cbbd9e'), h.x - dir * 10, gy - 10 - f * 14, 44 + i * 2.5, 34 + i * 2, i * 0.7 + t, 0.42 * (1 - f), false);
       }
     }
-    funnel(g, s.x, gy, H, spin, sway);
-    // dust kicked up at its foot
-    g.save();
-    for (let k = 0; k < 3; k++) {
-      const o = ((s.now * 3 + k / 3) % 1);
-      puff(g, s.x - dir * (10 + o * 30) + (k - 1) * 10, gy - 6 - o * 10, 14 + o * 10, '#c2ad84', 0.55 * (1 - o));
-    }
-    g.restore();
+    footDust(g, s.x, gy, t, dir);
+    drawFunnel(g, s.x, gy, H, -dir * 22 + sway, t);
+    // a faint warm light where it scours the grass
+    blit(g, glow('#e8d6a8', 0.05), s.x, gy - 4, 110, 26, 0, 0.35, true);
     return false;
-  },
-  armed(g, p, s) {
-    // a little dust devil circling the feet
-    g.save();
-    const spin = s.t * 12;
-    for (let i = 0; i < 3; i++) {
-      const y = s.fy - 4 - i * 9, w = 16 + i * 6;
-      g.globalAlpha = 0.7; g.strokeStyle = i % 2 ? '#efe4c8' : '#c9b48a'; g.lineWidth = 2.5; g.lineCap = 'round';
-      const a0 = spin + i * 1.7;
-      g.beginPath(); g.ellipse(s.fx, y, w, 4 + i, 0, a0, a0 + 2.4); g.stroke();
-    }
-    g.restore();
   },
 };

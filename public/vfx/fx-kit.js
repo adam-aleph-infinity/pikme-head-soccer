@@ -460,6 +460,39 @@ export function beam(key, o) {
   });
 }
 
+// ── WHIRL: a whirlwind funnel, 8 frames of one turn ────────────────────────────────────
+// Narrow at the foot, flaring to the top; its body a translucent spinning cylinder of dust —
+// helical bands wrapping round it, fine turbulent grain, the silhouette edges denser than the
+// middle (you look through the thin front and back), soft top and foot. `light`/`dark` its dust.
+// Drawn with its foot at the texture's bottom centre.
+export function whirl(key = 'sand', light = '#efe6d2', dark = '#7d6c52', n = 8) {
+  const L = hex(light), Dk = hex(dark);
+  return book(`whirl-${key}`, n, 160, 200, (g, w, h, k) => {
+    const nz = noise2(700, 64), ph = k / n;
+    pix(g, w, h, (x, y, o) => {
+      const f = (y + 0.5) / h;                                   // 0 top → 1 foot
+      const W = 0.13 + 0.85 * Math.pow(1 - f, 1.8) + 0.045 * Math.sin(f * 11 + ph * TAU) * (1.2 - f);
+      const cx = 0.5 + 0.08 * Math.sin(f * 5 + 1 + ph * TAU * 0.5) * (1 - f * 0.7);
+      const xn = ((x + 0.5) / w - cx) / (W * 0.5);
+      if (Math.abs(xn) > 1.06) return;
+      const th = Math.asin(Math.max(-1, Math.min(1, xn)));      // angle round the cylinder
+      const turn = th / TAU + ph;                                // spinning: the angle advances
+      const band = 0.5 + 0.5 * Math.sin((turn * 3 + f * 2.2) * TAU);
+      const grain = fbm(nz, turn * 16 + 3, f * 22, 4);
+      const streaks = fbm(nz, turn * 40, f * 5 + 9, 3);
+      const limb = 0.3 + 0.7 * Math.pow(Math.abs(xn), 3);
+      // thin bright swirl lines wrapping helically round it
+      const fr = (turn * 2 + f * 3.4) % 1, line = Math.exp(-((((fr < 0 ? fr + 1 : fr) - 0.5) / 0.035) ** 2)) * (0.5 + 0.5 * streaks);
+      const side = 0.5 - 0.5 * xn;                               // lit from the left
+      const lit = clamp01(0.2 + 0.42 * band + 0.55 * (streaks - 0.5) + 0.3 * (grain - 0.5) + 0.25 * side + 0.15 * (1 - f) + 0.6 * line);
+      const edge = 1 - sstep(0.88, 1.06, Math.abs(xn) + 0.12 * (grain - 0.5));
+      const ends = sstep(0, 0.1, f + 0.08 * (grain - 0.5)) * (1 - sstep(0.93, 1, f));
+      o[0] = mix(Dk[0], L[0], lit); o[1] = mix(Dk[1], L[1], lit); o[2] = mix(Dk[2], L[2], lit);
+      o[3] = clamp01((0.62 + 0.45 * limb) * (0.7 + 0.5 * grain) * (0.8 + 0.3 * band) + line * 0.4) * edge * ends;
+    });
+  });
+}
+
 // ── THE BLOCK'S ORB (HS §4, M4 61.55–61.80 s full-res) ─────────────────────────────────
 // A translucent pale-yellow bubble ≈ 27 px round the ball, a bright rim, a white-hot heart;
 // yellow spears of light shoot out of it the whole grind (champ-vfx's shards).
