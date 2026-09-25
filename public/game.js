@@ -21,7 +21,7 @@ import { createVfx } from './champ-vfx.js';
 
 // What a Head Soccer power shot looks like: the aura, the cut-in, the comet, the ailments. It
 // only watches the match (see champ-vfx.js).
-const VFXR = createVfx({ drawBall: (g, b) => drawBall(g, b), me: () => (ONLINE && NET ? (NET.you ?? 0) : 0) });
+const VFXR = createVfx({ drawBall: (g, b) => drawBall(g, b), drawBody: (g, p) => drawBody(g, p, true), me: () => (ONLINE && NET ? (NET.you ?? 0) : 0) });
 
 // The eleven backdrops a match can roll: the seven Street Fighter II homages plus the four
 // original directions. DIRECTIONS uses the identical { id, name, grass, wall, draw(g, s) }
@@ -1210,6 +1210,11 @@ const ctx = cv.getContext('2d');
 // the same picture, and anything drawn on it has to land on the same texels. See drawHeadNet.
 const cvNet = $('#cvnet');
 const ctxNet = cvNet.getContext('2d');
+// The power effects' own layers, under and over the heads, at the screen's own resolution
+// (champ-vfx.js useLayers): a soft glow upscaled 2x pixelated is a staircase.
+const cvFx0 = $('#cvfx0'), cvFx1 = $('#cvfx1');
+const ctxFx0 = cvFx0 && cvFx0.getContext('2d'), ctxFx1 = cvFx1 && cvFx1.getContext('2d');
+if (ctxFx0 && ctxFx1) VFXR.useLayers(true);
 // SC is world units -> CSS px. OX/OY are where world (0,0) lands inside the stage, and they
 // are NOT always zero: the canvas is COVER-fitted on a wide screen, so it hangs off the top.
 // Anything that positions a DOM node over the pitch must go through all three — the heads are
@@ -1268,7 +1273,8 @@ function resize() {
   // Anchored by the GROUND LINE rather than by either edge: everything else follows from
   // where the players' feet have to be.
   OY = (vh - band) - C.GROUND_Y * scale;
-  for (const el of [cv, cvNet]) {
+  for (const el of [cv, cvNet, cvFx0, cvFx1]) {
+    if (!el) continue;
     el.style.left = OX + 'px';
     el.style.top = (OY - SKY_TOP * scale) + 'px';     // the canvas starts SKY_TOP above y=0
     el.style.width = w + 'px';
@@ -1289,6 +1295,14 @@ function resize() {
     el.height = Math.ceil((SKY_TOP + C.H + BLEED) / PIXEL);
     c.setTransform(1 / PIXEL, 0, 0, 1 / PIXEL, 0, SKY_TOP / PIXEL);   // draw in WORLD units, land on texels
     c.imageSmoothingEnabled = false;
+  }
+  // (the effect layers: device pixels, capped at 2x — soft light needs no more, and it is cheaper)
+  const fxK = Math.min(2, window.devicePixelRatio || 1) * scale;
+  for (const [el, c] of [[cvFx0, ctxFx0], [cvFx1, ctxFx1]]) {
+    if (!el) continue;
+    el.width = Math.ceil(C.W * fxK);
+    el.height = Math.ceil((SKY_TOP + C.H + BLEED) * fxK);
+    c.setTransform(fxK, 0, 0, fxK, 0, SKY_TOP * fxK);
   }
   if (!crowd.length) {
     for (let i = 0; i < 520; i++) {
@@ -1498,9 +1512,14 @@ function draw() {
   drawOverHeads(ctxNet);             // YOU at kickoff, stars over a stunned head
   // Over the heads (they are DOM nodes under this layer): the armed tongues, what a shot left on
   // a player, and the cut-in — the whole screen darkens but the shooter (champ-vfx.js).
-  for (const p of M.players) VFXR.drawArmed(ctxNet, p);
-  VFXR.drawOverlay(ctxNet);
-  VFXR.drawCutin(ctxNet);
+  if (VFXR.layered) {
+    VFXR.drawUnder(ctxFx0);          // the cut-in's dark, rays and disc, under the heads
+    VFXR.drawTop(ctxFx1);            // shots, glows, bursts, stars, ailments, over them
+  } else {
+    for (const p of M.players) VFXR.drawArmed(ctxNet, p);
+    VFXR.drawOverlay(ctxNet);
+    VFXR.drawCutin(ctxNet);
+  }
   if (M.banner && M.bannerT > 0 && M.phase !== 'over') drawReady(g);
 }
 
@@ -2554,45 +2573,17 @@ function drawHeadGhosts(i, el, w, h) {
   }
 }
 
-// ABOVE THE HEADS — the kickoff's YOU marker and a stunned player's stars. Both have to sit over
-// a head, and a head is a DOM node, so they go on the net layer (ctxNet) the same way the near
-// net does.
+// ABOVE THE HEADS — the kickoff's YOU marker. It has to sit over a head, and a head is a DOM
+// node, so it goes on the net layer (ctxNet) the same way the near net does. (A stunned player's
+// stars are champ-vfx.js's now, painted with the other power effects.)
 function drawOverHeads(g) {
   const t = performance.now() / 1000;
-  for (const p of M.players) {
-    if (!(p.stunned > 0)) continue;
-    // …not while a power shot grinds on his boot: HS shows the block's spark burst, no stars
-    // (docs/HS-POWER-SHOTS.md §4, M4 61.45–62.25 s; champ-vfx.js draws the burst).
-    const pw = M.ball.power;
-    if (pw && pw.ph === 'grind' && pw.tgt === p.index) continue;
-    const r = headR(M, p);
-    const c = depthPoint(p.x, headY(p) - r - 4);
-    // three stars orbiting a flat ring over the head; the far side of the ring is smaller
-    for (let k = 0; k < 3; k++) {
-      const a = t * 7 + k * 2.094;
-      const z = (Math.sin(a) + 1) / 2;                   // 0 far → 1 near
-      star(g, c.x + Math.cos(a) * r * 0.85, c.y + Math.sin(a) * r * 0.25, 6 + z * 3, 0.65 + z * 0.35);
-    }
-  }
   // YOU, over the local player's head for as long as the KICK OFF banner stands (HS: the
   // bubble is up through the banner and gone the moment play starts).
   if (M.phase === 'kickoff') {
     const p = M.players[ONLINE && NET ? (NET.you ?? 0) : 0];
     if (p) youMarker(g, p, t);
   }
-}
-function star(g, x, y, r, a) {
-  g.save();
-  g.globalAlpha = a;
-  g.beginPath();
-  for (let i = 0; i < 10; i++) {
-    const rr = i % 2 ? r * 0.45 : r, an = -Math.PI / 2 + i * Math.PI / 5;
-    g.lineTo(x + Math.cos(an) * rr, y + Math.sin(an) * rr);
-  }
-  g.closePath();
-  g.fillStyle = '#ffe14a'; g.fill();
-  g.lineWidth = 2; g.strokeStyle = OUTLINE; g.stroke();
-  g.restore();
 }
 function youMarker(g, p, t) {
   const r = headR(M, p);

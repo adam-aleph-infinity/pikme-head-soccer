@@ -8,6 +8,8 @@
 //
 // draw(g, p, s): s = { t, hx, hy (head centre on screen), r (head radius), fy (feet line) }.
 
+import { drawStars } from './fx-kit.js';
+
 const TAU = Math.PI * 2;
 
 function star5(g, x, y, r, rot) {
@@ -22,18 +24,7 @@ function star5(g, x, y, r, rot) {
 export const AILMENT_VFX = {
   // §4: three gold stars on a flat orbit over the crown.
   stars: {
-    draw(g, p, s) {
-      const cy = s.hy - s.r - 6, rx = s.r * 0.9, ry = s.r * 0.26;
-      g.save(); g.lineJoin = 'round';
-      for (let i = 0; i < 3; i++) {
-        const a = s.t * 6 + (i / 3) * TAU;
-        const x = s.hx + Math.cos(a) * rx, y = cy + Math.sin(a) * ry;
-        star5(g, x, y, 7, 0);
-        g.fillStyle = '#ffd23c'; g.fill();
-        g.lineWidth = 1.5; g.strokeStyle = '#8a5a00'; g.stroke();
-      }
-      g.restore();
-    },
+    draw(g, p, s) { drawStars(g, s.hx, s.hy - s.r * 1.12, s.r, s.t); },
   },
   // Thrown by the Grab (§3 M3 75.0–75.5 s): coming back down inside a blue whirlwind — four flat
   // light-blue rings stacked round him from the feet to over the head, spinning. Only on the way

@@ -18,6 +18,8 @@
 // Each entry: palette [core, body, edge, seam?], and draw(g, b, s) — s = { t (s since release),
 // hist (screen path, newest first), x, y, pw, groundY, fx/fy (where it was fired, on screen) }.
 
+import { blit, glow, spark, bubble, rng } from './fx-kit.js';
+
 const TAU = Math.PI * 2;
 // Re-measured off M4 43.07 s at full resolution (1 world px a frame px): the nose sits only ≈ 30 px
 // ahead of the ball's centre; the white-hot core is ≈ 60–70 px tall and ≈ 150 px long, soft-edged;
@@ -329,24 +331,18 @@ export function drawFist(g, x, y, dir, ox, oy, t) {
 
 
 // ── the moments on the defender (§4) ─────────────────────────────────────────────
-// THE BLOCK (§4 M4 61.45–62.25 s): a crackling yellow-white spark burst where the ball grinds on
-// the boot, re-drawn every frame for as long as the grind lasts. No particles.
+// THE BLOCK (§4 M4 61.45–62.25 s, 61.55–61.80 s at full resolution): the ball glows inside a
+// translucent pale-yellow orb ≈ 27 px round it with a bright rim and a white-hot heart; yellow
+// spears of light shoot out of it the whole grind (champ-vfx.js's shards) and a few more flicker
+// round it, re-rolled every other frame. Painted sprites (fx-kit.js), additive.
 export function drawGrind(g, x, y, now) {
-  // M4 61.5–62.1 s: the ball glows inside a yellow-white orb ≈ 30 px in radius, thin yellow
-  // sparks ≈ 50–100 px long crackling out of it, re-rolled every other frame.
-  const seed = Math.floor(now * 30);
-  g.save(); g.globalCompositeOperation = 'lighter'; g.lineCap = 'round'; g.lineJoin = 'round';
-  const og = g.createRadialGradient(x, y, 4, x, y, 34);
-  og.addColorStop(0, 'rgba(255,255,240,0.95)'); og.addColorStop(0.45, 'rgba(255,240,140,0.7)'); og.addColorStop(1, 'rgba(255,220,60,0)');
-  g.fillStyle = og; g.beginPath(); g.arc(x, y, 34, 0, TAU); g.fill();
-  for (let i = 0; i < 7; i++) {
-    const j = Math.sin((seed + i * 7) * 12.9898) * 43758.5453, rnd = j - Math.floor(j);
-    const a = (i / 7) * TAU + rnd * 0.7, L = 48 + rnd * 52;
-    const mx = x + Math.cos(a + 0.12) * L * 0.55, my = y + Math.sin(a + 0.12) * L * 0.55;
-    for (const [col, lw, al] of [['#ffd23c', i % 3 ? 6 : 8, 0.45], ['#fff6c0', i % 3 ? 2.2 : 3.2, 1]]) {
-      g.globalAlpha = al; g.strokeStyle = col; g.lineWidth = lw;
-      g.beginPath(); g.moveTo(x + Math.cos(a) * 14, y + Math.sin(a) * 14); g.lineTo(mx, my); g.lineTo(x + Math.cos(a) * L, y + Math.sin(a) * L); g.stroke();
-    }
+  const R = rng(Math.floor(now * 30) * 131 + 7);
+  const k = 0.9 + 0.1 * R();
+  blit(g, glow('#ffd21a', 0.3), x, y, 120 * k, 120 * k, 0, 0.55, true);
+  blit(g, bubble(), x, y, 64 * k, 64 * k, R() * TAU, 0.95, true);
+  const sp = spark('#ffe14a');
+  for (let i = 0; i < 5; i++) {
+    const a = R() * TAU, L = 50 + R() * 50;
+    blit(g, sp, x + Math.cos(a) * (L * 0.5 + 16), y + Math.sin(a) * (L * 0.5 + 16), L, 12, a, 0.9, true);
   }
-  g.restore();
 }

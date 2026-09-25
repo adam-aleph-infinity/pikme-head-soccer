@@ -123,6 +123,9 @@ body.safedemo { --safe-l: 44px; --safe-r: 44px; --safe-b: 21px; --safe-t: 12px; 
   image-rendering: crisp-edges;
 }
 #cvnet { pointer-events: none; }
+/* The power effects' two layers (champ-vfx.js): FULL resolution and smooth — soft light does not
+   survive the pitch's half-res pixelated upscale. Placed and sized by resize() like #cv. */
+#cvfx0, #cvfx1 { position: absolute; left: 0; top: 0; display: block; pointer-events: none; }
 
 /* The big head. Sized + moved from JS in stage pixels.
    HEAD SOCCER'S HEAD (docs/HS-CHARACTER-LOOK.md): a wide cartoon silhouette — dome on top, full

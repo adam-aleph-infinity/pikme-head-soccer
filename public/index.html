@@ -176,6 +176,8 @@
 <section id="match" class="screen hidden">
   <div id="stage">
     <canvas id="cv"></canvas>
+    <!-- Power-shot light UNDER the heads, full resolution (champ-vfx.js drawUnder: the cut-in). -->
+    <canvas id="cvfx0" class="fx"></canvas>
     <!-- Heads are DOM, never canvas-blitted: card art drawn into a canvas comes out
          blank in WKWebView, so the one thing that MUST survive the app is an <img>/CSS layer. -->
     <div class="head" id="head0"><i></i></div>
@@ -184,6 +186,8 @@
          below can never draw on one, so a player standing INSIDE the goal would have their
          body behind the net and their face in front of it. See drawHeadNet in game.js. -->
     <canvas id="cvnet"></canvas>
+    <!-- Power-shot light OVER the heads, full resolution (champ-vfx.js drawTop). -->
+    <canvas id="cvfx1" class="fx"></canvas>
 
     <!-- THE SCOREBOARD. Three columns — each player's face over that player's own score,
          the clock between them and a little above both. The old row put both scores and the

@@ -136,7 +136,7 @@ for (const fam of FAMILY_ORDER) {
   // The block's grind and the hit's droplets — and the droplets are the only particles there are.
   const r = fired('straight');
   ok('a hit throws at most 7 droplets (§4 red spark droplets)', r.vfx.drops.length <= 7 && r.vfx.stats.drops > 0, `${r.vfx.stats.drops}`);
-  ok('the arming rim was drawn on the press', r.over.log.calls.get('arc') > 0);
+  ok('the arming glow was drawn on the press (painted sprites: fx-kit drawArmedGlow)', r.over.log.calls.get('drawImage') > 4);
 }
 
 // ── 3b. every champion's own power (shared/champion-powers.js) has its renderer, and draws ────
@@ -144,13 +144,14 @@ ok('every built champion power has a renderer (public/vfx/powers/)', BUILT_STAGE
 ok('no renderer for a power that is not built', Object.keys(POWER_VFX).every((id) => BUILT_STAGES.some((n) => CHAMPION_POWERS[n].id === id)));
 for (const n of BUILT_STAGES) {
   const d = CHAMPION_POWERS[n], P = POWER_VFX[d.id];
-  ok(`power ${n} (${d.hs}): a power-button look of its own when armed`, typeof P.armed === 'function');
-  const armed0 = P.armed;
+  // The press looks the same for every character in HS (the yellow flame licks, fx-kit); a power
+  // may add a touch of its own (P.armed) but does not have to.
+  const armed0 = P.armed || null;
   for (const seat of [0, 1]) {
     let r, err = null, armedCalls = 0;
-    P.armed = function (...a) { armedCalls++; return armed0.apply(this, a); };
+    if (armed0) P.armed = function (...a) { armedCalls++; return armed0.apply(this, a); };
     try { r = fired(null, {}, seat, n); } catch (e) { err = e; }
-    P.armed = armed0;
+    if (armed0) P.armed = armed0; else armedCalls = 1;
     const tag = `power ${n} ${d.id} (seat ${seat})`;
     ok(`${tag}: draws without throwing`, !err, err && err.stack.split('\n').slice(0, 2).join(' '));
     if (!r) continue;
@@ -162,6 +163,47 @@ for (const n of BUILT_STAGES) {
     ok(`${tag}: no shadowBlur`, r.main.log.blur === 0 && r.over.log.blur === 0);
     ok(`${tag}: an iPhone-cheap frame (< 900 canvas calls)`, r.maxOps < 900, `${r.maxOps}`);
   }
+}
+
+// ── 3c. the game's own path: two full-resolution layers (useLayers → drawUnder / drawTop) ─────
+// In the game the effects are painted on their own hi-res canvases (champ-vfx.js): the cut-in
+// UNDER the DOM heads, everything else OVER them, and the pitch canvas shows no power ball at all
+// while its picture flies on the top layer.
+for (const n of [0, ...BUILT_STAGES]) {
+  const cards = [{ rarity: 'legendary', number: n || 8 }, { rarity: 'epic', number: 1 }];
+  const m = createMatch(cards[0], cards[1], n ? { champions: true } : {});
+  m.phase = 'play'; m.freeze = 0; m.banner = null; m.bannerT = 0; m.gaugeLead = 0;
+  const p = m.players[0], q = m.players[1];
+  if (!n) p.shot = shotById('straight');
+  p.x = 300; q.x = 760;
+  let painted = 0, bodies = 0, hiddenOnPitch = 0, err = null;
+  const vfx = createVfx({ now: () => m.t, drawBall: (g, b) => { painted++; vfx.drawBall(g, b); }, drawBody: () => { bodies++; } });
+  vfx.bind(m); vfx.useLayers(true);
+  const pitch = recorder(), under = recorder(), top = recorder();
+  let maxOps = 0, underOps = 0, maxImg = 0;
+  const frame = () => {
+    vfx.update(C.TICK);
+    const o0 = pitch.log.ops + under.log.ops + top.log.ops, i0 = (under.log.calls.get('drawImage') || 0) + (top.log.calls.get('drawImage') || 0);
+    for (const b of [m.ball, ...m.xballs]) if (vfx.drawBall(pitch.g, b) && b.power) hiddenOnPitch++;
+    vfx.drawOver(pitch.g);
+    const u0 = under.log.ops; vfx.drawUnder(under.g); underOps += under.log.ops - u0;
+    vfx.drawTop(top.g);
+    maxOps = Math.max(maxOps, pitch.log.ops + under.log.ops + top.log.ops - o0);
+    maxImg = Math.max(maxImg, (under.log.calls.get('drawImage') || 0) + (top.log.calls.get('drawImage') || 0) - i0);
+  };
+  try {
+    p.gauge = 1; p.prev = {}; step(m, [{ power: true }, {}]); frame();
+    m.ball.x = p.x; m.ball.y = headY(p); m.ball.vx = 0; m.ball.vy = 0;
+    for (let i = 0; i < 60 * 3.2 && m.phase === 'play'; i++) { step(m, NONE); for (const e of m.events) vfx.onEvent(e); m.events.length = 0; frame(); }
+  } catch (e) { err = e; }
+  const tag = n ? `layers, power ${n} ${CHAMPION_POWERS[n].id}` : 'layers, the straight comet';
+  ok(`${tag}: draws without throwing`, !err, err && String(err.stack).slice(0, 200));
+  ok(`${tag}: the cut-in went on the layer under the heads`, underOps > 40, `${underOps}`);
+  ok(`${tag}: …with the shooter's body back over its disc`, bodies > 10, `${bodies}`);
+  ok(`${tag}: the shot was painted on the top layer, its ball with it`, vfx.stats.balls > 3 && painted > 3, `${vfx.stats.balls} / ${painted}`);
+  ok(`${tag}: the pitch canvas left the flying power ball to the top layer`, hiddenOnPitch > 3, `${hiddenOnPitch}`);
+  ok(`${tag}: no NaN, no shadowBlur`, pitch.log.bad + under.log.bad + top.log.bad === 0 && pitch.log.blur + under.log.blur + top.log.blur === 0);
+  ok(`${tag}: an iPhone-cheap frame (< 700 canvas calls, < 90 sprite blits)`, maxOps < 700 && maxImg < 90, `${maxOps} calls, ${maxImg} blits`);
 }
 
 // ── 4. every ailment overlay draws ──────────────────────────────────────────

@@ -6,15 +6,24 @@
 //
 // Idan's rule: EXACTLY Head Soccer, nothing the footage does not show (docs/HS-POWER-SHOTS.md).
 // So the whole vocabulary is:
-//   the press    — a thin crackling gold rim round the armed player, flame tongues off the crown
-//                  (§1)                                                          drawArmed
-//   the cut-in   — 1.34s: the screen darkens, a white disc and gold halo behind the shooter's head,
-//                  8 gold and 8 white rays turning slowly; no text, no zoom (§2)   drawCutin
-//   the shot     — the comet on its family's path (public/vfx/families.js, §3)   drawBall
-//   the defender — block: a crackling spark burst for the grind (§4); hit: red spark droplets and
-//                  the ball's after-images (§4); dazed: three gold stars; other ailments: one plain
-//                  shape each (public/vfx/ailments.js)                           drawOver / drawOverlay
-// No shakes, flashes, grades, rings, words or confetti: HS has none of them.
+//   the press    — bright yellow electric flame licks round the armed player, a yellow glow
+//                  hugging head and body (§1)                                   drawArmed
+//   the cut-in   — 1.34s: the screen darkens, a white disc and golden halo ring behind the
+//                  shooter's head, 8 gold and 8 soft rays turning slowly; no text, no zoom (§2)
+//   the shot     — the comet on its family's path (public/vfx/families.js, §3), or a champion's
+//                  own power (public/vfx/powers/)                                 drawBall
+//   the defender — block: a glowing orb with spark shards flying off it for the grind (§4); hit:
+//                  red droplets and the ball's after-images (§4); dazed: three gold stars;
+//                  other ailments: public/vfx/ailments.js                     drawOver / drawOverlay
+// No shakes, flashes, grades, words or confetti: HS has none of them.
+//
+// HOW IT IS PAINTED (public/vfx/fx-kit.js): every piece is a texture painted once offscreen
+// (soft falloffs, white-hot cores, streak noise, bloom) and blitted, mostly additively. The game's
+// own canvas is half resolution and upscaled pixelated (the pixel-art look of the pitch); soft
+// light cannot survive that, so in the game these effects go on two FULL-resolution layers
+// (useLayers): UNDER the DOM heads — the cut-in's dark, rays and disc, so the shooter's head sits
+// on the disc as in HS — and OVER them — shots, glows, bursts, stars, ailments. Without layers
+// (the tests, the old harnesses) everything draws on whatever canvas it is handed, as before.
 
 import * as C from '../shared/constants.js';
 import { headY, headR } from '../shared/sim.js';
@@ -23,26 +32,47 @@ import { FAMILY_ORDER, AILMENT_ORDER } from '../shared/hs-powers.js';
 import { FAMILY_VFX, drawGrind, drawFist } from './vfx/families.js';
 import { AILMENT_VFX } from './vfx/ailments.js';
 import { POWER_VFX } from './vfx/powers/index.js';
+import { drawArmedGlow, drawStars, headPath, blit, glow, spark, ghostBall, licks, auraTex, bodyAuraTex, starTex, orbitTex, LIVE, TAU } from './vfx/fx-kit.js';
+import { drawRays, drawDisc, goldRay, softRay, disc, halo } from './vfx/cutin.js';
 
 export { FAMILY_VFX, AILMENT_VFX, POWER_VFX };
 // The canvas reaches above world y=0 (game.js SKY_TOP: the camera keeps C.VIEW_ABOVE_GROUND of
 // sky). The cut-in's dark has to cover that strip too; the canvas clips whatever is spare.
 const SKY_PAD = Math.max(0, (C.VIEW_ABOVE_GROUND || 0) - C.GROUND_Y) + 8;
-const TAU = Math.PI * 2;
 const HIST = 20;                         // path points kept per ball (the tail is ≤ 340 px)
 const HIT_GHOSTS = 0.4;                  // s the after-images follow a HIT ball (§4 M4 43.33–43.6)
+const DARK_RGB = '4,3,10';
 
 // `drawBall(g, b)` is the client's own ball painter: the cut-in repaints the power ball with it
 // OVER the dark, as HS does (the comet flies bright across a darkened pitch, M4 43.07 s).
+// `drawBody(g, p)` is the client's body painter: the shooter's body goes back over the cut-in's
+// disc (HS: the whole sprite stands on the white disc, M4 40.75 s).
 // `me()` is the seat this screen plays (a champion power can look different to its shooter —
 // USA's invisible ball is "translucent to whoever uses the shot").
 // A champion's OWN power (shared/champion-powers.js, a `cp` on the ball's power) is drawn by its
 // renderer in public/vfx/powers/ instead of its family's comet; a block's rebound is the plain shot.
 const powerVfx = (pw) => (pw && pw.cp && !pw.rb ? POWER_VFX[pw.cp] || null : null);
-export function createVfx({ now = () => performance.now() / 1000, drawBall: paintBall = null, me = () => 0 } = {}) {
+// Paint every texture ahead of time, a piece per idle slice, so the first press or shot never
+// stalls a frame (each is a one-off per-pixel paint of a few ms).
+function warmTextures() {
+  if (!LIVE || typeof setTimeout !== 'function') return;
+  const jobs = [licks, auraTex, bodyAuraTex, starTex, orbitTex, goldRay, softRay, disc, () => halo(0), () => halo(1), ghostBall,
+    () => spark('#ffd21a'), () => glow('#ff2a14', 0.05), ...Object.values(POWER_VFX).filter((P) => P.warm).map((P) => () => P.warm())];
+  const idle = typeof requestIdleCallback === 'function' ? (f) => requestIdleCallback(f, { timeout: 500 }) : (f) => setTimeout(f, 16);
+  const next = () => { const j = jobs.shift(); if (!j) return; try { j(); } catch {} idle(next); };
+  setTimeout(() => idle(next), 400);
+}
+let warmed = false;
+
+export function createVfx({ now = () => performance.now() / 1000, drawBall: paintBall = null, drawBody: paintBody = null, me = () => 0 } = {}) {
+  if (!warmed) { warmed = true; warmTextures(); }
   let M = null;
+  let layered = false;                   // game.js drew us our own two hi-res layers (useLayers)
+  let onTop = false;                     // painting the top layer now (paintBall calls back into drawBall)
+  const dirty = { under: true, top: true };
   const track = new Map();               // ball → { hist, t0 (release, on the SIM clock m.t), ph, ghost }
-  const drops = [];                      // the hit's red spark droplets (§4) — the only particles
+  const drops = [];                      // the hit's red droplets (§4)
+  const shards = [];                     // the block's spark shards (§4 M4 61.5–62.1 s)
   const stats = { balls: 0, drops: 0 };  // what was drawn (tests)
   const lastCut = { by: -1, at: 0 };     // the cut-in that just ended, for the dark's fade-out
 
@@ -50,38 +80,46 @@ export function createVfx({ now = () => performance.now() / 1000, drawBall: pain
   const ballAt = paintBall ? (g, x, y) => paintBall(g, { x, y, r: C.BALL_R, vx: 0, vy: 0, spin: 0, power: null, fake: true }) : null;
   const rec = (b) => { let r = track.get(b); if (!r) { r = { hist: [], t0: M.t, ph: '', ghost: 0 }; track.set(b, r); } return r; };
   const balls = () => (M ? [M.ball, ...(M.xballs || [])] : []);
+  // inside a net the ball is drawn between the nets on the game's canvas; its light stays up here
+  const inGoal = (b) => { const d = depthPoint(b.x, b.y); return Math.abs(d.x - b.x) > 0.5 || Math.abs(d.y - b.y) > 0.5; };
 
   // the block's burst, the Grab's fist, the Aerial's lances, the hit's droplets and after-images
   function pitchFx(g) {
-      const t = now();
-      for (const b of balls()) {
-        const pw = b.power;
-        if (pw && pw.ph === 'grind') { const d = depthPoint(b.x, b.y); drawGrind(g, d.x, d.y, t); }
-        // the Grab's fist round the seized player's body, its arm back to the shooter (§3 M3 74.15 s)
-        if (pw && pw.ph === 'grab' && M.players[pw.tgt] && M.players[pw.owner]) {
-          const q = M.players[pw.tgt], a = M.players[pw.owner];
-          const f = depthPoint(q.x, q.y - 34), o = depthPoint(a.x, headY(a));
-          drawFist(g, f.x, f.y, pw.dir, o.x, o.y, t);
-        }
-        if (pw && pw.fam === 'aerial' && (pw.ph === 'wait' || pw.ph === 'dive')) FAMILY_VFX.aerial.warn(g, { pw, now: t });
-        const r = track.get(b);
-        if ((!pw || pw.hit) && r && r.ghost > 0 && r.hist.length > 3) {
-          g.save();
-          for (let i = 1; i <= 4; i++) {
-            const h = r.hist[i * 2]; if (!h) break;
-            g.globalAlpha = (0.34 - i * 0.07) * Math.min(1, r.ghost / 0.15);
-            g.fillStyle = '#ffffff'; g.strokeStyle = '#1b2436'; g.lineWidth = 1.5;
-            g.beginPath(); g.arc(h.x, h.y, b.r, 0, TAU); g.fill(); g.stroke();
-          }
-          g.restore();
+    const t = now();
+    for (const b of balls()) {
+      const pw = b.power;
+      if (pw && pw.ph === 'grind') { const d = depthPoint(b.x, b.y); drawGrind(g, d.x, d.y, t); }
+      // the Grab's fist round the seized player's body, its arm back to the shooter (§3 M3 74.15 s)
+      if (pw && pw.ph === 'grab' && M.players[pw.tgt] && M.players[pw.owner]) {
+        const q = M.players[pw.tgt], a = M.players[pw.owner];
+        const f = depthPoint(q.x, q.y - 34), o = depthPoint(a.x, headY(a));
+        drawFist(g, f.x, f.y, pw.dir, o.x, o.y, t);
+      }
+      if (pw && pw.fam === 'aerial' && (pw.ph === 'wait' || pw.ph === 'dive')) FAMILY_VFX.aerial.warn(g, { pw, now: t });
+      const r = track.get(b);
+      // the hit ball's after-images: soft motion-blurred copies of it down its path (§4)
+      if ((!pw || pw.hit) && r && r.ghost > 0 && r.hist.length > 3) {
+        const gb = ghostBall(), k = Math.min(1, r.ghost / 0.15);
+        for (let i = 4; i >= 1; i--) {
+          const h = r.hist[i * 2]; if (!h) continue;
+          blit(g, gb, h.x, h.y, b.r * 2.7, b.r * 2.7, 0, (0.5 - i * 0.1) * k, false);
         }
       }
-      if (drops.length) {
-        g.save(); g.fillStyle = '#ff2a1a';
-        for (const p of drops) { g.globalAlpha = 1 - p.t / p.life; g.beginPath(); g.arc(p.x, p.y, 3.2, 0, TAU); g.fill(); }
-        g.restore();
-        stats.drops += drops.length;
+    }
+    // the block's shards: yellow spears of light shooting out of the orb
+    if (shards.length) {
+      const sp = spark('#ffd21a');
+      for (const s of shards) {
+        const f = s.t / s.life, v = Math.hypot(s.vx, s.vy) || 1;
+        blit(g, sp, s.x, s.y, s.len * (1 - 0.4 * f), 14, Math.atan2(s.vy, s.vx), (1 - f * f), true, 1, 0.5);
       }
+    }
+    // the hit's droplets: soft red blobs thrown up and falling (§4 M4 43.33, 80.85 s)
+    if (drops.length) {
+      const gl = glow('#ff2a14', 0.05);
+      for (const p of drops) { const f = p.t / p.life; blit(g, gl, p.x, p.y, 16 * (1 - 0.3 * f), 14 * (1 - 0.3 * f), 0, 1 - f, false); }
+      stats.drops += drops.length;
+    }
   }
 
   // a champion power's pieces above the heads (Japan's log where he stood)
@@ -94,10 +132,101 @@ export function createVfx({ now = () => performance.now() / 1000, drawBall: pain
     }
   }
 
+  // The shot's own picture, for one power ball, on `g` (no ball).
+  function shotFx(g, b) {
+    const pw = b.power, P = powerVfx(pw);
+    const V = P || FAMILY_VFX[pw.fam] || FAMILY_VFX.straight;
+    const r = track.get(b);
+    const d = depthPoint(b.x, b.y);
+    stats.balls++;
+    const f0 = depthPoint(pw.x0, pw.y0);
+    const hide = V.draw(g, b, { t: r ? Math.max(0, M.t - r.t0) : 0, now: now(), hist: r ? r.hist : null, x: d.x, y: d.y, r: b.r, pw, groundY: C.GROUND_Y, fx: f0.x, fy: f0.y, me: me(), ball: ballAt });
+    return P ? !!hide : pw.ph === 'wait';
+  }
+  // Whether this power ball has a moving shot picture right now (vs. hanging, pinned, hit…).
+  function shotLive(b) {
+    const pw = b.power;
+    if (!pw) return false;
+    if (M.cutin > C.POWER_RELEASE || pw.hit) return false;
+    return !(pw.ph === 'grind' || pw.ph === 'rest' || pw.ph === 'hold' || pw.ph === 'grab');
+  }
+
+  // The cut-in's timing: seconds in (`el`), the dark's fade (0–1), the light's strength and growth.
+  function cutState() {
+    let el, fade;
+    // HS's dark fades in over ≈ 0.25 s and back out over ≈ 0.25 s, and is 1.31–1.37 s long
+    // between the half-dark points (7 cut-ins, M4/M3 luma traces — docs §2). The sim's cut-in is
+    // those 1.34 s; the picture fades in over its first 0.2 s and out over 0.2 s AFTER it (wall
+    // clock, remembered here), so half-dark to half-dark is the same 1.34 s.
+    if (M.cutin > 0 && M.cutinBy >= 0) {
+      el = C.POWER_CUTIN - M.cutin;
+      fade = Math.min(1, el / 0.2);
+      lastCut.by = M.cutinBy; lastCut.at = now();
+    } else {
+      const since = now() - lastCut.at;
+      if (!(lastCut.by >= 0) || since >= 0.2 || since < 0) { lastCut.by = -1; return null; }
+      el = C.POWER_CUTIN + since; fade = 1 - since / 0.2;
+    }
+    const p = M.players[M.cutin > 0 ? M.cutinBy : lastCut.by];
+    if (!p) return null;
+    // The rays and the disc go with the ball: gone 0.1s after it leaves (M4 41.50 → 41.57 s),
+    // while the dark stays down to the end. They burst in over the first ≈ 0.1 s (M4 40.36 s on).
+    const glowK = Math.min(1, el / 0.06) * Math.max(0, Math.min(1, (M.cutin - C.POWER_RELEASE + 0.1) / 0.1));
+    const grow = Math.min(1, 0.25 + (el / 0.12) * 0.75);
+    // HS leaves the pitch at ≈ 32 % of its brightness (M4 60.8 s stands: luma 106 → 36, 123 → 39).
+    const dark = (0.76 + 0.04 * Math.min(1, el / 1.0)) * fade;
+    const h = depthPoint(p.x, headY(p));
+    return { el, fade, glow: glowK, grow, dark, p, h, r: headR(M, p) };
+  }
+  const fillDark = (g, a) => { g.fillStyle = `rgba(${DARK_RGB},${a.toFixed(3)})`; g.fillRect(-20, -SKY_PAD, C.W + 40, C.H + SKY_PAD + 40); };
+  const clearLayer = (g) => { g.save(); g.setTransform(1, 0, 0, 1, 0, 0); g.clearRect(0, 0, g.canvas.width, g.canvas.height); g.restore(); };
+
+  // What only exists under a cut-in, painted over the dark: a champion's own cut-in pieces.
+  function cutExtras(g) {
+    for (const b of balls()) {
+      const P = powerVfx(b.power);
+      if (P && P.cutin && M.cutin > C.POWER_RELEASE) { const o = depthPoint(b.power.x0, b.power.y0); P.cutin(g, { pw: b.power, now: now(), fx: o.x, fy: o.y, r: b.r, ball: ballAt }); }
+    }
+  }
+  // THE PRESS (§1): see fx-kit drawArmedGlow.
+  function armedAt(g, p) {
+    if (!(p.armed > 0)) return;
+    const h = depthPoint(p.x, headY(p)), f = depthPoint(p.x, p.y);
+    const r = headR(M, p), t = now();
+    drawArmedGlow(g, h.x, h.y, r, f.x, f.y, t, p.index);
+    // …and a champion's own touch on it, where it has one (public/vfx/powers/)
+    const P = p.shot && p.shot.cp ? POWER_VFX[p.shot.cp] : null;
+    if (P && P.armed) P.armed(g, p, { t, hx: h.x, hy: h.y, r, fx: f.x, fy: f.y });
+  }
+  // THE STARS over a dazed head (§4) — not while a power shot grinds on his boot: HS shows the
+  // block's burst there, no stars (M4 61.45–62.25 s).
+  function starsAt(g, p) {
+    if (!(p.stunned > 0)) return false;
+    const pw = M.ball.power;
+    if (pw && pw.ph === 'grind' && pw.tgt === p.index) return false;
+    const r = headR(M, p), c = depthPoint(p.x, headY(p) - r * 1.12);
+    drawStars(g, c.x, c.y, r, now());
+    return true;
+  }
+  function overlays(g) {
+    const t = now();
+    if (!(M.cutin > 0) && !(lastCut.by >= 0 && t - lastCut.at < 0.2)) overHeads(g);
+    for (const p of M.players) {
+      const stars = starsAt(g, p);
+      if (!p.ail || !AILMENT_VFX[p.ail]) continue;
+      if (p.ail === 'stars' && stars) continue;
+      const h = depthPoint(p.x, headY(p)), f = depthPoint(p.x, p.y);
+      AILMENT_VFX[p.ail].draw(g, p, { t, hx: h.x, hy: h.y, r: headR(M, p), fy: f.y });
+    }
+  }
+
   return {
-    stats, track, drops,
-    reset() { track.clear(); drops.length = 0; },
+    stats, track, drops, shards,
+    reset() { track.clear(); drops.length = 0; shards.length = 0; },
     bind(m) { if (m !== M) { M = m; this.reset(); } },
+    // game.js has given us the two full-resolution layers (drawUnder / drawTop).
+    useLayers(on = true) { layered = !!on; },
+    get layered() { return layered; },
     // The cut-in is the sim's own pause now (m.cutin); nothing on the client holds the match.
     holding() { return false; },
 
@@ -108,7 +237,7 @@ export function createVfx({ now = () => performance.now() / 1000, drawBall: pain
       } else if (e.type === 'rebound' || e.type === 'delayGo') {
         const r = rec(M.ball); r.hist.length = 0; r.t0 = M.t;
       } else if (e.type === 'powerHit' && e.how !== 'pass') {
-        // §4 M4 43.33: red spark droplets burst at the impact…
+        // §4 M4 43.33: red droplets burst at the impact…
         const x = e.x ?? M.ball.x, y = e.y ?? M.ball.y;
         for (let i = 0; i < 7; i++) {
           const a = -Math.PI / 2 + (i - 3) * 0.45 + (Math.random() - 0.5) * 0.3, v = 140 + Math.random() * 120;
@@ -119,12 +248,17 @@ export function createVfx({ now = () => performance.now() / 1000, drawBall: pain
       }
     },
 
-    // Once per rendered frame: record each ball's path on screen, run the droplets.
+    // Once per rendered frame: record each ball's path on screen, run the droplets and shards.
     update(dt) {
       if (!M) return;
       const live = new Set();
       for (const b of balls()) {
         const r = track.get(b);
+        if (b.power && b.power.ph === 'grind' && shards.length < 14 && Math.random() < dt * 40) {
+          // the grind throws a spear of light every ≈ 25 ms
+          const d = depthPoint(b.x, b.y), a = Math.random() * TAU, v = 380 + Math.random() * 420;
+          shards.push({ x: d.x + Math.cos(a) * 10, y: d.y + Math.sin(a) * 10, vx: Math.cos(a) * v, vy: Math.sin(a) * v, t: 0, life: 0.14 + Math.random() * 0.1, len: 34 + Math.random() * 40 });
+        }
         if (!b.power && !(r && r.ghost > 0)) continue;
         const q = rec(b);
         live.add(b);
@@ -144,11 +278,17 @@ export function createVfx({ now = () => performance.now() / 1000, drawBall: pain
         if (p.t >= p.life) { drops.splice(i, 1); continue; }
         p.vy += 900 * dt; p.x += p.vx * dt; p.y += p.vy * dt;
       }
+      for (let i = shards.length - 1; i >= 0; i--) {
+        const s = shards[i];
+        s.t += dt;
+        if (s.t >= s.life) { shards.splice(i, 1); continue; }
+        s.x += s.vx * dt; s.y += s.vy * dt; s.vx *= 0.9; s.vy *= 0.9;
+      }
     },
 
     // UNDER the ball (game.js drawBall calls this, then draws the ball itself on top — the filmed
-    // comet has the plain ball at its nose). Returns true when the ball must not be drawn (it is up
-    // off the top of the screen).
+    // comet has the plain ball at its nose). Returns true when the ball must not be drawn there
+    // (hidden, off the top of the screen — or, with layers, drawn up on the top layer instead).
     drawBall(g, b) {
       const pw = b.power;
       if (!M || !pw) return false;
@@ -157,182 +297,104 @@ export function createVfx({ now = () => performance.now() / 1000, drawBall: pain
       if (P && P.hideInCut && M.cutin > C.POWER_RELEASE) return true;
       // Until 0.97s into the cut-in the ball has not left: HS shows it hanging by the shooter's
       // head, no tail (§2) — then it flies under the dark. A ball carried on through a HIT is drawn
-      // as its after-images, not a comet (§4).
-      if (M.cutin > C.POWER_RELEASE || pw.hit) return false;
-      // Pinned on a boot, dead at the feet, or hanging still: no tail — HS shows only the block's
-      // spark burst there (§4, M4 61.45–62.7 s). The comet is a thing that MOVES.
-      if (pw.ph === 'grind' || pw.ph === 'rest' || pw.ph === 'hold' || pw.ph === 'grab') return false;
-      const V = P || FAMILY_VFX[pw.fam] || FAMILY_VFX.straight;
-      const r = track.get(b);
-      const d = depthPoint(b.x, b.y);
-      stats.balls++;
-      const f0 = depthPoint(pw.x0, pw.y0);
-      const hide = V.draw(g, b, { t: r ? Math.max(0, M.t - r.t0) : 0, now: now(), hist: r ? r.hist : null, x: d.x, y: d.y, r: b.r, pw, groundY: C.GROUND_Y, fx: f0.x, fy: f0.y, me: me(), ball: ballAt });
-      return P ? !!hide : pw.ph === 'wait';
+      // as its after-images, not a comet (§4). Pinned on a boot, dead at the feet, or hanging
+      // still: no tail — HS shows only the block's spark burst there (§4, M4 61.45–62.7 s).
+      if (!shotLive(b)) return false;
+      if (layered && !onTop) return !inGoal(b);
+      return shotFx(g, b);
     },
 
     // Whether the ball's own shadow on the grass must go too (an invisible or hidden power ball).
     hideShadow(b) {
+      if (onTop) return true;                                   // (the top layer paints no shadows)
       const P = M && b && powerVfx(b.power);
       return !!(P && P.hideShadow && P.hideShadow(b.power, M));
     },
     // OVER the ball, on the pitch: the block's grind, the Aerial's warning, the hit's droplets and
-    // the after-images of a hit ball.
-    // (Under a cut-in's dark these are painted by drawCutin instead, over the dark: in HS the block's
-    // burst and the comet are the bright things on a darkened pitch — M4 61.45 s.)
+    // the after-images of a hit ball. (With layers these go on the top layer; under a cut-in's dark
+    // drawCutin paints them over the dark — in HS the block's burst and the comet are the bright
+    // things on a darkened pitch, M4 61.45 s.)
     drawOver(g) {
-      if (!M || M.cutin > 0 || (lastCut.by >= 0 && now() - lastCut.at < 0.2)) return;
+      if (!M || layered || M.cutin > 0 || (lastCut.by >= 0 && now() - lastCut.at < 0.2)) return;
       pitchFx(g);
     },
-    // THE PRESS (§1), on the layer above the heads: a thin bright rim round the head and the body,
-    // and 2–4 jagged flame tongues off the crown and shoulders, re-rolled every frame so it crackles.
     drawArmed(g, p) {
-      if (!M || !(p.armed > 0)) return;
-      const h = depthPoint(p.x, headY(p)), f = depthPoint(p.x, p.y);
-      const r = headR(M, p);
-      g.save(); g.lineJoin = 'round'; g.lineCap = 'round';
-      // the rim
-      g.strokeStyle = '#ffb800'; g.lineWidth = 9; g.globalAlpha = 0.35;          // the soft glow…
-      g.beginPath(); g.arc(h.x, h.y, r + 3, 0, TAU); g.stroke();
-      g.strokeRect(f.x - C.BODY_W / 2 - 3, f.y - C.BODY_H - 2, C.BODY_W + 6, C.BODY_H + 3);
-      g.strokeStyle = '#ffd23c'; g.lineWidth = 4; g.globalAlpha = 0.95;          // …and the rim
-      g.beginPath(); g.arc(h.x, h.y, r + 2, 0, TAU); g.stroke();
-      g.strokeRect(f.x - C.BODY_W / 2 - 2, f.y - C.BODY_H - 1, C.BODY_W + 4, C.BODY_H + 2);
-      g.strokeStyle = '#fffbe0'; g.lineWidth = 1.3; g.globalAlpha = 1;
-      g.beginPath(); g.arc(h.x, h.y, r + 1.5, 0, TAU); g.stroke();
-      // the tongues: crown and shoulders, about half a head tall
-      const roots = [-1.95, -1.57, -1.2, -2.6, -0.55];
-      const n = 3 + (Math.random() < 0.5 ? 1 : 0);
-      for (let i = 0; i < n; i++) {
-        const a = roots[(i + Math.floor(Math.random() * roots.length)) % roots.length];
-        const x0 = h.x + Math.cos(a) * r, y0 = h.y + Math.sin(a) * r;
-        const L = r * (0.5 + Math.random() * 0.4);
-        g.strokeStyle = i % 2 ? '#fffbe0' : '#ffd23c'; g.lineWidth = i % 2 ? 2 : 3.2;
-        g.beginPath(); g.moveTo(x0, y0);
-        for (let k = 1; k <= 3; k++) {
-          const s = k / 3;
-          g.lineTo(x0 + Math.cos(a) * L * s * 0.5 + (Math.random() - 0.5) * 7, y0 - L * s + Math.sin(a) * L * s * 0.3);
-        }
-        g.stroke();
-      }
-      g.restore();
-      // …and a champion's own power-button look round him (public/vfx/powers/)
-      const P = p.shot && p.shot.cp ? POWER_VFX[p.shot.cp] : null;
-      if (P && P.armed) P.armed(g, p, { t: now(), hx: h.x, hy: h.y, r, fx: f.x, fy: f.y });
+      if (!M) return;
+      armedAt(g, p);
     },
-
-    // THE AILMENTS, on the layer above the heads (a stunned player with no ailment has no shape:
-    // the block's grind holds him and shows the spark burst instead).
+    // THE AILMENTS and the stars, on the layer above the heads.
     drawOverlay(g) {
       if (!M) return;
-      const t = now();
-      if (!(M.cutin > 0) && !(lastCut.by >= 0 && t - lastCut.at < 0.2)) overHeads(g);
-      for (const p of M.players) {
-        if (!p.ail || !AILMENT_VFX[p.ail]) continue;
-        // A dazed player's three stars are game.js's (drawOverHeads draws them for any stun).
-        if (p.ail === 'stars' && p.stunned > 0) continue;
-        const h = depthPoint(p.x, headY(p)), f = depthPoint(p.x, p.y);
-        AILMENT_VFX[p.ail].draw(g, p, { t, hx: h.x, hy: h.y, r: headR(M, p), fy: f.y });
-      }
+      overlays(g);
     },
 
-    // THE CUT-IN (§2), over everything, heads included. The pause is the sim's (m.cutin, 1.34s);
-    // this is the picture: the pitch under 76→80% black (HS keeps ≈ 32% of its brightness), a solid
-    // white disc ≈ 1.8 head radii with a gold glow and a thin gold ring at ≈ 3.6 radii (the DOM head
-    // covers its middle), and 8 wide soft gold rays alternating with 8 thin hot white ones, ≈ 235px
-    // long, widest at the far end, turning at 0.5 rad/s (M4 40.75 s full-res). The rays grow in over
-    // the first 0.1s; the dark fades in over 0.2s and out over 0.2s after the cut-in. No text, no
-    // band, no zoom.
+    // THE CUT-IN (§2) on one canvas over everything (no layers): the dark, the light, the shot
+    // repainted bright over it. The shooter's head is DOM under this canvas, so the dark and the
+    // disc leave a hole in his head's own shape.
     drawCutin(g) {
       if (!M) return;
-      // HS's dark fades in over ≈ 0.25 s and back out over ≈ 0.25 s, and is 1.31–1.37 s long
-      // between the half-dark points (7 cut-ins, M4/M3 luma traces — docs §2). The sim's cut-in is
-      // those 1.34 s; the picture fades in over its first 0.2 s and out over 0.2 s AFTER it (wall
-      // clock, remembered here), so half-dark to half-dark is the same 1.34 s.
-      let el, fade;
-      if (M.cutin > 0 && M.cutinBy >= 0) {
-        el = C.POWER_CUTIN - M.cutin;                           // seconds into the cut-in
-        fade = Math.min(1, el / 0.2);
-        lastCut.by = M.cutinBy; lastCut.at = now();
-      } else {
-        const since = now() - lastCut.at;
-        if (!(lastCut.by >= 0) || since >= 0.2 || since < 0) { lastCut.by = -1; return; }
-        el = C.POWER_CUTIN + since; fade = 1 - since / 0.2;
-      }
-      const p = M.players[M.cutin > 0 ? M.cutinBy : lastCut.by];
-      if (!p) return;
-      // The rays and the disc go with the ball: gone 0.1s after it leaves (M4 41.50 → 41.57 s),
-      // while the dark stays down to the end.
-      const glow = Math.min(1, el / 0.08) * Math.max(0, Math.min(1, (M.cutin - C.POWER_RELEASE + 0.1) / 0.1));
-      const grow = Math.min(1, 0.3 + el / 0.1 * 0.7);
-      const h = depthPoint(p.x, headY(p));
-      const r = headR(M, p);
-      // HS leaves the pitch at ≈ 32 % of its brightness (M4 60.8 s stands: luma 106 → 36, 123 → 39),
-      // everywhere but the disc and the rays — no wide pool of light round the shooter.
-      const dark = 0.76 + 0.04 * Math.min(1, el / 1.0);
+      const s = cutState();
+      if (!s) return;
       g.save();
-      const gr = g.createRadialGradient(h.x, h.y, r * 1.4, h.x, h.y, r * 4);
-      gr.addColorStop(0, 'rgba(4,3,10,0)');
-      gr.addColorStop(1, `rgba(4,3,10,${dark.toFixed(3)})`);
-      g.globalAlpha = fade; g.fillStyle = gr; g.fillRect(0, -SKY_PAD, C.W, C.H + SKY_PAD + 40);
+      fillDark(g, s.dark);
+      if (s.glow > 0) { drawRays(g, s.h.x, s.h.y, s.r, s.el, s.glow, s.grow); drawDisc(g, s.h.x, s.h.y, s.r, s.glow, s.grow); }
+      g.globalCompositeOperation = 'destination-out';
+      g.fillStyle = '#000'; headPath(g, s.h.x, s.h.y, s.r); g.fill();
       g.restore();
-      // the shot, bright over the dark once it has left
+      if (s.glow > 0 && paintBody) paintBody(g, s.p);
       if (paintBall && M.cutin <= C.POWER_RELEASE) for (const b of balls()) if (b.power) paintBall(g, b);
-      pitchFx(g);                                                 // the block's burst etc., bright too
-      // a champion power's own cut-in pieces (Japan's five balls circling over him) and its pieces
-      // above the heads, bright over the dark
-      for (const b of balls()) {
-        const P = powerVfx(b.power);
-        if (P && P.cutin && M.cutin > C.POWER_RELEASE) { const o = depthPoint(b.power.x0, b.power.y0); P.cutin(g, { pw: b.power, now: now(), fx: o.x, fy: o.y, r: b.r, ball: ballAt }); }
-      }
+      pitchFx(g);
+      cutExtras(g);
       overHeads(g);
-      if (!(glow > 0)) return;
-      g.save();
-      // the rays (M4 40.75 s full-res, 2.0 px a world px: wide soft gold beams ≈ 230 px long and
-      // ≈ 45 px across at the far end, still clearly there at the tip; between them thin hot
-      // yellow-white beams ≈ 7 px across; all starting at the disc's edge)
-      g.globalCompositeOperation = 'lighter';
-      g.translate(h.x, h.y);
-      g.rotate(el * 0.5);
-      const L = 235 * grow, r0 = r * 1.6;
-      for (let i = 0; i < 16; i++) {
-        const gold = i % 2 === 0;
-        const a = (i / 16) * TAU;
-        const len = L * (gold ? 1 : 0.9) * (0.86 + 0.14 * Math.sin(el * 9 + i * 1.7));
-        const w = gold ? 23 : 3.5;                                // half-width at the far end, px
-        const lg = g.createLinearGradient(0, 0, Math.cos(a) * len, Math.sin(a) * len);
-        lg.addColorStop(0, gold ? 'rgba(255,226,90,0.75)' : 'rgba(255,255,230,1)');
-        lg.addColorStop(0.6, gold ? 'rgba(255,205,50,0.5)' : 'rgba(255,245,170,0.8)');
-        lg.addColorStop(1, gold ? 'rgba(255,190,40,0.1)' : 'rgba(255,230,120,0.15)');
-        g.fillStyle = lg; g.globalAlpha = glow;
-        const px = -Math.sin(a), py = Math.cos(a), w0 = gold ? 6 : 1.5;
-        g.beginPath();
-        g.moveTo(Math.cos(a) * r0 + px * w0, Math.sin(a) * r0 + py * w0);
-        g.lineTo(Math.cos(a) * len + px * w, Math.sin(a) * len + py * w);
-        g.lineTo(Math.cos(a) * len - px * w, Math.sin(a) * len - py * w);
-        g.lineTo(Math.cos(a) * r0 - px * w0, Math.sin(a) * r0 - py * w0);
-        g.closePath(); g.fill();
+    },
+
+    // WITH LAYERS — game.js calls these two every frame.
+    // UNDER the heads: the cut-in's dark over the whole pitch, its rays and disc, and the shooter's
+    // body back on top of the disc. His head is DOM above this layer, so it sits on the disc and
+    // stays bright, exactly as HS's sprite does.
+    drawUnder(g) {
+      if (!M) return;
+      const s = cutState();
+      if (dirty.under) { clearLayer(g); dirty.under = false; }
+      if (!s) return;
+      dirty.under = true;
+      fillDark(g, s.dark);
+      if (s.glow > 0) {
+        drawRays(g, s.h.x, s.h.y, s.r, s.el, s.glow, s.grow);
+        drawDisc(g, s.h.x, s.h.y, s.r, s.glow, s.grow);
+        if (paintBody) paintBody(g, s.p);
       }
-      g.restore();
-      // the disc: solid white to ≈ 1.8 head radii, a gold glow round it, and a thin gold ring
-      // well outside at ≈ 3.6 radii (M4 40.75 s: disc Ø 195 px, ring Ø 385 px at 2 px/world px)
-      g.save();
-      g.globalAlpha = glow;
-      const R = r * 1.8 * grow;
-      const dg = g.createRadialGradient(h.x, h.y, R * 0.8, h.x, h.y, R * 1.4);
-      dg.addColorStop(0, 'rgba(255,255,255,1)');
-      dg.addColorStop(0.35, 'rgba(255,248,200,0.9)');
-      dg.addColorStop(1, 'rgba(255,200,50,0)');
-      g.fillStyle = dg;
-      g.beginPath(); g.arc(h.x, h.y, R * 1.4, 0, TAU); g.arc(h.x, h.y, r * 0.98, 0, TAU, true); g.fill();
-      g.fillStyle = '#ffffff';
-      g.beginPath(); g.arc(h.x, h.y, R * 0.8, 0, TAU); g.arc(h.x, h.y, r * 0.98, 0, TAU, true); g.fill();
-      g.globalCompositeOperation = 'lighter';
-      g.strokeStyle = 'rgba(255,210,70,0.45)'; g.lineWidth = 7;
-      g.beginPath(); g.arc(h.x, h.y, r * 3.6 * grow, 0, TAU); g.stroke();
-      g.strokeStyle = 'rgba(255,250,215,0.9)'; g.lineWidth = 2.2;
-      g.beginPath(); g.arc(h.x, h.y, r * 3.6 * grow, 0, TAU); g.stroke();
-      g.restore();
+    },
+    // OVER the heads: every shot's picture with its ball at the nose, the pitch pieces (block,
+    // hit, fist, lances), the armed glows, the ailments and stars, and under a cut-in the dark on
+    // the other player's head (a DOM head the under layer cannot reach).
+    drawTop(g) {
+      if (!M) return;
+      if (dirty.top) { clearLayer(g); dirty.top = false; }
+      const s = cutState();
+      const busy = s || drops.length || shards.length || track.size || M.players.some((p) => p.armed > 0 || p.stunned > 0 || p.ail) || balls().some((b) => b.power);
+      if (!busy) return;
+      dirty.top = true;
+      if (s) {
+        for (const q of M.players) {
+          if (q === s.p) continue;
+          const h = depthPoint(q.x, headY(q));
+          g.fillStyle = `rgba(${DARK_RGB},${s.dark.toFixed(3)})`; headPath(g, h.x, h.y, headR(M, q)); g.fill();
+        }
+      }
+      onTop = true;
+      try {
+        for (const b of balls()) {
+          if (!b.power || !shotLive(b)) continue;
+          if (inGoal(b) || !paintBall) shotFx(g, b);
+          else paintBall(g, b);
+        }
+      } finally { onTop = false; }
+      pitchFx(g);
+      if (s) cutExtras(g);
+      for (const p of M.players) armedAt(g, p);
+      overlays(g);
+      if (s) overHeads(g);
     },
   };
 }
