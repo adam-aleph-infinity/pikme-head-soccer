@@ -60,6 +60,7 @@ const POSES = [
   ['goal', {}, {}, { banner: 'goal', bannerT: 1.5, lastScorer: 0 }],
   ['bruised', { hurt: 2 }, { hurt: 3 }],
 ];
+const RECTS = {};   // head rects (CSS px) at 3x, for the 1:1 crops
 const headRect = (i) => ev(`(() => { const e = document.getElementById('head${i}').getBoundingClientRect(); return { x: e.left, y: e.top, w: e.width, h: e.height }; })()`);
 for (const dsf of [3, 1]) {
   await phone(dsf);
@@ -77,6 +78,7 @@ for (const dsf of [3, 1]) {
     const s = ((await headRect(0)).w / (await ev('HEAD_W'))) * 2.6;
     for (const i of [0, 1]) {
       const r = await headRect(i);
+      if (dsf === 3) RECTS[`${name}${i}`] = r;
       // at 1x the pixels the phone would have are captured, then blown up for the sheet
       await shot(`${dsf === 3 ? 'zoom' : 'zoom1x'}-${name}${i ? '-p2' : ''}`,
         { x: r.x + r.w / 2 - s / 2, y: r.y + r.h / 2 - s / 2, width: s, height: s, scale: dsf === 3 ? 400 / s : 1 });
@@ -112,6 +114,15 @@ if (FF && existsSync(`${VID}/M4-gaps.mp4`)) {
   cut('M3-airdrop-full.mp4', 0.8, 'crop=460:480:1790:230', 'hs-select-mex.png');
   cut('M3-airdrop-full.mp4', 92.8, 'crop=460:400:1690:390', 'hs-result-mex.png');
   cut('M3-airdrop-full.mp4', 92.8, 'crop=460:400:400:380', 'hs-result-lose.png');
+  // 1:1 — the phone at 3x (2532 px wide) is the recording's own scale (2556): the same 240 px
+  // crop of each, blown up 2x nearest, so art pixels compare one for one
+  for (const [pose, i] of [['stand', 0], ['stand', 1], ['kick', 0], ['hurt', 1]]) {
+    const r = RECTS[`${pose}${i}`], cx = Math.round((r.x + r.w / 2) * 3), cy = Math.round((r.y + r.h / 2) * 3);
+    execFileSync(FF, ['-v', 'error', '-y', '-i', `${OUT}/match-${pose}.png`, '-vf',
+      `crop=240:240:${cx - 120}:${cy - 110},scale=480:480:flags=neighbor`, `${OUT}/one-${pose}${i}.png`]);
+  }
+  cut('M4-gaps.mp4', 29.98, 'crop=240:240:539:770,scale=480:480:flags=neighbor', 'one-hs-kor.png');
+  cut('M3-airdrop-full.mp4', 40, 'crop=240:240:2075:760,scale=480:480:flags=neighbor', 'one-hs-mex.png');
   // the two card photos, cropped to the face
   const CARD = 'https://pxsjmychuxwufcvqixgu.supabase.co/storage/v1/object/public/cards/legendary';
   execFileSync(FF, ['-v', 'error', '-y', '-i', `${CARD}/1.webp`, '-vf', 'crop=110:130:145:190,scale=340:-1', `${OUT}/card-1.png`]);
@@ -129,13 +140,15 @@ if (FF && existsSync(`${VID}/M4-gaps.mp4`)) {
     ${fig(f('hs1x-mex.png'), 'z px', 'HS Mexico 1x')}</div>`;
   const row3 = `<div class="row">
     ${['kick', 'hurt', 'goal', 'bruised'].map((p) => fig(f(`zoom-${p}.png`), 'z', `#1 ${p}`) + fig(f(`zoom-${p}-p2.png`), 'z', `#2 ${p}`)).join('')}</div>
+    <div class="row">${[['stand0', '#1 1:1'], ['stand1', '#2 1:1'], ['kick0', '#1 kick 1:1'], ['hurt1', '#2 hurt 1:1']].map(([k, c]) => fig(f(`one-${k}.png`), 'o', c)).join('')}
+    ${fig(f('one-hs-kor.png'), 'o', 'HS Korea 1:1')}${fig(f('one-hs-mex.png'), 'o', 'HS Mexico 1:1')}</div>
     <div class="row">${fig(f('hs-select.png'), 'c', 'HS select')}${fig(f('hs-select-mex.png'), 'c', 'HS select')}
     ${fig(f('hs-result-lose.png'), 'c', 'HS result (lost)')}${fig(f('hs-result-mex.png'), 'c', 'HS result')}</div>`;
   writeFileSync(`${OUT}/sheet.html`, `<!doctype html><style>body{margin:0;background:#2c6e3a;font:13px -apple-system,Arial;color:#fff}
     .row{display:flex;gap:8px;padding:8px;align-items:flex-end}figure{margin:0;text-align:center}
-    .c{height:250px}.b{width:220px}.z{width:230px}.px{image-rendering:auto}</style>
+    .c{height:250px}.o{width:300px;image-rendering:pixelated}.b{width:220px}.z{width:230px}.px{image-rendering:auto}</style>
     ${row(1, 'legendary-1', '')}${row(2, 'legendary-2', '-p2')}${row3}`);
-  await send('Emulation.setDeviceMetricsOverride', { width: 2560, height: 1130, deviceScaleFactor: 1, mobile: false });
+  await send('Emulation.setDeviceMetricsOverride', { width: 2560, height: 1480, deviceScaleFactor: 1, mobile: false });
   await send('Page.navigate', { url: `file://${OUT}/sheet.html` });
   await sleep(1500);
   await shot('sheet');

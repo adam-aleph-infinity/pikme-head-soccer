@@ -1183,7 +1183,8 @@ body.editing .pad .btn .grip {
   background: #1a2238 no-repeat; box-shadow: 0 4px 14px #0008;
 }
 .ov-face.char-face { width: 112px; height: 112px; background-color: transparent; box-shadow: none; }
-.ov-face.lost { filter: grayscale(1) brightness(.5); }
+/* HS's loser portrait: the same face sunk into a dark warm grey, features still readable */
+.ov-face.lost { filter: grayscale(1) sepia(.35) brightness(.42) contrast(1.15); }
 @media (max-height: 420px) { .ov-face { width: 64px; height: 64px; } .ov-face.char-face { width: 96px; height: 96px; } }
 .over p { margin: 0; color: var(--dim); font-size: 20px; font-variant-numeric: tabular-nums; }
 .over-btns { display: flex; gap: 10px; justify-content: center; margin-top: 12px; }

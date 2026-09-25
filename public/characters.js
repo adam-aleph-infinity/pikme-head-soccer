@@ -1,11 +1,13 @@
-// THE CARDS THAT HAVE A REAL CHARACTER.
+// THE CARDS THAT HAVE A CHARACTER.
 //
 // Most cards are played as a crop of their photo (head-crop.js). A card listed here is played
-// as a Head Soccer character made from the REAL person on the card: their own head cut out of
-// the card photo, upscaled and face-restored, re-posed into each expression (LivePortrait), then
-// given HS's big-head shape, grading, rim light and dark keyline — public/img/chars/<dir>/
-// <expression>.webp, built by tools/chars/build-real.py. How, and how to add a card:
-// docs/CHARACTERS.md.
+// as a Head Soccer-style cartoon character whose identity (hair, skin, face shape, gender) comes
+// from the person on the card: painted in HS's own art style by a rig of cel-shaded vector shapes
+// (tools/chars/paint_hs.py, the rigs in tools/chars/hs_chars.py), one head with the face swapped
+// per expression. Two files per expression in public/img/chars/<dir>/: <expression>.webp, the
+// smooth high-detail portrait (pick screen, arcade, scoreboard, result), and px-<expression>.webp,
+// the pitch sprite at HS's in-match pixel density, shown pixelated. How, and how to add a card:
+// docs/CHARACTERS.md; the style itself: docs/HS-ART-STYLE.md.
 //
 // Every file shares one frame, CHAR_BOX, in "head-box units": the head box the pitch draws (HEAD_W
 // x HEAD_H of the hitbox, game.js) is 100 wide and 91.5 tall, and the image reaches `x` left of it
@@ -16,17 +18,18 @@ export const EXPRESSIONS = ['normal', 'kick', 'hurt', 'happy', 'sad'];
 
 // nose: where the nose tip sits in the frame (fractions of its width/height), for the red-nose
 // bruise (.hurt1..3, style.css); fit: the drawn head's box in frame units, which portraits fit to
-// their element. Both printed by build-real.py (registry:).
+// their element. Both written here by paint_hs.py.
 export const CHARACTERS = {
-  'legendary:1': { dir: 'legendary-1', name: 'Shoval', nose: [0.569, 0.627], fit: [5.8, 2.0, 135.1, 121.2] },
-  'legendary:2': { dir: 'legendary-2', name: 'Ori', nose: [0.569, 0.627], fit: [3.0, 1.8, 140.6, 121.3] },
+  'legendary:1': { dir: 'legendary-1', name: 'Shoval', nose: [0.56, 0.653], fit: [14.3, 17.0, 126.9, 118.0] },
+  'legendary:2': { dir: 'legendary-2', name: 'Ori', nose: [0.56, 0.653], fit: [10.8, 16.8, 132.0, 118.1] },
 };
 
 export const characterFor = (rarity, number) => CHARACTERS[`${rarity}:${number}`] || null;
 
-// The pitch sprite of the same face: the art box-filtered to the pitch's own texel size (the head
-// box is ~31 texels of the half-res canvas) and shown pixelated, as HS's in-match heads are.
-export const CHAR_PX = { w: 45, h: 44 };
+// The pitch sprite of the same face, in HS art pixels: HS renders at 480 x 320 stretched to the
+// phone, one art pixel = 2.21 x 1.84 world px (non-square), so the 144 x 142-unit frame (89 x 88
+// world px) is 40 x 48 of them. Shown pixelated (style.css .head.char > i), as HS's heads are.
+export const CHAR_PX = { w: 40, h: 48 };
 
 export const charUrl = (ch, expr = 'normal', px = false) =>
   `img/chars/${ch.dir}/${px ? 'px-' : ''}${EXPRESSIONS.includes(expr) ? expr : 'normal'}.webp`;

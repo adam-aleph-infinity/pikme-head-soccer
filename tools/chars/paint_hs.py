@@ -21,8 +21,10 @@ from hs_chars import CHARS, EXPRS  # noqa: E402
 
 FW, FH = 144, 142          # frame, units
 PX_BOLD = 1.5
-PX = (45, 44)              # the pitch sprite: 100 units of head box = 31 texels of the half-res pitch
+PX = (40, 48)              # the pitch sprite, in HS art pixels (non-square: 2.21 x 1.84 world px)
 BOX = (22, 26, 100, 91.5)  # head box in the frame
+SCALE = 0.87               # rig units -> frame units
+ANCHOR = (72, 117.5)       # the chin: the head box's bottom centre
 SS = 12                    # render px per unit (4x the shipped 3 px per unit)
 OUT_PX = 3
 
@@ -232,15 +234,15 @@ def draw_eye(P, e, ex, look, ch):
         irisC = ch.get('iris', '#141414')
         P.fill(ellipse(px, py, pr[0], pr[1]), irisC, clip=white)
         if ch.get('irisRing'):
-            P.fill(minus(ellipse(px, py, pr[0], pr[1]), ellipse(px + 0.6, py + 0.8, pr[0] * 0.72, pr[1] * 0.75)),
+            P.fill(minus(ellipse(px, py, pr[0], pr[1]), ellipse(px + pr[0] * 0.16, py + pr[1] * 0.16, pr[0] * 0.92, pr[1] * 0.92)),
                    ch['irisRing'], clip=white)
         P.fill(ellipse(px + 0.4, py + 0.6, pr[0] * 0.55, pr[1] * 0.58), '#050505', clip=white)
         P.fill(ellipse(px + pr[0] * 0.38, py - pr[1] * 0.42, pr[0] * 0.26, pr[1] * 0.3), '#ffffff', clip=white)
         P.fill(ellipse(px - pr[0] * 0.35, py + pr[1] * 0.45, pr[0] * 0.12, pr[1] * 0.12), '#ffffff', 200, clip=white)
     # the lower part of the white a touch shaded (lid shadow) — one hard step
     # the lid's shadow on the white: one hard step, following the lid
-    shade = skia.Path(); shade.moveTo(x0 - 2, ytl - 2); shade.lineTo(x1 + 2, ytr - 2); shade.lineTo(x1 + 2, ytr + 2.2); shade.lineTo(x0 - 2, ytl + 2.2); shade.close()
-    P.fill(shade, '#d5dde8', 255, clip=white)
+    shade = skia.Path(); shade.moveTo(x0 - 2, ytl - 2); shade.lineTo(x1 + 2, ytr - 2); shade.lineTo(x1 + 2, ytr + 1.5); shade.lineTo(x0 - 2, ytl + 1.5); shade.close()
+    P.fill(shade, '#e1e7ef', 255, clip=white)
     # heavy upper lid line
     lid = skia.Path(); lid.moveTo(x0 - 0.6, ytl); lid.lineTo(x1 + 0.6, ytr)
     P.stroke(lid, ink, e.get('lidW', 2.6))
@@ -360,7 +362,7 @@ def bolder(ch, k):
     for e in ch['eyes']:
         e['lidW'] = e.get('lidW', 2.6) * (1 + (k - 1) * 0.6)
     if ch.get('rim'):   # HS's in-match heads carry a bright gold rim pixel along the back/top
-        ch['rim']['dx'] *= 1.7; ch['rim']['dy'] *= 1.7; ch['rim']['a'] = 255
+        ch['rim']['dx'] *= 2.2; ch['rim']['dy'] *= 2.2; ch['rim']['a'] = 255
     return ch
 
 
@@ -372,6 +374,10 @@ def paint(ch, expr):
     c = surf.getCanvas()
     c.clear(skia.ColorTRANSPARENT)
     c.scale(SS, SS)
+    # the rig is authored big; the whole head is scaled about the chin so it spans HS's sprite
+    # (HEAD_SHAPE's 62 x 57 box, hair and ear a little past it) and the chin stays on the collar
+    k = ch.get('scale', SCALE)
+    c.translate(*ANCHOR); c.scale(k, k); c.translate(-ANCHOR[0], -ANCHOR[1])
     P = Painter(c)
     sk = ch['skin']
     ink = ch['ink']
@@ -497,6 +503,34 @@ def downsample(img, f):
     return np.concatenate([np.clip(rgbv, 0, 255), arr[..., 3:4]], axis=2).astype(np.uint8)
 
 
+def palette_of(big, min_share=0.0004):
+    """The flat tones the rig painted (every fill is one colour): the colours covering more than
+    `min_share` of the opaque pixels. Anti-aliased edge mixes fall under it."""
+    op = big[..., 3] == 255
+    cols = big[..., :3][op].reshape(-1, 3)
+    keys = (cols[:, 0].astype(np.int64) << 16) | (cols[:, 1].astype(np.int64) << 8) | cols[:, 2]
+    u, n = np.unique(keys, return_counts=True)
+    keep = u[n > min_share * len(keys)]
+    return np.stack([(keep >> 16) & 255, (keep >> 8) & 255, keep & 255], 1).astype(np.float32)
+
+
+def pixel_sprite(big):
+    """HS's in-match head: its art at the game's native 480 x 320 stretched to the phone, i.e.
+    one art pixel = 2.21 x 1.84 world px (measured: 4.44 x 3.70 recording px, 0.5 world px per
+    recording px). The frame (144 x 142 units = 89 x 87.7 world) is PX art pixels. Box-filtered
+    from the big render, every pixel snapped to the rig's own flat palette (hard cel edges, no
+    blended tones, as HS), alpha hard."""
+    a = big[..., 3:4].astype(np.float32) / 255
+    pm = np.concatenate([big[..., :3] * a, a * 255], 2).astype(np.uint8)
+    arr = np.asarray(Image.fromarray(pm, 'RGBA').resize(PX, Image.BOX)).astype(np.float32)
+    al = arr[..., 3:4] / 255
+    col = np.where(al > 0, arr[..., :3] / np.maximum(al, 1e-6), 0)
+    pal = palette_of(big)
+    d = ((col[:, :, None, :] - pal[None, None]) ** 2).sum(-1)
+    col = pal[d.argmin(-1)]
+    return np.concatenate([col, (al > 0.5) * 255.0], 2).astype(np.uint8)
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument('--out', default=os.path.join(os.path.dirname(__file__), '..', '..', 'public', 'img', 'chars'))
@@ -521,16 +555,10 @@ def main():
             png = os.path.join(d, f'{expr}.png')
             Image.fromarray(small).save(png)
             if not args.png:
-                subprocess.run(['cwebp', '-quiet', '-q', '90', '-alpha_q', '100', '-exact', png, '-o', os.path.join(d, f'{expr}.webp')], check=True)
+                subprocess.run(['cwebp', '-quiet', '-q', '84', '-alpha_q', '100', '-exact', png, '-o', os.path.join(d, f'{expr}.webp')], check=True)
                 os.remove(png)
-            # the pitch sprite: the art box-filtered to the pitch's texel size, hard alpha
-            pb = paint(bolder(ch, PX_BOLD), expr)
-            a = pb[..., 3:4].astype(np.float32) / 255
-            pm = np.concatenate([pb[..., :3] * a, a * 255], 2).astype(np.uint8)
-            arr = np.asarray(Image.fromarray(pm, 'RGBA').resize(PX, Image.BOX)).astype(np.float32)
-            al = arr[..., 3:4] / 255
-            col = np.where(al > 0, arr[..., :3] / np.maximum(al, 1e-6), 0)
-            px = np.concatenate([np.clip(col, 0, 255), (al > 0.5) * 255.0], 2).astype(np.uint8)
+            # the pitch sprite, at HS's own in-match pixel density (docs/HS-ART-STYLE.md)
+            px = pixel_sprite(paint(bolder(ch, PX_BOLD), expr))
             pxpng = os.path.join(d, f'px-{expr}.png')
             Image.fromarray(px).save(pxpng)
             if not args.png:
@@ -543,8 +571,21 @@ def main():
                 if edge:
                     print(f'WARNING {ch["dir"]}: the head touches the frame edge', file=sys.stderr)
         nx, ny = ch['nose']['tip']
+        k = ch.get('scale', SCALE)
+        nx, ny = ANCHOR[0] + (nx - ANCHOR[0]) * k, ANCHOR[1] + (ny - ANCHOR[1]) * k
         reg[key] = {'dir': ch['dir'], 'name': ch['name'], 'nose': [round(nx / FW, 3), round(ny / FH, 3)], 'fit': fit}
     print('registry:', json.dumps(reg))
+    if not args.png and not args.only:
+        # nose and fit go straight into public/characters.js (the CHARACTERS lines)
+        import re
+        js_path = os.path.join(os.path.dirname(__file__), '..', '..', 'public', 'characters.js')
+        js = open(js_path).read()
+        for key, r in reg.items():
+            line = (f"  '{key}': {{ dir: '{r['dir']}', name: '{r['name']}', "
+                    f"nose: {json.dumps(r['nose'])}, fit: {json.dumps(r['fit'])} }},")
+            js, n = re.subn(rf"^  '{re.escape(key)}': .*$", lambda m: line, js, flags=re.M)
+            assert n == 1, key
+        open(js_path, 'w').write(js)
 
 
 if __name__ == '__main__':
