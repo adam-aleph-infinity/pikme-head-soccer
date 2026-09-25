@@ -163,8 +163,8 @@ body.safedemo { --safe-l: 44px; --safe-r: 44px; --safe-b: 21px; --safe-t: 12px; 
     radial-gradient(ellipse 34% 26% at 38% 26%, #ffffff3d, #ffffff00),
     radial-gradient(ellipse 72% 70% at 50% 36%, #0c061800 70%, #0c061866 100%);
 }
-/* A DRAWN CHARACTER (characters.js, docs/CHARACTERS.md): the SVG brings its own keyline, cel
-   shading and HS silhouette, so the keyline and shading layers stand down and the art is not
+/* A REAL-FACE CHARACTER (characters.js, docs/CHARACTERS.md): the WebP brings its own keyline,
+   lighting and HS silhouette, so the keyline and shading layers stand down and the art is not
    clipped — its hair breaks the outline. game.js (paintPitchChar) sizes <i> past the box. */
 .head.char::before, .head.char::after { display: none; }
 .head.char > i {
@@ -1177,9 +1177,9 @@ body.editing .pad .btn .grip {
   display: block; width: 84px; height: 84px; border-radius: 50%;
   background: #1a2238 no-repeat; box-shadow: 0 4px 14px #0008;
 }
-.ov-face.char-face { background-color: transparent; box-shadow: none; }
+.ov-face.char-face { width: 112px; height: 112px; background-color: transparent; box-shadow: none; }
 .ov-face.lost { filter: grayscale(1) brightness(.5); }
-@media (max-height: 420px) { .ov-face { width: 64px; height: 64px; } }
+@media (max-height: 420px) { .ov-face { width: 64px; height: 64px; } .ov-face.char-face { width: 96px; height: 96px; } }
 .over p { margin: 0; color: var(--dim); font-size: 20px; font-variant-numeric: tabular-nums; }
 .over-btns { display: flex; gap: 10px; justify-content: center; margin-top: 12px; }
 .over-btns button {
@@ -2128,6 +2128,24 @@ body.editing .pad .btn .grip {
     radial-gradient(ellipse 9% 7% at 50% 60%, #e8182ae0, #e8182a00),
     radial-gradient(ellipse 12% 9% at 33% 50%, #5a1a4a88, #5a1a4a00),
     radial-gradient(ellipse 30% 14% at 50% 64%, #ff2a3a55, #ff2a3a00);
+}
+/* A real-face character (.char): <i> is the whole 144 x 142 frame, not the head box, so the marks
+   are smaller and sit on the face's own nose (--nose-x/-y, set by paintPitchChar). A soft-light
+   blend keeps the skin's texture under the flush instead of pasting a red disc over a photo. */
+.head.char.hurt1 > i::after, .head.char.hurt2 > i::after, .head.char.hurt3 > i::after { mix-blend-mode: multiply; }
+.head.char.hurt1 > i::after {
+  background: radial-gradient(ellipse 17% 8% at var(--nose-x) calc(var(--nose-y) + 2%), #ff6a6a66, #ff6a6a00);
+}
+.head.char.hurt2 > i::after {
+  background:
+    radial-gradient(ellipse 5% 4% at var(--nose-x) var(--nose-y), #e8283ae0, #e8283a00),
+    radial-gradient(ellipse 17% 8% at var(--nose-x) calc(var(--nose-y) + 2%), #ff6a6a77, #ff6a6a00);
+}
+.head.char.hurt3 > i::after {
+  background:
+    radial-gradient(ellipse 5.5% 4.5% at var(--nose-x) var(--nose-y), #d81830f0, #d8183000),
+    radial-gradient(ellipse 7% 5% at calc(var(--nose-x) - 14%) calc(var(--nose-y) - 8%), #6a2a5a99, #6a2a5a00),
+    radial-gradient(ellipse 17% 8% at var(--nose-x) calc(var(--nose-y) + 2%), #ff6a6a88, #ff6a6a00);
 }
 
 /* ARMED: the press empties the bar and hides the button (HS M4 36.49 s); the head wears Head

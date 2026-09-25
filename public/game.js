@@ -56,7 +56,7 @@ function paintHead(el, r, n, sizePx, opts) {
   // anchors were measured asking for a window bigger than the card or too near an edge, and
   // an unclamped crop shows the card's edge and blank space beyond it — which is why some
   // faces sat off centre on a phone.
-  // A card with a drawn character (characters.js) shows the cartoon instead of its photo.
+  // A card with a real-face character (characters.js) shows that character instead of its photo.
   const ch = characterFor(r, n);
   if (!ch && el.classList.contains('char-face')) el.style.transform = '';
   el.classList.toggle('char-face', !!ch);
@@ -67,7 +67,7 @@ function paintHead(el, r, n, sizePx, opts) {
   el.style.backgroundPosition = `${c.x}px ${c.y}px`;
 }
 
-// THE DRAWN CHARACTERS. Every expression of a character is fetched the first time it shows
+// THE REAL-FACE CHARACTERS. Every expression of a character is fetched the first time it shows
 // anywhere, so the first goal or stun does not blink while its face loads.
 const CHAR_WARM = new Set();
 function warmCharacter(ch) {
@@ -81,9 +81,13 @@ function warmCharacter(ch) {
 function paintCharPortrait(el, ch, sizePx, opts = {}) {
   warmCharacter(ch);
   const hPx = opts.h || sizePx;
-  const u = sizePx * (opts.fill || 0.84) / CHAR_BOX.boxW;          // px per head-box unit
+  // the drawn head's own box (ch.fit, frame units: hair and keyline included) fills `fill` of the
+  // element, centred, so nothing of the head is cut off by the element's edge
+  const [fx0, fy0, fx1, fy1] = ch.fit || [0, 0, CHAR_BOX.w, CHAR_BOX.h];
+  const fill = opts.fill || 1.1;           // >1: a touch of hair and chin cropped, the face bigger
+  const u = Math.min(sizePx * fill / (fx1 - fx0), hPx * fill / (fy1 - fy0));   // px per unit
   const w = CHAR_BOX.w * u, h = CHAR_BOX.h * u;
-  const cx = CHAR_BOX.x + CHAR_BOX.boxW / 2, cy = CHAR_BOX.y + CHAR_BOX.boxH * 0.44;
+  const cx = (fx0 + fx1) / 2, cy = (fy0 + fy1) / 2;
   el.style.backgroundImage = `url("${charUrl(ch, opts.expr)}")`;
   el.style.backgroundSize = `${w}px ${h}px`;
   el.style.backgroundPosition = `${sizePx / 2 - cx * u}px ${hPx / 2 - cy * u}px`;
@@ -1019,7 +1023,8 @@ function endMatch() {
   // The two heads either side of the score: the winner happy, the loser sad and greyed (HS).
   for (let i = 0; i < 2; i++) {
     const el = $('#ovFace' + i), won = M.score[i] > M.score[1 - i], { rarity, number } = M.players[i].char;
-    paintHead(el, rarity, number, el.clientWidth || 84, { expr: won ? 'happy' : a === b ? 'normal' : 'sad', flip: i === 1, fill: 0.74 });
+    el.classList.toggle('char-face', !!characterFor(rarity, number));   // a character portrait is bigger (style.css): measure it at that size
+    paintHead(el, rarity, number, el.clientWidth || 84, { expr: won ? 'happy' : a === b ? 'normal' : 'sad', flip: i === 1, fill: 1 });
     el.classList.toggle('lost', !won && a !== b);
   }
 }
@@ -2441,11 +2446,11 @@ function headBox(p) {
   const d = headR(M, p) * 2 * SC;
   return { w: d * HEAD_W, h: d * HEAD_H };
 }
-// A DRAWN CHARACTER ON THE GRASS. The SVG carries its own keyline, shading and silhouette (the
-// same HEAD_SHAPE, docs/CHARACTERS.md), so the card layers stand down (.head.char in style.css)
-// and the art is laid over the head box at its authored scale: the box is 100 units wide, and the
-// file reaches CHAR_BOX.x/y units beyond it on the left/top so the hair can break the outline
-// the way HS hair does. Characters are drawn facing right; player two's is mirrored.
+// A REAL-FACE CHARACTER ON THE GRASS. The WebP carries its own keyline, lighting and silhouette
+// (docs/CHARACTERS.md), so the card layers stand down (.head.char in style.css) and the art is
+// laid over the head box at its built scale: the box is 100 units wide, and the file reaches
+// CHAR_BOX.x/y units beyond it on the left/top so the hair can break the outline the way HS hair
+// does. Characters face right; player two's is mirrored.
 function paintPitchChar(inner, ch, w, expr, flip) {
   warmCharacter(ch);
   const u = w / CHAR_BOX.boxW;
@@ -2455,6 +2460,10 @@ function paintPitchChar(inner, ch, w, expr, flip) {
     backgroundImage: `url("${charUrl(ch, expr)}")`, backgroundSize: '100% 100%', backgroundPosition: '0 0',
     transform: flip ? 'scaleX(-1)' : '',
   });
+  // the red-nose bruise (.hurt1..3) sits on this face's nose, not the photo head's
+  const [nx, ny] = ch.nose || [0.5, 0.6];
+  inner.style.setProperty('--nose-x', `${(nx * 100).toFixed(1)}%`);
+  inner.style.setProperty('--nose-y', `${(ny * 100).toFixed(1)}%`);
 }
 function clearPitchChar(inner) {
   for (const k of ['left', 'top', 'right', 'bottom', 'width', 'height', 'transform']) inner.style[k] = '';
@@ -2640,7 +2649,7 @@ function paintFaces() {
   for (let i = 0; i < 2; i++) {
     const el = HUD.face[i];
     const p = M.players[i], { rarity, number } = p.char;
-    // A drawn character pulls the same face up here as on the grass (and faces the middle).
+    // A real-face character pulls the same face up here as on the grass (and faces the middle).
     const expr = characterFor(rarity, number) ? expressionFor(M, p) : '';
     const key = `${rarity}_${number}_${FACE_PX}_${expr}`;
     if (el.dataset.card === key) continue;
@@ -2865,7 +2874,7 @@ Object.defineProperty(window, 'ARCADE_PROGRESS', { get: () => PROG });
 // The measured head anchors, for the crop tools — see head-crop.js and test-heads.mjs.
 Object.defineProperty(window, '__ANCHORS', { get: () => ANCHORS });
 Object.assign(window, { headCrop });
-// The drawn characters, for _charfaces.mjs: re-render the pick slots, end a match on demand.
+// The real-face characters, for _charfaces.mjs: re-render the pick slots, end a match on demand.
 Object.assign(window, { renderSlots, endMatch, characterFor });
 Object.defineProperty(window, 'MATCH', { get: () => M });
 Object.defineProperty(window, 'HELD', { get: () => held });
