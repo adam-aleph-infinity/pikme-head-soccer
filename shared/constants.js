@@ -434,6 +434,8 @@ export let HIT_STOP_TACKLE = 0;
 // M3 (another character) climbs at the same 17.4 px/s and stops at its goals too.
 // Per-character fill (the Power stat) comes with the arcade's stats; this is the starter's.
 export let GAUGE_PASSIVE = 1 / 15;   // fraction of the gauge per second of play
+// Conceding a goal adds this much to the conceder's gauge when the ball drops (HS M4 43.5 s: +0.32).
+export let GAUGE_CONCEDE = 1 / 3;
 export let GAUGE_LEAD = 0;           // s of play after the kickoff before the gauge starts
 
 // ── THE ULTIMATE: ARM, THEN TOUCH THE BALL ───────────────────────────────────
@@ -607,6 +609,7 @@ const SETTERS = {
   HEADER_POWER: (v) => { HEADER_POWER = v; },
   HEADER_LIFT: (v) => { HEADER_LIFT = v; },
   GAUGE_PASSIVE: (v) => { GAUGE_PASSIVE = v; },
+  GAUGE_CONCEDE: (v) => { GAUGE_CONCEDE = v; },
   GAUGE_LEAD: (v) => { GAUGE_LEAD = v; },
   POWER_CUTIN: (v) => { POWER_CUTIN = v; },
   POWER_BLOCK_STUN: (v) => { POWER_BLOCK_STUN = v; },

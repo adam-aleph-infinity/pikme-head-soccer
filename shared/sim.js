@@ -339,6 +339,12 @@ export function step(m, inputs, dt = C.TICK, fx = NO_FX) {
     if (m.ballWait > 0) return m;
     m.ballWait = 0;
     m.events.push({ type: 'ballDrop', x: m.ball.x, y: m.ball.y });
+    // THE CONCEDER'S BONUS: HS tops up the power bar of whoever just let one in, on the frame
+    // the ball drops (M4 43.5 s goal → CPU bar 20% → 52% at 46.6 s, the scorer's bar untouched;
+    // M3 restarts 14.5 s / 41.5 s / 62.5 s the same). Idan confirmed: "if I score, my opponent
+    // gets plus to the power bar". The only non-clock gain there is.
+    const conceder = m.players[1 - m.lastScorer];
+    if (conceder && m.lastScorer != null) conceder.gauge = Math.min(1, conceder.gauge + C.GAUGE_CONCEDE);
   }
 
   // SUB-STEP THE BALL when it is moving faster than the things it can hit. The power volley

@@ -405,7 +405,8 @@ function fireChampion(stage, i, gap = 460) {
   // AND AGAIN for the Phase E bot (hs/bot-like-hs): the bot is rebuilt to play like the HS CPU
   // (meets the ball, mashes the boot, dashes, defends every power family) — a bot change, which
   // is what these three bot-vs-bot matches are made of. The sim itself did not change.
-  const GOLDEN = '7a2b4f57149267e6da326a7b02e10872b6f46478eb34cb35dde79194534feac3';
+  // AND the conceder's bonus (+1/3 gauge on the ball drop after a goal, HS M4 43.5 s).
+  const GOLDEN = 'b79cc9a6143e3f3e6a08b83c0c8f805b043017c4288fbc7f7ba84bd10ee598fc';
   const h = createHash('sha256');
   const cases = [
     [{ rarity: 'legendary', number: 3 }, { rarity: 'legendary', number: 2 }, 3, 3, 11],
