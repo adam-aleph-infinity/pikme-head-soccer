@@ -10,8 +10,8 @@
 //       armed     → COUNTER: their own shot goes back (sim.js fireUltimateOnContact)
 //       kicking   → BLOCK: the ball grinds on the boot, drops dead, then fires back as theirs
 //       otherwise → HIT: knocked back and dazed, any AILMENT lands, the ball bounces off him
-//     …except where the family says otherwise (a Ground shot cannot be blocked, a Grab carries
-//     the defender, a Destructive or Critical shot smashes through a block).
+//     …except where the family says otherwise (a Ground shot cannot be blocked, a Grab drags
+//     the defender back to the shooter, a Destructive or Critical shot smashes through a block).
 //
 // The numbers that were measured are cited against docs/HS-POWER-SHOTS.md (§n). Everything the
 // footage does not show is marked `estimated` and follows the approved champion map
@@ -39,7 +39,7 @@ export const FAMILIES = Object.freeze({
   destructive: { id: 'destructive', name: 'בעיטה הורסת', en: 'Destructive', speed: 0.9,  block: 'smash',   color: '#ff4a1c', glow: '#ffd08a' },
   aerial:      { id: 'aerial',      name: 'מטאור',       en: 'Aerial',      speed: 1.05, block: 'grind',   color: '#ff7a1a', glow: '#fff0a0', measured: true },
   delay:       { id: 'delay',       name: 'בעיטה מושהית', en: 'Delay',      speed: 1.15, block: 'grind',   color: '#7c5cff', glow: '#e4dcff' },
-  grab:        { id: 'grab',        name: 'טופר',        en: 'Grab',        speed: 0.8,  block: 'grab',    color: '#2446c8', glow: '#9fc0ff', measured: true },
+  grab:        { id: 'grab',        name: 'טופר',        en: 'Grab',        speed: 1.0,  block: 'grab',    color: '#2446c8', glow: '#9fc0ff', measured: true },
   multiball:   { id: 'multiball',   name: 'רב־כדור',     en: 'Multi-Ball',  speed: 0.95, block: 'grind',   color: '#ffc21a', glow: '#fff6c0' },
   updown:      { id: 'updown',      name: 'גל',          en: 'Up-and-Down', speed: 0.8,  block: 'grind',   color: '#2fe07a', glow: '#d6ffe6' },
   ailment:     { id: 'ailment',     name: 'קללה',        en: 'Ailment',     speed: 0.9,  block: 'grind',   color: '#e04cff', glow: '#fbd6ff' },
@@ -56,6 +56,10 @@ export const AILMENTS = Object.freeze({
   beheaded: { id: 'beheaded', name: 'בלי ראש', dur: 3.0, color: '#b9a7d6' },  // no head: no header, the ball passes where it was
   burn:     { id: 'burn',     name: 'בוער',   dur: 2.0, color: '#ff6a1a' },   // cannot kick, a little slower
   stars:    { id: 'stars',    name: 'כוכבים', dur: 1.0, color: '#ffd23c' },   // dazed: no control (HS §4's three gold stars)
+  // Thrown by the Grab (§3 M3 74.3–75.5 s): flung straight up out of the screen and back down
+  // inside a blue whirlwind; heavy (5× gravity) so the whole flight is HS's ≈1.2 s. Never a
+  // shot's own ailment — only the Grab's release sets it.
+  thrown:   { id: 'thrown',   name: 'מושלך',  dur: 1.25, color: '#3b6bff' },
 });
 export const AILMENT_ORDER = Object.freeze(Object.keys(AILMENTS));
 export const AURA_ORDER = Object.freeze(['none', 'stun', 'push', 'reverse', 'freeze']);
@@ -72,6 +76,10 @@ export const HS = Object.freeze({
   AERIAL_WAIT: 1.0,       // s off-screen, warning streaks (§3 M2 43.2–44.2)
   AERIAL_DIVE_DEG: 40,    // the dive's angle below horizontal (§3 "~30–40°"); TAN_DIVE is its tangent
   DELAY_GO: 0.12,         // s of flight before the Delay shot stops dead (estimated)
+  GRAB_PULL: 2400,        // px/s the hand drags the seized player back to the shooter (§3 M3 74.08–74.30)
+  GRAB_FLING: 1850,       // px/s straight up on release: wholly off the top of the screen, back in ≈1.25 s
+  GRAB_THROWN: 1.25,      // s in the air (5× gravity: 2·1850 / (5·595) ≈ 1.24)
+  GRAB_DAZE: 0.45,        // s of stars on the ground after landing (M3 75.5–75.9)
   AURA_STUN: 0.8, AURA_PUSH: 460, AURA_REVERSE: 2.5, AURA_FREEZE: 1.2,
 });
 
@@ -242,25 +250,36 @@ export function stepPower(m, b, dt, kit, fx) {
       }
       return true;
     }
-    // ─ the Grab (§3 M3): the ball carries the defender toward his own goal ─
+    // ─ the Grab (§3 M3 74.08–74.30 s; wiki: grab shots "pull the defender back"): the hand
+    //   closes on the defender and drags him BACK to the shooter, away from his own goal, while
+    //   the ball it carried pops loose; then he is flung straight up out of the screen ─
     case 'grab': {
-      const q = m.players[pw.tgt];
-      const sp = pw.gentle ? 150 : 260 + 160 * pw.int;
-      pw.k += sp * dt;
-      b.vx = pw.dir * sp; b.vy = 0;
-      const off = pw.dir * (C.HEAD_R + b.r + 2);
-      q.x = b.x + b.vx * dt - off; q.vx = b.vx;
-      kit.bounds(q);
-      const toLine = Math.abs(goalLineX(pw.dir) - q.x);
-      // Gentle (stage 2): a third of the way to the line, and a jump or a fresh kick breaks it.
+      const q = m.players[pw.tgt], a = m.players[pw.owner];
+      // the ball is loose (its own gravity; skipContact holds everyone off it for the drag)
+      b.vy += C.BALL_GRAV * dt; b.vx *= C.BALL_AIR;
+      // Gentle (stage 2): a third of the way back, and a jump or a fresh kick breaks it.
       const broke = pw.gentle && (q.vy < -100 || q.kickT > C.KICK_TIME - 2 * C.TICK);
-      if (pw.k >= pw.tx || toLine < 6 || broke) {
-        if (!broke) { q.stunned = 0; kit.stun(m, q, C.POWER_BLOCK_STUN); applyAilment(m, q, 'stars', C.POWER_BLOCK_STUN); }
-        else if (q.ail === 'stars') { q.ail = ''; q.ailT = 0; }
+      const sp = pw.gentle ? 150 : HS.GRAB_PULL;
+      const stopAt = a.x + pw.dir * (C.HEAD_R * 2 + 8);          // just in front of the shooter
+      const left = (q.x - stopAt) * pw.dir;                        // px still to go, toward him
+      const mv = broke ? 0 : Math.min(sp * dt, Math.max(0, left), Math.max(0, pw.tx - pw.k));
+      pw.k += mv;
+      q.x -= pw.dir * mv;
+      if (!broke) { q.vx = -pw.dir * sp; if (!pw.gentle) q.vy = 0; }
+      kit.bounds(q);
+      if (pw.k >= pw.tx - 0.5 || left - mv <= 0.5 || broke) {
+        q.vx = 0;
+        if (broke) { if (q.ail === 'stars') { q.ail = ''; q.ailT = 0; } }
+        else if (pw.gentle) { q.stunned = 0; kit.stun(m, q, C.POWER_BLOCK_STUN); applyAilment(m, q, 'stars', C.POWER_BLOCK_STUN); }
+        else {
+          // flung: straight up, heavy, dazed until a beat after he lands (M3 74.3–75.9 s)
+          q.stunned = 0; kit.stun(m, q, HS.GRAB_THROWN + HS.GRAB_DAZE);
+          q.ail = 'thrown'; q.ailT = HS.GRAB_THROWN;
+          m.events.push({ type: 'ailment', player: q.index, ail: 'thrown', time: HS.GRAB_THROWN });
+          q.vy = -HS.GRAB_FLING; q.onGround = false;
+        }
         m.events.push({ type: 'released', player: q.index, by: pw.owner, broke });
-        if (pw.gentle || broke) { b.power = null; b.vx = pw.dir * 140; b.vy = -160; return false; }
-        pw.ph = 'fly'; pw.fam = 'straight'; pw.t = 0; pw.pass |= 1 << q.index; pw.tgt = -1;
-        b.vx = pw.dir * S; b.vy = 0;
+        return endPower(b);
       }
       return true;
     }
@@ -390,13 +409,13 @@ export function contact(m, p, b, kit, fx) {
   // other shot (the kick is HS's answer to every power ball, §4).
   if (mode === 'grab' && pw.ph === 'fly' && !kicking) {
     pw.ph = 'grab'; pw.tgt = p.index; pw.k = 0;
-    pw.tx = pw.gentle ? Math.abs(goalLineX(pw.dir) - p.x) / 3 : 2000;
-    // Seized: a real champion's claw holds you for the whole drag; the gentle one only holds
-    // on, and a jump breaks it (see stepPower 'grab').
-    // §3 M3 74.1 s: the seized player sees stars at once.
-    if (!pw.gentle) { kit.stun(m, p, 3); applyAilment(m, p, 'stars', 3); }
-    b.y = kit.headY(p);
-    m.events.push({ type: 'grabbed', player: p.index, by: pw.owner, gentle: !!pw.gentle });
+    pw.tx = pw.gentle ? Math.abs(m.players[pw.owner].x - p.x) / 3 : 2000;
+    // Seized: a real champion's hand holds you, dazed — three gold stars at once (M3 74.15 s);
+    // the gentle one only holds on, and a jump breaks it (see stepPower 'grab').
+    if (!pw.gentle) { kit.stun(m, p, 1.5); applyAilment(m, p, 'stars', 1.5); }
+    // The ball it carried pops loose, up and on toward his goal (M3 74.08–74.3 s).
+    b.vx = pw.dir * 260; b.vy = -560;
+    m.events.push({ type: 'grabbed', player: p.index, by: pw.owner, gentle: !!pw.gentle, x: b.x, y: b.y });
     return 'grab';
   }
   if (mode === 'none') {
@@ -529,6 +548,7 @@ export function ailMods(p) {
     case 'freeze': o.frozen = true; o.dead = true; o.noJump = true; o.noDash = true; break;
     case 'burn': o.noKick = true; o.speed = 0.8; break;
     case 'stars': o.dead = true; o.noDash = true; break;
+    case 'thrown': o.dead = true; o.noDash = true; o.grav = 5; break;
     default: break;                                   // beheaded: sim.js drops the head's contacts
   }
   return o;

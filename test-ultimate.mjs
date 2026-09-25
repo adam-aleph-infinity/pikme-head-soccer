@@ -615,7 +615,7 @@ function track(m, s, inputs = NONE) {
   const s = fireFam('straight'), d = fireFam('destructive'), c = fireFam('critical'), g = fireFam('grab');
   const speed = (f) => { const p = track(f.m, 0.1).filter((q) => q.pw); return (p[p.length - 1].x - p[0].x) / ((p.length - 1) * C.TICK); };
   const vs = speed(s), vd = speed(d), vc = speed(c), vg = speed(g);
-  ok('CRITICAL is the fastest, DESTRUCTIVE and GRAB slower than the comet', vc > vs * 1.2 && vd < vs && vg < vs,
+  ok('CRITICAL is the fastest, DESTRUCTIVE slower than the comet, GRAB at its pace (M3 73.95–74.02 s ≈ 2100 px/s)', vc > vs * 1.2 && vd < vs && Math.abs(vg - vs) < vs * 0.05,
      `straight ${vs.toFixed(0)} critical ${vc.toFixed(0)} destructive ${vd.toFixed(0)} grab ${vg.toFixed(0)}`);
 }
 {
@@ -750,10 +750,18 @@ function atDefender(fam, o = {}, { kick = false, armed = false, gap = 320 } = {}
 {
   const { m, z, log } = atDefender('grab');
   ok('GRAB seizes a defender who does not kick it (M3 74.1 s): stars at once', log.some((e) => e.type === 'grabbed' && e.player === 1) && z.ail === 'stars' && m.ball.power.ph === 'grab');
-  const x0 = z.x;
+  ok('…and the ball it carried pops loose, up (M3 74.08 s)', m.ball.vy < -300);
+  const x0 = z.x, a = m.players[0];
   const rel = [];
-  for (let i = 0; i < 240 && m.phase === 'play' && !rel.length; i++) { step(m, NONE); rel.push(...m.events.filter((e) => e.type === 'released')); m.events.length = 0; }
-  ok('…and carries him toward his own goal', (z.x - x0) * z.side < -100 || m.phase !== 'play', `moved ${(z.x - x0).toFixed(0)}`);
+  let ticks = 0;
+  for (let i = 0; i < 240 && m.phase === 'play' && !rel.length; i++) { step(m, NONE); ticks++; rel.push(...m.events.filter((e) => e.type === 'released')); m.events.length = 0; }
+  ok('…drags him BACK to the shooter, away from his own goal, in ≈0.2 s (M3 74.08–74.30 s; wiki "pull the defender back")',
+     rel.length && (z.x - x0) * z.side > 150 && Math.abs(z.x - a.x) < C.HEAD_R * 2 + 30 && ticks < 20, `moved ${(z.x - x0).toFixed(0)} in ${ticks} ticks, gap ${Math.abs(z.x - a.x).toFixed(0)}`);
+  ok('…and flings him straight up, thrown and dazed, the ball loose again', z.ail === 'thrown' && z.vy < -1000 && z.stunned > 1 && !m.ball.power);
+  let top = z.y, air = 0;
+  for (let i = 0; i < 120 && !(air > 5 && z.onGround); i++) { step(m, NONE); m.events.length = 0; top = Math.min(top, z.y); air++; }
+  ok('…off the top of the screen and back down in ≈1.2 s (M3 74.3–75.5 s), still dazed on landing',
+     top < C.GROUND_Y - C.VIEW_ABOVE_GROUND - 40 && Math.abs(air * C.TICK - 1.2) < 0.15 && z.stunned > 0, `apex ${top.toFixed(0)}, ${(air * C.TICK).toFixed(2)} s`);
   const k = atDefender('grab', {}, { kick: true });
   ok('…but a KICK blocks the claw like any other shot', k.log.some((e) => e.type === 'blocked'));
 }
@@ -766,9 +774,9 @@ function atDefender(fam, o = {}, { kick = false, armed = false, gap = 320 } = {}
   for (let i = 0; i < 5; i++) { step(m, NONE); log.push(...m.events); m.events.length = 0; }
   ok('a JUMP breaks a gentle grab', log.some((e) => e.type === 'released' && e.broke) && !m.ball.power);
   const g = atDefender('grab', { gentle: true, intensity: 0.1 });
-  const x0 = g.z.x, line = C.W - C.GOAL_W;
+  const x0 = g.z.x, line = g.a.x;
   for (let i = 0; i < 300 && g.m.ball.power; i++) { step(g.m, NONE); g.m.events.length = 0; }
-  ok('a gentle grab drags him only about a third of the way to his line', Math.abs(g.z.x - x0) < Math.abs(line - x0) / 3 + 20 && Math.abs(g.z.x - x0) > 20,
+  ok('a gentle grab drags him only about a third of the way back to the shooter', Math.abs(g.z.x - x0) < Math.abs(line - x0) / 3 + 20 && Math.abs(g.z.x - x0) > 20 && g.z.x < x0,
      `${Math.abs(g.z.x - x0).toFixed(0)} of ${Math.abs(line - x0).toFixed(0)}`);
 }
 {

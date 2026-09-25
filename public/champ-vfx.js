@@ -20,7 +20,7 @@ import * as C from '../shared/constants.js';
 import { headY, headR } from '../shared/sim.js';
 import { depthPoint } from '../shared/goalbox.js';
 import { FAMILY_ORDER, AILMENT_ORDER } from '../shared/hs-powers.js';
-import { FAMILY_VFX, drawGrind } from './vfx/families.js';
+import { FAMILY_VFX, drawGrind, drawFist } from './vfx/families.js';
 import { AILMENT_VFX } from './vfx/ailments.js';
 
 export { FAMILY_VFX, AILMENT_VFX };
@@ -106,12 +106,13 @@ export function createVfx({ now = () => performance.now() / 1000, drawBall: pain
       if (M.cutin > C.POWER_RELEASE || pw.hit) return false;
       // Pinned on a boot, dead at the feet, or hanging still: no tail — HS shows only the block's
       // spark burst there (§4, M4 61.45–62.7 s). The comet is a thing that MOVES.
-      if (pw.ph === 'grind' || pw.ph === 'rest' || pw.ph === 'hold') return false;
+      if (pw.ph === 'grind' || pw.ph === 'rest' || pw.ph === 'hold' || pw.ph === 'grab') return false;
       const V = FAMILY_VFX[pw.fam] || FAMILY_VFX.straight;
       const r = track.get(b);
       const d = depthPoint(b.x, b.y);
       stats.balls++;
-      V.draw(g, b, { t: r ? Math.max(0, M.t - r.t0) : 0, now: now(), hist: r ? r.hist : null, x: d.x, y: d.y, r: b.r, pw, groundY: C.GROUND_Y });
+      const f0 = depthPoint(pw.x0, pw.y0);
+      V.draw(g, b, { t: r ? Math.max(0, M.t - r.t0) : 0, now: now(), hist: r ? r.hist : null, x: d.x, y: d.y, r: b.r, pw, groundY: C.GROUND_Y, fx: f0.x, fy: f0.y });
       return pw.ph === 'wait';
     },
 
@@ -123,6 +124,12 @@ export function createVfx({ now = () => performance.now() / 1000, drawBall: pain
       for (const b of balls()) {
         const pw = b.power;
         if (pw && pw.ph === 'grind') { const d = depthPoint(b.x, b.y); drawGrind(g, d.x, d.y, t); }
+        // the Grab's fist round the seized player's body, its arm back to the shooter (§3 M3 74.15 s)
+        if (pw && pw.ph === 'grab' && M.players[pw.tgt] && M.players[pw.owner]) {
+          const q = M.players[pw.tgt], a = M.players[pw.owner];
+          const f = depthPoint(q.x, q.y - 34), o = depthPoint(a.x, headY(a));
+          drawFist(g, f.x, f.y, pw.dir, o.x, o.y, t);
+        }
         if (pw && pw.ph === 'wait' && FAMILY_VFX.aerial.warn) FAMILY_VFX.aerial.warn(g, { pw, now: t });
         const r = track.get(b);
         if ((!pw || pw.hit) && r && r.ghost > 0 && r.hist.length > 3) {
@@ -222,39 +229,50 @@ export function createVfx({ now = () => performance.now() / 1000, drawBall: pain
       if (paintBall && M.cutin <= C.POWER_RELEASE) for (const b of balls()) if (b.power) paintBall(g, b);
       if (!(glow > 0)) return;
       g.save();
-      // the rays
+      // the rays (M4 40.75 s full-res, 2.0 px a world px: wide soft gold beams ≈ 230 px long and
+      // ≈ 45 px across at the far end, still clearly there at the tip; between them thin hot
+      // yellow-white beams ≈ 7 px across; all starting at the disc's edge)
       g.globalCompositeOperation = 'lighter';
       g.translate(h.x, h.y);
       g.rotate(el * 0.5);
-      const L = 190 * grow, r0 = r * 1.5;
+      const L = 235 * grow, r0 = r * 1.6;
       for (let i = 0; i < 16; i++) {
         const gold = i % 2 === 0;
         const a = (i / 16) * TAU;
-        const len = L * (gold ? 1 : 0.75) * (0.88 + 0.12 * Math.sin(el * 9 + i * 1.7));
-        const w = gold ? 32 : 9;                                  // half-width at the far end, px
+        const len = L * (gold ? 1 : 0.9) * (0.86 + 0.14 * Math.sin(el * 9 + i * 1.7));
+        const w = gold ? 23 : 3.5;                                // half-width at the far end, px
         const lg = g.createLinearGradient(0, 0, Math.cos(a) * len, Math.sin(a) * len);
-        lg.addColorStop(0, gold ? 'rgba(255,214,70,0.85)' : 'rgba(255,255,255,0.8)');
-        lg.addColorStop(1, gold ? 'rgba(255,190,40,0)' : 'rgba(255,255,255,0)');
+        lg.addColorStop(0, gold ? 'rgba(255,226,90,0.75)' : 'rgba(255,255,230,1)');
+        lg.addColorStop(0.6, gold ? 'rgba(255,205,50,0.5)' : 'rgba(255,245,170,0.8)');
+        lg.addColorStop(1, gold ? 'rgba(255,190,40,0.1)' : 'rgba(255,230,120,0.15)');
         g.fillStyle = lg; g.globalAlpha = glow;
-        const px = -Math.sin(a), py = Math.cos(a);
+        const px = -Math.sin(a), py = Math.cos(a), w0 = gold ? 6 : 1.5;
         g.beginPath();
-        g.moveTo(Math.cos(a) * r0 + px * 3, Math.sin(a) * r0 + py * 3);
+        g.moveTo(Math.cos(a) * r0 + px * w0, Math.sin(a) * r0 + py * w0);
         g.lineTo(Math.cos(a) * len + px * w, Math.sin(a) * len + py * w);
         g.lineTo(Math.cos(a) * len - px * w, Math.sin(a) * len - py * w);
-        g.lineTo(Math.cos(a) * r0 - px * 3, Math.sin(a) * r0 - py * 3);
+        g.lineTo(Math.cos(a) * r0 - px * w0, Math.sin(a) * r0 - py * w0);
         g.closePath(); g.fill();
       }
       g.restore();
-      // the disc and its halo, round the head
+      // the disc: solid white to ≈ 1.8 head radii, a gold glow round it, and a thin gold ring
+      // well outside at ≈ 3.6 radii (M4 40.75 s: disc Ø 195 px, ring Ø 385 px at 2 px/world px)
       g.save();
       g.globalAlpha = glow;
-      const dg = g.createRadialGradient(h.x, h.y, r * 0.9, h.x, h.y, r * 2.25 * grow + r * 0.1);
+      const R = r * 1.8 * grow;
+      const dg = g.createRadialGradient(h.x, h.y, R * 0.8, h.x, h.y, R * 1.4);
       dg.addColorStop(0, 'rgba(255,255,255,1)');
-      dg.addColorStop(0.45, 'rgba(255,252,220,0.95)');
-      dg.addColorStop(0.7, 'rgba(255,200,60,0.6)');
-      dg.addColorStop(1, 'rgba(255,180,30,0)');
+      dg.addColorStop(0.35, 'rgba(255,248,200,0.9)');
+      dg.addColorStop(1, 'rgba(255,200,50,0)');
       g.fillStyle = dg;
-      g.beginPath(); g.arc(h.x, h.y, r * 2.35, 0, TAU); g.arc(h.x, h.y, r * 0.98, 0, TAU, true); g.fill();
+      g.beginPath(); g.arc(h.x, h.y, R * 1.4, 0, TAU); g.arc(h.x, h.y, r * 0.98, 0, TAU, true); g.fill();
+      g.fillStyle = '#ffffff';
+      g.beginPath(); g.arc(h.x, h.y, R * 0.8, 0, TAU); g.arc(h.x, h.y, r * 0.98, 0, TAU, true); g.fill();
+      g.globalCompositeOperation = 'lighter';
+      g.strokeStyle = 'rgba(255,210,70,0.45)'; g.lineWidth = 7;
+      g.beginPath(); g.arc(h.x, h.y, r * 3.6 * grow, 0, TAU); g.stroke();
+      g.strokeStyle = 'rgba(255,250,215,0.9)'; g.lineWidth = 2.2;
+      g.beginPath(); g.arc(h.x, h.y, r * 3.6 * grow, 0, TAU); g.stroke();
       g.restore();
     },
   };

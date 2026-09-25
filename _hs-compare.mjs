@@ -54,7 +54,7 @@ const VIDEO = [process.env.HS_VIDEO, `${import.meta.dirname}/hs-video`, `${impor
   .find((d) => d && existsSync(`${d}/M4-gaps.mp4`));
 if (!VIDEO) { console.log('no hs-video/ with the recordings (set HS_VIDEO)'); process.exit(2); }
 
-const PORT = 3133, CDP = 9533;
+const PORT = Number(process.env.PORT) || 3133, CDP = PORT + 6400;
 const server = await ensureServer(PORT);
 const OUT = `${import.meta.dirname}/.shots/compare`;
 mkdirSync(OUT, { recursive: true });
@@ -120,7 +120,13 @@ const HELPERS = `(async () => {
 // A fresh match for every shot, so nothing one staging leaves behind leaks into the next.
 async function freshPage() {
   await send('Page.navigate', { url: `http://127.0.0.1:${PORT}/?me=legendary_8&foe=legendary_9&play=1&solo=1&stage=japan` });
-  await sleep(1600);
+  // until the match exists and the canvas has its size (a loaded machine takes longer than 1.6s,
+  // and a strip shot before the resize is a tiny canvas in the corner)
+  for (let i = 0; i < 60; i++) {
+    await sleep(250);
+    if (await js(`typeof MATCH !== 'undefined' && !!MATCH && typeof VFXR !== 'undefined' && document.readyState === 'complete'`)) break;
+  }
+  await sleep(600);
   await js(HELPERS);
 }
 

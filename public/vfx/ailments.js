@@ -35,6 +35,25 @@ export const AILMENT_VFX = {
       g.restore();
     },
   },
+  // Thrown by the Grab (§3 M3 75.0–75.5 s): coming back down inside a blue whirlwind — four flat
+  // light-blue rings stacked round him from the feet to over the head, spinning. Only on the way
+  // down (on the way up he is a blur off the top of the screen).
+  thrown: {
+    draw(g, p, s) {
+      if (p.vy < -500) return;
+      g.save(); g.lineCap = 'round';
+      const top = s.hy - s.r * 1.6, bot = s.fy + 4, n = 4;
+      for (let i = 0; i < n; i++) {
+        const y = top + (bot - top) * (i / (n - 1)), rx = s.r * (1.35 + 0.35 * (i % 2)), ry = s.r * 0.28;
+        const a0 = s.t * 14 + i * 1.9;
+        g.globalAlpha = 0.45; g.strokeStyle = '#1f5cff'; g.lineWidth = 7;
+        g.beginPath(); g.ellipse(s.hx, y, rx, ry, 0, a0, a0 + 4.4); g.stroke();
+        g.globalAlpha = 0.9; g.strokeStyle = '#9fdcff'; g.lineWidth = 2.5;
+        g.beginPath(); g.ellipse(s.hx, y, rx, ry, 0, a0 + 0.3, a0 + 3.6); g.stroke();
+      }
+      g.restore();
+    },
+  },
   // Reversed controls: ??? over the head.
   reverse: {
     draw(g, p, s) {

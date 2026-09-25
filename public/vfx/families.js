@@ -125,41 +125,48 @@ export const FAMILY_VFX = {
   ground: comet(['#ffffff', '#ffb45a', '#b8621c']),
   downward: comet(['#ffffff', '#c996ff', '#6a2cff']),
   destructive: comet(['#ffffff', '#ff8a3a', '#e0200a']),
-  // AERIAL (§3 M2): the comet going up and coming down; while it is off the top, the warning
-  // streaks are all there is (drawn by warn(), over the pitch).
+  // AERIAL (§3 M2 42.6–44.5 s and 96.3–97.9 s; wiki: the UK's "Hawk-Eye Shot" — "11 red
+  // laser-arrows vertically in the air, and then they come back diagonally at the goal", the 11th
+  // carrying the ball). Going up: red laser lances; while it is off the top: ten lances raining down
+  // diagonally toward the goal (warn(), over the pitch); coming down: the ball in a big fire tail.
   aerial: {
-    palette: ['#fffbe0', '#ffa030', '#ff3a08'],                 // §3 M2: orange fire tail
-    // Going up it is a thin streak of flame (M2 42.75 s); coming down, the full meteor (44.35 s).
-    draw(g, b, s) { if (s.pw.ph !== 'wait') drawComet(g, s, this.palette, s.pw.ph === 'up' ? 0.3 : 1.1, s.pw.ph === 'up' ? 0.5 : 1); },
-    // THE WARNING (§3 M2 43.2–44.2 s): thin red streaks sliding down the dive line from the top.
-    warn(g, s) {
+    palette: ['#fff6c8', '#ffb030', '#ff4a0a'],                 // §3 M2 44.35 s: the fire tail
+    draw(g, b, s) {
       const pw = s.pw;
-      const x0 = pw.x0, y0 = -110, x1 = pw.tx, y1 = pw.ty;
-      const dx = x1 - x0, dy = y1 - y0, d = Math.hypot(dx, dy) || 1, ux = dx / d, uy = dy / d;
-      g.save(); g.lineCap = 'round';
-      // from where the dive line crosses the top of the screen to about half way down it
-      const fa = (0 - y0) / dy, fb = (y1 * 0.55 - y0) / dy;
-      for (let i = 0; i < 3; i++) {
-        const f = fa + ((s.now * 1.1 + i / 3) % 1) * (fb - fa);
-        const px = x0 + dx * f, py = y0 + dy * f;
-        g.globalAlpha = 0.85; g.strokeStyle = '#ff2a10'; g.lineWidth = 9;       // M2 43.7 s: two or three
-        g.beginPath(); g.moveTo(px, py); g.lineTo(px - ux * 150, py - uy * 150); g.stroke();  // fat red streaks
-        g.globalAlpha = 0.95; g.strokeStyle = '#ffb040'; g.lineWidth = 3.5;
-        g.beginPath(); g.moveTo(px, py); g.lineTo(px - ux * 110, py - uy * 110); g.stroke();
+      if (pw.ph === 'up') {
+        // M2 42.65, 96.35 s: a vertical lance on the ball, and a second one beside it coming up
+        laser(g, s.x, s.y - 4, 0, -1, 250);
+        const y2 = s.y + 230;
+        if (s.fy == null || y2 < s.fy - 10) laser(g, s.x - (pw.dir || 1) * 30, y2, 0, -1, 200);
+      } else if (pw.ph === 'dive') drawComet(g, s, this.palette, 0.62, 0.85);
+    },
+    // THE LANCES (M2 43.05–44.3 s, full-res): ten, one every 0.1 s, at ≈ 32° below horizontal,
+    // ≈ 2600 px/s, each ≈ 300 px long — a hot yellow-white core in a red body with a red glow,
+    // pointed at the front, fading to the back — two or three on screen at once, on parallel lines
+    // that end on the wall over and in the mouth of the goal (where they vanish).
+    warn(g, s) {
+      const pw = s.pw, dir = pw.dir || 1;
+      const ux = dir * 0.848, uy = 0.53;                          // cos, sin 32°
+      const wallX = pw.tx - dir * 30;                             // the goal line
+      for (let i = 0; i < LANCE_END.length; i++) {
+        const run = (pw.k - i * 0.1) * 2600;
+        if (run <= 0) break;
+        const ye = LANCE_END[i], track = (ye + 120) / uy;          // from above the top of the screen
+        const sx = wallX - ux * track, sy = ye - uy * track;
+        const head = Math.min(run, track), tail = Math.max(0, run - 300);
+        if (tail >= track) continue;
+        laser(g, sx + ux * head, sy + uy * head, ux, uy, head - tail);
       }
-      g.restore();
     },
   },
+
   delay: comet(['#ffffff', '#a58cff', '#4a2cff']),
-  // GRAB (§3 M3): a dark-blue ghost hand, fingers spread, carries the ball with blue speed streaks
-  // behind; holding a player, its fingers close.
+  // GRAB (§3 M3 73.88–74.30 s): a giant dark-blue hand on a long arm reaching out of the
+  // shooter, the ball at the heel of its palm; no comet. Holding a player it is a fist (drawFist,
+  // champ-vfx drawOver), dragging him back.
   grab: {
     palette: ['#dfe8ff', '#3b5bdc', '#10206e'],
-    draw(g, b, s) {
-      const [ux, uy] = headingOf(s);
-      drawComet(g, s, this.palette, 0.8);
-      drawClaw(g, s.x - ux * 4, s.y - uy * 4, ux, uy, s.r, s.now, s.pw.ph === 'grab');
-    },
+    draw(g, b, s) { if (s.pw.ph === 'fly') drawHand(g, s.x, s.y, s.pw.dir || 1, s.fx, s.fy, s.now); },
   },
   multiball: comet(['#ffffff', '#ffe05a', '#ffa200']),
   updown: comet(['#ffffff', '#5cf09a', '#0aa050']),
@@ -167,49 +174,141 @@ export const FAMILY_VFX = {
   critical: comet(['#ffffff', '#ff6a82', '#ff0a3a']),
 };
 
-function headingOf(s) {
-  const h = s.hist;
-  if (h && h.length > 1) {
-    const a = h[0], b = h[Math.min(3, h.length - 1)];
-    const dx = a.x - b.x, dy = a.y - b.y, d = Math.hypot(dx, dy);
-    if (d > 0.5) return [dx / d, dy / d];
-  }
-  return [s.pw.dir || 1, 0];
+// THE AERIAL'S LANCE (M2 43.55–44.05 s, 1.5 world px a frame px): core ≈ 7 px across, red body
+// ≈ 18, glow ≈ 36; pointed at the head (hx, hy), heading (ux, uy), fading over its length L.
+const LANCE_END = [300, 190, 250, 160, 330, 215, 270, 180, 310, 235];   // where each meets the wall (world y)
+function laser(g, hx, hy, ux, uy, L) {
+  if (L < 4) return;
+  const px = -uy, py = ux;
+  const spear = (w, col, a, len) => {
+    const k = Math.min(len * 0.12, 30);
+    const ex = hx - ux * len, ey = hy - uy * len, nx = hx - ux * k, ny = hy - uy * k;
+    const lg = g.createLinearGradient(hx, hy, ex, ey);
+    lg.addColorStop(0, col); lg.addColorStop(0.5, col); lg.addColorStop(1, transparent(col));
+    g.globalAlpha = a; g.fillStyle = lg;
+    g.beginPath();
+    g.moveTo(hx + ux * w * 0.8, hy + uy * w * 0.8);
+    g.lineTo(nx + px * w, ny + py * w);
+    g.lineTo(ex + px * w * 0.15, ey + py * w * 0.15);
+    g.lineTo(ex - px * w * 0.15, ey - py * w * 0.15);
+    g.lineTo(nx - px * w, ny - py * w);
+    g.closePath(); g.fill();
+  };
+  g.save();
+  spear(18, '#ff2a0a', 0.35, L);
+  spear(9, '#ff3010', 0.95, L);
+  spear(3.5, '#fff4b8', 1, L * 0.75);
+  g.restore();
 }
 
-// THE CLAW (§3 M3): palm behind the ball, four long spread fingers and a thumb reaching along the
-// flight, dark blue edged light; closed round whoever it holds.
-function drawClaw(g, x, y, ux, uy, r, t, closed) {
-  g.save();
-  g.translate(x, y);
-  g.rotate(Math.atan2(uy, ux));
-  // Big: the filmed hand is about four heads long, the ball in its palm, the fingers reaching on
-  // ahead of it (M3 73.93 s).
-  const R = r * 3.6;
-  g.translate(R * 1.45, 0);
-  g.globalAlpha = 0.9;
-  g.fillStyle = '#16266e'; g.strokeStyle = '#8fb0ff'; g.lineWidth = 2; g.lineJoin = 'round';
-  // the speed streaks behind it (§3: "blue speed streaks behind it")
-  g.save(); g.strokeStyle = '#3b6bff'; g.lineWidth = 3; g.globalAlpha = 0.6;
-  for (let i = -2; i <= 2; i++) { g.beginPath(); g.moveTo(-R * 3.2, i * R * 0.5); g.lineTo(-R * 5.5 - (i & 1) * R, i * R * 0.5); g.stroke(); }
-  g.restore();
-  g.beginPath(); g.ellipse(-R * 1.9, 0, R * 1.45, R * 1.2, 0, 0, TAU); g.fill(); g.stroke();
-  const fingers = [-0.95, -0.42, 0.08, 0.55];                  // spread wide, like the filmed hand
-  for (let i = 0; i < 4; i++) {
-    const a = fingers[i] * (closed ? 0.5 : 1);
-    const len = R * (closed ? 2.0 : 2.8) * (i === 1 || i === 2 ? 1 : 0.85);
-    const bx = -R * 1.2 + Math.cos(a) * R * 0.4, by = Math.sin(a) * R * 1.1;
-    const tx = bx + Math.cos(a) * len, ty = by + Math.sin(a) * len;
-    const curl = closed ? -Math.sign(a || 1) * R * 1.1 : 0;
-    g.beginPath();
-    g.moveTo(bx - Math.sin(a) * R * 0.38, by + Math.cos(a) * R * 0.38);
-    g.quadraticCurveTo(tx - Math.sin(a) * R * 0.2, ty + Math.cos(a) * R * 0.2 + curl * 0.3, tx + Math.cos(a) * R * 0.5, ty + curl);
-    g.quadraticCurveTo(tx + Math.sin(a) * R * 0.2, ty - Math.cos(a) * R * 0.2 + curl * 0.3, bx + Math.sin(a) * R * 0.38, by - Math.cos(a) * R * 0.38);
-    g.closePath(); g.fill(); g.stroke();
+// THE HAND (§3 M3 73.88–74.08 s, full-res crops): a giant dark-navy hand, ≈ 300 px from the
+// fingertips to the ball and ≈ 200 px tall — a third of the screen's height — the ball at the heel
+// of its palm; four thick fingers fanned forward and up, a thumb down, light-blue highlights on
+// their upper edges, blurred behind; a thick arm, lighter along its middle, runs back from the palm
+// toward where the shot was fired. Local frame: +x along the flight, y down; `dir` mirrors it.
+const PALM = { x: 77, y: -38, rx: 58, ry: 52 };
+// [angle in degrees (0 = straight ahead, −90 = up), palm centre → tip px, half-width at the base]
+const FINGERS = [[-13, 228, 17], [-26, 200, 17], [-40, 165, 16], [-57, 122, 15]];
+const THUMB = [40, 118, 18];
+const rad = (d) => (d * Math.PI) / 180;
+
+function handPath(g, ox) {
+  g.beginPath();
+  g.ellipse(PALM.x + ox, PALM.y, PALM.rx, PALM.ry, -0.35, 0, TAU);
+  for (const [deg, len, w] of [...FINGERS, THUMB]) digit(g, PALM.x + ox, PALM.y, rad(deg), len, w);
+}
+// one finger: from inside the palm out to a rounded tip, tapering, the tip curling a little down
+function digit(g, cx, cy, a, len, w) {
+  const ux = Math.cos(a), uy = Math.sin(a), px = -uy, py = ux;
+  const b = PALM.rx * 0.45, tipW = w * 0.72;
+  const bx = cx + ux * b, by = cy + uy * b, tx = cx + ux * (len - tipW), ty = cy + uy * (len - tipW) + len * 0.05;
+  // arched like a reaching claw: the middle bowed up, the tip hooked a little down
+  const up = py < 0 ? 1 : -1, mx = cx + ux * len * 0.55 + px * up * len * 0.09, my = cy + uy * len * 0.55 + py * up * len * 0.09;
+  const mw = (w + tipW) / 2;
+  g.moveTo(bx + px * w, by + py * w);
+  g.quadraticCurveTo(mx + px * mw, my + py * mw, tx + px * tipW, ty + py * tipW);
+  g.arc(tx, ty, tipW, a + Math.PI / 2, a - Math.PI / 2, true);
+  g.quadraticCurveTo(mx - px * mw, my - py * mw, bx - px * w, by - py * w);
+  g.closePath();
+}
+function armBand(g, x0, y0, x1, y1, w0, w1, a0) {
+  const dx = x1 - x0, dy = y1 - y0, d = Math.hypot(dx, dy);
+  if (d < 4) return;
+  const px = -dy / d, py = dx / d;
+  const lg = g.createLinearGradient(x0, y0, x1, y1);
+  lg.addColorStop(0, `rgba(16,34,110,${a0})`); lg.addColorStop(0.55, `rgba(24,54,160,${a0 * 0.6})`); lg.addColorStop(1, 'rgba(30,70,210,0)');
+  g.fillStyle = lg;
+  g.beginPath();
+  g.moveTo(x0 + px * w0, y0 + py * w0); g.lineTo(x1 + px * w1, y1 + py * w1);
+  g.lineTo(x1 - px * w1, y1 - py * w1); g.lineTo(x0 - px * w0, y0 - py * w0);
+  g.closePath(); g.fill();
+  // blurred lighter streaks running back along it (M3 73.95–74.02 s)
+  const hl = g.createLinearGradient(x0, y0, x1, y1);
+  hl.addColorStop(0, `rgba(80,125,240,${a0 * 0.7})`); hl.addColorStop(1, 'rgba(80,125,240,0)');
+  g.strokeStyle = hl; g.lineCap = 'round';
+  for (const [o, lw] of [[-0.45, 4], [0.05, 7], [0.5, 3]]) {
+    g.lineWidth = lw;
+    g.beginPath(); g.moveTo(x0 + px * w0 * o, y0 + py * w0 * o); g.lineTo(x1 + px * w1 * o, y1 + py * w1 * o); g.stroke();
   }
-  g.beginPath(); g.moveTo(-R * 1.6, R * 0.9); g.quadraticCurveTo(-R * 0.3, R * 2.0, R * 0.4, R * (closed ? 0.9 : 1.6)); g.lineTo(-R * 0.9, R * 0.6); g.closePath(); g.fill(); g.stroke();
+}
+
+export function drawHand(g, x, y, dir, fx, fy, t) {
+  const K = 0.88;
+  g.save();
+  // the arm, back from the palm toward the shooter (never longer than 420 px)
+  const px = x + dir * PALM.x * 0.5 * K, py = y + PALM.y * 0.4 * K;
+  let ax = fx ?? x - dir * 400, ay = fy ?? y;
+  const d = Math.hypot(ax - px, ay - py);
+  if (d > 420) { ax = px + (ax - px) * 420 / d; ay = py + (ay - py) * 420 / d; }
+  armBand(g, px, py, ax, ay, 30, 12, 0.95);
+  g.translate(x, y); g.scale(dir * K, K);
+  // motion blur: two fainter copies trailing behind
+  g.fillStyle = '#1a3490';
+  g.globalAlpha = 0.14; handPath(g, -60); g.fill();
+  g.globalAlpha = 0.26; handPath(g, -30); g.fill();
+  // a soft blue rim, then the dark navy hand
+  g.globalAlpha = 0.35; g.strokeStyle = '#2450e0'; g.lineWidth = 8; g.lineJoin = 'round';
+  handPath(g, 0); g.stroke();
+  const rg = g.createRadialGradient(PALM.x, PALM.y, 10, PALM.x, PALM.y, 220);
+  rg.addColorStop(0, '#08113a'); rg.addColorStop(0.5, '#0f2168'); rg.addColorStop(1, '#1a3890');
+  g.globalAlpha = 1; g.fillStyle = rg; handPath(g, 0); g.fill();
+  // highlights along the upper edge of each digit, following its arch
+  g.strokeStyle = '#5b82ea'; g.lineWidth = 3.5; g.lineCap = 'round'; g.globalAlpha = 0.75;
+  for (const [deg, len, w] of [...FINGERS, THUMB]) {
+    const a = rad(deg), ux = Math.cos(a), uy = Math.sin(a), qx = -uy, qy = ux;
+    const up = qy < 0 ? 1 : -1, tipW = w * 0.72, o = up * 0.5;
+    const b = PALM.rx * 0.75, mx = PALM.x + ux * len * 0.55 + qx * up * len * 0.09, my = PALM.y + uy * len * 0.55 + qy * up * len * 0.09;
+    const tx = PALM.x + ux * (len - tipW * 1.6), ty = PALM.y + uy * (len - tipW * 1.6) + len * 0.05;
+    g.beginPath();
+    g.moveTo(PALM.x + ux * b + qx * w * o, PALM.y + uy * b + qy * w * o);
+    g.quadraticCurveTo(mx + qx * w * 0.85 * o, my + qy * w * 0.85 * o, tx + qx * tipW * o, ty + qy * tipW * o);
+    g.stroke();
+  }
   g.restore();
 }
+
+// THE FIST (§3 M3 74.15–74.25 s): closed round the seized player's body, ≈ 150 × 90 px, reaching
+// back toward the shooter it is dragging him to, the arm a fading blue streak behind it.
+export function drawFist(g, x, y, dir, ox, oy, t) {
+  g.save();
+  // the arm back to the shooter
+  armBand(g, x - dir * 50, y - 10, ox, oy, 26, 12, 0.7);
+  g.translate(x, y); g.scale(dir, 1);
+  const path = () => {
+    g.beginPath();
+    g.ellipse(-40, 0, 62, 42, 0.1, 0, TAU);
+    for (let i = 0; i < 4; i++) g.ellipse(4 + i * 3, -30 + i * 19, 20, 15, 0.4, 0, TAU);   // the knuckles, in front
+    g.ellipse(-20, 30, 34, 16, -0.2, 0, TAU);                                          // the thumb, under
+  };
+  g.globalAlpha = 0.35; g.strokeStyle = '#2450e0'; g.lineWidth = 8; g.lineJoin = 'round'; path(); g.stroke();
+  const rg = g.createRadialGradient(-30, -5, 8, -30, -5, 110);
+  rg.addColorStop(0, '#08113a'); rg.addColorStop(0.55, '#0f2168'); rg.addColorStop(1, '#1a3890');
+  g.globalAlpha = 1; g.fillStyle = rg; path(); g.fill();
+  g.strokeStyle = '#5b82ea'; g.lineWidth = 3; g.globalAlpha = 0.75; g.lineCap = 'round';
+  g.beginPath(); g.ellipse(-40, 0, 52, 32, 0.1, Math.PI * 1.1, Math.PI * 1.75); g.stroke();
+  g.restore();
+}
+
 
 // ── the moments on the defender (§4) ─────────────────────────────────────────────
 // THE BLOCK (§4 M4 61.45–62.25 s): a crackling yellow-white spark burst where the ball grinds on
