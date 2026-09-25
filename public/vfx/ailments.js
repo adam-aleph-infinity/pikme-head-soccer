@@ -8,7 +8,7 @@
 //
 // draw(g, p, s): s = { t, hx, hy (head centre on screen), r (head radius), fy (feet line) }.
 
-import { drawStars } from './fx-kit.js';
+import { drawStars, headPath, blit, auraTex, bolts, boltBlit, rng } from './fx-kit.js';
 
 const TAU = Math.PI * 2;
 
@@ -124,19 +124,25 @@ export const AILMENT_VFX = {
   // Shocked (wiki, Cameroon: "the opponent turns blue and is surrounded in electricity"): a blue
   // wash over the head and body, sparks round them.
   shock: {
+    // Painted (fx-kit.js): the head and body washed electric blue in their own outline, a cold
+    // blue glow hugging them, and blue-white bolts crawling over them, re-picked at 20 Hz.
     draw(g, p, s) {
+      const fr = Math.floor(s.t * 20), R = rng(fr * 613 + (p.index || 0) * 71);
+      const bh = Math.max(0, s.fy - (s.hy + s.r * 0.85));
       g.save();
-      g.globalAlpha = 0.45; g.fillStyle = '#2a7bff';
-      g.beginPath(); g.arc(s.hx, s.hy, s.r * 1.02, 0, TAU); g.fill();
-      g.fillRect(s.hx - s.r * 0.75, s.hy + s.r * 0.8, s.r * 1.5, Math.max(0, s.fy - s.hy - s.r * 0.8));
-      g.globalAlpha = 1;
-      g.lineJoin = 'round'; g.strokeStyle = '#fff27a'; g.lineWidth = 2.5;
-      const seed = Math.floor(s.t * 15);
-      for (let i = 0; i < 3; i++) {
-        const a = (i / 3) * TAU + seed;
-        zig(g, s.hx + Math.cos(a) * s.r * 1.1, s.hy + Math.sin(a) * s.r * 0.9, s.hx + Math.cos(a + 1.2) * s.r * 1.2, s.hy + s.r + Math.sin(a) * s.r * 0.6, seed * 3 + i, 6);
-      }
+      g.globalAlpha = 0.42 + 0.1 * R(); g.fillStyle = '#2f7dff';
+      headPath(g, s.hx, s.hy, s.r); g.fill();
+      if (bh > 2) { g.beginPath(); g.rect(s.hx - s.r * 0.58, s.hy + s.r * 0.85, s.r * 1.16, bh); g.fill(); }
       g.restore();
+      blit(g, auraTex('#3f9bff'), s.hx, s.hy, s.r * 4.8, s.r * 4.8, 0, 0.75 + 0.25 * R(), true);
+      const bk = bolts('#7cc4ff', '#ffffff', 8, 33);
+      for (let i = 0; i < 4; i++) {
+        const a = R() * TAU, a2 = a + 0.9 + R() * 1.4, r1 = s.r * (1.05 + R() * 0.2), r2 = s.r * (1.0 + R() * 0.3);
+        const lowY = i === 3 ? s.fy - bh * 0.5 : 0;
+        const x1 = s.hx + Math.cos(a) * r1 * 1.1, y1 = (lowY || s.hy) + Math.sin(a) * r1 * (lowY ? 0.4 : 1);
+        const x2 = s.hx + Math.cos(a2) * r2 * 1.1, y2 = (lowY || s.hy) + Math.sin(a2) * r2 * (lowY ? 0.4 : 1);
+        boltBlit(g, bk, x1, y1, x2, y2, 20 + R() * 8, 0.95, R());
+      }
     },
   },
   // Burning: flames on the crown.

@@ -2,56 +2,54 @@
 //
 // Wiki (Cameroon): "the ball is covered in lightning, and it shoots straight across the field";
 // the one it hits "turns blue and is surrounded in electricity and is stunned, unable to jump or
-// move fast" (the shock ailment — public/vfx/ailments.js draws the blue wash and sparks).
-// So: the ball inside a crackling yellow-white electric sphere, bolts jumping off it, and a trail
-// of forked lightning behind it instead of the comet's flame — re-rolled every frame so it
-// crackles, the same flicker language as HS's arming rim. Few strokes, no particles.
-// Armed: HS's gold rim, with two little sparks crackling over the body (ours).
+// move fast" (the shock ailment — public/vfx/ailments.js). Not in our footage, so it is painted in
+// the filmed effects' own language (fx-kit.js): the comet's anatomy — a white-hot nose on the
+// ball, streaky body behind — in electric yellow; the ball wrapped in a crackling sphere of light
+// with bolts crawling over it; three long forked bolts whipping back along the trail; sparks
+// shed behind. Bolts are painted, bloomed flipbook frames re-picked at 30 Hz (the same crackle
+// rate as HS's armed licks), never re-rolled geometry.
+// Armed: Head Soccer's own yellow flame licks (fx-kit drawArmedGlow) — the same for everyone.
 
-import { TAU, bolt } from './common.js';
+import { beam, bolts, boltBlit, glow, spark, blit, rng, TAU } from '../fx-kit.js';
+import { cometAlpha } from '../families.js';
+
+const TRAIL = () => beam('thunder', { L: 430, H: 124, mid: '#ffe23a', edge: '#ff8a00', core: 0.16, fan: 1.6, streak: 0.95, head: 0.22 });
+const BOLTS = () => bolts('#ffe23a', '#fffef4', 10, 21);
+const NOSE = 30;
 
 export default {
   id: 'thunderbolt',
   palette: ['#fffbe0', '#ffe23a', '#5fb0ff'],
+  warm() { TRAIL(); BOLTS(); glow('#ffe86a', 0.3); glow('#5aa8ff', 0.1); spark('#ffe23a'); },
   draw(g, b, s) {
-    const dir = s.pw.dir || 1, x = s.x, y = s.y, r = s.r;
-    const full = s.t < 0.3 ? 1 : 0.75;
-    // heading, from the ball's own velocity (screen space is world space here)
-    const v = Math.hypot(b.vx, b.vy) || 1, ux = b.vx / v || dir, uy = b.vy / v || 0;
-    g.save(); g.globalCompositeOperation = 'lighter';
-    // a faint blue-white haze along the path
-    const L = 270;
-    const hg = g.createLinearGradient(x, y, x - ux * L, y - uy * L);
-    hg.addColorStop(0, 'rgba(150,210,255,0.55)'); hg.addColorStop(1, 'rgba(60,120,255,0)');
-    g.globalAlpha = full; g.fillStyle = hg;
-    g.beginPath();
-    g.moveTo(x - uy * r * 2.6, y + ux * r * 2.6); g.lineTo(x - ux * L - uy * 8, y - uy * L + ux * 8);
-    g.lineTo(x - ux * L + uy * 8, y - uy * L - ux * 8); g.lineTo(x + uy * r * 2.6, y - ux * r * 2.6);
-    g.closePath(); g.fill();
-    // the forked lightning trail: three bolts back along the path
+    const dir = s.pw.dir || 1, x = s.x, y = s.y;
+    const v = Math.hypot(b.vx, b.vy);
+    const ux = v > 1 ? b.vx / v : dir, uy = v > 1 ? b.vy / v : 0, px = -uy, py = ux;
+    const k = cometAlpha(s.t), fr = Math.floor(s.now * 30), R = rng(fr * 977 + 3);
+    const rot = Math.atan2(uy, ux);
+    // the electric comet behind the ball
+    const tr = TRAIL();
+    blit(g, tr[fr & 1], x, y, 430, 124 * (0.65 + 0.35 * k), rot, 0.5 + 0.35 * k, true, (430 - NOSE) / 430, 0.5);
+    // a cold blue haze round it all (the "turns blue" electricity)
+    blit(g, glow('#5aa8ff', 0.1), x - ux * 40, y - uy * 40, 190, 150, rot, 0.35, true);
+    // three forked bolts whipping back along the trail
+    const bk = BOLTS();
     for (let i = 0; i < 3; i++) {
-      const len = L * (0.55 + 0.45 * Math.random()), off = (i - 1) * r * 0.7;
-      bolt(g, x - ux * r * 0.8 - uy * off, y - uy * r * 0.8 + ux * off, x - ux * len - uy * off * 1.8, y - uy * len + ux * off * 1.8, 7, 16, '#58a8ff', '#fff6b0', i === 1 ? 1.7 : 1.2);
+      const L = 150 + R() * 150, o0 = (R() - 0.5) * 16, o1 = (i - 1) * 26 + (R() - 0.5) * 26;
+      boltBlit(g, bk, x + px * o0, y + py * o0, x - ux * L + px * o1, y - uy * L + py * o1, 40 + R() * 16, 1, R());
     }
-    // the electric sphere round the ball
-    const R = r * 3.2;
-    const rg = g.createRadialGradient(x, y, r * 0.6, x, y, R);
-    rg.addColorStop(0, 'rgba(255,255,230,0.95)'); rg.addColorStop(0.5, 'rgba(255,230,90,0.6)'); rg.addColorStop(1, 'rgba(80,160,255,0)');
-    g.globalAlpha = 1; g.fillStyle = rg; g.beginPath(); g.arc(x, y, R, 0, TAU); g.fill();
-    // bolts jumping off it
-    for (let i = 0; i < 5; i++) {
-      const a = Math.random() * TAU, l = r * (2.4 + Math.random() * 1.8);
-      bolt(g, x + Math.cos(a) * r, y + Math.sin(a) * r, x + Math.cos(a) * l, y + Math.sin(a) * l, 4, 7, '#7cc4ff', '#ffffff', 1.1);
+    // the sphere of light the ball sits in, and bolts crawling over it
+    blit(g, glow('#ffe86a', 0.3), x, y, 130, 130, 0, 1, true);
+    for (let i = 0; i < 6; i++) {
+      const a = R() * TAU, l = 30 + R() * 28, a2 = a + (R() - 0.5) * 1.6;
+      boltBlit(g, bk, x + Math.cos(a) * 6, y + Math.sin(a) * 6, x + Math.cos(a2) * l, y + Math.sin(a2) * l, 30, 1, R());
     }
-    g.restore();
+    // sparks shed behind
+    const sp = spark('#ffe23a');
+    for (let i = 0; i < 4; i++) {
+      const d = 30 + R() * 160, o = (R() - 0.5) * 70;
+      blit(g, sp, x - ux * d + px * o, y - uy * d + py * o, 20 + R() * 16, 6, rot + (R() - 0.5) * 0.8, 0.8, true);
+    }
     return false;
-  },
-  armed(g, p, s) {
-    g.save(); g.globalCompositeOperation = 'lighter';
-    for (let i = 0; i < 2; i++) {
-      const a = Math.random() * TAU, x0 = s.hx + Math.cos(a) * s.r * 1.1, y0 = s.hy + Math.sin(a) * s.r * 1.1;
-      bolt(g, x0, y0, x0 + Math.cos(a) * s.r * 0.7, y0 + Math.sin(a) * s.r * 0.7 + s.r * 0.3, 3, 4, '#6fb8ff', '#fff6b0', 0.7);
-    }
-    g.restore();
   },
 };

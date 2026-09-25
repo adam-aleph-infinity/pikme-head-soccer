@@ -238,9 +238,9 @@ export function bolts(col = '#ffe94a', core = '#fffef0', n = 8, seed = 7) {
     const s = surface(w, h), x = ctx2d(s);
     x.lineCap = 'round'; x.lineJoin = 'round';
     const line = (P, lw, col2) => { x.strokeStyle = col2; x.lineWidth = lw; x.beginPath(); P.forEach((p, i) => (i ? x.lineTo(p[0], p[1]) : x.moveTo(p[0], p[1]))); x.stroke(); };
-    line(pts, 5, col); for (const b of branches) line(b, 3, col);
-    line(pts, 2, core); for (const b of branches) line(b, 1.2, core);
-    bloom(g, s, [[2, 0.9, col], [3, 0.7, col], [4, 0.45, col]], w, h);
+    line(pts, 7, col); for (const b of branches) line(b, 4.5, col);
+    line(pts, 2.8, core); for (const b of branches) line(b, 1.8, core);
+    bloom(g, s, [[1, 0.8, col], [2, 1, col], [3, 0.8, col], [4, 0.5, col]], w, h);
   });
 }
 export function boltBlit(g, bk, x1, y1, x2, y2, wid, a = 1, pick = Math.random()) {
@@ -426,6 +426,38 @@ export function drawStars(g, cx, cy, r, t, a = 1) {
     const S = r * (0.78 + 0.34 * s.z);
     blit(g, st, cx + Math.cos(s.an) * rx, cy + Math.sin(s.an) * ry, S, S, Math.sin(t * 5 + s.an) * 0.25, a * (0.75 + 0.25 * s.z), false);
   }
+}
+
+// ── BEAM: the filmed comet's anatomy as a parametrized painted streak ──────────────────
+// A white-hot rounded nose on the ball fading back through `mid` to `edge`, streaked with fine
+// motion-blur lines, the streaks running out ragged. The texture's right edge is the nose; the
+// ball sits `nose` world px behind it. o = { L, H (world px), D (texels a px), mid, edge, core
+// (0–1 how far back the white reaches), streak (0–1), fan (how much wider it gets behind) }.
+export function beam(key, o) {
+  const L = o.L, H = o.H, D = o.D || 1.5, mid = hex(o.mid), edge = hex(o.edge);
+  const R0 = H * (o.head || 0.25), core = o.core ?? 0.45, fan = o.fan ?? 1.7, str = o.streak ?? 0.8, n = o.frames || 2;
+  return book(`beam-${key}`, n, Math.ceil(L * D), Math.ceil(H * D), (g, w, h, k) => {
+    const n1 = noise1(300 + k * 13, 512), n2 = noise1(420 + k * 29, 512), n3 = noise1(510 + k * 7, 512);
+    pix(g, w, h, (x, y, px) => {
+      const u = L - (x + 0.5) / D, v = (y + 0.5) / D - H / 2, f = u / L;
+      const half = u < R0 ? Math.sqrt(Math.max(0, R0 * R0 - (R0 - u) * (R0 - u))) : R0 * (1 + (fan - 1) * sstep(0, 0.45, f - R0 / L)) * (1 - 0.45 * sstep(0.5, 1, f));
+      if (half < 0.4) return;
+      const q = Math.abs(v) / half;
+      if (q > 1.2) return;
+      const wc = 0.88 * Math.exp(-((Math.max(0, f - 0.04) / core) ** 2));
+      const s = 0.6 * n1(v * 0.5 * (40 / H) * 1.2 + 50) + 0.4 * n2(v * 1.3 * (40 / H) + 20);
+      const amt = sstep(0.05, 0.5, f) * str;
+      const streak = mix(1, 0.4 + 0.8 * s, amt);
+      const end = 0.72 + 0.26 * n3(v * 0.3 * (40 / H) + 5);
+      const fade = 1 - sstep(end - 0.25, end, f);
+      const cr = 1 - sstep(wc - 0.25, wc + 0.08, q), ed = 1 - sstep(0.62, 1.12, q);
+      const t = clamp01((q - wc) / Math.max(0.05, 1 - wc));
+      const c0 = mid.map((a, i) => mix(a, edge[i], sstep(0.25, 1, t)));
+      const wht = Math.max(cr, sstep(0.75, 0.97, s) * amt * 0.5);
+      px[0] = mix(c0[0], 255, wht); px[1] = mix(c0[1], 255, wht); px[2] = mix(c0[2], 255, wht);
+      px[3] = Math.max(cr, ed * 0.9 * streak) * fade;
+    });
+  });
 }
 
 // ── THE BLOCK'S ORB (HS §4, M4 61.55–61.80 s full-res) ─────────────────────────────────
