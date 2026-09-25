@@ -1757,8 +1757,8 @@ function checkGoal(m, fx, scorer) {
   // ordinary rules just below.)
   m.xballs.length = 0;
 
-  // A goal does NOTHING to either meter. It used to pay the conceder a quarter of a gauge
-  // (awardConcedeMeter); Head Soccer's gauge is a clock and nothing else, so that is gone.
+  // The goal itself does nothing to either meter. The conceder's top-up (GAUGE_CONCEDE, HS M4
+  // 43.5 s) is paid when the ball drops back in, in step() — not here.
 
   if (m.golden) {
     m.phase = 'over';
