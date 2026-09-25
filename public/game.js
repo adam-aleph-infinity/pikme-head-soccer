@@ -9,7 +9,7 @@ import { goalBox, goalAt, depthPoint, INSIDE_Z } from '../shared/goalbox.js';
 import { createEditor, applyLayout, applyOpacity, loadOpacity } from './padlayout.js';
 import { walkPick, resolveWalk } from './walkpad.js';
 import { headCrop } from './head-crop.js';
-import { characterFor, charUrl, expressionFor, CHAR_BOX, EXPRESSIONS as CHAR_EXPRESSIONS } from './characters.js';
+import { characterFor, kitFor, charUrl, expressionFor, CHAR_BOX, EXPRESSIONS as CHAR_EXPRESSIONS } from './characters.js';
 import { clockText, gaugeView } from './hud.js';
 import { createNet } from './net.js';
 import { playEvent, SFX, setAudioEnabled, audioEnabled, synth } from './audio.js';
@@ -74,7 +74,7 @@ const CHAR_WARM = new Set();
 function warmCharacter(ch) {
   if (CHAR_WARM.has(ch.dir)) return;
   CHAR_WARM.add(ch.dir);
-  for (const e of CHAR_EXPRESSIONS) for (const px of [false, true]) { const im = new Image(); im.src = charUrl(ch, e, px); }
+  for (const e of CHAR_EXPRESSIONS) { const im = new Image(); im.src = charUrl(ch, e); }
 }
 // A portrait (pick slot, arcade hexagons, scoreboard): the whole head, hair included, fitted
 // into the box with the drawn head box `fill` of its width, a touch above centre so the hair
@@ -1025,7 +1025,7 @@ function endMatch() {
   for (let i = 0; i < 2; i++) {
     const el = $('#ovFace' + i), won = M.score[i] > M.score[1 - i], { rarity, number } = M.players[i].char;
     el.classList.toggle('char-face', !!characterFor(rarity, number));   // a character portrait is bigger (style.css): measure it at that size
-    paintHead(el, rarity, number, el.clientWidth || 84, { expr: won ? 'happy' : a === b ? 'normal' : 'sad', flip: i === 1, fill: 1 });
+    paintHead(el, rarity, number, el.clientWidth || 84, { expr: 'normal', flip: i === 1, fill: 1 });
     el.classList.toggle('lost', !won && a !== b);
   }
 }
@@ -2112,7 +2112,8 @@ function drawShadow(g, p) {
 
 function drawBody(g, p, ghost = false) {
   const art = bodyArt();
-  const kit = KIT[p.index] || KIT[0];
+  const own = p.char && kitFor(p.char.rarity, p.char.number);
+  const kit = own ? { ...(KIT[p.index] || KIT[0]), ...own } : (KIT[p.index] || KIT[0]);
   const trim = TRIM[p.char && p.char.rarity] || TRIM.legendary;
   const R = C.HEAD_R;
   // Projected at the FEET, which is the anchor the whole sprite hangs off.
@@ -2471,7 +2472,7 @@ function paintPitchChar(inner, ch, w, expr, flip) {
   Object.assign(inner.style, {
     left: `${-CHAR_BOX.x * u}px`, top: `${-CHAR_BOX.y * u}px`, right: 'auto', bottom: 'auto',
     width: `${CHAR_BOX.w * u}px`, height: `${CHAR_BOX.h * u}px`,
-    backgroundImage: `url("${charUrl(ch, expr, true)}")`, backgroundSize: '100% 100%', backgroundPosition: '0 0',
+    backgroundImage: `url("${charUrl(ch, expr)}")`, backgroundSize: '100% 100%', backgroundPosition: '0 0',
     transform: flip ? 'scaleX(-1)' : '',
   });
   // the red-nose bruise (.hurt1..3) sits on this face's nose, not the photo head's
@@ -2510,7 +2511,7 @@ function drawHeads() {
       el.dataset.expr = expr;
     } else if (ch && el.dataset.expr !== expr) {
       // Only the face changes: the same box, a different file (all of them already fetched).
-      el.firstElementChild.style.backgroundImage = `url("${charUrl(ch, expr, true)}")`;
+      el.firstElementChild.style.backgroundImage = `url("${charUrl(ch, expr)}")`;
       el.dataset.expr = expr;
     }
     // Through the same projection as the body, or a player walking into the goal leaves their

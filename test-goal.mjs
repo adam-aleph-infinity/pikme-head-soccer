@@ -951,7 +951,8 @@ const dropAt = (sx, fromY) => {
       pin(keeper, at);
       m.hitStop = 0;
       step(m, NONE, C.TICK, NO_FX);
-      if (Math.abs(b.x - keeper.x) < C.BODY_W / 2 + b.r + 1) touching++;
+      // against the torso, or (a ball this size, resting on the grass) against the jaw above it
+      if (Math.abs(b.x - keeper.x) < C.HEAD_R + b.r + 1) touching++;
       m.events.length = 0;
     }
     ok(`${side(left)}: a ball stuck to a player beside the goal does not score`,

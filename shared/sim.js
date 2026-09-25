@@ -109,6 +109,7 @@ export function createMatch(charA, charB, opts = {}) {
     // After a goal the ball is not in play for GOAL_BALL_DELAY once the players can move: it
     // drops in at the centre when this runs out. 0 = the ball is there.
     ballWait: 0,
+    afterGoal: 0, afterGoalTo: 0,
     // The kickoff's head start on the gauge (GAUGE_LEAD), counted down in play.
     gaugeLead: C.GAUGE_LEAD,
     idle: 0,                 // seconds since a player last touched the ball
@@ -301,7 +302,19 @@ export function step(m, inputs, dt = C.TICK, fx = NO_FX) {
   // The match's head start on the gauge: GAUGE_LEAD of play before the first fill begins.
   if (m.gaugeLead > 0) m.gaugeLead = Math.max(0, m.gaugeLead - dt);
 
-  if (m.phase === 'play') {
+  // FREE PLAY AFTER A GOAL: AFTER_GOAL seconds of everyone doing whatever they like, then the restart.
+  if (m.afterGoal > 0) {
+    m.afterGoal -= dt;
+    if (m.afterGoal <= 0) {
+      m.afterGoal = 0;
+      m.xballs.length = 0;
+      resetPositions(m, m.afterGoalTo);
+      m.ballWait = C.GOAL_BALL_DELAY;
+      return m;
+    }
+  }
+
+  if (m.phase === 'play' && !m.afterGoal) {
     m.clock -= dt;
     if (m.clock <= 0) {
       m.clock = 0;
@@ -441,7 +454,7 @@ function chargeGauge(m, p, dt) {
   // …and a goal's restart is not over until the ball is back. HS M4 stops the bar at the goal
   // (43.40 s) and restarts it with the ball drop (46.59 s); M3 does the same at 39.0 s and
   // 45.7 s. The freeze half never calls this; this is the no-ball half (GOAL_BALL_DELAY).
-  if (m.ballWait > 0) return;
+  if (m.ballWait > 0 || m.afterGoal > 0) return;
   // THE CLOCK IS THE ONLY SOURCE, as in Head Soccer: no tackle, touch or goal adds to it.
   // An arcade champion's meter runs at its POWER stat (meterRate). Everywhere else it is 1x.
   const rate = m.champ ? p.meterRate || 1 : 1;
@@ -917,6 +930,10 @@ function stepBall(m, dt, fx, a0 = 0, aSpan = 1) {
     // to award one.
     const scorer = enteredGoal(fromX, fromY, b);
     resolveBallPlayers(m, fx, a0 + aSpan * ((i + 1) / sub));
+    // A player's push comes after the walls, and a player can stand inside a net (the free play
+    // after a goal): it never pushes the ball through the side walls or the back of the net.
+    const back = b.r + (b.y > C.GROUND_Y - C.GOAL_H ? C.POST_R : 0);
+    if (b.x < back) b.x = back; else if (b.x > C.W - back) b.x = C.W - back;
     if (scorer !== null && checkGoal(m, fx, scorer)) return;
   }
 }
@@ -1171,7 +1188,7 @@ function tryHeader(m, p, fx) {
   // ARMED means the next time this player's body reaches the ball the ULTIMATE goes off, and
   // a header that swallowed that contact would quietly eat a full meter. Stand down: the
   // contact is a tick away in resolveBallPlayers, and it is worth more than a header.
-  if (p.armed > 0) return false;
+  if (p.armed > 0 && !(m.afterGoal > 0)) return false;
   if (headless(p)) return false;                   // no head to head it with (the beheaded ailment)
   const hy = headY(p);
   const dx = b.x - p.x, dy = b.y - hy;
@@ -1404,11 +1421,9 @@ function resolveBallPlayers(m, fx, alpha = 1) {
     if (p.kickT > 0) {
       const dir = p.kickDir || p.side;              // the aim, as latched at the swing
       const kx = px + dir * C.KICK_REACH;
-      // The kick circle sits at the height of a ball resting on the grass: half the torso, 12px
-      // on the 24px body, which is BALL_R. (It was 0.45 of the old 27px torso — 12.2 — and 0.45
-      // of the new one would sink the circle 1.2px under a resting ball and quietly lift every
-      // "dead flat" toe-poke.)
-      const ky = py - C.BODY_H * 0.5;
+      // The kick circle sits at the height of a ball resting on the grass (BALL_R): anywhere
+      // else and every "dead flat" toe-poke is quietly lifted or dug in.
+      const ky = py - C.BALL_R;
       if (Math.hypot(b.x - kx, b.y - ky) < C.KICK_R + b.r) {
         if (!b.power) {
           // ARMED: this touch is the one that spends it (see the note above the hitbox).
@@ -1528,7 +1543,14 @@ function resolveBallPlayers(m, fx, alpha = 1) {
       // this is the difference between one such ball (6.9s of nothing) and none.
       const fromX = b.x, fromY = b.y;
       b.x = px + nx * min;
-      b.y = Math.min(hy + ny * min, C.GROUND_Y - b.r);
+      b.y = hy + ny * min;
+      // The grass stops the push (a ball resting on it reaches the jaw): slide it out sideways
+      // instead, far enough to clear the circle at the height it is held to.
+      if (b.y > C.GROUND_Y - b.r) {
+        b.y = C.GROUND_Y - b.r;
+        const ddy = b.y - hy;
+        b.x = px + (Math.sign(nx) || (fromX >= px ? 1 : -1)) * Math.sqrt(Math.max(0, min * min - ddy * ddy));
+      }
       b.x = keepOutOfGoal(fromX, fromY, b.x, b.y, b.r);
 
       // "Head bounces, body deadens" has to be a rule about HEIGHT, not about which collider
@@ -1664,6 +1686,9 @@ function fireUltimateOnContact(m, p, b, fx) {
   if (p.armed <= 0) return false;
   if (b.power && b.power.owner === p.index) return false;
   if (p.stunned > 0) return false;                   // not a touch you made
+  // The free play after a goal does not count: a touch there is an ordinary touch, and the arm
+  // waits for the restart.
+  if (m.afterGoal > 0) return false;
 
   // A Multi-Ball's second and third balls are for scoring with, not for firing off.
   if (b.power && b.power.extra) return false;
@@ -1713,7 +1738,7 @@ function hitByPowerShot(m, p, b, fx) {
 // the mouth leaves the match in 'goal', and every later one — this tick's remaining slices
 // included — walks straight past.
 function checkGoal(m, fx, scorer) {
-  if (m.phase !== 'play') return false;
+  if (m.phase !== 'play' || m.afterGoal > 0) return false;
   const b = m.ball;
   // STILL IN, after the contacts for this sub-step have had their say. The crossing was the
   // ball's; this is the defender's answer to it — a keeper whose push-out pulled the ball back
@@ -1743,16 +1768,11 @@ function checkGoal(m, fx, scorer) {
     for (const q of m.players) clearUltimate(m, q);
     return true;
   }
-  m.phase = 'goal';
-  // HS's restart, three clocks off the goal (see GOAL_RESUME): GOAL! up for 2.05s, players
-  // moving at 2.24s, the ball dropping in 0.555s after that.
-  m.freeze = C.GOAL_RESUME;
+  // No freeze: play runs on for AFTER_GOAL (no more goals count), then step() does the restart.
   m.banner = 'goal'; m.bannerT = C.GOAL_BANNER;
-  m.ballWait = C.GOAL_BALL_DELAY;
-  // Bodies and ball only. Both meters and both arms come through this untouched — see the
-  // note on resetPositions for why that is the fix and not an oversight.
-  resetPositions(m, m.players[1 - scorer].side);
-  return true;
+  m.afterGoal = C.AFTER_GOAL;
+  m.afterGoalTo = m.players[1 - scorer].side;
+  return false;
 }
 
 export { resetPositions };
@@ -1807,7 +1827,7 @@ export function serialize(m) {
     // The HS restart and cut-in state: every one of these decides what a future tick does
     // (whether the ball exists, whether a stun runs, whether the gauge has started).
     cutin: m.cutin, cutinBy: m.cutinBy, banner: m.banner, bannerT: m.bannerT,
-    ballWait: m.ballWait, gaugeLead: m.gaugeLead,
+    ballWait: m.ballWait, gaugeLead: m.gaugeLead, afterGoal: m.afterGoal, afterGoalTo: m.afterGoalTo,
     score: [m.score[0], m.score[1]], golden: m.golden, lastScorer: m.lastScorer,
     // Players travel POSITIONALLY, in P_FIELDS order. Field names were 60% of the whole
     // snapshot — an array halves it at no cost in precision, and P_FIELDS is the schema.
@@ -1836,6 +1856,7 @@ export function restore(m, s) {
   m.golden = s.golden; m.lastScorer = s.lastScorer;
   m.cutin = s.cutin || 0; m.cutinBy = s.cutinBy ?? -1; m.banner = s.banner ?? null; m.bannerT = s.bannerT || 0;
   m.ballWait = s.ballWait || 0; m.gaugeLead = s.gaugeLead || 0;
+  m.afterGoal = s.afterGoal || 0; m.afterGoalTo = s.afterGoalTo || 0;
   for (let i = 0; i < 2; i++) {
     const p = m.players[i], o = s.p[i];
     P_FIELDS.forEach((f, j) => { p[f] = o[j]; });

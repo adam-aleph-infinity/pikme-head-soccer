@@ -131,16 +131,17 @@ function suitPath(g) {
 // The torso, facing +x: the suit, the collar cut to the jaw, the chin's shadow on it.
 function paintSuit(g, kit, trim, jaw) {
   const w = SUIT_W / 2;
+  const S = kit.suit || SUIT;
   suitPath(g);
-  g.fillStyle = SUIT.base; g.fill();
+  g.fillStyle = S.base; g.fill();
   g.save();
   suitPath(g); g.clip();
-  g.fillStyle = SUIT.shade;                                 // back half and the hem in shade
+  g.fillStyle = S.shade;                                 // back half and the hem in shade
   g.fillRect(-w - 1, SUIT_TOP, w * 0.8, SUIT_BOT - SUIT_TOP);
   g.fillRect(-w - 1, SUIT_BOT - 3.5, SUIT_W + 2, 4);
-  g.fillStyle = SUIT.light;                                 // lit front panel
+  g.fillStyle = S.light;                                    // lit front panel
   g.beginPath(); g.ellipse(w * 0.55, -12, w * 0.42, 9, 0, 0, 6.2832); g.fill();
-  g.fillStyle = SUIT.spec;
+  g.fillStyle = S.spec;
   g.fillRect(w - 2.6, -19, 1.2, 9);
   g.fillStyle = trim;                                       // rim light down the back
   g.fillRect(-w - 0.5, SUIT_TOP + 6, 1.8, SUIT_BOT - SUIT_TOP - 9);
@@ -158,6 +159,15 @@ function paintSuit(g, kit, trim, jaw) {
   band(3.8, 4.6, OUTLINE);                                  // the collar's lower edge
   g.fillStyle = kit.collarLight;                            // lit tip at the front
   g.beginPath(); g.ellipse(w * 0.55, jaw(w * 0.55) + 2.6, 2.6, 0.7, 0, 0, 6.2832); g.fill();
+  if (kit.badge) {                                          // the Saltiz logo on the chest: a red hexagon, a yellow mark
+    const bx = w * 0.42, by = -11, r = 4.2;
+    g.beginPath();
+    for (let k = 0; k < 6; k++) { const a = Math.PI / 6 + k * Math.PI / 3; g.lineTo(bx + Math.cos(a) * r, by + Math.sin(a) * r); }
+    g.closePath(); g.fillStyle = kit.badge.base; g.fill();
+    g.lineWidth = 0.7; g.strokeStyle = OUTLINE; g.stroke();
+    g.fillStyle = kit.badge.mark;
+    g.fillRect(bx - 1.8, by - 1.9, 3.6, 1.1); g.fillRect(bx - 1.8, by - 1.9, 1.1, 3.8); g.fillRect(bx - 1.8, by + 0.8, 3.6, 1.1);
+  }
   g.restore();
   suitPath(g);
   g.lineWidth = OL; g.lineJoin = 'round'; g.strokeStyle = OUTLINE; g.stroke();
@@ -200,7 +210,7 @@ export function createBodyArt({ headShape, headBox }) {
     g.drawImage(t, -BW / 2, -(BH - 3), BW, BH);
     g.restore();
   };
-  const lowerTex = (kit, trim, pose) => tex(`hsbody:${kit.collar}:${trim}:${pose}`, (LX1 - LX0) * SS, (LY1 - LY0) * SS, (g) => {
+  const lowerTex = (kit, trim, pose) => tex(`hsbody:${kit.collar}:${kit.suit ? kit.suit.base : ''}:${kit.badge ? 'b' : ''}:${trim}:${pose}`, (LX1 - LX0) * SS, (LY1 - LY0) * SS, (g) => {
     g.setTransform(SS, 0, 0, SS, -LX0 * SS, -LY0 * SS);
     const [b, f] = feet(pose);
     placeBoot(g, trim, b[0], b[1], b[3], b[2]);

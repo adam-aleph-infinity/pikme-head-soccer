@@ -26,7 +26,7 @@ BOX = (22, 26, 100, 91.5)  # head box in the frame
 SCALE = 0.87               # rig units -> frame units
 ANCHOR = (72, 117.5)       # the chin: the head box's bottom centre
 SS = 12                    # render px per unit (4x the shipped 3 px per unit)
-OUT_PX = 3
+OUT_PX = 4
 
 
 def rgb(h, a=255):
@@ -254,7 +254,8 @@ def draw_eye(P, e, ex, look, ch):
         inner_right = e['inner'] == 'right'
         ox, oy = (x0 - 0.4, ytl) if inner_right else (x1 + 0.4, ytr)
         s = -1 if inner_right else 1
-        for k, (dx, dy) in enumerate([(3.6, -2.2), (2.6, -4.4)]):
+        L = ch.get('lashLen', 1.0)
+        for k, (dx, dy) in enumerate([(3.6 * L, -2.2 * L), (2.6 * L, -4.4 * L)] + ([(1.2 * L, -4.6 * L)] if L > 1.2 else [])):
             fl = spline([(ox - s * k * 1.2, oy + 0.6), (ox + s * dx * 0.6 - s * k * 1.2, oy + dy * 0.4),
                          (ox + s * dx - s * k * 1.2, oy + dy)], closed=False)
             P.stroke(fl, ink, 1.5)
@@ -263,10 +264,10 @@ def draw_eye(P, e, ex, look, ch):
 def brow_path(e, ex, ch):
     """A thick angular wedge sitting on the eye's lid line, lifted by ex['browLift']."""
     white, (ytl, ytr) = eye_shape(e, ex)
-    x0, x1 = e['x0'] - e.get('browOut', 3), e['x1'] + 1.5
+    x0, x1 = e['x0'] - e.get('browOut', 3), e['x1'] + e.get('browIn', 1.5)
     inner_right = e['inner'] == 'right'
     if not inner_right:
-        x0, x1 = e['x0'] - 1.5, e['x1'] + e.get('browOut', 3)
+        x0, x1 = e['x0'] - e.get('browIn', 1.5), e['x1'] + e.get('browOut', 3)
     lift = ex.get('browLift', 0) + ch.get('browGap', 0)
     tilt = ex.get('browTilt', 0)            # extra: + = inner end lower (angrier)
     yl, yr = ytl - lift, ytr - lift
@@ -328,6 +329,20 @@ def draw_mouth(P, ch, ex, head):
         P.fill(shape, '#4a1612'); P.fill(ellipse(mx + 0.5, my + 5.2, w * 0.28, 2.0), '#c8454a', clip=shape)
         P.stroke(shape, ink, 1.4)
         return
+    if mode == 'scream':
+        # the card's terror: a tall open oval, top teeth, the tongue low in it
+        w, h = mw * 0.95, mw * 0.95
+        shape = spline([(mx - w / 2, my + h * 0.2), (mx - w * 0.3, my - h * 0.22), (mx + w * 0.05, my - h * 0.3), (mx + w * 0.38, my - h * 0.18),
+                        (mx + w / 2, my + h * 0.25), (mx + w * 0.34, my + h * 0.72), (mx, my + h * 0.82), (mx - w * 0.34, my + h * 0.7)])
+        P.fill(shape, '#3a0c10')
+        P.fill(ellipse(mx + w * 0.06, my + h * 0.72, w * 0.34, h * 0.22), '#c8404c', clip=shape)
+        P.fill(ellipse(mx + w * 0.06, my + h * 0.66, w * 0.2, h * 0.1), '#e2707a', clip=shape)
+        P.fill(spline([(mx - w * 0.5, my - h * 0.5, 'c'), (mx + w * 0.5, my - h * 0.5, 'c'), (mx + w * 0.5, my - h * 0.06, 'c'),
+                       (mx, my - h * 0.02), (mx - w * 0.5, my - h * 0.06, 'c')]), '#ffffff', clip=shape)
+        if lip:
+            P.stroke(shape, lip, 1.8)
+        P.stroke(shape, ink, 1.3)
+        return
     # open mouths: 'shout' (kick) and 'grin' (happy): flat-ish top, round bottom
     if mode == 'shout':
         w, h, top_curve = mw * 0.95, m.get('shoutH', 9.5), -0.5
@@ -350,6 +365,66 @@ def draw_mouth(P, ch, ex, head):
     P.stroke(shape, ink, 1.4)
 
 
+# ─────────────────────────────── props ───────────────────────────────
+
+def draw_prop(P, x, ink, hair):
+    """A prop from the card, cel-shaded like the head: a shape (`pts`) or a tapered stroke along a
+    centreline (`cl`, `w`), each in flat tones — base, a shade band, one or two highlights — with
+    its own keyline, since props break the silhouette. Strokes can carry segment rings with a lit
+    ridge (a worm), a saddle band; shapes carry shade/highlight polygons and inner lines; both
+    carry dots (an eye, a rivet, a glint)."""
+    clip = hair if x.get('clip') == 'hair' else None
+    T = x.get('tones') or {'base': x['c'], 'shade': x.get('shadeC'), 'hi': x.get('hiC', '#ffffff'), 'hi2': x.get('hi2C'), 'line': x.get('lc', ink)}
+    a = x.get('a', 255)
+    if x.get('cl'):
+        cl = x['cl']; w0, w1 = x['w']
+        kw = dict(bulge=x.get('bulge', 0.0), r0=x.get('r0', 1.0))
+        xp = lock(cl, w0, w1, **kw)
+    else:
+        xp = spline(x['pts'])
+    if x.get('line', True):
+        P.stroke(xp, x.get('lc', T.get('line') or ink), x.get('lw', 1.2) * 2, clip=clip)
+    P.fill(xp, T['base'], a, clip=clip)
+    if x.get('cl'):
+        if T.get('shade'):
+            P.fill(lock(cl, w0 * 0.55, w1 * 0.4, shift=-0.3, **kw), T['shade'], a, clip=xp)
+        if T.get('hi'):
+            P.fill(lock(cl, w0 * 0.3, 0, shift=0.26, **kw), T['hi'], a, clip=xp)
+        if T.get('hi2'):
+            P.fill(lock(cl, w0 * 0.12, 0, shift=0.34, **kw), T['hi2'], a, clip=xp)
+        pts = [(q[0], q[1]) for q in cl]
+        n = x.get('rings', 0)
+        for k in range(1, n + 1):
+            t = x.get('ring0', 0.0) + (x.get('ring1', 1.0) - x.get('ring0', 0.0)) * k / (n + 1)
+            cx, cy = _cr(pts, t)
+            c2 = _cr(pts, min(t + 0.01, 1))
+            ang = math.degrees(math.atan2(c2[1] - cy, c2[0] - cx))
+            ww = w0 * 1.1
+            for dx, col, th in ((0, x.get('ringC', T.get('line') or ink), 0.42), (0.85, x.get('ringHi'), 0.36)):
+                if not col:
+                    continue
+                r = skia.Path(); r.addOval(skia.Rect.MakeXYWH(cx + dx - th, cy - ww, th * 2, ww * 2))
+                r.transform(skia.Matrix.RotateDeg(ang, skia.Point(cx, cy)))
+                P.fill(r, col, 210, clip=xp)
+        if x.get('band'):   # a saddle: a wider lighter band at t0..t1
+            t0, t1, col = x['band']
+            seg = [_cr(pts, t0 + (t1 - t0) * k / 6) for k in range(7)]
+            P.fill(lock(seg, w0 * 1.25, w0 * 1.2, bulge=0, r0=1.0), col, 235, clip=xp)
+    else:
+        for h in x.get('shade', []):
+            P.fill(spline(h), T.get('shade') or ink, a, clip=xp)
+        for h in x.get('hi', []) if isinstance(x.get('hi'), list) else []:
+            P.fill(spline(h), T.get('hi') or '#ffffff', a, clip=xp)
+        for h in x.get('hi2', []) if isinstance(x.get('hi2'), list) else []:
+            P.fill(spline(h), T.get('hi2') or '#ffffff', a, clip=xp)
+    for ln in x.get('lines', []):
+        P.stroke(spline(ln, closed=False), x.get('lineC', T.get('line') or ink), x.get('lineW', 0.8), clip=xp)
+    for d in x.get('dots', []):   # (x, y, rx, ry, colour)
+        P.fill(ellipse(d[0], d[1], d[2], d[3]), d[4])
+    for d in x.get('rims', []):   # (x, y, rx, ry, colour, width): an outlined ring
+        P.stroke(ellipse(d[0], d[1], d[2], d[3]), d[4], d[5])
+
+
 # ─────────────────────────────── the head ───────────────────────────────
 
 def bolder(ch, k):
@@ -361,6 +436,8 @@ def bolder(ch, k):
     ch['outline'] = ch.get('outline', 3.0) * (1 + (k - 1) * 0.5)
     for e in ch['eyes']:
         e['lidW'] = e.get('lidW', 2.6) * (1 + (k - 1) * 0.6)
+    # see-through props (bubbles) do not survive at the pitch's pixel size: portraits only
+    ch['extras'] = [x for x in ch.get('extras', []) if not x.get('hdOnly')]
     if ch.get('rim'):   # HS's in-match heads carry a bright gold rim pixel along the back/top
         ch['rim']['dx'] *= 2.2; ch['rim']['dy'] *= 2.2; ch['rim']['a'] = 255
     return ch
@@ -393,6 +470,10 @@ def paint(ch, expr):
         hair_back = union(hair_back, lock(L['cl'], *L['w']))
     hair_all = union(hair, hair_back)
     sil = union(head, ear, hair_all)
+
+    for x in ch.get('extras', []):
+        if x.get('layer') == 'back':
+            draw_prop(P, x, ink, None)
 
     # 1. the keyline: the whole silhouette stroked, the art is drawn over its inner half
     P.stroke(sil, ink, OL * 2)
@@ -448,6 +529,20 @@ def paint(ch, expr):
     if ex.get('furrow', ch.get('furrow', 0)):
         for s in ch['furrowLines']:
             P.stroke(spline(s, closed=False), sk['dark'], 1.0, a=int(200 * ex.get('furrow', 1)), clip=head)
+    beard = ch.get('beard')
+    if beard:   # facial hair: a flat tone on the jaw (full beard, or stubble at low alpha), streaks, an inked edge
+        bt = beard['tones']
+        for key in ('shape', 'moustache'):
+            if not beard.get(key):
+                continue
+            bp = inter(spline(beard[key]), head)
+            P.fill(bp, bt['base'], beard.get('a', 255))
+            for s in beard.get('shade', []) if key == 'shape' else []:
+                P.fill(spline(s), bt['shade'], beard.get('a', 255), clip=bp)
+            for s in beard.get('streaks', []) if key == 'shape' else beard.get('mStreaks', []):
+                P.fill(spline(s), bt['hi'], beard.get('a', 255), clip=bp)
+            if beard.get('a', 255) == 255:
+                P.stroke(bp, bt['line'], 1.1, clip=head)
     look = ex.get('look', (0.45, 0))
     for e in ch['eyes']:
         draw_eye(P, e, ex, look, ch)
@@ -480,12 +575,18 @@ def paint(ch, expr):
     if ch.get('hairBack') or ch.get('backLocks'):
         P.stroke(hair, ink, 1.4, clip=hair_back)
 
+    # 6b. things worn on the hair (a hat's badge, a band): flat fills with an ink line
     # 7. rim light: a thin warm band just inside the keyline on the back/top edge
     rim = ch.get('rim')
     if rim:
         inside = sil
         band = minus(sil, _shift(sil, rim['dx'], rim['dy']))
         P.fill(band, rim['c'], rim.get('a', 255), clip=spline(rim['zone']))
+
+    # 8. the props, over everything (the rim light included, which would show through them)
+    for x in ch.get('extras', []):
+        if x.get('layer') != 'back':
+            draw_prop(P, x, ink, hair)
 
     img = surf.makeImageSnapshot().toarray(colorType=skia.kRGBA_8888_ColorType, alphaType=skia.kUnpremul_AlphaType)
     return img
@@ -525,9 +626,8 @@ def pixel_sprite(big):
     arr = np.asarray(Image.fromarray(pm, 'RGBA').resize(PX, Image.BOX)).astype(np.float32)
     al = arr[..., 3:4] / 255
     col = np.where(al > 0, arr[..., :3] / np.maximum(al, 1e-6), 0)
-    pal = palette_of(big)
-    d = ((col[:, :, None, :] - pal[None, None]) ** 2).sum(-1)
-    col = pal[d.argmin(-1)]
+    # No palette snap: HS's in-match heads keep the art's soft shading and anti-aliased tones
+    # (the M4 29.98 s crop), only the alpha is hard.
     return np.concatenate([col, (al > 0.5) * 255.0], 2).astype(np.uint8)
 
 
@@ -555,7 +655,7 @@ def main():
             png = os.path.join(d, f'{expr}.png')
             Image.fromarray(small).save(png)
             if not args.png:
-                subprocess.run(['cwebp', '-quiet', '-q', '84', '-alpha_q', '100', '-exact', png, '-o', os.path.join(d, f'{expr}.webp')], check=True)
+                subprocess.run(['cwebp', '-quiet', '-q', str(ch.get('webpQ', 84)), '-alpha_q', '100', '-exact', png, '-o', os.path.join(d, f'{expr}.webp')], check=True)
                 os.remove(png)
             # the pitch sprite, at HS's own in-match pixel density (docs/HS-ART-STYLE.md)
             px = pixel_sprite(paint(bolder(ch, PX_BOLD), expr))
@@ -583,7 +683,7 @@ def main():
         for key, r in reg.items():
             line = (f"  '{key}': {{ dir: '{r['dir']}', name: '{r['name']}', "
                     f"nose: {json.dumps(r['nose'])}, fit: {json.dumps(r['fit'])} }},")
-            js, n = re.subn(rf"^  '{re.escape(key)}': .*$", lambda m: line, js, flags=re.M)
+            js, n = re.subn(rf"^  '{re.escape(key)}': \{{ dir: .*$", lambda m: line, js, flags=re.M)
             assert n == 1, key
         open(js_path, 'w').write(js)
 

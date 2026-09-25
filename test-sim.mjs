@@ -1185,7 +1185,7 @@ const jumpArc = (input) => {
   // The ball starts OUT of reach and rolls in, so contact lands a few ticks into the swing —
   // which is the only way to exercise the latch. Placed inside the hitbox it connects on the
   // press tick, before any turn, and the test proves nothing.
-  m.ball.x = p.x + C.KICK_REACH + 46; m.ball.y = p.y - C.BODY_H * 0.45;
+  m.ball.x = p.x + C.KICK_REACH + 34 + C.BALL_R; m.ball.y = p.y - C.BALL_R;
   // Rolling in FASTER than a player runs: steering is instant now (PLAYER_SPEED), so the body
   // turned left walks away from the ball at full speed on the very next tick, and a 260 px/s
   // ball never caught it inside the swing.

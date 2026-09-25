@@ -14,20 +14,27 @@ dismantled"). Idan's brief: HS's art style, related to the cards, not deep.
 | Card | Dir | From the card |
 |---|---|---|
 | legendary #1 | `legendary-1` (Shoval) | young man; dark, near-black hair swept up and back into a quiff; thick dark brows; warm tan skin; broad face |
-| legendary #2 | `legendary-2` (Ori) | young woman; long wavy blonde hair with darker roots, parted and framing the face (cut at the jaw, as HS's long hair is); lighter skin; arched brows, lashes, pink lips, blush |
+| legendary #2 | `legendary-2` (Ori) | young woman; long wavy blonde hair parted in the middle, darker roots, falling past the jaw onto the shoulders; her own softer face (no jowls, no ear showing), big lashed eyes with brown rings, thin arched brows, full pink lips, blush |
+| legendary #3 | `legendary-3` (Naveh, grill) | bearded man; full auburn beard, big grin; the card's yellow hat with the red logo |
+| legendary #4 | `legendary-4` (Naveh, box) | same man; big mop of copper curls, light stubble, wide excited eyes, open grin |
+
+All four share one head traced off HS's Korea (Ori with her own softer outline on the same eye band) (`BASE` in `tools/chars/hs_chars.py`, points in the reference crop's pixels via `R()`), so they read as the same game's roster.
+
+Each card also carries one prop from its card, painted in the rig as `extras` (drawn over the hair, with its own keyline): #1 a gold coin tucked above the ear, #2 a worm curled over her head with a red eye, #3 a grill spatula behind the hat, #4 marshmallows in the curls. Clothes from the card are `KITS` in `public/characters.js` (the suit tones, the collar band): #3's yellow shirt; the rest wear the black suit, which is their cards' black T-shirt. In HS proportions the head hides the torso, so only the collar band under the chin shows.
 
 ## Files
 
 - `public/img/chars/<dir>/<expr>.webp`: the **HD portrait** (pick, arcade, scoreboard, result),
-  432 x 426 (3 px per frame unit), lossy q84, ~21 KB (#1) / ~28 KB (#2).
-- `public/img/chars/<dir>/px-<expr>.webp`: the **pitch sprite**, the same face at HS's in-match
+  576 x 568 (4 px per frame unit), lossy q84 (#2 q74), ~30-40 KB each. **The pitch uses it too**: the
+  40 x 48 pitch sprite below, stretched to a phone's screen, read as a blur.
+- `public/img/chars/<dir>/px-<expr>.webp`: the **pitch sprite** (built, no longer shown), the same face at HS's in-match
   pixel density: 40 x 48 art pixels, lossless, < 1 KB. Shown with `image-rendering: pixelated`
   (`.head.char > i` in style.css).
 - `public/characters.js`: the registry (`'legendary:1' → { dir, name, nose, fit }`, written by the
   build), `CHAR_BOX`, `CHAR_PX`, `charUrl(ch, expr, px)`, `expressionFor(match, player)`.
 - `tools/chars/paint_hs.py`: the painter. `tools/chars/hs_chars.py`: the two rigs and the
   expression table. `tools/chars/concept-sdxl.py`: the concept-sketch generator (not shipped art).
-- `test-characters.mjs`: every file exists, has alpha, the right size; under 150 KB a character.
+- `test-characters.mjs`: every file exists, has alpha, the right size; under 250 KB a character (the card props are most of it).
 - `_charfaces.mjs`: the comparison sheet (see "Checking it").
 
 ## The frame

@@ -31,8 +31,8 @@ for (const [key, ch] of Object.entries(CHARACTERS)) {
     total += buf.length;
     const { w, h, alpha } = webpInfo(buf);
     assert.ok(alpha, `${file} has alpha`);
-    assert.equal(w, CHAR_BOX.w * 3, `${file}: frame width (3 px per unit)`);
-    assert.equal(h, CHAR_BOX.h * 3, `${file}: frame height`);
+    assert.equal(w, CHAR_BOX.w * 4, `${file}: frame width (4 px per unit)`);
+    assert.equal(h, CHAR_BOX.h * 4, `${file}: frame height`);
     // the pitch sprite: the same face at HS's in-match pixel density, same frame
     const pxFile = `${import.meta.dirname}/public/${charUrl(ch, e, true)}`;
     assert.ok(existsSync(pxFile), `${pxFile} exists`);
@@ -43,7 +43,7 @@ for (const [key, ch] of Object.entries(CHARACTERS)) {
     assert.deepEqual([pi.w, pi.h], [CHAR_PX.w, CHAR_PX.h], `${pxFile}: pitch sprite size`);
     n++;
   }
-  assert.ok(total < 150 * 1024, `${key}: all faces under 150 KB (${total})`);
+  assert.ok(total < 250 * 1024, `${key}: all faces under 250 KB (${total})`);   // the card props (worms, coins, tools) are the detail
   assert.ok(Array.isArray(ch.nose) && ch.nose.every((v) => v > 0.3 && v < 0.8), `${key}: nose for the bruise`);
   // nothing left over from the drawn-cartoon era
   assert.deepEqual(readdirSync(`${import.meta.dirname}/public/img/chars/${ch.dir}`).filter((f) => !f.endsWith('.webp')), []);
@@ -54,11 +54,6 @@ assert.equal(charUrl(CHARACTERS['legendary:1'], 'kick', true), 'img/chars/legend
 
 const p = (o = {}) => ({ index: 0, stunned: 0, kickT: 0, ...o });
 assert.equal(expressionFor({}, p()), 'normal');
-assert.equal(expressionFor({}, p({ kickT: 0.1 })), 'kick');
-assert.equal(expressionFor({}, p({ stunned: 0.5 })), 'hurt');
-// The bruise tier (`hurt`, kept all match) is a mark on the face, not a face held all match.
-assert.equal(expressionFor({}, p({ hurt: 2 })), 'normal');
-assert.equal(expressionFor({ banner: 'goal', lastScorer: 0 }, p()), 'happy');
-assert.equal(expressionFor({ banner: 'goal', lastScorer: 1 }, p()), 'sad');
-assert.equal(expressionFor({ banner: 'goal', lastScorer: 1 }, p({ stunned: 1 })), 'hurt');
+// No expressions at all: kicking, stunned, after a goal — always the normal face.
+for (const st of [{ kickT: 0.1 }, { stunned: 0.5 }, { hurt: 2 }]) assert.equal(expressionFor({ banner: 'goal', lastScorer: 0 }, p(st)), 'normal');
 console.log(`characters: ${Object.keys(CHARACTERS).length} characters, ${n} faces OK`);

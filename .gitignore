@@ -5,3 +5,4 @@ node_modules/
 hs-video/
 uploaded-images/
 .charwork/
+__pycache__/

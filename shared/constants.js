@@ -29,7 +29,7 @@ export let GROUND_Y = 435;           // 82% down. Was 445; the extra 10px is gra
 // and comes back, turning at world y ≈ −130 (its CENTRE, extrapolated from the flights either
 // side, n = 3). So the surface is a ball's radius above that. It used to be at +30, inside the
 // picture, which is why every high ball here rattled along an invisible roof.
-export const CEIL_Y = -130 - 12;      // -142: the ball centre turns at -130 (BALL_R 12)
+export const CEIL_Y = -130 - 16.5;    // -146.5: the ball centre turns at -130 (BALL_R 16.5)
 // HS M4, 3 ceiling bounces: the ceiling is DEAD. It keeps 0.41 of the climb (0.27–0.55, low
 // confidence — the contact itself is off-screen) and none of the sideways speed: the ball comes
 // back down almost vertically, so a skied clearance falls where it went up rather than
@@ -65,7 +65,9 @@ export let GOAL_H = 133;
 export const POST_R = 5;              // crossbar radius (ball bounces off it)
 
 // ---- Ball ------------------------------------------------------------------
-export const BALL_R = 12;
+// HS M4 29.98 s, the ball at rest mid-pitch: 66 recording px across = 33 world px, against
+// Korea's 124 px head (1.9 : 1). It was 12, which made every head read 2.6 balls wide.
+export const BALL_R = 16.5;
 // HS M4, 86 clean free flights across two matches: 583 px/s² (sd 15); M3's 8 falls straight after
 // a respawn read 561 (sd 10). 580 is inside both — 0.2 sd off the number to fit, and the one
 // value neither measurement rejects. Measured SEPARATELY from the player's 595 (PLAYER_GRAV) and
@@ -525,6 +527,7 @@ export const KICKOFF_FREEZE = 2.17;
 export const GOAL_BANNER = 2.05;
 export const GOAL_RESUME = 2.24;
 export const GOAL_BALL_DELAY = 2.795 - 2.24;
+export const AFTER_GOAL = 3;         // seconds of free play after a goal before the reset
 export const GOLDEN_GOAL = true;      // draw → sudden death (gauges stop charging)
 
 // ---- Spawns ----------------------------------------------------------------

@@ -141,7 +141,7 @@ export const SCENARIOS = {
     setup: (m) => { openPlay(m); const p = m.players[0]; place(m.ball, p.x + 6, headY(p) - 260); },
     input: (i, m, ctx) => {
       const p = m.players[0], b = m.ball;
-      const j = !ctx.jumped && headY(p) - b.y < 150; if (j) ctx.jumped = true;
+      const j = !ctx.jumped && headY(p) - b.y < 138 + b.r; if (j) ctx.jumped = true;   // the ball's EDGE 138px up
       return { jump: j };
     } },
 
@@ -153,7 +153,7 @@ export const SCENARIOS = {
     setup: (m) => { openPlay(m); const p = m.players[0]; place(m.ball, p.x + 6, headY(p) - 310); },
     input: (i, m, ctx) => {
       const p = m.players[0], b = m.ball;
-      const j = !ctx.jumped && headY(p) - b.y < 90; if (j) ctx.jumped = true;
+      const j = !ctx.jumped && headY(p) - b.y < 78 + b.r; if (j) ctx.jumped = true;   // the ball's EDGE 78px up
       return { jump: j };
     } },
 
@@ -164,7 +164,7 @@ export const SCENARIOS = {
     setup: (m) => { openPlay(m); const p = m.players[0]; place(m.ball, p.x + 6, headY(p) - 260); },
     input: (i, m, ctx) => {
       const p = m.players[0], b = m.ball;
-      const j = !ctx.jumped && headY(p) - b.y < 150; if (j) ctx.jumped = true;
+      const j = !ctx.jumped && headY(p) - b.y < 138 + b.r; if (j) ctx.jumped = true;   // the ball's EDGE 138px up
       const k = ctx.jumped && !ctx.kicked && Math.hypot(b.x - p.x, b.y - headY(p)) < C.HEAD_R + b.r + 8;
       if (k) ctx.kicked = true;
       return { jump: j, kick: k };

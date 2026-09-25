@@ -394,7 +394,7 @@ function arm(m, i) {
   ok('(scored, still armed)', m.score[0] === 1 && p.armed > 0);
   // Ride out the whole goal freeze — and the beat after it before the ball drops back in at the
   // centre (GOAL_BALL_DELAY, HS). The arm has no clock, so none of this costs it anything.
-  for (let i = 0; i < 250 && (m.phase !== 'play' || m.ballWait > 0); i++) { m.hitStop = 0; step(m, NONE); }
+  for (let i = 0; i < 700 && (m.phase !== 'play' || m.ballWait > 0 || m.afterGoal > 0); i++) { m.hitStop = 0; step(m, NONE); }
   ok('(play has resumed, with a ball)', m.phase === 'play' && m.ballWait === 0);
   ok('still armed after the restart', p.armed > 0);
   ok('and the meter is refilling, not reset', p.gauge > 0 && p.gauge < 1, `gauge=${p.gauge}`);
@@ -1153,6 +1153,25 @@ const first = (log, type, f = () => true) => log.find((e) => e.type === type && 
     }
     ok('JAPAN: the low streak can be blocked at all', !!blk);
   }
+}
+
+{
+  // THE FREE PLAY AFTER A GOAL DOES NOT COUNT: an armed player's touch in those seconds is an
+  // ordinary touch, and the arm is still there for the restart.
+  const m = fresh();
+  const p = m.players[0];
+  arm(m, 0);
+  m.afterGoal = C.AFTER_GOAL; m.afterGoalTo = 1;
+  let shots = 0;
+  for (let i = 0; i < 30; i++) {
+    m.hitStop = 0;
+    m.ball.x = p.x; m.ball.y = headY(p); m.ball.vx = 0; m.ball.vy = 0;
+    step(m, NONE);
+    shots += m.events.filter((e) => e.type === 'powershot').length;
+    m.events.length = 0;
+  }
+  ok('an armed touch in the free play after a goal fires nothing', shots === 0 && !m.ball.power, `${shots} shots`);
+  ok('and the arm waits for the restart', p.armed > 0);
 }
 
 console.log(`test-ultimate: ${pass} passed, ${fail} failed`);
