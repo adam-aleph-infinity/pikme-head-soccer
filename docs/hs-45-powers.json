@@ -1,0 +1,1492 @@
+[
+  {
+    "stage": 1,
+    "rank": 1,
+    "batch": 1,
+    "id": "legendary_1",
+    "ourTitle": "התותחן",
+    "titleClash": "none",
+    "hsCharacter": "South Korea",
+    "stars": 0.5,
+    "powerName": "Blue Aura Shot",
+    "flight": "One ball, horizontal \"at a high speed\" [P]; footage: dead flat, no gravity, ~2150 px/s (2.03 pitch/s, 2.6x our hardest kick), released 0.97 s into the 1.34 s cut-in [V]. Best jumped on own half [G].",
+    "visual": "Ball \"cloaked in a blue aura\" [P]; footage: white-hot core (~80x230 px) in a cyan teardrop with blue edge, ~95→50 px tall over ~360 px (1/3 of pitch), full 0.2 s then a faint cyan streak with sparkles, 4 after-images; cut-in white disc + gold halo + 8 gold/8 white rotating rays [V].",
+    "defenderEffect": "Not countered: pushed back into his own goal, ball bounces off his head [P]; footage: red spark droplets, head snaps back, stars daze ~0.5 s [V].",
+    "blockCounter": "\"Very easy to block and Counter\": jump at the right time and kick, or jump right in front of Korea [P]; kick into it = 0.8 s grind + 0.4 s dead then fires back [V].",
+    "powerButtonEffect": "unknown (none listed; footage shows only the electric arming rim) [V]",
+    "sources": {
+      "P": "https://headsoccer.wiki.gg/wiki/South_Korea",
+      "G": "https://headsoccer.wiki.gg/wiki/Power_Shot_Guide",
+      "V": "docs/HS-POWER-SHOTS.md (Idan footage)",
+      "A": "https://headsoccer.wiki.gg/wiki/Arcade"
+    },
+    "engine": {
+      "family": "straight",
+      "ailment": "none",
+      "needs": "None: the measured comet as it is today."
+    },
+    "score": {
+      "stars": 0.5,
+      "defend": 1,
+      "spectacle": 0,
+      "total": 60
+    },
+    "whyHarderThanPrevious": "First stage: the plain straight comet, the easiest shot in HS to stop."
+  },
+  {
+    "stage": 2,
+    "rank": 2,
+    "batch": 2,
+    "id": "legendary_2",
+    "ourTitle": "אדון התולעים",
+    "titleClash": "strong (worm lord ≠ lightning)",
+    "hsCharacter": "Cameroon",
+    "stars": 1,
+    "powerName": "Thunderbolt Shot",
+    "flight": "Straight line like Korea's [G][F]; one ball; speed unknown (assume comet 2150 px/s). Best close to goal [G].",
+    "visual": "\"The ball is covered in lightning\" with electricity around it [P]; colours/size unknown.",
+    "defenderEffect": "Shocked: \"turns blue and is surrounded in electricity and is stunned, unable to jump or move fast\" [P]; Shocked = slowed, cannot jump [F].",
+    "blockCounter": "Easy: CPUs very likely to deflect it; counter with a timed jump+kick or jump in front before activation [P][G].",
+    "powerButtonEffect": "unknown",
+    "sources": {
+      "P": "https://headsoccer.wiki.gg/wiki/Cameroon",
+      "G": "https://headsoccer.wiki.gg/wiki/Power_Shot_Guide",
+      "F": "https://headsoccer.wiki.gg/wiki/Power_Shots",
+      "A": "https://headsoccer.wiki.gg/wiki/Arcade"
+    },
+    "engine": {
+      "family": "straight",
+      "ailment": "shock",
+      "needs": "Lightning-sheath ball VFX instead of the cyan comet; shock on hit (AILMENTS.shock exists)."
+    },
+    "score": {
+      "stars": 1,
+      "defend": 2,
+      "spectacle": 1,
+      "total": 121
+    },
+    "whyHarderThanPrevious": "Same easy straight line, but a missed block leaves the defender shocked (slow, no jump)."
+  },
+  {
+    "stage": 3,
+    "rank": 3,
+    "batch": 3,
+    "id": "legendary_3",
+    "ourTitle": "השף הבוער",
+    "titleClash": "strong (burning chef ≠ tornado)",
+    "hsCharacter": "Nigeria",
+    "stars": 1.5,
+    "powerName": "Tornado Shot",
+    "flight": "A tornado whirlwind runs along the ground carrying the ball [P]; \"a ball that stays on the ground\" but still hits jumpers [G]; speed unknown.",
+    "visual": "Tornado whirlwind on the turf [P]; colours/size unknown.",
+    "defenderEffect": "Touched by the tornado: flies and spins in the air, unconscious 3 s [P].",
+    "blockCounter": "Deflects easily if watched or with Power armed; counter by kicking on the ground; standing very close sends it behind Nigeria [P][G].",
+    "powerButtonEffect": "unknown",
+    "sources": {
+      "P": "https://headsoccer.wiki.gg/wiki/Nigeria",
+      "G": "https://headsoccer.wiki.gg/wiki/Power_Shot_Guide",
+      "A": "https://headsoccer.wiki.gg/wiki/Arcade"
+    },
+    "engine": {
+      "family": "ground",
+      "ailment": "stars",
+      "needs": "Funnel VFX riding the ball; hit throws the defender up spinning then 3 s daze; funnel height reaches jumpers."
+    },
+    "score": {
+      "stars": 1.5,
+      "defend": 3,
+      "spectacle": 2,
+      "total": 182
+    },
+    "whyHarderThanPrevious": "Ground shot: no header block, reaches jumpers, and a hit costs 3 s unconscious."
+  },
+  {
+    "stage": 4,
+    "rank": 4,
+    "batch": 4,
+    "id": "legendary_4",
+    "ourTitle": "מלך הבוץ",
+    "titleClash": "strong (mud king ≠ illusion)",
+    "hsCharacter": "USA",
+    "stars": 2,
+    "powerName": "Illusion Shot",
+    "flight": "Straight line starting slightly ahead of USA [P], \"travels slightly downward\" [G]; multiplies into 8 balls aiming at the goal, 7 fake; after a distance only the real one is left and it turns invisible [P][G].",
+    "visual": "Eight identical balls, seven vanish, the real one invisible (tracked only by its bounces) [P][G]; colours unknown.",
+    "defenderEffect": "No ailment; close to goal it is \"a 100% goal\" because the ball goes through the defender [P].",
+    "blockCounter": "Counter with a special counter attack or power-block; watch bounces; hold position until it reappears [P][G].",
+    "powerButtonEffect": "unknown",
+    "sources": {
+      "P": "https://headsoccer.wiki.gg/wiki/USA",
+      "G": "https://headsoccer.wiki.gg/wiki/Power_Shot_Guide",
+      "A": "https://headsoccer.wiki.gg/wiki/Arcade"
+    },
+    "engine": {
+      "family": "multiball",
+      "ailment": "none",
+      "needs": "8 balls of which 1 real (fakes unscorable, despawn); real ball near-invisible; passes through the defender at close range."
+    },
+    "score": {
+      "stars": 2,
+      "defend": 6,
+      "spectacle": 1,
+      "total": 261
+    },
+    "whyHarderThanPrevious": "First decoy shot: eight balls then an invisible one, the defender must guess."
+  },
+  {
+    "stage": 5,
+    "rank": 5,
+    "batch": 4,
+    "id": "legendary_5",
+    "ourTitle": "בונה החומות",
+    "titleClash": "strong (wall builder ≠ ninja)",
+    "hsCharacter": "Japan",
+    "stars": 2.5,
+    "powerName": "Ninja Shot",
+    "flight": "Japan rises with 5 balls around him, then 5 streaks shoot downward in order middle, very low, highest, slightly lower, middle; 4 fake blue, 1 real green in a random slot; usually high [P][G].",
+    "visual": "\"Blue light\" streaks, the real one green; Japan \"turns into a log\" [P].",
+    "defenderEffect": "unknown",
+    "blockCounter": "\"Quite easy to block if the player has good reflexes\"; block all balls; centre line lets high ones pass [P][G].",
+    "powerButtonEffect": "unknown",
+    "sources": {
+      "P": "https://headsoccer.wiki.gg/wiki/Japan",
+      "G": "https://headsoccer.wiki.gg/wiki/Power_Shot_Guide",
+      "A": "https://headsoccer.wiki.gg/wiki/Arcade"
+    },
+    "engine": {
+      "family": "multiball",
+      "ailment": "none",
+      "needs": "Shooter rises; 5 sequenced streaks on a fixed height pattern with a random real one; log sprite for the shooter."
+    },
+    "score": {
+      "stars": 2.5,
+      "defend": 6,
+      "spectacle": 2,
+      "total": 312
+    },
+    "whyHarderThanPrevious": "Five streaks at five heights from above with a hidden real ball: more to read than USA."
+  },
+  {
+    "stage": 6,
+    "rank": 6,
+    "batch": 3,
+    "id": "legendary_6",
+    "ourTitle": "איל ההון",
+    "titleClash": "strong (tycoon ≠ ice)",
+    "hsCharacter": "Russia",
+    "stars": 3,
+    "powerName": "Ice Shot",
+    "flight": "Not fully horizontal: \"makes a little downward curve\" [P]; starts high and curves down [G]; one ball; speed unknown.",
+    "visual": "\"A ball of ice is shot through the air\" [P]; size unknown.",
+    "defenderEffect": "If he blocks it he is frozen in a block of ice for a short time and can be kicked and dashed into the goal [P].",
+    "blockCounter": "Relatively easy to counter because it dips; step back slightly; blocking hard because it starts high [P][G].",
+    "powerButtonEffect": "unknown",
+    "sources": {
+      "P": "https://headsoccer.wiki.gg/wiki/Russia",
+      "G": "https://headsoccer.wiki.gg/wiki/Power_Shot_Guide",
+      "A": "https://headsoccer.wiki.gg/wiki/Arcade"
+    },
+    "engine": {
+      "family": "downward",
+      "ailment": "freeze",
+      "needs": "Late dip on the straight path; ice-ball VFX; freeze on block (not just on hit) and the frozen block can be kicked into goal."
+    },
+    "score": {
+      "stars": 3,
+      "defend": 4,
+      "spectacle": 3,
+      "total": 343
+    },
+    "whyHarderThanPrevious": "A dipping path that also freezes the blocker: blocking it is punished, not only missing it."
+  },
+  {
+    "stage": 7,
+    "rank": 7,
+    "batch": 2,
+    "id": "legendary_7",
+    "ourTitle": "הקפצן",
+    "titleClash": "strong (bouncer ≠ dragon)",
+    "hsCharacter": "Argentina",
+    "stars": 3.5,
+    "powerName": "Dragon Shot",
+    "flight": "\"A big delay. The ball comes at the end of the dragon\" [G]; the ball rides at the dragon's tail [P]; speed/angle unknown.",
+    "visual": "\"A long, fiery dragon\" flies into the goal and the ball cannot be seen easily [P].",
+    "defenderEffect": "Blocked badly: stunned longer than Nigeria's tornado [P].",
+    "blockCounter": "Impossible to counter if you jump as it fires; block by jumping ~1 s after the call [P]; CPU jumps too early [G].",
+    "powerButtonEffect": "unknown",
+    "sources": {
+      "P": "https://headsoccer.wiki.gg/wiki/Argentina",
+      "G": "https://headsoccer.wiki.gg/wiki/Power_Shot_Guide",
+      "A": "https://headsoccer.wiki.gg/wiki/Arcade"
+    },
+    "engine": {
+      "family": "delay",
+      "ailment": "stars",
+      "needs": "Long fire-dragon body (head first, ball in the tail) so contact comes ~1 s after the head passes; stars > 3 s."
+    },
+    "score": {
+      "stars": 3.5,
+      "defend": 5,
+      "spectacle": 4,
+      "total": 404
+    },
+    "whyHarderThanPrevious": "First delay: the dragon baits an early jump and the ball arrives a second later."
+  },
+  {
+    "stage": 8,
+    "rank": 8,
+    "batch": 1,
+    "id": "legendary_8",
+    "ourTitle": "האיש המגנטי",
+    "titleClash": "mild (magnet man)",
+    "hsCharacter": "Italy",
+    "stars": 4,
+    "powerName": "Giant Shot",
+    "flight": "A big ball \"rolls along the ground\" [P]; one ball; speed unknown.",
+    "visual": "\"Big Sized Ball\" rolling on the pitch, always leaves a crack in the pitch [P].",
+    "defenderEffect": "Not countered: keeps rolling and takes the defender with it into the goal [P].",
+    "blockCounter": "\"Very easy to counter\" close up by kicking on the ground; hard to block [P][G].",
+    "powerButtonEffect": "unknown",
+    "sources": {
+      "P": "https://headsoccer.wiki.gg/wiki/Italy",
+      "G": "https://headsoccer.wiki.gg/wiki/Power_Shot_Guide",
+      "A": "https://headsoccer.wiki.gg/wiki/Arcade"
+    },
+    "engine": {
+      "family": "ground",
+      "ailment": "none",
+      "needs": "Ball radius ~2x while powered; carries the defender (grab-like push) into the goal; crack decal where it lands."
+    },
+    "score": {
+      "stars": 4,
+      "defend": 3,
+      "spectacle": 5,
+      "total": 435
+    },
+    "whyHarderThanPrevious": "Four stars in HS: the big ball cannot be headed and drags the defender in."
+  },
+  {
+    "stage": 9,
+    "rank": 9,
+    "batch": 1,
+    "id": "legendary_9",
+    "ourTitle": "גולש הגלים",
+    "titleClash": "strong (wave surfer ≠ phoenix)",
+    "hsCharacter": "Brazil",
+    "stars": 4.5,
+    "powerName": "Firebird Shot",
+    "flight": "\"A flaming phoenix containing the ball goes up at about a 15 degree angle, then shoots downwards towards the opponent's goal\" [P]; best from midfield [G].",
+    "visual": "A flaming phoenix carrying the ball [P].",
+    "defenderEffect": "Reversed controls, \"the player turns red and combusts into flame\" and usually runs into his own goal for several seconds [P].",
+    "blockCounter": "Counter by jumping and kicking together [G].",
+    "powerButtonEffect": "unknown",
+    "sources": {
+      "P": "https://headsoccer.wiki.gg/wiki/Brazil",
+      "G": "https://headsoccer.wiki.gg/wiki/Power_Shot_Guide",
+      "A": "https://headsoccer.wiki.gg/wiki/Arcade"
+    },
+    "engine": {
+      "family": "downward",
+      "ailment": "reverse",
+      "needs": "Two-leg path (up 15° then dive); phoenix VFX; reverse + burn look on hit."
+    },
+    "score": {
+      "stars": 4.5,
+      "defend": 4,
+      "spectacle": 7,
+      "total": 497
+    },
+    "whyHarderThanPrevious": "Highest star rating below 5: rise-then-dive plus reversed controls."
+  },
+  {
+    "stage": 10,
+    "rank": 10,
+    "batch": 2,
+    "id": "legendary_10",
+    "ourTitle": "הענק",
+    "titleClash": "strong (giant ≠ candy)",
+    "hsCharacter": "Valentine",
+    "stars": 5,
+    "powerName": "Valentine Shot",
+    "flight": "Straight, \"a slower version of South Korea's shot\"; the ball changes colour blue/green/red/purple/pink on the way [P].",
+    "visual": "Lots of candy (chocolate bars, lollipops, sweets) streams from Valentine's head as distraction and vanishes on the ground [P].",
+    "defenderEffect": "Turns into a jack-in-the-box that is easily kicked around [P].",
+    "blockCounter": "Jump a bit later than for Korea while moving forward; kick to counter [P]; usually bounces back into Valentine's goal [G].",
+    "powerButtonEffect": "unknown",
+    "sources": {
+      "P": "https://headsoccer.wiki.gg/wiki/Valentine",
+      "G": "https://headsoccer.wiki.gg/wiki/Power_Shot_Guide",
+      "A": "https://headsoccer.wiki.gg/wiki/Arcade"
+    },
+    "engine": {
+      "family": "straight",
+      "ailment": "transform",
+      "needs": "Slower straight (0.8x); colour-cycling ball; candy particles; new \"transform\" ailment = immobile kickable prop (jack-in-the-box)."
+    },
+    "score": {
+      "stars": 5,
+      "defend": 2,
+      "spectacle": 3,
+      "total": 523
+    },
+    "whyHarderThanPrevious": "First 5-star: straight again but the hit turns you into a kickable toy."
+  },
+  {
+    "stage": 11,
+    "rank": 11,
+    "batch": 3,
+    "id": "legendary_11",
+    "ourTitle": "המכווץ",
+    "titleClash": "strong (shrinker ≠ ice)",
+    "hsCharacter": "Poland",
+    "stars": 5,
+    "powerName": "Ice Spike Shot",
+    "flight": "Six ice spikes rise from the ground, then an icicle (ball) is fired in a straight line at the goal [P]; no delay [G].",
+    "visual": "Six large ice spikes from the ground, an icicle flight [P].",
+    "defenderEffect": "Blocking it freezes the defender ~2 s (+1 s to thaw) and sends him straight up [P].",
+    "blockCounter": "Can be blocked (and freezes the blocker); walk toward Poland and jump in front to send it back [P][G].",
+    "powerButtonEffect": "unknown",
+    "sources": {
+      "P": "https://headsoccer.wiki.gg/wiki/Poland",
+      "G": "https://headsoccer.wiki.gg/wiki/Power_Shot_Guide",
+      "A": "https://headsoccer.wiki.gg/wiki/Arcade"
+    },
+    "engine": {
+      "family": "straight",
+      "ailment": "freeze",
+      "needs": "Spike row VFX at the shooter; icicle ball; freeze + launch up on block."
+    },
+    "score": {
+      "stars": 5,
+      "defend": 2,
+      "spectacle": 4,
+      "total": 524
+    },
+    "whyHarderThanPrevious": "Straight like Valentine but the blocker, not just the hit player, is frozen and launched."
+  },
+  {
+    "stage": 12,
+    "rank": 12,
+    "batch": 4,
+    "id": "legendary_12",
+    "ourTitle": "האסטרונאוט",
+    "titleClash": "strong (astronaut ≠ water)",
+    "hsCharacter": "Turkey",
+    "stars": 5,
+    "powerName": "Bubble Shot",
+    "flight": "A delay like Argentina's, then a constant water stream with the ball inside [P]; better on the ground, deadly right in front of goal [G].",
+    "visual": "\"A plethora of water in a constant stream. The ball is inside the water-cannon\" [P]; the water hides the ball [G].",
+    "defenderEffect": "Encased in a water bubble, floats up and the ball goes through him for a few seconds [P].",
+    "blockCounter": "Easy to block any time, hard to counter; jump+kick quickly [P].",
+    "powerButtonEffect": "unknown",
+    "sources": {
+      "P": "https://headsoccer.wiki.gg/wiki/Turkey",
+      "G": "https://headsoccer.wiki.gg/wiki/Power_Shot_Guide",
+      "A": "https://headsoccer.wiki.gg/wiki/Arcade"
+    },
+    "engine": {
+      "family": "delay",
+      "ailment": "bubble",
+      "needs": "Water-jet VFX hiding the ball; new \"bubble\" ailment = float up, ball passes through."
+    },
+    "score": {
+      "stars": 5,
+      "defend": 3,
+      "spectacle": 4,
+      "total": 534
+    },
+    "whyHarderThanPrevious": "Adds a hidden ball and a short delay to the straight line."
+  },
+  {
+    "stage": 13,
+    "rank": 13,
+    "batch": 4,
+    "id": "legendary_13",
+    "ourTitle": "המטפס",
+    "titleClash": "mild (climber)",
+    "hsCharacter": "Super Saiyan",
+    "stars": 5,
+    "powerName": "Super Ball Shot",
+    "flight": "Starts in the air and shoots down like Brazil's; shrinks a bit on the way and loses its glow [P]; close to own goal it rolls like Italy's [G].",
+    "visual": "\"Giant ball of blue energy\" above his head [P].",
+    "defenderEffect": "unknown",
+    "blockCounter": "Hardly deflected (large) but countered easily like Italy's [P][G].",
+    "powerButtonEffect": "Transforms: spiky yellow hair, green eyes, 3 s; keeps the look after the shot until a goal [P].",
+    "sources": {
+      "P": "https://headsoccer.wiki.gg/wiki/Super_Saiyan",
+      "G": "https://headsoccer.wiki.gg/wiki/Power_Shot_Guide",
+      "A": "https://headsoccer.wiki.gg/wiki/Arcade"
+    },
+    "engine": {
+      "family": "downward",
+      "ailment": "none",
+      "needs": "Big blue energy ball shrinking along a dive; rolls on landing."
+    },
+    "score": {
+      "stars": 5,
+      "defend": 4,
+      "spectacle": 4,
+      "total": 544
+    },
+    "whyHarderThanPrevious": "First downward shot of the 5-stars: a big ball from above that is hard to head away."
+  },
+  {
+    "stage": 14,
+    "rank": 14,
+    "batch": 3,
+    "id": "legendary_14",
+    "ourTitle": "נהג המרוצים",
+    "titleClash": "strong (racer ≠ spider)",
+    "hsCharacter": "Portugal",
+    "stars": 5,
+    "powerName": "Spider Shot",
+    "flight": "Travels at a downward angle, higher when used in the air [P].",
+    "visual": "Spider silk spreads where the ball lands; Portugal is pulled up by a web to the top of the screen [P].",
+    "defenderEffect": "Hit: pulled up into the air by another web [P].",
+    "blockCounter": "Easy to counter; deflected right it goes into Portugal's goal [P][G].",
+    "powerButtonEffect": "unknown",
+    "sources": {
+      "P": "https://headsoccer.wiki.gg/wiki/Portugal",
+      "G": "https://headsoccer.wiki.gg/wiki/Power_Shot_Guide",
+      "A": "https://headsoccer.wiki.gg/wiki/Arcade"
+    },
+    "engine": {
+      "family": "downward",
+      "ailment": "lifted",
+      "needs": "Web line from the shooter to the ceiling; new \"lifted\" ailment = hung from a web (no control)."
+    },
+    "score": {
+      "stars": 5,
+      "defend": 4,
+      "spectacle": 5,
+      "total": 545
+    },
+    "whyHarderThanPrevious": "Downward and a hit hangs you out of play."
+  },
+  {
+    "stage": 15,
+    "rank": 15,
+    "batch": 2,
+    "id": "legendary_15",
+    "ourTitle": "מרים המשקולות",
+    "titleClash": "strong (weightlifter ≠ snow)",
+    "hsCharacter": "Canada",
+    "stars": 5,
+    "powerName": "Snow Storm Shot (air / ground)",
+    "flight": "Air: downward angle like Brazil's; ground: straight at the goal, low; 2 s [P].",
+    "visual": "Many large snowflakes around Canada; the ball hovers before launch [P].",
+    "defenderEffect": "Turned into a snowman that is easily kicked around [P].",
+    "blockCounter": "Air: counter by jump+kick or block; ground: block at medium height [G].",
+    "powerButtonEffect": "Yells \"Snow Storm Shot!\", snowflakes appear [P].",
+    "sources": {
+      "P": "https://headsoccer.wiki.gg/wiki/Canada",
+      "G": "https://headsoccer.wiki.gg/wiki/Power_Shot_Guide",
+      "A": "https://headsoccer.wiki.gg/wiki/Arcade"
+    },
+    "engine": {
+      "family": "downward",
+      "ailment": "transform",
+      "needs": "Two variants chosen by whether the shooter is airborne; snowflake VFX; snowman transform."
+    },
+    "score": {
+      "stars": 5,
+      "defend": 4,
+      "spectacle": 6,
+      "total": 546
+    },
+    "whyHarderThanPrevious": "Two shot variants to read, and a hit becomes a snowman."
+  },
+  {
+    "stage": 16,
+    "rank": 16,
+    "batch": 1,
+    "id": "legendary_16",
+    "ourTitle": "מקפיץ האבנים",
+    "titleClash": "strong (stone skipper)",
+    "hsCharacter": "China",
+    "stars": 5,
+    "powerName": "Monkey Shot / Buddha Shot",
+    "flight": "Monkey: straight line; Buddha: diagonally down toward the goal [P].",
+    "visual": "Monkey: monkeys on clouds carrying golden spears, the ball with a bright light behind; Buddha: China vanishes in smoke and a golden Buddha statue holding a bottle launches the ball [P].",
+    "defenderEffect": "Monkey: confusion, the defender is beaten by monkeys [P][G]; Buddha: sucked into the bottle for 2 s [P].",
+    "blockCounter": "Run forward, jump and kick to counter; jump in front of China to block both [P].",
+    "powerButtonEffect": "unknown",
+    "sources": {
+      "P": "https://headsoccer.wiki.gg/wiki/China",
+      "G": "https://headsoccer.wiki.gg/wiki/Power_Shot_Guide",
+      "A": "https://headsoccer.wiki.gg/wiki/Arcade"
+    },
+    "engine": {
+      "family": "downward",
+      "ailment": "vanish",
+      "needs": "Two variants; statue + cloud-monkeys VFX; new \"vanish\" ailment (bottle 2 s)."
+    },
+    "score": {
+      "stars": 5,
+      "defend": 4,
+      "spectacle": 7,
+      "total": 547
+    },
+    "whyHarderThanPrevious": "Two very different flights plus a 2 s removal from play."
+  },
+  {
+    "stage": 17,
+    "rank": 17,
+    "batch": 1,
+    "id": "legendary_17",
+    "ourTitle": "רוכב הסערה",
+    "titleClash": "strong (storm rider)",
+    "hsCharacter": "France",
+    "stars": 5,
+    "powerName": "Underground Shot",
+    "flight": "Jumps a few metres and smashes the ball into the ground; it shoots forward out of a big crater [P]; \"goes around every obstacle\", nearly unstoppable just past midfield [G].",
+    "visual": "A big crater where the ball comes out; two decoy craters nearer France that do nothing [P].",
+    "defenderEffect": "unknown (goal-scoring only) [P]",
+    "blockCounter": "Stand where it emerges and jump; can be countered (\"Turret Shot\") or power-blocked [P][G].",
+    "powerButtonEffect": "unknown",
+    "sources": {
+      "P": "https://headsoccer.wiki.gg/wiki/France",
+      "G": "https://headsoccer.wiki.gg/wiki/Power_Shot_Guide",
+      "A": "https://headsoccer.wiki.gg/wiki/Arcade"
+    },
+    "engine": {
+      "family": "delay",
+      "ailment": "none",
+      "needs": "Ball hidden underground (no collisions) then emerges from a crater ahead of the defender; two decoy craters."
+    },
+    "score": {
+      "stars": 5,
+      "defend": 5,
+      "spectacle": 4,
+      "total": 554
+    },
+    "whyHarderThanPrevious": "The ball travels unseen under every obstacle and pops up behind you."
+  },
+  {
+    "stage": 18,
+    "rank": 18,
+    "batch": 2,
+    "id": "legendary_18",
+    "ourTitle": "הסטרייקר",
+    "titleClash": "mild (striker)",
+    "hsCharacter": "Chile",
+    "stars": 5,
+    "powerName": "Snake Shot",
+    "flight": "Downward slant like Brazil's/Canada's [P]; from midfield very hard to block and almost impossible to counter [P].",
+    "visual": "A giant black viper with red glowing eyes, tail at Chile's head; the ball fires from its mouth [P].",
+    "defenderEffect": "Wrapped in snakes, cannot move, dragged toward his own goal [P].",
+    "blockCounter": "Stop it with your own Power armed or by standing on your pet [P].",
+    "powerButtonEffect": "unknown",
+    "sources": {
+      "P": "https://headsoccer.wiki.gg/wiki/Chile",
+      "A": "https://headsoccer.wiki.gg/wiki/Arcade"
+    },
+    "engine": {
+      "family": "downward",
+      "ailment": "grabbed",
+      "needs": "Viper body VFX; hit = wrapped + dragged to own goal (grab behaviour after a downward flight)."
+    },
+    "score": {
+      "stars": 5,
+      "defend": 5,
+      "spectacle": 5,
+      "total": 555
+    },
+    "whyHarderThanPrevious": "Downward shot that also drags you into your goal."
+  },
+  {
+    "stage": 19,
+    "rank": 19,
+    "batch": 3,
+    "id": "legendary_19",
+    "ourTitle": "הג'וקר",
+    "titleClash": "mild (joker)",
+    "hsCharacter": "Egypt",
+    "stars": 5,
+    "powerName": "Sand Shot",
+    "flight": "The ball stalls a second, then shoots out horizontally [P][G].",
+    "visual": "A giant face made of sand behind Egypt blows a sand stream that circles the ball [P].",
+    "defenderEffect": "Turned into a sand sculpture that cannot move and is kicked around [P].",
+    "blockCounter": "Time the jump and counter, or block by jumping toward Egypt [P].",
+    "powerButtonEffect": "unknown",
+    "sources": {
+      "P": "https://headsoccer.wiki.gg/wiki/Egypt",
+      "G": "https://headsoccer.wiki.gg/wiki/Power_Shot_Guide",
+      "A": "https://headsoccer.wiki.gg/wiki/Arcade"
+    },
+    "engine": {
+      "family": "delay",
+      "ailment": "transform",
+      "needs": "Sand-face backdrop + swirl; stall then fire; sand-sculpture transform."
+    },
+    "score": {
+      "stars": 5,
+      "defend": 5,
+      "spectacle": 6,
+      "total": 556
+    },
+    "whyHarderThanPrevious": "A stall that breaks jump timing, and a kickable-statue hit."
+  },
+  {
+    "stage": 20,
+    "rank": 20,
+    "batch": 4,
+    "id": "legendary_20",
+    "ourTitle": "איש השלג",
+    "titleClash": "strong (snowman ≠ devil)",
+    "hsCharacter": "Devil",
+    "stars": 5,
+    "powerName": "Vampire Shot",
+    "flight": "Moves \"up and down slightly\", 3 s [P]; bobbing [G][F].",
+    "visual": "A large demonic shadow with two larger ones behind; a smaller shadow carries the ball in its mouth [P].",
+    "defenderEffect": "Stuffed into the ground and trampled [P].",
+    "blockCounter": "Block at the lowest point of the bob, close to Devil; counter harder [G].",
+    "powerButtonEffect": "Turns into a bat: jumps much higher and moves faster [P].",
+    "sources": {
+      "P": "https://headsoccer.wiki.gg/wiki/Devil",
+      "G": "https://headsoccer.wiki.gg/wiki/Power_Shot_Guide",
+      "F": "https://headsoccer.wiki.gg/wiki/Power_Shots",
+      "A": "https://headsoccer.wiki.gg/wiki/Arcade"
+    },
+    "engine": {
+      "family": "updown",
+      "ailment": "buried",
+      "needs": "Up-and-down path with shadow creatures; new \"buried\" ailment (stuck in ground)."
+    },
+    "score": {
+      "stars": 5,
+      "defend": 5,
+      "spectacle": 7,
+      "total": 557
+    },
+    "whyHarderThanPrevious": "First bobbing path: the ball height keeps changing."
+  },
+  {
+    "stage": 21,
+    "rank": 21,
+    "batch": 4,
+    "id": "legendary_21",
+    "ourTitle": "צייד המטאורים",
+    "titleClash": "mild (meteor hunter)",
+    "hsCharacter": "The Netherlands",
+    "stars": 5,
+    "powerName": "Black Hole Shot",
+    "flight": "Crosses the field \"very slowly\" [P]; 2 s [P].",
+    "visual": "A black hole with green electric sparks and a green outer ring around the ball [P].",
+    "defenderEffect": "Consumed, evaporates into green sparks, reappears after 3 s in the same spot [P].",
+    "blockCounter": "Easy to counter (slow); block by jumping in front and moving forward [P][G].",
+    "powerButtonEffect": "unknown",
+    "sources": {
+      "P": "https://headsoccer.wiki.gg/wiki/The_Netherlands",
+      "G": "https://headsoccer.wiki.gg/wiki/Power_Shot_Guide",
+      "A": "https://headsoccer.wiki.gg/wiki/Arcade"
+    },
+    "engine": {
+      "family": "delay",
+      "ailment": "vanish",
+      "needs": "Very slow speed (~0.3x); black-hole VFX; 3 s vanish."
+    },
+    "score": {
+      "stars": 5,
+      "defend": 5,
+      "spectacle": 8,
+      "total": 558
+    },
+    "whyHarderThanPrevious": "Slow but devastating: a hit removes you for 3 s."
+  },
+  {
+    "stage": 22,
+    "rank": 22,
+    "batch": 3,
+    "id": "legendary_22",
+    "ourTitle": "הגנב",
+    "titleClash": "strong (thief)",
+    "hsCharacter": "New Zealand",
+    "stars": 5,
+    "powerName": "Haka Shot",
+    "flight": "Two white circles mark the ground, lightning strikes them, then the ball is shot [P][G].",
+    "visual": "Two white ground circles and lightning strikes [P].",
+    "defenderEffect": "Lightning: cannot jump, kick or move ~1 s; ball hit: turned into a rugby ball [P].",
+    "blockCounter": "Leave the circles, then kick to counter; easy to deflect into NZ's goal [P][G].",
+    "powerButtonEffect": "Sticks out his tongue, bares teeth, widens eyes (haka face) [P].",
+    "sources": {
+      "P": "https://headsoccer.wiki.gg/wiki/New_Zealand",
+      "G": "https://headsoccer.wiki.gg/wiki/Power_Shot_Guide",
+      "A": "https://headsoccer.wiki.gg/wiki/Arcade"
+    },
+    "engine": {
+      "family": "straight",
+      "ailment": "transform",
+      "needs": "Field hazard: 2 telegraphed strike zones before the shot; rugby-ball transform."
+    },
+    "score": {
+      "stars": 5,
+      "defend": 6,
+      "spectacle": 6,
+      "total": 566
+    },
+    "whyHarderThanPrevious": "Adds a field hazard before the shot: dodge the lightning, then deal with the ball."
+  },
+  {
+    "stage": 23,
+    "rank": 23,
+    "batch": 2,
+    "id": "legendary_23",
+    "ourTitle": "רעם האדמה",
+    "titleClash": "mild (earth thunder)",
+    "hsCharacter": "Sweden",
+    "stars": 5,
+    "powerName": "Viking Shot",
+    "flight": "Cannon balls at random heights, then the real ball as a high or low cannon ball; a high first shot usually means a low ball [P][G].",
+    "visual": "A Viking ship appears, Sweden jumps in and it fires cannon balls [P].",
+    "defenderEffect": "Cannon balls deal massive damage; touching the real ball turns you to ashes for a few seconds [P].",
+    "blockCounter": "Read the cannon pattern; move forward while blocking; stand far to get time [P][G].",
+    "powerButtonEffect": "Big metal Viking helmet with brown horns, loses costume [P].",
+    "sources": {
+      "P": "https://headsoccer.wiki.gg/wiki/Sweden",
+      "G": "https://headsoccer.wiki.gg/wiki/Power_Shot_Guide",
+      "A": "https://headsoccer.wiki.gg/wiki/Arcade"
+    },
+    "engine": {
+      "family": "multiball",
+      "ailment": "vanish",
+      "needs": "Ship prop; 1-2 decoy cannon balls then the real one high/low; ashes = vanish."
+    },
+    "score": {
+      "stars": 5,
+      "defend": 6,
+      "spectacle": 7,
+      "total": 567
+    },
+    "whyHarderThanPrevious": "Decoys that hurt and a high/low guess."
+  },
+  {
+    "stage": 24,
+    "rank": 24,
+    "batch": 1,
+    "id": "legendary_24",
+    "ourTitle": "האקרובט",
+    "titleClash": "strong (acrobat)",
+    "hsCharacter": "Cyborg",
+    "stars": 5,
+    "powerName": "Robo-Fist Shot / Missile Shot",
+    "flight": "Fist: from own goal while Cyborg jetpacks up; Missile: 5 missiles, the red one carries the ball [P][G].",
+    "visual": "\"A giant ball enveloped in a metallic fist\"; 5 missiles, red = ball [P].",
+    "defenderEffect": "Fist pushes the defender back; missiles may hit him on the way [P].",
+    "blockCounter": "Fist somewhat easy to counter on the ground; for missiles block only the red one [P][G].",
+    "powerButtonEffect": "Jetpacks up yelling \"Warning, warning\" [P].",
+    "sources": {
+      "P": "https://headsoccer.wiki.gg/wiki/Cyborg",
+      "G": "https://headsoccer.wiki.gg/wiki/Power_Shot_Guide",
+      "A": "https://headsoccer.wiki.gg/wiki/Arcade"
+    },
+    "engine": {
+      "family": "multiball",
+      "ailment": "none",
+      "needs": "Two shots (undamaged/damaged state); metal fist; 5 missiles, one real (red)."
+    },
+    "score": {
+      "stars": 5,
+      "defend": 6,
+      "spectacle": 7,
+      "total": 567
+    },
+    "whyHarderThanPrevious": "Two shot states and a missile volley with one real ball."
+  },
+  {
+    "stage": 25,
+    "rank": 25,
+    "batch": 1,
+    "id": "legendary_25",
+    "ourTitle": "המטעה",
+    "titleClash": "none (deceiver = magic)",
+    "hsCharacter": "Australia",
+    "stars": 5,
+    "powerName": "Magic Shot",
+    "flight": "Mid-air: rises to the top of the screen; ground: teleports forward then back; energy forms a tornado that hits the ground; the ball becomes big [P].",
+    "visual": "Black and purple energy cloud from a silver scepter with a glowing red gem; ball grows to Big Sized Ball [P].",
+    "defenderEffect": "Blocked: becomes a kangaroo (air) or dingo (ground) ~5 s, easily pushed [P].",
+    "blockCounter": "Air: jump+kick at the right time (hard); ground: jump forward while moving [G].",
+    "powerButtonEffect": "Blue wizard robe and hat with a red buckle, scepter [P].",
+    "sources": {
+      "P": "https://headsoccer.wiki.gg/wiki/Australia",
+      "G": "https://headsoccer.wiki.gg/wiki/Power_Shot_Guide",
+      "A": "https://headsoccer.wiki.gg/wiki/Arcade"
+    },
+    "engine": {
+      "family": "aerial",
+      "ailment": "transform",
+      "needs": "Rise/teleport + purple tornado; ball grows; animal transform 5 s."
+    },
+    "score": {
+      "stars": 5,
+      "defend": 6,
+      "spectacle": 8,
+      "total": 568
+    },
+    "whyHarderThanPrevious": "Air/ground variants, a growing ball and a 5 s transform."
+  },
+  {
+    "stage": 26,
+    "rank": 26,
+    "batch": 2,
+    "id": "legendary_26",
+    "ourTitle": "המחליק",
+    "titleClash": "strong (slider)",
+    "hsCharacter": "Czech Republic",
+    "stars": 5,
+    "powerName": "Lightning Shot / God Lightning Shot",
+    "flight": "Air: levitates and throws a lightning bolt with the ball downward; ground: portal above his head, a thunder god appears [P].",
+    "visual": "A lightning bolt carrying the ball; portal + thunder-god figure [P].",
+    "defenderEffect": "Disappears when hit [P].",
+    "blockCounter": "Air easy to counter; ground: dodge with a timed jump or kick the bolt; power-block possible [P].",
+    "powerButtonEffect": "Lightning-god transformation; jumps to the sky, lightning beam, electrifying ground line/shockwaves [P][B].",
+    "sources": {
+      "P": "https://headsoccer.wiki.gg/wiki/Czech_Republic",
+      "B": "https://headsoccer.wiki.gg/wiki/Power_Button_Damage_Effects",
+      "A": "https://headsoccer.wiki.gg/wiki/Arcade"
+    },
+    "engine": {
+      "family": "downward",
+      "ailment": "vanish",
+      "needs": "Bolt VFX; thunder-god summon; aura = shock line along the ground."
+    },
+    "score": {
+      "stars": 5,
+      "defend": 6,
+      "spectacle": 8,
+      "total": 568
+    },
+    "whyHarderThanPrevious": "Two lightning variants and a power button that attacks too."
+  },
+  {
+    "stage": 27,
+    "rank": 27,
+    "batch": 3,
+    "id": "legendary_27",
+    "ourTitle": "שומר הפורטל",
+    "titleClash": "mild (portal keeper)",
+    "hsCharacter": "Spain",
+    "stars": 5,
+    "powerName": "Laser Shot",
+    "flight": "Rises almost to the top of the screen and fires three balls at the goal, any can score [P][F].",
+    "visual": "Three balls fired together; colours unknown [P].",
+    "defenderEffect": "unknown",
+    "blockCounter": "Blocking three fast balls in a row is tough; close to Spain's goal they miss [P][G].",
+    "powerButtonEffect": "unknown",
+    "sources": {
+      "P": "https://headsoccer.wiki.gg/wiki/Spain",
+      "G": "https://headsoccer.wiki.gg/wiki/Power_Shot_Guide",
+      "F": "https://headsoccer.wiki.gg/wiki/Power_Shots",
+      "A": "https://headsoccer.wiki.gg/wiki/Arcade"
+    },
+    "engine": {
+      "family": "multiball",
+      "ailment": "none",
+      "needs": "3 real scorable balls from the top of the screen, in quick succession."
+    },
+    "score": {
+      "stars": 5,
+      "defend": 7,
+      "spectacle": 5,
+      "total": 575
+    },
+    "whyHarderThanPrevious": "First shot with three REAL balls: every one must be stopped."
+  },
+  {
+    "stage": 28,
+    "rank": 28,
+    "batch": 4,
+    "id": "legendary_28",
+    "ourTitle": "זורק הבומרנג",
+    "titleClash": "mild (boomerang)",
+    "hsCharacter": "Germany",
+    "stars": 5,
+    "powerName": "Dark Shot",
+    "flight": "Three homing balls that spread apart, over the defender [P][G]; best from maximum height [G].",
+    "visual": "\"3 homing balls riddled in purple mist\" [P].",
+    "defenderEffect": "Blocking one shrinks the defender briefly [P].",
+    "blockCounter": "One jump can block all three; stay far, max jump [P][G].",
+    "powerButtonEffect": "unknown",
+    "sources": {
+      "P": "https://headsoccer.wiki.gg/wiki/Germany",
+      "G": "https://headsoccer.wiki.gg/wiki/Power_Shot_Guide",
+      "A": "https://headsoccer.wiki.gg/wiki/Arcade"
+    },
+    "engine": {
+      "family": "multiball",
+      "ailment": "shrink",
+      "needs": "3 homing balls with purple mist; new \"shrink\" ailment."
+    },
+    "score": {
+      "stars": 5,
+      "defend": 7,
+      "spectacle": 6,
+      "total": 576
+    },
+    "whyHarderThanPrevious": "Three real balls that also home in, and blocking shrinks you."
+  },
+  {
+    "stage": 29,
+    "rank": 29,
+    "batch": 4,
+    "id": "legendary_29",
+    "ourTitle": "הכורה",
+    "titleClash": "strong (miner)",
+    "hsCharacter": "Luxembourg",
+    "stars": 5,
+    "powerName": "Plant Shot",
+    "flight": "A plant fires three spores in rapid succession: ground, upper half, ground [P].",
+    "visual": "A large plant with a mouth sprouts from the ground; a vine drops from the top of the screen if the 3rd spore is blocked [P].",
+    "defenderEffect": "Spores knock you unconscious; the vine eats the defender (disappears) [P].",
+    "blockCounter": "Each spore can be blocked; counter only the last [P][G].",
+    "powerButtonEffect": "unknown",
+    "sources": {
+      "P": "https://headsoccer.wiki.gg/wiki/Luxembourg",
+      "G": "https://headsoccer.wiki.gg/wiki/Power_Shot_Guide",
+      "A": "https://headsoccer.wiki.gg/wiki/Arcade"
+    },
+    "engine": {
+      "family": "multiball",
+      "ailment": "vanish",
+      "needs": "Plant prop; 3 sequenced spores at low/high/low; vine punish on a block."
+    },
+    "score": {
+      "stars": 5,
+      "defend": 7,
+      "spectacle": 6,
+      "total": 576
+    },
+    "whyHarderThanPrevious": "Three spores at alternating heights with a punish even for blocking."
+  },
+  {
+    "stage": 30,
+    "rank": 30,
+    "batch": 3,
+    "id": "legendary_30",
+    "ourTitle": "אדון המשיכה",
+    "titleClash": "strong (lord of pull)",
+    "hsCharacter": "Belgium",
+    "stars": 5,
+    "powerName": "Music Notes Shot",
+    "flight": "Notes fly at the goal, three red notes carry the ball [P][G].",
+    "visual": "Musical notes from speakers; three red notes [P].",
+    "defenderEffect": "First red note stuns; second turns the defender into a dancer for 4 s [P].",
+    "blockCounter": "Block all three by jumping near Belgium while moving forward [G].",
+    "powerButtonEffect": "White hat, star make-up; music notes around him injure and knock out close opponents [P][B].",
+    "sources": {
+      "P": "https://headsoccer.wiki.gg/wiki/Belgium",
+      "G": "https://headsoccer.wiki.gg/wiki/Power_Shot_Guide",
+      "B": "https://headsoccer.wiki.gg/wiki/Power_Button_Damage_Effects",
+      "A": "https://headsoccer.wiki.gg/wiki/Arcade"
+    },
+    "engine": {
+      "family": "multiball",
+      "ailment": "transform",
+      "needs": "3 red notes among decoy notes; stun then transform; damaging aura."
+    },
+    "score": {
+      "stars": 5,
+      "defend": 7,
+      "spectacle": 7,
+      "total": 577
+    },
+    "whyHarderThanPrevious": "Three carriers, two stacked ailments, and a harmful aura."
+  },
+  {
+    "stage": 31,
+    "rank": 31,
+    "batch": 2,
+    "id": "legendary_31",
+    "ourTitle": "השואב",
+    "titleClash": "mild (vacuum)",
+    "hsCharacter": "Ireland",
+    "stars": 5,
+    "powerName": "Rainbow Shot",
+    "flight": "Coloured orbs circle Ireland then come toward the defender; one of the uppermost carries the ball [P].",
+    "visual": "Variously coloured (rainbow) orbs [P].",
+    "defenderEffect": "Orbs push the defender back; the largest makes him disappear ~4 s, leaving 5 coins [P].",
+    "blockCounter": "\"A hard Power Shot to counter\"; massive damage if you try to block [P].",
+    "powerButtonEffect": "unknown",
+    "sources": {
+      "P": "https://headsoccer.wiki.gg/wiki/Ireland",
+      "A": "https://headsoccer.wiki.gg/wiki/Arcade"
+    },
+    "engine": {
+      "family": "multiball",
+      "ailment": "vanish",
+      "needs": "Orbiting rainbow orbs that push; 4 s vanish; coin drop."
+    },
+    "score": {
+      "stars": 5,
+      "defend": 7,
+      "spectacle": 7,
+      "total": 577
+    },
+    "whyHarderThanPrevious": "Orbs that push you out of position before the real one arrives."
+  },
+  {
+    "stage": 32,
+    "rank": 32,
+    "batch": 1,
+    "id": "legendary_32",
+    "ourTitle": "הרוזן האפל",
+    "titleClash": "none (dark count = dark hand)",
+    "hsCharacter": "Mexico",
+    "stars": 5,
+    "powerName": "Hand Shot",
+    "flight": "Straight at the goal [P], about comet speed at head height [V]; 3 s [P].",
+    "visual": "A big dark-blue hand with dark-blue sonar rings forming a tornado [P]; footage: giant ghostly hand, fingers spread, blue speed streaks [V].",
+    "defenderEffect": "Grabbed, brought to Mexico, slammed upside down into the ground ~2 s [P]; footage: 3 gold stars, smoke puff, flung up then spun down in a blue whirlwind [V].",
+    "blockCounter": "Unblockable effect; counter by jumping and kicking [G]; footage: an armed CPU countered with it [V].",
+    "powerButtonEffect": "unknown",
+    "sources": {
+      "P": "https://headsoccer.wiki.gg/wiki/Mexico",
+      "G": "https://headsoccer.wiki.gg/wiki/Power_Shot_Guide",
+      "V": "docs/HS-POWER-SHOTS.md (Idan footage)",
+      "A": "https://headsoccer.wiki.gg/wiki/Arcade"
+    },
+    "engine": {
+      "family": "grab",
+      "ailment": "buried",
+      "needs": "Existing grab + hand VFX already filmed; add the slam-into-ground (2 s) end state."
+    },
+    "score": {
+      "stars": 5,
+      "defend": 7,
+      "spectacle": 8,
+      "total": 578
+    },
+    "whyHarderThanPrevious": "A grab: the defender is taken out of the play entirely."
+  },
+  {
+    "stage": 33,
+    "rank": 33,
+    "batch": 1,
+    "id": "legendary_33",
+    "ourTitle": "רגל הזהב",
+    "titleClash": "mild (golden foot)",
+    "hsCharacter": "Asura",
+    "stars": 5,
+    "powerName": "Red Fist Shot",
+    "flight": "Fists fire, then the ball goes high at the defender; Asura is launched backward [P][G].",
+    "visual": "Many red fists; a huge red fist from above if blocked [P].",
+    "defenderEffect": "Fists knock back, destroy costumes, critical damage; blocking gets you crushed flat by the huge fist [P].",
+    "blockCounter": "Block with a precisely timed jump close to Asura (90% into his goal) [G].",
+    "powerButtonEffect": "Four red fists appear, two each side [P].",
+    "sources": {
+      "P": "https://headsoccer.wiki.gg/wiki/Asura",
+      "G": "https://headsoccer.wiki.gg/wiki/Power_Shot_Guide",
+      "A": "https://headsoccer.wiki.gg/wiki/Arcade"
+    },
+    "engine": {
+      "family": "destructive",
+      "ailment": "buried",
+      "needs": "Fist volley; block punish = giant fist slam (flattened)."
+    },
+    "score": {
+      "stars": 5,
+      "defend": 7,
+      "spectacle": 8,
+      "total": 578
+    },
+    "whyHarderThanPrevious": "Destructive: even a successful block is punished."
+  },
+  {
+    "stage": 34,
+    "rank": 34,
+    "batch": 2,
+    "id": "legendary_34",
+    "ourTitle": "אמן הצמר",
+    "titleClash": "strong (wool master)",
+    "hsCharacter": "India",
+    "stars": 5,
+    "powerName": "Fireball Shot / Fire Hands Shot",
+    "flight": "Air: a large number of fireballs launched up, ball at the end, ~3 s; ground: arm stretches with the ball, 2 s [P].",
+    "visual": "Many fireballs; a stretching fiery arm [P].",
+    "defenderEffect": "Fireballs burn = reversed walking; the arm pulls the defender to India and turns him to ashes [P].",
+    "blockCounter": "Ground shot fails on rocks; walking through can make an own goal [P].",
+    "powerButtonEffect": "Flame burst reversing controls plus fire punches [B][P].",
+    "sources": {
+      "P": "https://headsoccer.wiki.gg/wiki/India",
+      "B": "https://headsoccer.wiki.gg/wiki/Power_Button_Damage_Effects",
+      "A": "https://headsoccer.wiki.gg/wiki/Arcade"
+    },
+    "engine": {
+      "family": "multiball",
+      "ailment": "reverse",
+      "needs": "Fireball rain (reverse on touch) + stretching arm grab variant; reversing aura."
+    },
+    "score": {
+      "stars": 5,
+      "defend": 7,
+      "spectacle": 8,
+      "total": 578
+    },
+    "whyHarderThanPrevious": "Rain of reversing fireballs plus a grab variant."
+  },
+  {
+    "stage": 35,
+    "rank": 35,
+    "batch": 3,
+    "id": "legendary_35",
+    "ourTitle": "הנווט",
+    "titleClash": "strong (navigator)",
+    "hsCharacter": "South Africa",
+    "stars": 5,
+    "powerName": "Golem Shot (air / ground)",
+    "flight": "A light beam first, then a golem charges; ground version breaks mid-way and angles down [G][P].",
+    "visual": "A large golem with the ball in its head; a big golem fist [P].",
+    "defenderEffect": "Hurled out of the stadium when the golem explodes [P].",
+    "blockCounter": "Air: easy to block with a timed jump; dodge the beam first [P][G].",
+    "powerButtonEffect": "unknown",
+    "sources": {
+      "P": "https://headsoccer.wiki.gg/wiki/South_Africa",
+      "G": "https://headsoccer.wiki.gg/wiki/Power_Shot_Guide",
+      "A": "https://headsoccer.wiki.gg/wiki/Arcade"
+    },
+    "engine": {
+      "family": "destructive",
+      "ailment": "launched",
+      "needs": "Telegraph beam; golem body; new \"launched\" (off-screen) ailment."
+    },
+    "score": {
+      "stars": 5,
+      "defend": 7,
+      "spectacle": 9,
+      "total": 579
+    },
+    "whyHarderThanPrevious": "A telegraphed beam then a golem that throws you out of the stadium."
+  },
+  {
+    "stage": 36,
+    "rank": 36,
+    "batch": 4,
+    "id": "legendary_36",
+    "ourTitle": "הופך העולמות",
+    "titleClash": "strong (world flipper)",
+    "hsCharacter": "Indonesia",
+    "stars": 5,
+    "powerName": "Chain Shot / Iron Rope Shot",
+    "flight": "Air: several iron chains come from the air to the ground, 4 s; ground: one iron rope to the defender, 2 s [P].",
+    "visual": "Iron chains; an iron rope; an ice ball [P].",
+    "defenderEffect": "Chains hang you in the air, no jump/dash; rope pulls you in, freezes you in an ice ball that explodes [P].",
+    "blockCounter": "unknown",
+    "powerButtonEffect": "Rocket launcher costume pushes hard [P]; ice block freeze 2-3 s + ground spikes [B].",
+    "sources": {
+      "P": "https://headsoccer.wiki.gg/wiki/Indonesia",
+      "B": "https://headsoccer.wiki.gg/wiki/Power_Button_Damage_Effects",
+      "A": "https://headsoccer.wiki.gg/wiki/Arcade"
+    },
+    "engine": {
+      "family": "grab",
+      "ailment": "freeze",
+      "needs": "Chains that seize the defender (multi-hit) and a rope pull + freeze."
+    },
+    "score": {
+      "stars": 5,
+      "defend": 8,
+      "spectacle": 7,
+      "total": 587
+    },
+    "whyHarderThanPrevious": "Multi-stage grab: chains hold you, the rope pulls and freezes you."
+  },
+  {
+    "stage": 37,
+    "rank": 37,
+    "batch": 4,
+    "id": "legendary_37",
+    "ourTitle": "אדון המראות",
+    "titleClash": "strong (mirror lord)",
+    "hsCharacter": "Honduras",
+    "stars": 5,
+    "powerName": "Fire Sword Shot / Ice Sword Shot",
+    "flight": "Air: three middle-sized balls, the last higher, all with a red aura; ground: a big blue energy ball beside the real ball [P].",
+    "visual": "A sword; red / blue auras; the stadium darkens significantly [P].",
+    "defenderEffect": "Beheaded [P][F].",
+    "blockCounter": "Only the last ball can be countered [P].",
+    "powerButtonEffect": "Blue energy, cat ears; rushes forward with the sword in a yellow beam, knocks back and out [P][B].",
+    "sources": {
+      "P": "https://headsoccer.wiki.gg/wiki/Honduras",
+      "F": "https://headsoccer.wiki.gg/wiki/Power_Shots",
+      "B": "https://headsoccer.wiki.gg/wiki/Power_Button_Damage_Effects",
+      "A": "https://headsoccer.wiki.gg/wiki/Arcade"
+    },
+    "engine": {
+      "family": "multiball",
+      "ailment": "beheaded",
+      "needs": "3 red-aura balls (only the last counterable); darkened stadium; beheaded."
+    },
+    "score": {
+      "stars": 5,
+      "defend": 8,
+      "spectacle": 7,
+      "total": 587
+    },
+    "whyHarderThanPrevious": "Three balls where only one may be countered, and a hit beheads you."
+  },
+  {
+    "stage": 38,
+    "rank": 38,
+    "batch": 3,
+    "id": "legendary_38",
+    "ourTitle": "המשגר",
+    "titleClash": "none (launcher)",
+    "hsCharacter": "United Kingdom",
+    "stars": 5,
+    "powerName": "Hawk-Eye Shot",
+    "flight": "11 red laser-arrows go straight up then diagonally at the goal; the last carries the ball; 4 s [P]; bounce off walls/ceiling in the box [G]; footage (M2 England): ball up in an orange flame column, ~1 s of red warning streaks, then a 30° meteor dive [V].",
+    "visual": "11 red laser-arrows [P]; footage: orange fire meteor with red warning streaks [V].",
+    "defenderEffect": "First 10 arrows stop you jumping and hurt; \"massive damage that can hardly be avoided\" [P].",
+    "blockCounter": "Hard to counter; dash forward away from the lasers then back for the last one [P][G].",
+    "powerButtonEffect": "unknown",
+    "sources": {
+      "P": "https://headsoccer.wiki.gg/wiki/United_Kingdom",
+      "G": "https://headsoccer.wiki.gg/wiki/Power_Shot_Guide",
+      "V": "docs/HS-POWER-SHOTS.md (Idan footage)",
+      "A": "https://headsoccer.wiki.gg/wiki/Arcade"
+    },
+    "engine": {
+      "family": "aerial",
+      "ailment": "shock",
+      "needs": "Existing aerial + 10 decoy arrows that pin (no jump) before the real one."
+    },
+    "score": {
+      "stars": 5,
+      "defend": 8,
+      "spectacle": 8,
+      "total": 588
+    },
+    "whyHarderThanPrevious": "Ten punishing decoys that pin you, then the real arrow."
+  },
+  {
+    "stage": 39,
+    "rank": 39,
+    "batch": 2,
+    "id": "legendary_39",
+    "ourTitle": "מלך הכדרור",
+    "titleClash": "strong (dribble king)",
+    "hsCharacter": "Thailand",
+    "stars": 5,
+    "powerName": "Meteor Shot / Giant Meteor Shot",
+    "flight": "Air: small meteors fall, then the ball; ground: a giant meteor falls straight down, then a comet diagonally at the goal [P][G].",
+    "visual": "Several small meteors; a giant meteor and a comet [P].",
+    "defenderEffect": "Meteors reverse controls and stop jumping; giant meteor launches you [P].",
+    "blockCounter": "Dodge meteors backward then block; after the giant meteor jump+kick [G][P].",
+    "powerButtonEffect": "unknown",
+    "sources": {
+      "P": "https://headsoccer.wiki.gg/wiki/Thailand",
+      "G": "https://headsoccer.wiki.gg/wiki/Power_Shot_Guide",
+      "A": "https://headsoccer.wiki.gg/wiki/Arcade"
+    },
+    "engine": {
+      "family": "aerial",
+      "ailment": "reverse",
+      "needs": "Meteor-rain field hazard (reverse) then a diagonal comet; giant-meteor variant."
+    },
+    "score": {
+      "stars": 5,
+      "defend": 8,
+      "spectacle": 8,
+      "total": 588
+    },
+    "whyHarderThanPrevious": "Field-wide hazard rain before a diagonal comet."
+  },
+  {
+    "stage": 40,
+    "rank": 40,
+    "batch": 1,
+    "id": "legendary_40",
+    "ourTitle": "רוח הרפאים",
+    "titleClash": "strong (phantom)",
+    "hsCharacter": "Austria",
+    "stars": 5,
+    "powerName": "Triple Boulder / Giant Boulder Shot",
+    "flight": "Air: 3 molten boulders equally spaced from half court, the slowest power shot; ground: a giant ball comes down at 45°; counter: 3x normal speed at 40° [P].",
+    "visual": "Catapult of molten boulders; giant fiery boulder, the biggest ball in the game [P].",
+    "defenderEffect": "Boulders immobilise; giant boulder = unconscious 5 s [P].",
+    "blockCounter": "Giant boulder easily countered; dodge boulders then counter [P][G].",
+    "powerButtonEffect": "unknown",
+    "sources": {
+      "P": "https://headsoccer.wiki.gg/wiki/Austria",
+      "G": "https://headsoccer.wiki.gg/wiki/Power_Shot_Guide",
+      "A": "https://headsoccer.wiki.gg/wiki/Arcade"
+    },
+    "engine": {
+      "family": "aerial",
+      "ailment": "stars",
+      "needs": "Catapult; 3 hazard boulders + giant ball (radius ~3x); 5 s daze."
+    },
+    "score": {
+      "stars": 5,
+      "defend": 8,
+      "spectacle": 9,
+      "total": 589
+    },
+    "whyHarderThanPrevious": "Hazards plus the biggest ball in the game and a 5 s knockout."
+  },
+  {
+    "stage": 41,
+    "rank": 41,
+    "batch": 1,
+    "id": "legendary_41",
+    "ourTitle": "שומר הזמן",
+    "titleClash": "strong (time keeper)",
+    "hsCharacter": "Switzerland",
+    "stars": 5,
+    "powerName": "Yeti Shot / Snowman Shot",
+    "flight": "Air: a yeti throws a huge snowball with the ball inside, 4 s; ground: a snowstorm from Switzerland's goal, 3 s [P].",
+    "visual": "A huge yeti and a huge snowball; a windy snowstorm [P].",
+    "defenderEffect": "Turned into a snowman; a rolled snowball breaks it into the goal [P][G].",
+    "blockCounter": "Yeti \"quite hard to counter\"; ground \"harder to counter\"; counter snowstorm after a 1 s wait [P][G].",
+    "powerButtonEffect": "Winter cap and the stadium covered in snow [P].",
+    "sources": {
+      "P": "https://headsoccer.wiki.gg/wiki/Switzerland",
+      "G": "https://headsoccer.wiki.gg/wiki/Power_Shot_Guide",
+      "A": "https://headsoccer.wiki.gg/wiki/Arcade"
+    },
+    "engine": {
+      "family": "aerial",
+      "ailment": "transform",
+      "needs": "Yeti summon + giant snowball; snowman that the next ball smashes into goal."
+    },
+    "score": {
+      "stars": 5,
+      "defend": 8,
+      "spectacle": 9,
+      "total": 589
+    },
+    "whyHarderThanPrevious": "A summoned yeti, a giant snowball and a snowman you get rolled in as."
+  },
+  {
+    "stage": 42,
+    "rank": 42,
+    "batch": 2,
+    "id": "legendary_42",
+    "ourTitle": "התאום",
+    "titleClash": "strong (twin)",
+    "hsCharacter": "Saudi Arabia",
+    "stars": 5,
+    "powerName": "Oil Shot / Oil Tanks Shot",
+    "flight": "Air: seven oil barrels from the sky; ground: three barrels, the lighter (ball) thrown on a diagonal [P].",
+    "visual": "Oil barrels and an oil slick; the ball is a lighter [P].",
+    "defenderEffect": "Barrels explode when the lighter hits the oil; the defender explodes and flies ~3 s [P].",
+    "blockCounter": "\"The only one that cannot be countered\" (except Belgium's air shot) [P].",
+    "powerButtonEffect": "unknown",
+    "sources": {
+      "P": "https://headsoccer.wiki.gg/wiki/Saudi_Arabia",
+      "A": "https://headsoccer.wiki.gg/wiki/Arcade"
+    },
+    "engine": {
+      "family": "critical",
+      "ailment": "launched",
+      "needs": "Barrels placed at the defender; ignite on ball contact; cannot be countered (critical \"through\")."
+    },
+    "score": {
+      "stars": 5,
+      "defend": 9,
+      "spectacle": 8,
+      "total": 598
+    },
+    "whyHarderThanPrevious": "The one power in HS that cannot be countered."
+  },
+  {
+    "stage": 43,
+    "rank": 43,
+    "batch": 3,
+    "id": "legendary_43",
+    "ourTitle": "המפצל",
+    "titleClash": "strong (splitter)",
+    "hsCharacter": "Pluto",
+    "stars": 5,
+    "powerName": "Titan Shot (air / ground)",
+    "flight": "A titan arrives after ~3 s with great power; ~4 s [P][G].",
+    "visual": "A giant titan with spinning blades, green cape and manoeuvre gear; ball in its arm or lower body [P].",
+    "defenderEffect": "Flung off-screen; the ground titan eats the defender [P].",
+    "blockCounter": "Extremely difficult to block or counter; needs max jump or standing on a stone [G].",
+    "powerButtonEffect": "Shifts into a titan and spins blades; a sword swipe stuns nearby [P][B].",
+    "sources": {
+      "P": "https://headsoccer.wiki.gg/wiki/Pluto",
+      "G": "https://headsoccer.wiki.gg/wiki/Power_Shot_Guide",
+      "B": "https://headsoccer.wiki.gg/wiki/Power_Button_Damage_Effects",
+      "A": "https://headsoccer.wiki.gg/wiki/Arcade"
+    },
+    "engine": {
+      "family": "delay",
+      "ailment": "launched",
+      "needs": "Screen-tall titan summon with a 3 s build-up; ball in the titan limb."
+    },
+    "score": {
+      "stars": 5,
+      "defend": 9,
+      "spectacle": 9,
+      "total": 599
+    },
+    "whyHarderThanPrevious": "A screen-tall summon after a long build-up, near impossible to stop."
+  },
+  {
+    "stage": 44,
+    "rank": 44,
+    "batch": 4,
+    "id": "legendary_44",
+    "ourTitle": "עין הסערה",
+    "titleClash": "mild (eye of the storm)",
+    "hsCharacter": "Norway",
+    "stars": 5,
+    "powerName": "Alien Shot (critical)",
+    "flight": "Air: two chains try to catch the defender, 5-6 s; critical: a cutscene, then three faster chains [P].",
+    "visual": "Chains and a UFO; green missiles with a red one (ground) [P].",
+    "defenderEffect": "Touching the ball without countering: turned into a green alien by a UFO [P].",
+    "blockCounter": "Can be countered (the defender then does Norway's counter attack) [P].",
+    "powerButtonEffect": "Pale face, yellow-orange hair, floating chair shooting yellow rays every 3 s [P]; fire reversing controls + ray gun [B].",
+    "sources": {
+      "P": "https://headsoccer.wiki.gg/wiki/Norway",
+      "B": "https://headsoccer.wiki.gg/wiki/Power_Button_Damage_Effects",
+      "A": "https://headsoccer.wiki.gg/wiki/Arcade"
+    },
+    "engine": {
+      "family": "critical",
+      "ailment": "transform",
+      "needs": "Chains seek the defender; random critical cutscene with 3 faster chains; alien transform."
+    },
+    "score": {
+      "stars": 5,
+      "defend": 9,
+      "spectacle": 9,
+      "total": 599
+    },
+    "whyHarderThanPrevious": "Critical: a random cutscene makes it faster and harder."
+  },
+  {
+    "stage": 45,
+    "rank": 45,
+    "batch": 4,
+    "id": "legendary_45",
+    "ourTitle": "אדון הזמן",
+    "titleClash": "none (time lord = cosmic)",
+    "hsCharacter": "Henos",
+    "stars": 5,
+    "powerName": "Red Stone Shot (critical)",
+    "flight": "Grabs an asteroid, crumbles it into meteors and throws them in a curve; critical: twice as many meteors [P].",
+    "visual": "Meteors, one carries the ball; golden armour and a gauntlet [P].",
+    "defenderEffect": "Thrown in a hole and disappears; critical: finger snap vaporises him [P].",
+    "blockCounter": "unknown",
+    "powerButtonEffect": "Golden suit with black armour and a gauntlet he regularly smashes the opponent with [P].",
+    "sources": {
+      "P": "https://headsoccer.wiki.gg/wiki/Henos",
+      "A": "https://headsoccer.wiki.gg/wiki/Arcade"
+    },
+    "engine": {
+      "family": "critical",
+      "ailment": "vanish",
+      "needs": "Curved meteor volley (one real); critical doubles it with a snap finish."
+    },
+    "score": {
+      "stars": 5,
+      "defend": 9,
+      "spectacle": 9,
+      "total": 599
+    },
+    "whyHarderThanPrevious": "The final boss: a curving meteor storm that doubles on a critical."
+  }
+]
