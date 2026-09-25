@@ -103,18 +103,18 @@ At the audit, `node test-hs-parity.mjs` passed 82 of 88 rows. The 6 failures are
 
 | # | Sev | Gap | Ours | HS | Source |
 |---|---|---|---|---|---|
-| V1 | H | Only 4 of 180 characters have HS-style art; the other 176 are photo crops | `characters.js:24-29`, `game.js:2510` | All are painted cartoons | meas |
-| V2 | H | The pitch renders at half resolution as pixel art, with gradients banned on purpose. The HD heads and effects on top give the picture two different sharpness levels | `PIXEL=2` `game.js:1238`, `art-directions.js:30` | Smooth painted HD | meas |
-| V3 | H | No stadium: all 11 backdrops are fantasy pixel scenes | `stages.js` | Packed stands, floodlights, day or night, a floor that changes per stage | meas |
+| V1 ✂️⏸ | H | **Scoped by Idan to the first 5; #5 paused for your OK** (each is a hand-traced rig from the card photo — tell me which card is #5). Only 4 of 180 characters have HS-style art; the other 176 are photo crops | `characters.js:24-29`, `game.js:2510` | All are painted cartoons | meas |
+| V2 ❓ | H | **Needs Idan:** the pixel-art pitch is a deliberate art direction (`art-directions.js` bans gradients on purpose). The pitch renders at half resolution as pixel art, with gradients banned on purpose. The HD heads and effects on top give the picture two different sharpness levels | `PIXEL=2` `game.js:1238`, `art-directions.js:30` | Smooth painted HD | meas |
+| V3 ❓ | H | **Needs Idan:** the 11 fantasy stages are Saltiz's own art; replacing them with an HS stadium is an art call. No stadium: all 11 backdrops are fantasy pixel scenes | `stages.js` | Packed stands, floodlights, day or night, a floor that changes per stage | meas |
 | V4 ✅ | H | No music: the game has no audio files at all | — | Continuous music with a steady beat | meas (audio) |
 | V5 ✅ | M | No crowd ambience; only a 1.8 s noise burst on a goal | `audio.js:96` | Ambient crowd sound | meas |
 | V6 ❓ | M | **Needs Idan:** audio.js was written to a brief ("sounds from Street Fighter II"). All sound is chiptune synth | `audio.js:118-158` | Sampled sounds | meas |
 | V7 ✅ | M | Missing sounds: no floor bounce (no event exists), `SFX.post` is never fired, no sound for knockout, stun, hurt, power hit or ailments, and `synth()` (per-power sounds) is never called | `audio.js` | All present | meas |
-| V8 | M | Flat pitch floor: stripes, a centre line, half a circle | `game.js:1738` | Perspective floor with penalty boxes | meas |
-| V9 | L | The crowd bobs, redrawn 12 times a second | — | Completely still | meas |
-| V10 | L | The ad boards scroll one repeated SALTIZ strip | — | Still and varied | meas |
+| V8 ❓ | M | **Needs Idan:** goes with V2/V3 (the pitch art). Flat pitch floor: stripes, a centre line, half a circle | `game.js:1738` | Perspective floor with penalty boxes | meas |
+| V9 ✅ | L | The crowd bobs, redrawn 12 times a second | — | Completely still | meas |
+| V10 ✅ | L | The ad boards scroll one repeated SALTIZ strip | — | Still and varied | meas |
 | V11 ✅ | L | The ball turns ~5× too slowly for how fast it moves | `game.js:2236` | Rolls properly | physics |
-| V12 | L | The 20 small pitch sprites (`px-*.webp`) are built but never used; `CHARACTERS.md` wrongly says the characters change expression | — | — | code |
+| V12 ✅ | L | The 20 small pitch sprites (`px-*.webp`) are built but never used; `CHARACTERS.md` wrongly says the characters change expression | — | — | code |
 
 ## 7. Code hygiene found on the way
 

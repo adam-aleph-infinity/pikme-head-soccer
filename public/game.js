@@ -1788,7 +1788,7 @@ function drawStadium(g) {
   // hoardings
   const ledH = ledBot - ledTop;
   R2(g, C.GOAL_W, ledTop - 2, C.W - C.GOAL_W * 2, ledH + 4, OUTLINE);
-  const scroll = Math.round((t * 60) % 240);
+  const scroll = 0;                         // HS's boards stand still (HS-GAP-AUDIT V10)
   g.save();
   g.beginPath(); g.rect(C.GOAL_W, ledTop, C.W - C.GOAL_W * 2, ledH); g.clip();
   // Set once, not once per board: the value is identical on every iteration, and assigning

@@ -42,7 +42,7 @@ function silhouette(g, W, baseY, peaks, color, seed = 0) {
 function onlookers(g, W, top, bot, crowd, t, palette) {
   for (const c of crowd) {
     const y = top + 6 + c.f * (bot - top - 14);
-    const bob = Math.sin(t * 3 + c.ph) > 0 ? 0 : 2;
+    const bob = 0;                          // HS's crowd is completely still, even at a goal (V9)
     R(g, c.x - 1, y + bob - 1, 6, 8, OUTLINE);
     R(g, c.x, y + bob + 2, 4, 4, palette ? palette[(c.ph * 7 | 0) % palette.length] : c.c);
     R(g, c.x, y + bob, 4, 3, '#f0b48a');

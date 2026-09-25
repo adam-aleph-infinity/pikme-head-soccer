@@ -86,7 +86,7 @@ A `WARNING … touches the frame edge` means a lock or the hair is outside the f
 
 ## Expressions and when they show
 
-`expressionFor` reads match state only. The sim is untouched.
+**In play every character keeps the `normal` face**, because Head Soccer does: its faces stay normal when hit and at a goal (HS-GAP-AUDIT V12; `expressionFor` in `public/characters.js` returns `normal`). The other expressions below are painted and kept for portraits and future use; the table records when each was designed to show.
 
 | Expression | When | Face |
 |---|---|---|
