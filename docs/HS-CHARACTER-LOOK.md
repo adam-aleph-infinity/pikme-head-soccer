@@ -8,8 +8,8 @@ calibrated head is 52.75 px there) or in head radii **R**.
 Our rule: the heads stay Saltiz card faces, everything else is drawn by us from paths
 (`drawBody`, `drawBoot` in `public/game.js`). No HS sprite is traced, cropped or shipped.
 
-Exception: cards with a drawn character (`public/characters.js`) play as our own HS-style
-cartoon of the person on the card. See `docs/CHARACTERS.md`.
+Exception: cards with a real-face character (`public/characters.js`) play as their own person made
+into an HS character (the real head, re-posed, HS proportions and keyline). See `docs/CHARACTERS.md`.
 
 ## What HS does
 
