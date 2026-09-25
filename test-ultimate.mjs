@@ -977,6 +977,7 @@ function atDefender(fam, o = {}, { kick = false, armed = false, gap = 320 } = {}
   m.ball.x = C.W - C.GOAL_W - C.BALL_R - 2; m.ball.y = C.GROUND_Y - 30; m.ball.vx = 700;
   for (let i = 0; i < 20 && m.score[0] === 0; i++) { m.hitStop = 0; step(m, NONE); }
   ok('a goal still counts', m.score[0] === 1, `score ${m.score.join('-')}`);
+  for (let i = 0; i < 400 && m.phase !== 'goal'; i++) { m.hitStop = 0; step(m, NONE); }   // play runs on under GOAL!
   ok('and still restarts from the spot',
      Math.abs(m.ball.x - C.BALL_SPAWN.x) < 1 && m.phase === 'goal');
 }

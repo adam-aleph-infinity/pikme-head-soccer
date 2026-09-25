@@ -570,6 +570,7 @@ C.tune({ JUMP_V: SHIPPED_JUMP });
   b.x = C.W - C.GOAL_W - 140; b.y = C.GROUND_Y - 30; b.vx = 700; b.vy = 0;
   run(m, 40);
   ok('and a shot nobody blocks is a goal', m.score[0] === 1, `score ${m.score}`);
+  for (let i = 0; i < 400 && m.phase !== 'goal'; i++) run(m, 1);   // the free play under GOAL!
   ok('a goal still restarts the match', m.phase === 'goal' && Math.abs(m.players[0].x - C.SPAWN_X[0]) < 1);
 }
 {
@@ -813,46 +814,6 @@ const dropAt = (sx, fromY) => {
   // drifts a pixel a tick is not the player the test placed.
   const pin = (p, x) => { p.x = x; p.y = C.GROUND_Y; p.vx = 0; p.vy = 0; p.onGround = true; };
 
-  // ---- the bug itself: a header from right on top of the goal line --------
-  for (const left of [true, false]) {
-    // Held at kickoff so the scorer is switched off and the PLACEMENT can be read directly —
-    // this asks where the snap put the ball, not what the scoreboard did about it.
-    const m = noWhistle();
-    const d = m.players[SCORER(left)], other = m.players[CONCEDER(left)];
-    pin(other, C.W / 2);
-    // 25px out: close enough that the raw snap (headR + BALL_R + 2 = 44px the other way) lands
-    // the WHOLE ball behind the line. That is the geometry the bug needed, and it is the
-    // geometry a defender clearing their line is actually in.
-    pin(d, LINE(left) + OUT(left) * 25);          // on the pitch, a yard off the line
-    // No facing is set: it no longer decides anything here. The header goes at the goal this
-    // player attacks, which is the one they are standing on top of. The ball sits IN FRONT of
-    // that attack, 20px closer to the line than the player — the shape a real turning header
-    // near the mouth is actually in — never behind (see the "no teleport" block below for what
-    // happens then).
-    d.prev = {};
-    const b = m.ball;
-    b.x = d.x - OUT(left) * 20; b.y = headY(d); b.vx = 0; b.vy = 0;   // at their head
-    const raw = d.x - OUT(left) * (C.HEAD_R + b.r + 2);
-    ok(`${side(left)}: (the unclamped snap really would have been in the net)`,
-       !!ballInGoal(raw, headY(d) - (C.HEAD_R + b.r) * 0.35, b.r), `raw snap x=${raw.toFixed(1)}`);
-    // Stepped with a dt of nothing, so the tick is all stepPlayer and no ball travel: what is
-    // read below is the SNAP, on its own, before the header's own velocity has moved the ball
-    // a pixel. (A full tick cannot answer this. The snap leaves the ball on the line and the
-    // shot then carries it over inside the same tick — correctly, because that is a goal the
-    // player chose to head — so a full tick shows a ball in the net either way. What the fix
-    // changes is whether it got there by crossing the line or by being put behind it.)
-    const input = [{}, {}]; input[d.index] = { kick: true };
-    m.hitStop = 0;
-    step(m, input, 1e-6, NO_FX);
-    ok(`${side(left)}: the header fired`, m.events.some((e) => e.type === 'strike' && e.aimed),
-       JSON.stringify(m.events));
-    ok(`${side(left)}: a header does not snap the ball through the post`,
-       !ballInGoal(b.x, b.y, b.r), `ball at ${b.x.toFixed(1)}, line ${LINE(left)}`);
-    ok(`${side(left)}: …it is set down exactly on the line`,
-       Math.abs((b.x + OUT(left) * b.r) - LINE(left)) < 0.05 && !ballInGoal(b.x, b.y, b.r),
-       `ball at ${b.x.toFixed(3)}`);
-  }
-
   // ---- no header ever crosses the body: a ball BEHIND the attack does not fire one ---------
   //
   // Reported: the ball teleporting from behind a player to in front of them, fast, at head
@@ -1050,8 +1011,9 @@ const dropAt = (sx, fromY) => {
     const b = m.ball;
     b.x = LINE(left) + OUT(left) * 150; b.y = C.GROUND_Y - 50;
     b.vx = -OUT(left) * 700; b.vy = 0;
-    run(m, 120);
-    ok(`${side(left)}: the goal freezes play`, m.phase === 'goal' && m.freeze > 0, `phase ${m.phase}`);
+    // HS: play runs on under GOAL! (2.05 s), then both are held on their spots
+    for (let i = 0; i < 400 && m.phase !== 'goal'; i++) run(m, 1);
+    ok(`${side(left)}: the restart holds play`, m.phase === 'goal' && m.freeze > 0 && m.score.some((x) => x === 1), `phase ${m.phase}`);
     ok(`${side(left)}: both players go back to the spot`,
        Math.abs(m.players[0].x - C.SPAWN_X[0]) < 1 && Math.abs(m.players[1].x - C.SPAWN_X[1]) < 1);
     ok(`${side(left)}: and the ball goes back to the middle`,

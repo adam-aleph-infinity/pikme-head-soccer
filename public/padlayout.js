@@ -19,7 +19,7 @@
 //
 // Leaf module: it knows about DOM elements and localStorage and nothing else — no sim, no
 // match, no renderer. game.js hands it the pad and the two callbacks it needs.
-const KEY = 'hs.padlayout.v1';
+const KEY = 'hs.padlayout.v2';   // v2: the right pad re-ordered to HS's POWER, KICK, JUMP
 const OP_KEY = 'hs.padopacity.v1';
 const MIN_S = 0.6, MAX_S = 2.0;
 // 0.94, not the old 0.72. That number was chosen for five flat grey circles, which were

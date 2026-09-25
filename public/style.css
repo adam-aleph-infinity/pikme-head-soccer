@@ -38,6 +38,8 @@ html, body {
   user-select: none; -webkit-user-select: none;
   overscroll-behavior: none; touch-action: manipulation;
 }
+/* the pitch never pinch-zooms (HS-GAP-AUDIT U13); menus keep manipulation */
+#match { touch-action: none; }
 .screen { position: fixed; inset: 0; display: flex; flex-direction: column; }
 .hidden { display: none !important; }
 button { font: inherit; color: inherit; border: 0; background: none; cursor: pointer; }
@@ -1246,12 +1248,18 @@ body.editing .pad .btn .grip {
 .editbar .ce-slider input { width: 92px; }
 .editbar > span { flex: 0 1 auto; overflow: hidden; text-overflow: ellipsis; }
 
-.gear, .quit {
+.gear {
   position: absolute; top: 44px; width: 34px; height: 34px; border-radius: 10px;
   background: #0a0f1cbb; border: 1px solid #ffffff1f; font-size: 15px;
 }
-.gear { right: 8px; }
-.quit { left: 8px; }
+.gear { left: 8px; }   /* ?dev=1 only */
+/* HS's pause: a gold plaque with a dark II, top right */
+.pauseBtn {
+  position: absolute; top: 44px; right: 8px; width: 34px; height: 34px; border-radius: 9px;
+  background: linear-gradient(#ffe27a, #f2b01e 55%, #c9820c); border: 2px solid #7a4a00;
+  color: #3a2200; font: 900 15px/1 Arial, sans-serif; letter-spacing: -1px;
+  box-shadow: 0 2px 0 #5a3500, 0 3px 8px #0008;
+}
 
 .over {
   position: absolute; inset: 0; display: grid; place-content: center; gap: 8px; text-align: center;

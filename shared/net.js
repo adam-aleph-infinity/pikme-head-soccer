@@ -15,7 +15,7 @@ import { serialize } from './sim.js';
 // cannot share a match across: a cached old page would otherwise join a room and run a
 // DIFFERENT sim than the server, and rollback would fight it forever. The new client
 // answers `stale` by reloading; see onError in public/game.js.
-export const PROTOCOL = 3;   // 2: Head Soccer rules (new physics, snapshot fields); 3: HS power shots (ail, xb, full pw)
+export const PROTOCOL = 4;   // 2: Head Soccer rules (new physics, snapshot fields); 3: HS power shots (ail, xb, full pw); 4: HS kick swing, measured ball physics, HS restarts (no kickLob)
 
 // Eight buttons, one byte. The three cards are inputs exactly like the other five — same
 // queue, same edge discipline — because an ability delivered on a different path than the

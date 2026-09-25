@@ -49,7 +49,7 @@ function makePlayer(index, char) {
     vx: 0, vy: 0,
     onGround: true, facing: side,
     jumps: C.MAX_JUMPS,
-    kickT: 0, kickCd: 0, kickLob: false, kickDir: 0,
+    kickT: 0, kickCd: 0, kickDir: 0,
     dashT: 0, dashCd: 0, dashDir: 0,
     tapDir: 0, tapT: 0,
     // Whose body is holding this one up — standing on its head, or pinned against it by a
@@ -241,6 +241,15 @@ function resetPositions(m, towards) {
   m.idle = 0;
 }
 
+// A restart: everyone on their spots, frozen for `hold`, then GOAL_BALL_DELAY with no ball before
+// it drops in. The goal restart and the sudden-death one share it.
+function restartAtSpots(m, towards, hold) {
+  resetPositions(m, towards);
+  m.freeze = hold;
+  m.phase = 'goal';
+  m.ballWait = C.GOAL_BALL_DELAY;
+}
+
 // ---------------------------------------------------------------------------
 // step(): one fixed tick. `inputs` is [inputA, inputB], each {left,right,jump,kick,power}.
 export function step(m, inputs, dt = C.TICK, fx = NO_FX) {
@@ -276,6 +285,9 @@ export function step(m, inputs, dt = C.TICK, fx = NO_FX) {
     // The gauge runs through a cut-in (HS M4 40.44 s and 41.97 s: the bar climbs at the same
     // rate under both). It is the goal restart that stops it — see chargeGauge.
     for (const p of m.players) chargeGauge(m, p, dt);
+    // …and so does the match clock (HS M4: the timer ticks on through the 40.44 s and 60.19 s
+    // cut-ins). It stops just short of 0 — the whistle is blown in play, below.
+    if (cut && m.phase === 'play' && !m.afterGoal && !(m.ballWait > 0)) m.clock = Math.max(1e-6, m.clock - dt);
     return m;
   }
 
@@ -302,24 +314,36 @@ export function step(m, inputs, dt = C.TICK, fx = NO_FX) {
   // The match's head start on the gauge: GAUGE_LEAD of play before the first fill begins.
   if (m.gaugeLead > 0) m.gaugeLead = Math.max(0, m.gaugeLead - dt);
 
-  // FREE PLAY AFTER A GOAL: AFTER_GOAL seconds of everyone doing whatever they like, then the restart.
+  // FREE PLAY AFTER A GOAL, under the GOAL! banner (AFTER_GOAL = GOAL_BANNER, 2.05 s). Then HS
+  // puts both players on their spots and holds them until GOAL_RESUME (2.24 s), and the ball
+  // drops in GOAL_BALL_DELAY later (2.795 s) — HS M3/M4, 7–8 goals each.
   if (m.afterGoal > 0) {
     m.afterGoal -= dt;
     if (m.afterGoal <= 0) {
       m.afterGoal = 0;
-      m.xballs.length = 0;
-      resetPositions(m, m.afterGoalTo);
-      m.ballWait = C.GOAL_BALL_DELAY;
+      // less the two ticks that are not hold: this one (spent putting them there) and the one
+      // the freeze lifts on, before a body can move
+      restartAtSpots(m, m.afterGoalTo, C.GOAL_RESUME - C.AFTER_GOAL - 2 * C.TICK);
       return m;
     }
   }
 
-  if (m.phase === 'play' && !m.afterGoal) {
+  // The clock stands still from the goal until the ball is back in (HS M4 timer: goal 43.68 s →
+  // next tick 47.50 s), so it waits out the no-ball gap too.
+  if (m.phase === 'play' && !m.afterGoal && !(m.ballWait > 0)) {
     m.clock -= dt;
     if (m.clock <= 0) {
       m.clock = 0;
       if (m.score[0] === m.score[1] && C.GOLDEN_GOAL) {
-        if (!m.golden) { m.golden = true; m.events.push({ type: 'golden' }); }
+        // SUDDEN DEATH is a restart (HS M2, 5–5 at 0:00, 111.0 s): the banner, both players back
+        // on their spots, and the ball dropped in at the centre ~2.5 s after the whistle.
+        if (!m.golden) {
+          m.golden = true;
+          m.events.push({ type: 'golden' });
+          m.xballs.length = 0;
+          restartAtSpots(m, 0, C.GOLDEN_HOLD);
+          return m;
+        }
       } else {
         m.phase = 'over';
         m.events.push({ type: 'fulltime', winner: m.score[0] > m.score[1] ? 0 : 1 });
@@ -359,7 +383,7 @@ export function step(m, inputs, dt = C.TICK, fx = NO_FX) {
     // M3 restarts 14.5 s / 41.5 s / 62.5 s the same). Idan confirmed: "if I score, my opponent
     // gets plus to the power bar". The only non-clock gain there is.
     const conceder = m.players[1 - m.lastScorer];
-    if (conceder && m.lastScorer != null) conceder.gauge = Math.min(1, conceder.gauge + C.GAUGE_CONCEDE);
+    if (conceder && m.lastScorer != null && !m.golden) conceder.gauge = Math.min(1, conceder.gauge + C.GAUGE_CONCEDE);
   }
 
   // SUB-STEP THE BALL when it is moving faster than the things it can hit. The power volley
@@ -373,10 +397,13 @@ export function step(m, inputs, dt = C.TICK, fx = NO_FX) {
   for (let i = 0; i < slices; i++) stepBall(m, dt / slices, fx, i / slices, 1 / slices);
   if (m.xballs.length && m.phase === 'play') stepExtraBalls(m, dt, fx);
 
-  // Backstop for every way a ball can end up somewhere nobody can reach it. Cheap, and it
-  // turns a hung match into a restart nobody even notices.
+  // Backstop for the one place a ball can end up that nobody can reach: parked on top of a
+  // goal. HS has no idle rule — a ball left alone on the open grass rolls on and stays in play
+  // (M4 111.0 s rolled untouched for 6.6 s) — so this only fires over a goal, at bar height.
   m.idle += dt;
-  if (m.phase === 'play' && m.idle > C.BALL_IDLE_RESET) {
+  const overGoal = (b) => (b.x < C.GOAL_W + C.POST_R + b.r || b.x > C.W - C.GOAL_W - C.POST_R - b.r)
+    && b.y <= C.GROUND_Y - C.GOAL_H;
+  if (m.phase === 'play' && m.idle > C.BALL_IDLE_RESET && overGoal(m.ball)) {
     const b = m.ball;
     b.x = C.BALL_SPAWN.x; b.y = C.BALL_SPAWN.y;
     b.vx = 0; b.vy = 0; b.spin = 0; b.power = null;
@@ -567,21 +594,12 @@ function stepPlayer(m, p, input, dt, fx) {
 
   // ---- kick ----
   if (input.kick && !prev.kick && p.kickCd <= 0) {
-    // THE HEADER, first. The boot's hitbox is at hip height, so a ball at head height used to
-    // mean pressing kick and watching the leg swing under it. Now the same button heads it:
-    // less power than a boot, more loft, and the only way to hit a ball your foot cannot
-    // reach. Checked before the swing so a header never also starts one.
-    if (tryHeader(m, p, fx)) {
-      p.kickCd = C.KICK_COOLDOWN;
-      p.prev = { ...input };
-      return;
-    }
+    // NO HEADER BUTTON. HS's KICK only ever swings the leg — the boot rises to head height
+    // (see the kick hitbox) and a ball on the head is played by the head's own bounce. The
+    // aimed header that used to be checked here headed balls resting at the feet (HS-GAP-AUDIT
+    // K1) and launched at 811 px/s against HS's 626 (K2), so it is gone.
     p.kickT = C.KICK_TIME;
     p.kickCd = C.KICK_COOLDOWN;
-    // Holding JUMP as you kick lobs it: the only aiming this game has, and the answer to a
-    // defender parked on the line. Latched at the swing, not read at contact, so the shot
-    // you committed to is the shot you get.
-    p.kickLob = !!input.jump;
     // AND THE DIRECTION, WHICH IS NOT THE FACING ANY MORE.
     //
     // This was `p.facing`, latched at the swing so that turning mid-kick could not steal the
@@ -594,7 +612,7 @@ function stepPlayer(m, p, input, dt, fx) {
     // whatever the body is doing. The sprite is drawn off the same rule (drawBody), so the leg
     // you see out in front is the leg that can touch the ball. Facing is the walk, not the aim.
     p.kickDir = p.side;
-    m.events.push({ type: 'kick', player: p.index, lob: p.kickLob });
+    m.events.push({ type: 'kick', player: p.index });
     tryCounter(m, p, fx);
     tryTackle(m, p, fx);
   }
@@ -897,7 +915,7 @@ function stepBall(m, dt, fx, a0 = 0, aSpan = 1) {
     // here and the magnet another; both are gone (archive/README.md), which is what makes the
     // flight of a kicked ball a thing a player can learn once.
     b.vy += C.BALL_GRAV * dt;
-    b.vx *= C.BALL_AIR;
+    b.vx *= C.BALL_AIR ** (dt / C.TICK);          // per tick, whatever the sub-step
   }
   b.spin *= C.BALL_SPIN_DECAY;
 
@@ -922,7 +940,7 @@ function stepBall(m, dt, fx, a0 = 0, aSpan = 1) {
     const fromX = b.x, fromY = b.y;
     b.x += b.vx * sdt;
     b.y += b.vy * sdt;
-    collideBounds(m, b, fx);
+    collideBounds(m, b, fx, sdt);
     // DECIDED BEFORE THE PLAYERS ARE ASKED, and on the ball's own motion. resolveBallPlayers
     // moves the ball — that is what a push-out is — and a ball that is in the net only because
     // a body put it there has not scored. It gets to take a goal AWAY (checkGoal re-tests the
@@ -956,7 +974,7 @@ function enteredGoal(fromX, fromY, b) {
   return into.left ? 1 : 0;                          // the left net is player 1's goal
 }
 
-function collideBounds(m, b, fx) {
+function collideBounds(m, b, fx, dt = C.TICK) {
   // ground
   if (b.y > C.GROUND_Y - b.r) {
     b.y = C.GROUND_Y - b.r;
@@ -968,7 +986,7 @@ function collideBounds(m, b, fx) {
         fx.hit(b.x, b.y, '#ffffff', 0.4);
       }
     }
-    b.vx *= C.BALL_GROUND_FRICTION;
+    b.vx *= C.BALL_GROUND_FRICTION ** (dt / C.TICK);
   }
   // ceiling
   // ceiling — off the top of the screen, and dead: it keeps 0.41 of the climb and kills the
@@ -1160,8 +1178,9 @@ function bounceOffPost(b, px, py, fx) {
   const nx = dx / d, ny = dy / d;
   b.x = px + nx * min; b.y = py + ny * min;
   const dot = b.vx * nx + b.vy * ny;
-  b.vx = (b.vx - 2 * dot * nx) * 0.78;
-  b.vy = (b.vy - 2 * dot * ny) * 0.78;
+  // the post is the bar's own tube, so it keeps the bar's bounce (was a hard-coded 0.78)
+  b.vx = (b.vx - 2 * dot * nx) * C.BAR_BOUNCE;
+  b.vy = (b.vy - 2 * dot * ny) * C.BAR_BOUNCE;
   fx.hit(px, py, '#ffe08a', 1);
 }
 
@@ -1179,76 +1198,6 @@ function tryCounter(m, p, fx) {
 // tryTackle, kickDamage). It pays NO gauge — Head Soccer's meter fills on the clock alone (chargeGauge).
 //
 // Resolved on the kick's rising edge, not per-frame, so one press is one tackle.
-// A deliberate header: the ball is at your head and you pressed kick. Distinct from the
-// PASSIVE head touch in resolveBallPlayers, which bounces — see HEAD_BOUNCE. This one is a shot.
-function tryHeader(m, p, fx) {
-  const b = m.ball;
-  if (b.power) return false;                       // a live power shot is not headable
-  if (m.ballWait > 0) return false;                // no ball on the pitch yet (after a goal)
-  // ARMED means the next time this player's body reaches the ball the ULTIMATE goes off, and
-  // a header that swallowed that contact would quietly eat a full meter. Stand down: the
-  // contact is a tick away in resolveBallPlayers, and it is worth more than a header.
-  if (p.armed > 0 && !(m.afterGoal > 0)) return false;
-  if (headless(p)) return false;                   // no head to head it with (the beheaded ailment)
-  const hy = headY(p);
-  const dx = b.x - p.x, dy = b.y - hy;
-  const d = Math.hypot(dx, dy);
-  if (d > headR(m, p) + b.r + C.HEADER_R) return false;
-  const dir = p.side;
-  // NO HEADER MAY SEND THE BALL THROUGH YOUR OWN BODY. A header always launches toward `dir`
-  // — the goal this player attacks, whatever way they are facing — and re-places the ball out
-  // in front of the head on that same side (below). A ball that was BEHIND `dir` when the
-  // button was pressed has nowhere to go but through the player to get there, and that is
-  // exactly what used to happen: a full-speed cross-body snap that read as the ball
-  // teleporting from behind the player to in front of them, every time a header was thrown at
-  // a ball that had drifted onto the wrong side. Reported as happening "really fast" at head
-  // height, which is this move and no other — the boot below can never reach that far behind a
-  // player (KICK_REACH starts past the body) so this was the only door it went through.
-  //
-  // This used to only fence the ball's HEIGHT (`dy > headR(m, p) && dx * p.facing < 0`), on the
-  // theory that a ball inside the head's own circle is always a real touch, direction be
-  // damned. It is a real touch — but heading it still has to leave the ball on the side it
-  // came in on, not warp it to the other one, so the fence is now on which side the ball is on,
-  // not how far down. A header off a ball that is behind `dir` no longer fires here at all; the
-  // passive head bounce two branches down still answers the touch, just without the forward
-  // launch or the reach-around re-placement.
-  if (dx * dir < 0) return false;
-
-  const mult = p.stats.kick;
-  // THE SAME COLLISION THE BOOT MAKES, on the other end of the body. A header used to be one
-  // number whatever arrived: a ball driven at your face and a ball rolled gently onto your
-  // forehead left at identical speed, which is the least physical thing the sim did.
-  //
-  //   meet  the pace the ball brings INTO the header, returned
-  //   drop  a ball falling onto the crown, turned back upward
-  //   rise  the jump itself, and this is the timing the move now has. Meet it on the way UP
-  //         and the whole rise is behind the contact; at the apex `p.vy` is zero and it is
-  //         just a header; on the way down you are heading it into the ground.
-  const meet = Math.max(0, -b.vx * dir);
-  const drop = Math.max(0, b.vy);
-  b.vx = dir * (C.KICK_POWER * C.HEADER_POWER * mult + meet * C.HEAD_MEET) + p.vx * 0.3;
-  b.vy = -(C.KICK_LIFT * C.HEADER_LIFT * mult + drop * C.HEAD_MEET) + p.vy * C.HEAD_RISE;
-  b.spin = dir * 10;
-  // Push the ball clear of the head, the way a block does. Without this the ball is still
-  // inside the head circle on the same tick, the PASSIVE head branch in stepBall runs, and it
-  // deadens the header it was supposed to be — measured as a 188px/s "shot" instead of 570.
-  //
-  // It is the biggest re-placement in the sim — the ball can be in front of the head and end
-  // up behind it, a hundred pixels away — which is why it is also the one that most needed
-  // keepOutOfGoal. Heading at a net you are standing in front of used to put the ball IN the
-  // net, through the post, and score it on the spot. Now the snap stops on the line and the
-  // shot this function just set is what carries it over.
-  const fromX = b.x, fromY = b.y;
-  b.x = p.x + dir * (headR(m, p) + b.r + 2);
-  b.y = hy - (headR(m, p) + b.r) * 0.35;
-  b.x = keepOutOfGoal(fromX, fromY, b.x, b.y, b.r);
-  m.idle = 0;
-  m.hitStop = Math.max(m.hitStop, C.HIT_STOP_KICK);
-  m.events.push({ type: 'strike', player: p.index, x: b.x, y: b.y, power: false, head: true, aimed: true });
-  fx.hit(b.x, b.y, '#ffffff', 1);
-  return true;
-}
-
 function tryTackle(m, p, fx) {
   const foe = m.players[1 - p.index];
   // Nothing to tackle: they are already down. Without this each boot's hit-stop would stretch
@@ -1420,17 +1369,27 @@ function resolveBallPlayers(m, fx, alpha = 1) {
     // M3/M4 footage) — and an armed player whose kicks did nothing read as "the power is broken".
     if (p.kickT > 0) {
       const dir = p.kickDir || p.side;              // the aim, as latched at the swing
-      const kx = px + dir * C.KICK_REACH;
-      // The kick circle sits at the height of a ball resting on the grass (BALL_R): anywhere
-      // else and every "dead flat" toe-poke is quietly lifted or dug in.
-      const ky = py - C.BALL_R;
+      // THE SWING (HS M4 29.64 s, frame by frame): the boot is at the height of a ball resting
+      // on the grass for the first KICK_LOW_TICKS, then up at KICK_REACH_HI ahead and KICK_HI_Y
+      // above the ground — about the middle of the head — for the rest of the swing. A ball
+      // at chest or face height in front is the boot's, as it is in HS.
+      const low = C.KICK_TIME - p.kickT < C.KICK_LOW_TICKS * C.TICK - 1e-9;
+      const kx = px + dir * (low ? C.KICK_REACH : C.KICK_REACH_HI);
+      const ky = py - (low ? C.BALL_R : C.KICK_HI_Y);
       if (Math.hypot(b.x - kx, b.y - ky) < C.KICK_R + b.r) {
         if (!b.power) {
           // ARMED: this touch is the one that spends it (see the note above the hitbox).
           if (p.armed > 0 && fireUltimateOnContact(m, p, b, fx)) { p.kickT = 0; return; }
+          // The higher up the swing the ball is met, the less of the drive is left and the more
+          // it goes up: HS M4's still balls met at head height leave at 391 px/s, 66° up
+          // (kick.head.speed / .angle, ball.kickApex.head), against a ground kick's ~480 and
+          // ~35°. `high` is 0 for a ball on the grass, 1 for one at head height or above.
+          const high = clamp((py - b.y - C.BALL_R) / (py - hy - C.BALL_R), 0, 1);
           const mult = p.stats.kick;
-          const drive = p.kickLob ? C.LOB_DRIVE : 1;
-          const lift = p.kickLob ? C.LOB_LIFT : 1;
+          const drive = 1 - high * (1 - C.KICK_HI_DRIVE);
+          // A kick taken in the air goes up more: HS's jumping kick tops out ~340 px (M4 167.9 s,
+          // one clean sample), where the same swing off the grass stays under 130.
+          const lift = (1 - high * (1 - C.KICK_HI_LIFT)) * (p.onGround ? 1 : C.KICK_AIR_LIFT);
           // THE BOW. A kick used to fly dead flat along your facing, so scoring meant already
           // standing in exactly the right place. It now arcs toward the FAR goal, and by how
           // far away that goal is: from deep it is lofted, from the six-yard box it stays
@@ -1466,10 +1425,6 @@ function resolveBallPlayers(m, fx, alpha = 1) {
           const t = toe - C.KICK_TOE_NEUTRAL;
           let loft = clamp(1 - t * C.KICK_TOE_LOFT + under * C.KICK_UNDER_LOFT,
                            C.KICK_LOFT_MIN, C.KICK_LOFT_MAX);
-          // THE LOB IS STILL AN AIM, NOT AN ACCIDENT. Holding jump means you got your foot
-          // under it on purpose, so a toe-end contact may not flatten the one shot whose whole
-          // job is to go over a defender's head.
-          if (p.kickLob) loft = Math.max(loft, 1);
           // Energy is not created here: the loft a toe-poke gives up comes back as pace, so the
           // flat shot is the hard one and the scoop is the soft one. And the flat one is faster
           // again for a reason that is not in this line at all — BALL_MAX_SPEED is a budget on
@@ -1796,7 +1751,7 @@ const P_FIELDS = [
   'kickT', 'kickCd', 'dashT', 'dashCd', 'dashDir', 'tapDir', 'tapT',
   // `armed` is the ultimate AND the glow, so a client that restores without it either glows
   // at nothing or misses the touch that should have fired.
-  'gauge', 'armed', 'shoved', 'kickLob', 'kickDir',
+  'gauge', 'armed', 'shoved', 'kickDir',
   // Added with the tackle + jump-feel pass. Anything that can change a future step has to
   // travel, or a reconciling client re-runs the last 30 ticks with the wrong state.
   'tackleImmune', 'coyote', 'jumpBuf',

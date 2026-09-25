@@ -7,7 +7,9 @@ Every place where our game is not exactly like real Head Soccer (HS). Duplicates
 
 Already decided, so not listed as gaps: no in-match items, HS-style power shots, HS stats in the arcade only, the custom sim, exact head size.
 
-`node test-hs-parity.mjs` currently passes 82 of 88 rows. The 6 failures are the headers (×2), the goal-restart timing, the 5★ CPU's position, the 5★ CPU's touch rate, and the kick repeat rate.
+✅ = fixed on branch `hs/gap-fixes`. Parity was 82/88 at the audit; after stage 1 it is 87–88/88 (only `cpu.rangeConv` still wobbles at the edge of its tolerance).
+
+At the audit, `node test-hs-parity.mjs` passed 82 of 88 rows. The 6 failures are the headers (×2), the goal-restart timing, the 5★ CPU's position, the 5★ CPU's touch rate, and the kick repeat rate.
 
 ---
 
@@ -15,11 +17,11 @@ Already decided, so not listed as gaps: no in-match items, HS-style power shots,
 
 | # | Sev | Gap | Ours | HS | Source |
 |---|---|---|---|---|---|
-| K1 | H | Kicking a ball that's at your feet heads it up instead. The head check runs before the kick check, and the head's reach covers a ball resting 30–50 px out | `sim.js:574`, `HEADER_R` 16 `constants.js:332` | There is no header button; KICK always swings the leg | meas + probe |
-| K2 | H | An aimed header is far too strong | 811 px/s, 547 px apex (off screen), `sim.js:1229-1230` | 626 px/s, 311 px apex (n=12) | meas |
-| K3 | M | A header teleports the ball 40–60 px up in one frame | `sim.js:1242-1243` | No teleport | code |
-| K4 | H | The kick is a fixed circle at ground height that stays live for the whole 0.26 s. A ball 70–90 px up in front is missed completely | `KICK_REACH` 62, `KICK_R` 22, `sim.js:1421-1491` | The boot is at knee height for ~2 frames, then ~51 px ahead and ~52 px up for the rest of the swing | meas (M4 frames) |
-| K5 | M | Holding jump while kicking lobs, a modifier HS doesn't have. A jumping kick without it only peaks at 101 px | `sim.js:584`, `LOB_LIFT` 1.9 | A jump kick peaks around 340 px, with no modifier | 1 sample + know |
+| K1 ✅ | H | Kicking a ball that's at your feet heads it up instead. The head check runs before the kick check, and the head's reach covers a ball resting 30–50 px out | `sim.js:574`, `HEADER_R` 16 `constants.js:332` | There is no header button; KICK always swings the leg | meas + probe |
+| K2 ✅ | H | An aimed header is far too strong | 811 px/s, 547 px apex (off screen), `sim.js:1229-1230` | 626 px/s, 311 px apex (n=12) | meas |
+| K3 ✅ | M | A header teleports the ball 40–60 px up in one frame | `sim.js:1242-1243` | No teleport | code |
+| K4 ✅ | H | The kick is a fixed circle at ground height that stays live for the whole 0.26 s. A ball 70–90 px up in front is missed completely | `KICK_REACH` 62, `KICK_R` 22, `sim.js:1421-1491` | The boot is at knee height for ~2 frames, then ~51 px ahead and ~52 px up for the rest of the swing | meas (M4 frames) |
+| K5 ✅ | M | Holding jump while kicking lobs, a modifier HS doesn't have. A jumping kick without it only peaks at 101 px | `sim.js:584`, `LOB_LIFT` 1.9 | A jump kick peaks around 340 px, with no modifier | 1 sample + know |
 | K6 | M | A ground kick is probably too flat | 478 px/s at 32°, 57 px apex | Arcs higher | know (unmeasured) |
 | K7 | M | A dash kick goes out as a flat 14° drive | `sim.js:1489` | "Up diagonally quickly" | wiki |
 | K8 | L | The kick repeats slightly slower than HS | 0.367 s | 0.349 s | meas |
@@ -30,11 +32,11 @@ Already decided, so not listed as gaps: no in-match items, HS-style power shots,
 | # | Sev | Gap | Ours | HS | Source |
 |---|---|---|---|---|---|
 | P1 | M | The body kills the ball instead of bouncing it | `BODY_DEADEN` 0.18 `constants.js:215`; walking into the ball pushes it at 228 px/s | Bounces off the chest and shins at roughly 390 px/s | wiki + Box2D |
-| P2 | M | Walls and posts bounce too much | walls 0.86 `constants.js:81`, post 0.78 `sim.js:1163` | every measured surface is 0.63–0.79 (our crossbar is 0.67) | meas (other surfaces) |
-| P3 | M | Air drag is too strong, so long balls land ~40 px short | 0.184/s `constants.js:78` | 0.099/s (17 M4 flights, IQR 0.095–0.105) | meas |
-| P4 | H | A rolling ball stops far too soon | decays at 0.73/s: an 80 px/s ball stops after 111 px | 0.11–0.21/s: a roll lasted 6.6 s over 404 px | meas (n=2) |
-| P5 | M | The speed cap is too low | 816 `constants.js:91` | ordinary touches reach 1001–1091 px/s (4 in M4) | meas |
-| P7 | L | A ball left untouched for 6 s teleports to the centre | `sim.js:378-386`, `constants.js:513` | No such rule; none of the 4 clips show it | meas |
+| P2 ✅ | M | Walls and posts bounce too much | walls 0.86 `constants.js:81`, post 0.78 `sim.js:1163` | every measured surface is 0.63–0.79 (our crossbar is 0.67) | meas (other surfaces) |
+| P3 ✅ | M | Air drag is too strong, so long balls land ~40 px short | 0.184/s `constants.js:78` | 0.099/s (17 M4 flights, IQR 0.095–0.105) | meas |
+| P4 ✅ | H | A rolling ball stops far too soon | decays at 0.73/s: an 80 px/s ball stops after 111 px | 0.11–0.21/s: a roll lasted 6.6 s over 404 px | meas (n=2) |
+| P5 ✅ | M | The speed cap is too low | 816 `constants.js:91` | ordinary touches reach 1001–1091 px/s (4 in M4) | meas |
+| P7 ✅ | L | A ball left untouched for 6 s teleports to the centre | `sim.js:378-386`, `constants.js:513` | No such rule; none of the 4 clips show it | meas |
 | P10 | L | The body box may be narrow | 28 px | ~35 px in the HS art | meas (art) |
 | P9 | L | No smoothing between frames, so it judders on 90/144 Hz screens | — | — | code |
 
@@ -58,10 +60,10 @@ Already decided, so not listed as gaps: no in-match items, HS-style power shots,
 
 | # | Sev | Gap | Ours | HS | Source |
 |---|---|---|---|---|---|
-| R1 | H | No pause. ✕ quits the match at once with no confirm, and ⚙ opens the developer tuner (~60 sliders) while play continues | `game.js:1062, 2757`, `index.html:249` | A gold pause button at the top right opens resume/retry/quit | meas + know |
-| R2 | M | The goal restart is ~0.8 s too slow. `GOAL_RESUME` is defined but never used, and there's no short hold on the kickoff spots | Ball lands at 3.58 s `constants.js:530` | Players move at 2.24 s, the ball drops at 2.795 s | meas |
-| R3 | M | Sudden death doesn't restart play; it only sets a flag | `sim.js:321` | Red wipe and banner, both players reset, the ball drops at the centre ~2.5 s later | meas (M2) |
-| R4 | M | The clock stops during power cut-ins, so matches run 5–11 s long | `sim.js:262-280` | The clock keeps ticking | meas (M4) |
+| R1 ✅ | H | No pause. ✕ quits the match at once with no confirm, and ⚙ opens the developer tuner (~60 sliders) while play continues | `game.js:1062, 2757`, `index.html:249` | A gold pause button at the top right opens resume/retry/quit | meas + know |
+| R2 ✅ | M | The goal restart is ~0.8 s too slow. `GOAL_RESUME` is defined but never used, and there's no short hold on the kickoff spots | Ball lands at 3.58 s `constants.js:530` | Players move at 2.24 s, the ball drops at 2.795 s | meas |
+| R3 ✅ | M | Sudden death doesn't restart play; it only sets a flag | `sim.js:321` | Red wipe and banner, both players reset, the ball drops at the centre ~2.5 s later | meas (M2) |
+| R4 ✅ | M | The clock stops during power cut-ins, so matches run 5–11 s long | `sim.js:262-280` | The clock keeps ticking | meas (M4) |
 | R5 | M | The 5★ CPU plays too far forward, from a fixed waiting spot | 511 px avg, `bot.js:445` | 427 px | meas |
 | R6 | M | The 5★ CPU lets too many balls go | plays 49% of balls in reach | 70% | meas |
 | R7 | M | Missing modes | Arcade (45 stages) + private online rooms only | Tournament, League, Survival, Head Cup, Death Mode, Fight, 2P on one device | wiki |
@@ -71,14 +73,14 @@ Already decided, so not listed as gaps: no in-match items, HS-style power shots,
 | R11 | L | No costumes and no achievements (card unlocks may be a deliberate product choice) | — | Yes | wiki |
 | R12 | L | The CPU is never fooled by delayed shots, because it reads the power ball's real path | `bot.js:189` | Jumps too early | know |
 | R13 | L | The weak CPU dashes too rarely | 0.4/min | 2.2/min | meas |
-| R14 | L | The clock pause after a goal is tied to the wrong moment; once R2 is fixed, the clock must stay stopped until the ball drops | — | Stopped until the drop (3.0–3.8 s) | meas |
-| R15 | L | The comment at `sim.js:1760` is wrong: the code does give the conceding side the gauge bonus | — | — | code |
+| R14 ✅ | L | The clock pause after a goal is tied to the wrong moment; once R2 is fixed, the clock must stay stopped until the ball drops | — | Stopped until the drop (3.0–3.8 s) | meas |
+| R15 ✅ | L | The comment at `sim.js:1760` is wrong: the code does give the conceding side the gauge bonus | — | — | code |
 
 ## 5. Controls, HUD and screens
 
 | # | Sev | Gap | Ours | HS | Source |
 |---|---|---|---|---|---|
-| U1 | H | The action buttons are in the wrong order. Checked on a screenshot | JUMP, KICK (POWER) | POWER, KICK, JUMP, with JUMP in the corner | meas |
+| U1 ✅ | H | The action buttons are in the wrong order. Checked on a screenshot | JUMP, KICK (POWER) | POWER, KICK, JUMP, with JUMP in the corner | meas |
 | U2 | H | KICK OFF is wrong. Ours dims the pitch 70%, uses flat system-font text, and shows a key-binding table (also on phones). The ball just appears (`ballDrop` isn't handled) | `game.js:2362-2402` | No dim; gold-chrome KICK OFF slides in and out; a giant ball flies in from the camera | meas |
 | U3 | H | GOAL! is wrong: a 64 px system font with a pop and 60 pieces of confetti | `game.js:2337-2360, 810` | Huge gold-chrome letters fly in one by one, sweep across and drop out; no confetti | meas |
 | U4 | M | No VS intro | Cuts straight to the match `game.js:984` | ~1.5 s of both heads with a gold VS on a red band | meas |
@@ -89,8 +91,8 @@ Already decided, so not listed as gaps: no in-match items, HS-style power shots,
 | U9 | M | Wrong fonts: `-apple-system`/Arial everywhere | — | A gold-chrome italic display face | meas |
 | U10 | M | Portrait mode is playable (tiny pitch, no rotate prompt) | — | Landscape only | know |
 | U11 | L | The clock turns red and pulses at ≤10 s; it's yellow, with no TIME pill | `style.css:251` | White digits under a dark "TIME" label, white to the end | meas |
-| U12 | L | Extra text HS doesn't have: "פגיעה!" with a yellow ring on each tackle, "כדור חדש", "מוות פתאומי", sparks on every kick | `game.js:1120-1138` | None (a hurt is only a red spray) | meas |
-| U13 | L | Pinch-zoom isn't blocked | `touch-action: manipulation` `style.css:39` | — | code |
+| U12 ✅ | L | Extra text HS doesn't have: "פגיעה!" with a yellow ring on each tackle, "כדור חדש", "מוות פתאומי", sparks on every kick | `game.js:1120-1138` | None (a hurt is only a red spray) | meas |
+| U13 ✅ | L | Pinch-zoom isn't blocked | `touch-action: manipulation` `style.css:39` | — | code |
 | U14 | L | No fullscreen, manifest or orientation lock | — | — | code |
 | U15 | L | The POWER button vanishes instantly when pressed | — | Flashes yellow, fades over ~0.15 s | meas |
 | U16 | L | The gauge glows when full | — | No glow | meas |

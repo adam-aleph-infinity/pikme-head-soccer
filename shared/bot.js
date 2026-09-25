@@ -543,19 +543,20 @@ function openPlay(bot, m, p, foe, b, out, d, dt) {
   out.jump = jump && !bot.lastJump;           // an edge: HOLDING jump re-jumps on every landing
   bot.lastJump = out.jump;
 
-  // THE BOOT. The kick circle hangs KICK_REACH out on the attacking side at shin height, and a
-  // swing keeps it out for KICK_TIME (0.26 s) — so a swing pressed a few ticks before the ball
-  // arrives still catches it. And KICK at a ball on the head is the aimed header (tryHeader).
-  const kx = p.x + side * C.KICK_REACH, ky = p.y - C.BODY_H * 0.5;
+  // THE BOOT. HS's swing: down at the ball for the first couple of ticks, then raised to
+  // KICK_REACH_HI ahead and KICK_HI_Y up for the rest of KICK_TIME (0.26 s) — so a swing pressed
+  // a few ticks before the ball arrives still catches it, low or at head height.
+  const boots = [[C.KICK_REACH, C.BALL_R], [C.KICK_REACH_HI, C.KICK_HI_Y]];
   let onBoot = false;
   for (const q of near) {
     if (q.t > 0.12) break;
-    const px = kx + vxNow * speed * q.t, py = ky + (p.onGround ? 0 : p.vy * q.t);
-    if (Math.hypot(q.x - px, q.y - py) < C.KICK_R + C.BALL_R - 3) { onBoot = true; break; }
+    const dy = p.onGround ? 0 : p.vy * q.t;
+    for (const [reach, up] of boots) {
+      const px = p.x + side * reach + vxNow * speed * q.t, py = p.y - up + dy;
+      if (Math.hypot(q.x - px, q.y - py) < C.KICK_R + C.BALL_R - 3) { onBoot = true; break; }
+    }
+    if (onBoot) break;
   }
-  // (No aimed header off a ball on the crown: measured over 32 bot matches a tier, KICK at a
-  // ball on the head — tryHeader's big loft — scored less and flattened the ladder than letting
-  // the springy head play it. The mash below still throws one now and then, as a person does.)
   if (onBoot && !bot.kickSeen) { bot.kickSeen = true; bot.kickGo = bot.rng() < 0.45 + 0.55 * s; }
   if (!onBoot) bot.kickSeen = false;
   // MASHING: the HS CPU keeps the boot going whenever the ball is close in front, or the other

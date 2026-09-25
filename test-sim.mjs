@@ -110,7 +110,9 @@ const scoreOn = (m, left, y = C.GROUND_Y - 60, speed = 600) => {
   const m = fresh();
   scoreOn(m, true);
   ok('ball driven into the left net scores for player 1', m.score[1] === 1, JSON.stringify(m.score));
-  ok('a goal freezes play', m.phase === 'goal');
+  ok('a goal puts up GOAL! and play runs on under it', m.banner === 'goal' && m.afterGoal > 0 && m.phase === 'play');
+  run(m, Math.ceil(C.AFTER_GOAL / C.TICK) + 1);
+  ok('then both are held on their spots', m.phase === 'goal' && m.freeze > 0);
   ok('positions reset after a goal', Math.abs(m.players[0].x - C.SPAWN_X[0]) < 1);
 }
 {
@@ -261,22 +263,30 @@ const scoreOn = (m, left, y = C.GROUND_Y - 60, speed = 600) => {
      `${Math.abs(m.ball.vy).toFixed(0)} back off a ${before.toFixed(0)} drop, vs ${(before * C.BALL_BOUNCE).toFixed(0)} off the ground`);
 }
 
+// --- HS's KICK: no header button, a boot that rises to head height ---------------
 {
-  // Holding JUMP while kicking lobs it — the only aiming in the game, and the counter to a
-  // defender camped on their line.
-  const flat = fresh(), lob = fresh();
-  for (const m of [flat, lob]) {
+  const kickAt = (dx, h, ticks = 4) => {
+    const m = fresh();
     const p = m.players[0];
-    m.ball.x = p.x + C.KICK_REACH; m.ball.y = p.y - C.BODY_H * 0.45;
-    m.ball.vx = 0; m.ball.vy = 0;
+    p.x = 400; p.kickCd = 0; p.prev = {};
+    m.players[1].x = C.W - 60;
+    const seen = [];
+    for (let i = 0; i < ticks; i++) {
+      m.hitStop = 0;
+      if (i < 2 && !seen.some((e) => e.type === 'strike')) { m.ball.x = p.x + dx; m.ball.y = C.GROUND_Y - h; m.ball.vx = 0; m.ball.vy = 0; }
+      step(m, [{ kick: i === 0 }, {}]); seen.push(...m.events); m.events.length = 0;
+    }
+    return { m, strike: seen.find((e) => e.type === 'strike') };
+  };
+  for (const dx of [30, 40, 50]) {
+    const { m, strike } = kickAt(dx, C.BALL_R);
+    ok(`a ball resting ${dx}px out is KICKED, not headed`, !!strike && !strike.head && m.ball.vx > 0,
+       JSON.stringify(strike));
   }
-  step(flat, [{ kick: true }, {}]);
-  step(lob, [{ kick: true, jump: true }, {}]);
-  ok('a lob goes higher', lob.ball.vy < flat.ball.vy,
-     `lob vy=${lob.ball.vy.toFixed(0)} flat vy=${flat.ball.vy.toFixed(0)}`);
-  ok('a lob goes less far', Math.abs(lob.ball.vx) < Math.abs(flat.ball.vx),
-     `lob vx=${lob.ball.vx.toFixed(0)} flat vx=${flat.ball.vx.toFixed(0)}`);
-  ok('a lob still goes forward', lob.ball.vx > 0);
+  const { strike: hi } = kickAt(62, 70, 8);
+  ok('a still ball 70px up in front is met by the raised boot', !!hi && !hi.head, JSON.stringify(hi));
+  const { strike: hs } = kickAt(10, C.GROUND_Y - headY(fresh().players[0]) + 4, 3);
+  ok('KICK with the ball on your head is never an aimed header', !hs || !hs.aimed, JSON.stringify(hs));
 }
 
 // --- power shots ------------------------------------------------------------
@@ -788,8 +798,8 @@ const jumpArc = (input) => {
   scoreOn(n, true);
   const g0 = n.players[0].gauge;
   run(n, 60);
-  ok('but not through a goal\'s restart', n.phase === 'goal' && n.players[0].gauge === g0, `${g0} → ${n.players[0].gauge}`);
-  while (n.phase === 'goal') step(n, NONE);
+  ok('but not through a goal\'s restart', n.afterGoal > 0 && n.players[0].gauge === g0, `${g0} → ${n.players[0].gauge}`);
+  while (n.afterGoal > 0 || n.phase === 'goal') step(n, NONE);
   ok('nor while the ball has still to drop in', n.ballWait > 0 && n.players[0].gauge === g0, `${g0} → ${n.players[0].gauge}`);
   while (n.ballWait > 0) step(n, NONE);
   step(n, NONE);
@@ -810,7 +820,21 @@ const jumpArc = (input) => {
   run(m, 60);
   ok('gauges freeze in golden goal', Math.abs(m.players[0].gauge - g0) < 1e-9, `${g0} → ${m.players[0].gauge}`);
   scoreOn(m, true);
+  ok('no goal counts while sudden death restarts', m.score[1] === 0 && m.phase !== 'over');
+  run(m, Math.ceil((C.GOLDEN_HOLD + C.GOAL_BALL_DELAY) / C.TICK) + 2);
+  scoreOn(m, true);
   ok('a golden goal ends it', m.phase === 'over' && m.score[1] === 1);
+}
+{
+  // SUDDEN DEATH IS A RESTART (HS M2, 5–5 at 0:00): both players back on their spots, the ball
+  // dropped in at the centre ~2.5 s after the whistle.
+  const m = fresh({ duration: 0.5 });
+  m.players[0].x = 700; m.players[1].x = 300;
+  let t = 0, drop = -1;
+  while (!m.golden) { step(m, NONE); m.events.length = 0; }
+  ok('sudden death puts both players back on their spots', m.players[0].x === C.SPAWN_X[0] && m.players[1].x === C.SPAWN_X[1] && m.phase === 'goal');
+  while (drop < 0 && t < 4) { step(m, NONE); t += C.TICK; if (m.events.some((e) => e.type === 'ballDrop')) drop = t; m.events.length = 0; }
+  ok('and the ball drops in ~2.5 s after the whistle', Math.abs(drop - 2.5) < 2 * C.TICK, `${drop.toFixed(3)}s`);
 }
 
 // --- roster -----------------------------------------------------------------
@@ -871,8 +895,10 @@ const jumpArc = (input) => {
   const snap = serialize(m);
   const ticks = Math.round(HOLD / C.TICK) - 2;
   run(m, ticks, [{ right: true, jump: true }, { left: true }]);
-  ok('the whole match holds for the first 0.97s — both bodies, the ball, the clock',
-     JSON.stringify([m.ball.x, m.ball.y, a.x, a.y, b.x, b.y, m.clock]) === before);
+  ok('the whole match holds for the first 0.97s — both bodies and the ball',
+     JSON.stringify([m.ball.x, m.ball.y, a.x, a.y, b.x, b.y]) === JSON.stringify(JSON.parse(before).slice(0, 6)));
+  ok('but the clock runs on under it (HS M4 40.44 s / 60.19 s)', Math.abs(JSON.parse(before)[6] - m.clock - ticks * C.TICK) < 1e-6,
+     `${JSON.parse(before)[6]} → ${m.clock}`);
   ok('and a daze is not run down under the hold', b.stunned === 0.4, `stunned=${b.stunned}`);
   run(m, 4, NONE);
   ok('then the shot flies while it is still dark', m.cutin > 0 && m.hitStop <= 0 && !!m.ball.power && m.ball.x !== JSON.parse(before)[0], `cutin=${m.cutin}`);
@@ -904,20 +930,22 @@ const jumpArc = (input) => {
   const b = m.ball;
   b.x = C.GOAL_W + b.r + 2; b.y = C.GROUND_Y - 60; b.vx = -600; b.vy = 0;
   let t = 0;
-  while (m.phase === 'play' && t < 1) { step(m, NONE); t += C.TICK; }
-  ok('a goal puts up GOAL! and hides the ball', m.phase === 'goal' && m.banner === 'goal' && m.ballWait > 0);
+  while (!m.afterGoal && t < 1) { step(m, NONE); t += C.TICK; }
+  ok('a goal puts up GOAL!, and play runs on under it', m.phase === 'play' && m.banner === 'goal' && m.afterGoal > 0);
   t = 0;
-  let bannerOff = -1, moved = -1, drop = -1;
-  const x0 = m.players[0].x;
+  let bannerOff = -1, moved = -1, drop = -1, held = -1;
   while (t < 4 && drop < 0) {
+    const x0 = m.players[0].x;
     step(m, [{ right: true }, {}]);
     t += C.TICK;
     if (bannerOff < 0 && !m.banner) bannerOff = t;
-    if (moved < 0 && m.players[0].x !== x0) moved = t;
+    if (held < 0 && m.phase === 'goal') held = t;
+    if (held >= 0 && moved < 0 && m.phase === 'play' && m.players[0].x !== x0) moved = t;
     if (m.events.some((e) => e.type === 'ballDrop')) drop = t;
     m.events.length = 0;
   }
   ok('the GOAL! banner is up 2.05s', Math.abs(bannerOff - 2.05) < 1.5 * C.TICK, `${bannerOff.toFixed(3)}s`);
+  ok('then the players are put on their spots and held', Math.abs(held - 2.05) < 1.5 * C.TICK, `${held.toFixed(3)}s`);
   // The freeze lifts on the tick it runs out and the body moves on the next: a tick of slack.
   ok('the players move again at 2.24s', Math.abs(moved - 2.24) < 2 * C.TICK, `${moved.toFixed(3)}s`);
   ok('the ball drops in at 2.795s', Math.abs(drop - 2.795) < 1.5 * C.TICK, `${drop.toFixed(3)}s`);
@@ -1019,25 +1047,6 @@ const jumpArc = (input) => {
   // From close in, lofting it would put the ball over the bar — so it does not.
   ok('a kick from close in stays low', Math.abs(near.vy) <= Math.abs(far.vy),
      `near ${near.vy.toFixed(0)} vs far ${far.vy.toFixed(0)}`);
-}
-{
-  // THE HEADER. Pressing kick with the ball at head height is the aerial tool — before this
-  // the boot simply missed, because the hitbox is at hip height and the ball was not.
-  const m = fresh();
-  const p = m.players[0];
-  p.x = 500; p.facing = 1; p.kickCd = 0; p.prev = {};
-  m.players[1].x = 900;
-  m.ball.x = p.x + 10; m.ball.y = headY(p) - 4;      // on the forehead, not on the boot
-  m.ball.vx = 0; m.ball.vy = 0;
-  m.hitStop = 0;
-  const seen = [];
-  for (let i = 0; i < 3; i++) { m.hitStop = 0; step(m, [{ kick: true }, {}]); seen.push(...m.events); m.events.length = 0; }
-  const hdr = seen.find((e) => e.type === 'strike' && e.head);
-  ok('kick with the ball at your head is a HEADER', !!hdr, seen.map((e) => e.type).join(','));
-  ok('and it sends the ball up and forward', m.ball.vy < 0 && m.ball.vx > 0,
-     `vx ${m.ball.vx.toFixed(0)} vy ${m.ball.vy.toFixed(0)}`);
-  ok('with more loft than a boot', Math.abs(m.ball.vy) > C.KICK_LIFT,
-     `${Math.abs(m.ball.vy).toFixed(0)} vs ${C.KICK_LIFT.toFixed(0)}`);
 }
 {
   // A passive head touch is NOT a header: it cushions. That is the whole point of dropping
@@ -1216,8 +1225,8 @@ const jumpArc = (input) => {
   m2.ball.vx = 700; m2.ball.vy = 0;
   m2.hitStop = 0;
   step(m2, [{}, { kick: true }]);
+  let struck2 = m2.events.some((e) => e.type === 'strike');   // it can meet on the press tick
   m2.events.length = 0;
-  let struck2 = false;
   for (let i = 0; i < 10 && !struck2; i++) {
     m2.hitStop = 0;
     step(m2, [{}, { right: true }]);
@@ -1253,20 +1262,6 @@ const jumpArc = (input) => {
   ok('and it is the same kick you get walking forward',
      Math.abs(back.vx - fwd.vx) < Math.abs(fwd.vx) * 0.5,
      `back ${back.vx.toFixed(0)} vs forward ${fwd.vx.toFixed(0)}`);
-
-  // The HEADER is the same button, so it obeys the same rule — otherwise the ball still goes
-  // backwards, just off a different part of the body.
-  const m = fresh();
-  const p = m.players[0];
-  p.x = 500; p.kickCd = 0; p.prev = {};
-  m.players[1].x = 900;
-  for (let i = 0; i < 6; i++) { m.hitStop = 0; step(m, [{ left: true }, {}]); m.events.length = 0; }
-  m.ball.x = p.x + 10; m.ball.y = headY(p) - 4;
-  m.ball.vx = 0; m.ball.vy = 0;
-  m.hitStop = 0;
-  step(m, [{ left: true, kick: true }, {}]);
-  ok('a header while retreating goes forward too', m.ball.vx > 0 && m.ball.vy < 0,
-     `v=(${m.ball.vx.toFixed(0)}, ${m.ball.vy.toFixed(0)})`);
 }
 
 // ── WHERE ON THE BOOT ─────────────────────────────────────────────────────────
@@ -1340,21 +1335,6 @@ const jumpArc = (input) => {
   })();
   ok('a ball above the boot is chipped', Math.abs(chip) > Math.abs(mid.vy),
      `chip ${chip.toFixed(0)} vs flat ${mid.vy.toFixed(0)}`);
-
-  // The LOB is an aim, not an accident: it must not be flattened by a toe-end contact, or the
-  // one shot whose job is to clear a defender's head stops clearing it.
-  const lobToe = (() => {
-    const m = fresh();
-    const p = m.players[0];
-    p.x = 400; p.kickCd = 0; p.prev = {};
-    m.players[1].x = C.W - 60;
-    m.ball.x = p.x + C.KICK_REACH + 0.95 * C.KICK_R; m.ball.y = p.y - C.BODY_H * 0.45;
-    m.ball.vx = 0; m.ball.vy = 0;
-    m.hitStop = 0;
-    step(m, [{ kick: true, jump: true }, {}]);
-    return m.ball.vy;
-  })();
-  ok('a lob off the toe still lobs', lobToe < mid.vy, `lob ${lobToe.toFixed(0)} vs ${mid.vy.toFixed(0)}`);
 }
 
 // ── MEETING THE BALL ──────────────────────────────────────────────────────────
@@ -1386,47 +1366,6 @@ const jumpArc = (input) => {
   // gain a ball driven AT the boot earns.
   ok('and a ball running away is not', fleeing < still + (met - still) * 0.15,
      `fleeing ${fleeing.toFixed(0)} vs still ${still.toFixed(0)}, met ${met.toFixed(0)}`);
-}
-{
-  // THE HEADER, the same way. Two things make one hard: the ball came at you, and you met it
-  // on the way UP. Both were worth nothing before — a header was one number whatever arrived.
-  const nod = ({ ballVx = 0, rising = false } = {}) => {
-    const m = fresh();
-    const p = m.players[0];
-    p.x = 500; p.kickCd = 0; p.prev = {};
-    m.players[1].x = 900;
-    if (rising) { p.vy = -C.JUMP_V; p.onGround = false; }
-    m.ball.x = p.x + 10; m.ball.y = headY(p) - 4;
-    m.ball.vx = ballVx; m.ball.vy = 0;
-    m.hitStop = 0;
-    step(m, [{ kick: true }, {}]);
-    return { vx: m.ball.vx, vy: m.ball.vy, sp: Math.hypot(m.ball.vx, m.ball.vy) };
-  };
-  const lazy = nod(), driven = nod({ ballVx: -600 }), jumped = nod({ rising: true });
-  ok('a header meeting a driven ball goes much faster', driven.sp > lazy.sp * 1.3,
-     `${driven.sp.toFixed(0)} vs ${lazy.sp.toFixed(0)}`);
-  ok('…and it is the FORWARD half that grows', driven.vx > lazy.vx * 2,
-     `${driven.vx.toFixed(0)} vs ${lazy.vx.toFixed(0)}`);
-  ok('a header taken on the way up is harder than one standing still',
-     jumped.sp > lazy.sp * 1.2, `${jumped.sp.toFixed(0)} vs ${lazy.sp.toFixed(0)}`);
-  ok('…and the jump is what lifts it', jumped.vy < lazy.vy,
-     `${jumped.vy.toFixed(0)} vs ${lazy.vy.toFixed(0)}`);
-  // The timing this buys: at the apex there is no rise left, so the same jump headed late is
-  // worth nothing. That is the skill, and it is why the rise is read rather than `onGround`.
-  const apex = (() => {
-    const m = fresh();
-    const p = m.players[0];
-    p.x = 500; p.kickCd = 0; p.prev = {};
-    m.players[1].x = 900;
-    p.vy = 0; p.onGround = false;                    // airborne, but no longer climbing
-    m.ball.x = p.x + 10; m.ball.y = headY(p) - 4;
-    m.ball.vx = 0; m.ball.vy = 0;
-    m.hitStop = 0;
-    step(m, [{ kick: true }, {}]);
-    return Math.hypot(m.ball.vx, m.ball.vy);
-  })();
-  ok('a header at the apex is just a header', apex < jumped.sp * 0.95,
-     `apex ${apex.toFixed(0)} vs rising ${jumped.sp.toFixed(0)}`);
 }
 {
   // THE ULTIMATE LEAVES FROM WHERE THE BODY MET THE BALL, and it never fetches the ball. An
@@ -1711,6 +1650,14 @@ const jumpArc = (input) => {
       if (heldByFrame) continue;
       for (const p of m.players) {
         if (p.stunned > 0) continue;
+        // …and a ball WEDGED BETWEEN THE GRASS AND A HEAD: sitting on the ground under a chin,
+        // the head pushes it down and the ground pushes it back up. Same over-constraint, and it
+        // got commoner when the ball started rolling as far as HS's does (measured at ticks 2151
+        // and 3624: the ball at rest height, 2px into the head's circle, 0 into the body).
+        const onGrass = m.ball.y >= C.GROUND_Y - C.BALL_R - 0.5;
+        const b = m.ball, cx = Math.max(p.x - C.BODY_W / 2, Math.min(b.x, p.x + C.BODY_W / 2));
+        const cy = Math.max(p.y - C.BODY_H, Math.min(b.y, p.y));
+        if (onGrass && C.BALL_R - Math.hypot(b.x - cx, b.y - cy) < 1.5) continue;
         const e = embed(m, p);
         if (e > deepest) { deepest = e; worst = { i, p: p.index }; }
       }
@@ -1831,7 +1778,7 @@ const jumpArc = (input) => {
   const p = m.players[0];
   p.gauge = 0.37; p.armed = 1; p.coyote = 0.04; p.jumpBuf = 0.03;
   p.tackleImmune = 0.55; p.shoved = 0.13;
-  p.stunned = 0.66; p.kickLob = true; p.kickDir = -1;
+  p.stunned = 0.66; p.kickDir = -1;
   restore(m2, serialize(m));
   const lost = live.filter((k) => m2.players[0][k] !== p[k]);
   ok('every live player field survives serialize -> restore', lost.length === 0, `lost: ${lost.join(', ')}`);
@@ -2041,8 +1988,9 @@ const jumpArc = (input) => {
     down(m, 1, 30);                                      // longer than the goal takes
     scoreOn(m, true);                                    // drive a ball into the left net
     ok('(the goal went in)', m.score[1] === 1, `score ${m.score}`);
+    run(m, Math.ceil(C.AFTER_GOAL / C.TICK) + 1);          // the free play under GOAL!, then the spots
     ok('a goal restart clears the stun', v.stunned === 0);
-    m.freeze = 0; m.phase = 'play';                      // past the post-goal freeze
+    m.freeze = 0; m.phase = 'play';                      // past the hold on the spots
     run(m, 20, [{}, { right: true }]);
     ok('…so the downed character can move again immediately', Math.abs(v.vx) > 20, `vx=${v.vx.toFixed(0)}`);
   }

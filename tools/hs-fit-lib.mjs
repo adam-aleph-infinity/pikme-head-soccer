@@ -1032,7 +1032,6 @@ export const METRICS = [
   { id: 'ball.kickApex.feet', unit: 'px', clips: ['C7'], scenario: 'kickFeet', fit: (d) => apexAfter(d, 'kick', 'feet') },
   { id: 'ball.kickApex.head', unit: 'px', clips: ['C7'], scenario: 'kickHead', fit: (d) => apexAfter(d, 'kick', 'head') },
   // The lob is ours, not HS's (HS has no hold-to-lob); HS's nearest thing is the jumping kick.
-  { id: 'ball.kickApex.lob', unit: 'px', clips: ['C7'], scenario: 'kickLob', fit: (d) => apexAfter(d, 'kick', 'lob') },
 
   // C9 — the ball off each surface; tag the bounce with the surface's name.
   { id: 'ball.wallRestitution', unit: '', clips: ['C9'], scenario: 'wallBounce', fit: (d) => restitution(d, 'wall', 'x') },

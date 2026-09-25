@@ -449,7 +449,7 @@ function fireChampion(stage, i, gap = 460) {
   // on a hit or a goal and the ball leaves 1.14 s in (POWER_RELEASE 0.2, measured against the dark);
   // the Grab drags the defender back to the shooter and flings him; Multi-Ball is always three
   // balls; Downward rises at 15°; beheaded takes the controls for a moment. All HS-parity changes.
-  const GOLDEN = '0e47725c69e0730c76bd77bdedb460932b0f34663ad4b73c4c7439213844c393';
+  const GOLDEN = 'add1b2663cd470d5e5b490ef8e65ae0af32ed2361bff6b3905e3290209217aeb';   // re-recorded: HS-GAP-AUDIT stage 1 (kick swing, ball physics, restarts)
   const h = createHash('sha256');
   const cases = [
     [{ rarity: 'legendary', number: 3 }, { rarity: 'legendary', number: 2 }, 3, 3, 11],
@@ -487,8 +487,8 @@ function fireChampion(stage, i, gap = 460) {
   // added the ailment to each player (ail, ailT) and the Multi-Ball's extra balls (xb): every one
   // of them decides what a future tick does. `kicked` and `hurt` (the kick
   // knockout's count and the bruise) joined with hs/kick-stun.
-  ok('the snapshot schema is the HS one', JSON.stringify(Object.keys(serialize(m))) === JSON.stringify(['t', 'clock', 'phase', 'freeze', 'hitStop', 'idle', 'cutin', 'cutinBy', 'banner', 'bannerT', 'ballWait', 'gaugeLead', 'score', 'golden', 'lastScorer', 'p', 'b', 'xb']) &&
-     serialize(m).p[0].length === 30);
+  ok('the snapshot schema is the HS one', JSON.stringify(Object.keys(serialize(m))) === JSON.stringify(['t', 'clock', 'phase', 'freeze', 'hitStop', 'idle', 'cutin', 'cutinBy', 'banner', 'bannerT', 'ballWait', 'gaugeLead', 'afterGoal', 'afterGoalTo', 'score', 'golden', 'lastScorer', 'p', 'b', 'xb']) &&
+     serialize(m).p[0].length === 29);
   ok('an ordinary bot is still exactly its tier', createBot(3).d === DIFFICULTIES[3]);
 }
 

@@ -112,10 +112,6 @@ export const SCENARIOS = {
   kickJump: { clip: 'C7', ticks: 120, kickTag: 'strike', kickNote: 'jump', setup: (m) => { openPlay(m); parkBall(m); },
     during: (m, i) => { if (i === 12) { const p = m.players[0]; place(m.ball, p.x + p.facing * 50, p.y - C.BODY_H * 0.45); } },
     input: (i) => ({ jump: i === 1, kick: i === 12 }) },
-  // Our lob (not an HS move): KICK with JUMP held, from the halfway line, ball at the feet.
-  kickLob: { clip: 'C7', ticks: 180, kickTag: 'strike', kickNote: 'lob',
-    setup: (m) => { openPlay(m); const p = m.players[0]; p.x = C.W / 2 - 45; parkP1(m); place(m.ball, p.x + p.facing * 45, C.GROUND_Y - C.BALL_R); },
-    input: (i) => ({ jump: i >= 5 && i < 12, kick: i === 5 }) },
   kickRun: { clip: 'C7', ticks: 120, kickTag: 'strike', kickNote: 'run',
     setup: (m) => { openPlay(m); m.players[0].x = 120; parkP1(m); place(m.ball, 420, C.GROUND_Y - C.BALL_R); },
     input: (i, m, ctx) => {
@@ -157,10 +153,11 @@ export const SCENARIOS = {
       return { jump: j };
     } },
 
-  // The same drop, headed on purpose: jump into it and press KICK as it reaches the head (our
-  // aimed header, tryHeader). The ball arrives falling at ~490 px/s, the median of the HS M4
-  // jumping headers it is compared with (ball.launchSpeed.header, ball.headerApex).
-  headerKick: { clip: 'C8', ticks: 150, kickTag: 'strike', kickNote: 'header',
+  // The same drop, with KICK pressed as it reaches the head — what the HS M4 jumping headers it
+  // is compared with are (ball.launchSpeed.header, ball.headerApex: KICK pressed or not, the
+  // ball arriving at ~490 px/s). HS has no aimed header, so the first contact counts, whether
+  // the raised boot or the head gets there first.
+  headerKick: { clip: 'C8', ticks: 150, kickTag: 'strike', kickNote: 'header', anyContact: true,
     setup: (m) => { openPlay(m); const p = m.players[0]; place(m.ball, p.x + 6, headY(p) - 260); },
     input: (i, m, ctx) => {
       const p = m.players[0], b = m.ball;
@@ -436,7 +433,7 @@ export function runScenario(name, seed = 0) {
         // A kick, or an aimed header off the kick button, is the 'kick' of C7; a passive head
         // contact is a 'touch' (note 'jump' when made in the air). A ball resting on a head
         // strikes every tick; a person tags the contact once, when it starts.
-        const kick = !e.head || e.aimed;
+        const kick = !e.head || e.aimed || sc.anyContact;
         if (kick && sc.kickTag === 'strike') tag(i, 'kick', sc.kickNote);
         else if (!kick) {
           if (st.lastStrike.touch !== i - 1) tag(i, 'touch', a.onGround ? undefined : 'jump');

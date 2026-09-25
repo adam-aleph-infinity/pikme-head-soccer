@@ -75,10 +75,16 @@ export const BALL_R = 16.5;
 // constants because they were two measurements, and because the arcade bends the ball's
 // without touching the bodies'.
 export let BALL_GRAV = 580;
-export let BALL_AIR = 0.99694;      // per-tick horizontal air drag (0.9955 ^ the old PACE 0.68)
-export let BALL_GROUND_FRICTION = 0.99182;
+// HS M4, 17 free flights of 36+ frames: horizontal drag 0.099 /s (IQR 0.095–0.105) — Box2D's
+// linearDamping ~0.1. Was 0.184 /s, which landed long balls ~40 px short.
+export let BALL_AIR = 0.998351;     // per tick = exp(-0.099 / 60)
+// HS M4 ground rolls decay at 0.11–0.21 /s in all (111.0 s: 6.6 s and 404 px, 82 → 40 px/s).
+// This plus BALL_AIR is ~0.15 /s. Was 0.73 /s in all: an 80 px/s ball stopped after 111 px.
+export let BALL_GROUND_FRICTION = 0.99915;   // per tick = exp(-0.051 / 60)
 export let BALL_BOUNCE = 0.65;      // HS M3, 5 ground bounces: 0.58–0.70 (low confidence)
-export const BALL_WALL_BOUNCE = 0.86;
+// Unmeasured in HS, but every surface that is (grass 0.65, goal roof 0.67, head 0.70–0.79) sits
+// at 0.63–0.79 — one Box2D restitution. Was 0.86, livelier than everything else on the pitch.
+export const BALL_WALL_BOUNCE = 0.67;
 // HS M4, the ball dropped onto the goal's roof: 0.67. Every bar segment (the near rail, the
 // roof, the roof's edge) shares it; the front bar alone has not been measured.
 export let BAR_BOUNCE = 0.67;
@@ -88,7 +94,7 @@ export let BAR_BOUNCE = 0.67;
 // exactly like a scuffed one. The headroom is what makes meeting the ball worth doing.
 // It is still the budget a shot SPENDS: a lofted kick puts most of it into climbing, which is
 // why the flat drive off the toe is the fastest shot in the game.
-export let BALL_MAX_SPEED = 816;    // 1200 x the old PACE 0.68; HS C12 (hardest kick) unmeasured
+export let BALL_MAX_SPEED = 1100;   // HS M4: ordinary touches (no power) reach 1001–1091 px/s (was 816)
 export const BALL_SPIN_DECAY = 0.985;
 
 // ---- Player ----------------------------------------------------------------
@@ -182,7 +188,16 @@ export const KICK_COOLDOWN = 0.349;
 // sim strikes from, so nothing about the reach is being lied about.
 export let FOOT_LEN = 2.1;           // multiples of the original 3px boot plate
 export let KICK_REACH = 62;
-export let KICK_R = 22;              // kick hitbox radius
+export let KICK_R = 22;              // kick hitbox radius (HS's boot is ~20 x 25 px)
+// THE SWING. HS M4 29.64 s frame by frame: the boot is down at the ball for ~2 frames, then held
+// up ~51 px ahead of the body's centre and ~52 px above the grass (mid-head) for the rest of the
+// swing. KICK_REACH / BALL_R is the low boot, these are the raised one.
+export const KICK_LOW_TICKS = 2;
+export let KICK_REACH_HI = 51;
+export let KICK_HI_Y = 52;
+export let KICK_HI_DRIVE = 0.42;   // of a kick's drive, met at head height or above (kick.head.*)
+export let KICK_HI_LIFT = 0.92;    // …and of its lift
+export let KICK_AIR_LIFT = 1.55;   // lift of a kick taken in the air (HS jump kick ~340 px apex; 1 sample)
 export let KICK_POWER = 367;         // 540 at the old PACE 0.68 — the kick contact model is a later
                                       // pass, so the boot is carried over at its live value.
                                       // Ball-only slowdown (Adam, 2026-08-21: "make ball slower").
@@ -201,15 +216,6 @@ export let KICK_POWER = 367;         // 540 at the old PACE 0.68 — the kick co
 // Most of the gap is flat shots hitting a defender's body instead of sailing over it, which
 // is the trade the flat shot is supposed to make.
 export let KICK_LIFT = 272;          // 400 x the old PACE 0.68
-// hold JUMP while kicking: more air, less drive. It was 2.5, and from the halfway line (where
-// the bow adds its third) that sent the ball 539px up — to within a ball of the ceiling and
-// ~0.9s off the top of the picture, every time. On a phone JUMP is often still held when KICK
-// goes in, so this was the commonest way to lose the ball upward. Head Soccer has no lob; its
-// jumping kick tops out ~340px (HS M4 167.9 s), and 1.9 puts the halfway-line lob at 352 —
-// still well over a jumping defender (crown ~116px up), and inside the 475 the camera shows
-// (VIEW_ABOVE_GROUND). Measured by ball.kickApex.lob (hs-scenarios kickLob).
-export let LOB_LIFT = 1.9;
-export let LOB_DRIVE = 0.62;
 // Body contact KILLS the ball's pace (Adam: 'if it dosnt kick, the ball kinda stops and
 // rolles'). The head still bounces — that is the aerial tool — but your torso deadens.
 export let BODY_DEADEN = 0.18;
@@ -305,31 +311,6 @@ export let KICK_LOFT_MAX = 1.6;
 // is not an ultimate. Only the part coming AT the striker counts — a ball running away is
 // caught up with, not smashed.
 export let KICK_MEET = 0.55;         // of the ball's incoming pace, returned by a boot
-export let HEAD_MEET = 0.62;         // …and by a header, which is the flatter, harder surface
-export let HEAD_RISE = 0.6;          // of the jump's own rise, added to a header's lift. Heading
-                                     // on the way UP is the timing this buys: at the apex the
-                                     // rise is zero and it is just a header.
-
-// ── THE HEADER ───────────────────────────────────────────────────────────────
-// Pressing kick with the ball at head height is now a HEADER rather than a boot that misses.
-// It is the aerial tool: less power than a kick, more loft, and it is the only way to hit a
-// ball you cannot reach with your foot.
-export let HEADER_POWER = 0.72;      // of a kick, horizontally
-// Dropped from 1.35 when the header became a collision. A plain nod used to leave at 606 of a
-// 714 ceiling entirely on this number, so a header that MET the ball — driven at you, taken on
-// the rise — was clipped back to the same speed as one that did not, and the whole point of
-// timing it was invisible. The base is softer now and HEAD_MEET and HEAD_RISE are what fill
-// the gap: a lazy header is weak, a well-met one is the hardest strike on the pitch.
-// Restated against the flatter boot: this is a multiple of KICK_LIFT, and KICK_LIFT went from
-// 620 to 400 to stop the kick going up. The header is the AERIAL tool and wants to keep going
-// up, so the multiple rises to hold the same 680 it had. It is now well above 1 because the
-// header really is the lofted strike and the kick really is not.
-// HS M4 checked it (docs/hs-estimates.json ball.launchSpeed.header / ball.headerApex): a jump
-// into a ball falling at ~490 px/s leaves at 587 px/s and tops out 326px up; HS's median over
-// 12 such headers is 590 and 310. The header was never what sent the ball off the screen —
-// the camera was (see VIEW_ABOVE_GROUND) — so it stays.
-export let HEADER_LIFT = 1.7;        // and more of the lift
-export let HEADER_R = 16;            // px of slack around the head circle that still counts
 
 // ---- Jump feel -------------------------------------------------------------
 // Two forgiveness windows, both cut to 3 frames. HS shows no input lag at all — a jump press
@@ -527,7 +508,10 @@ export const KICKOFF_FREEZE = 2.17;
 export const GOAL_BANNER = 2.05;
 export const GOAL_RESUME = 2.24;
 export const GOAL_BALL_DELAY = 2.795 - 2.24;
-export const AFTER_GOAL = 3;         // seconds of free play after a goal before the reset
+export const AFTER_GOAL = GOAL_BANNER; // free play under the GOAL! banner, then the spots (was 3 s)
+// Sudden death's hold on the spots: the ball drops GOLDEN_HOLD + GOAL_BALL_DELAY = 2.5 s after the
+// 0:00 whistle (HS M2 111.0 → 113.6 s). How long of that the players stand is an estimate.
+export const GOLDEN_HOLD = 1.95;
 export const GOLDEN_GOAL = true;      // draw → sudden death (gauges stop charging)
 
 // ---- Spawns ----------------------------------------------------------------
@@ -556,8 +540,6 @@ const SETTERS = {
   BODY_DEADEN: (v) => { BODY_DEADEN = v; },
   HEAD_BOUNCE: (v) => { HEAD_BOUNCE = v; },
   BODY_GRIP: (v) => { BODY_GRIP = v; },
-  LOB_LIFT: (v) => { LOB_LIFT = v; },
-  LOB_DRIVE: (v) => { LOB_DRIVE = v; },
   BALL_IDLE_RESET: (v) => { BALL_IDLE_RESET = v; },
   COYOTE_TIME: (v) => { COYOTE_TIME = v; },
   JUMP_BUFFER: (v) => { JUMP_BUFFER = v; },
@@ -611,10 +593,6 @@ const SETTERS = {
   KICK_LOFT_MIN: (v) => { KICK_LOFT_MIN = v; },
   KICK_LOFT_MAX: (v) => { KICK_LOFT_MAX = v; },
   KICK_MEET: (v) => { KICK_MEET = v; },
-  HEAD_MEET: (v) => { HEAD_MEET = v; },
-  HEAD_RISE: (v) => { HEAD_RISE = v; },
-  HEADER_POWER: (v) => { HEADER_POWER = v; },
-  HEADER_LIFT: (v) => { HEADER_LIFT = v; },
   GAUGE_PASSIVE: (v) => { GAUGE_PASSIVE = v; },
   GAUGE_CONCEDE: (v) => { GAUGE_CONCEDE = v; },
   GAUGE_LEAD: (v) => { GAUGE_LEAD = v; },
@@ -642,8 +620,6 @@ export function snapshot() {
     BODY_DEADEN,
     HEAD_BOUNCE,
     BODY_GRIP,
-    LOB_LIFT,
-    LOB_DRIVE,
     BALL_IDLE_RESET,
     COYOTE_TIME,
     JUMP_BUFFER,

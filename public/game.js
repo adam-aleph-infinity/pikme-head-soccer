@@ -957,7 +957,7 @@ $('#copyLink').onclick = async () => {
 // ═══════════════════════════════════════════════════════════════════════════
 // MATCH
 // ═══════════════════════════════════════════════════════════════════════════
-let M = null, BOT = null, raf = 0, acc = 0, last = 0, running = false;
+let M = null, BOT = null, raf = 0, acc = 0, last = 0, running = false, paused = false;
 
 // The free match against the bot: your card, the יריב slot, the difficulty slider. Unchanged
 // from before the arcade, and still what ?play=1 and the screenshot harnesses start.
@@ -1059,7 +1059,25 @@ $('#again').onclick = () => {
   if (ARCADE) startArcadeStage(ARCADE.next || ARCADE.stage);
   else startMatch();
 };
+// ---- pause (HS: the gold II, top right) ---------------------------------------
+function setPaused(on) {
+  paused = on;
+  $('#pause').classList.toggle('hidden', !on);
+  $('#retry').hidden = !!ONLINE;
+  if (on) releaseAll();
+  else { acc = 0; last = performance.now(); }
+}
+$('#pauseBtn').onclick = () => { if (running) setPaused(true); };
+$('#resume').onclick = () => setPaused(false);
+$('#retry').onclick = () => { setPaused(false); $('#again').onclick(); };
+addEventListener('keydown', (e) => { if (e.key === 'Escape' && running) setPaused(!paused); });
+// A phone that takes a call or leaves the app comes back to the pause menu, not a lost match.
+document.addEventListener('visibilitychange', () => { if (document.hidden && running && !ONLINE) setPaused(true); });
+// The tuner is a developer's tool: ?dev=1 shows it. HS has nothing like it.
+$('#gear').hidden = !new URLSearchParams(location.search).has('dev');
+
 $('#back').onclick = $('#quit').onclick = () => {
+  if (paused) setPaused(false);
   running = false;
   cancelAnimationFrame(raf);
   // Leaving an arcade match early records nothing: a quit is neither a win nor a loss.
@@ -1116,15 +1134,11 @@ function drainEvents() {
     // NO WORDS FOR A POWER SHOT. Head Soccer puts no text on the press, the cut-in, the shot, a
     // block or a counter (docs/HS-POWER-SHOTS.md §2) — the picture says it (champ-vfx.js). The
     // GOAL! banner is the sim's (drawReady).
-    if (e.type === 'tackle') {
-      fx.shockwave(e.x, e.y, '#ffd166');
-      // No '+כוח' in it: a tackle pays no power (the gauge is a clock), and saying so on every
-      // boot to the shins was the bar "filling when I kick" that Idan reported.
-      if (e.by === (ONLINE ? NET.you : 0)) banner('פגיעה!', '#ffd166');
-    }
+    // A TACKLE shows nothing but the knock itself: HS puts no ring and no word on a boot to the
+    // shins (HS-GAP-AUDIT U12). The HURT below is its only picture.
     // HURT (the knockout's every-fifth kick, kickDamage in sim.js): HS throws a spray of red
     // drops up off the head (M4 116.9 s, 119.3 s) and the face bruises a tier (drawHeads).
-    else if (e.type === 'hurt') {
+    if (e.type === 'hurt') {
       const p = M.players[e.player];
       if (p) {
         const hy = headY(p) - headR(M, p) * 0.5;
@@ -1134,7 +1148,6 @@ function drainEvents() {
         }
       }
     }
-    else if (e.type === 'ballReset') banner('כדור חדש', '#8ea0be');
     else if (e.type === 'golden') banner('מוות פתאומי', '#ffb800');
     else if (e.type === 'fulltime') { playEvent(e.winner === (ONLINE ? NET.you : 0) ? 'win' : 'lose'); endMatch(); }
     else if (e.type === 'ballReset') playEvent('reset');
@@ -1173,7 +1186,9 @@ function frame(now) {
   last = now;
   if (!M) return;
 
-  if (running) {
+  // Paused offline stops the sim; online it cannot (the other player plays on), so the menu
+  // is only a way out there.
+  if (running && !(paused && !ONLINE)) {
     const simDt = vsyncDt(dt);
     if (ONLINE) {
       // The net module owns the tick clock online: it has to replay from whatever tick a
@@ -2716,7 +2731,6 @@ const RANGES = {
   // jump feel
   COYOTE_TIME: [0, .3], JUMP_BUFFER: [0, .3],
   // kick shaping
-  LOB_LIFT: [1, 3], LOB_DRIVE: [.2, 1],
   // tackling
   TACKLE_PUSH: [0, 900], TACKLE_LIFT: [0, 600], TACKLE_IMMUNE: [0, 4], TACKLE_SHOVE: [0, 1.5],
   // The knockdown a power can cause. The health dials (KICK_DAMAGE, HP_*) that sat here went

@@ -225,9 +225,10 @@
         <button class="btn" data-k="right">▶</button>
       </div>
       <div class="pad-r">
-        <button class="btn jump" data-k="jump">קפיצה</button>
-        <button class="btn kick" data-k="kick">בעיטה</button>
+        <!-- HS's order, left to right: POWER, KICK, JUMP — JUMP in the corner -->
         <button class="btn power" data-k="power" id="powerBtn">POWER</button>
+        <button class="btn kick" data-k="kick">בעיטה</button>
+        <button class="btn jump" data-k="jump">קפיצה</button>
       </div>
     </div>
 
@@ -246,7 +247,7 @@
 
     <button class="gear" id="gear">⚙</button>
     <button class="sndBtn" id="sndBtn" title="צליל">🔊</button>
-    <button class="quit" id="quit">✕</button>
+    <button class="pauseBtn" id="pauseBtn" aria-label="הפסקה">II</button>
   </div>
 
   <div class="over hidden" id="over">
@@ -256,6 +257,16 @@
     <div class="over-btns">
       <button id="again">עוד פעם</button>
       <button id="back">קלפים</button>
+    </div>
+  </div>
+
+  <!-- HS's pause: the gold II at the top right stops the match; resume, retry or quit -->
+  <div class="over pause hidden" id="pause">
+    <h2>הפסקה</h2>
+    <div class="over-btns">
+      <button id="resume">המשך</button>
+      <button id="retry">מההתחלה</button>
+      <button id="quit">יציאה</button>
     </div>
   </div>
 </section>
