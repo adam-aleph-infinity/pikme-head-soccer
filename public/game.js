@@ -808,15 +808,8 @@ const fx = {
         life: .26, t: 0, r: 3 + Math.random() * 4, color });
     }
   },
-  goal(x, y, color) {
-    parts.push({ k: 'w', x, y, life: .8, t: 0, color });
-    for (let i = 0; i < 60; i++) {
-      const a = Math.random() * Math.PI * 2, s = 120 + Math.random() * 460;
-      parts.push({ k: 'c', x, y, vx: Math.cos(a) * s, vy: Math.sin(a) * s - 180,
-        life: 1.5, t: 0, r: 3 + Math.random() * 5,
-        color: ['#ffb800', '#4ea0ff', '#ff5c7a', '#5ce15c', '#ffffff'][i % 5] });
-    }
-  },
+  // HS throws no confetti on a goal: the GOAL! letters are the whole celebration (drawReady).
+  goal() {},
 };
 
 function stepParts(dt) {
@@ -957,7 +950,7 @@ $('#copyLink').onclick = async () => {
 // ═══════════════════════════════════════════════════════════════════════════
 // MATCH
 // ═══════════════════════════════════════════════════════════════════════════
-let M = null, BOT = null, raf = 0, acc = 0, last = 0, running = false, paused = false;
+let M = null, BOT = null, raf = 0, acc = 0, last = 0, running = false, paused = false, introT = 0;
 
 // The free match against the bot: your card, the יריב slot, the difficulty slider. Unchanged
 // from before the arcade, and still what ?play=1 and the screenshot harnesses start.
@@ -988,6 +981,7 @@ function beginLocal(me, foe, opts, bot) {
   BOT = bot;
   parts.length = 0;
   acc = 0; last = performance.now(); running = true;
+  startIntro();
   vsSlack = 0; for (const k in tapped) delete tapped[k];   // nothing carried in from the menus
 
   show('match');
@@ -1013,8 +1007,12 @@ function endMatch() {
   const [a, b] = M.score;
   const iWon = a > b;
   $('#overTitle').textContent = iWon ? 'ניצחת!' : 'הפסדת';
+  $('#overTitle').hidden = !ARCADE;          // HS says it in gold (#ovSpell); the arcade adds its news
   $('#overTitle').style.color = iWon ? 'var(--hot)' : 'var(--p1)';
   $('#overScore').textContent = `${a} : ${b}`;
+  // HS's lettering: a gold RESULT, then YOU WIN / YOU LOSE spelled out a letter at a time.
+  const word = a === b ? 'DRAW' : iWon ? 'YOU WIN' : 'YOU LOSE';
+  $('#ovSpell').innerHTML = [...word].map((c, i) => `<span style="animation-delay:${0.35 + i * 0.08}s">${c === ' ' ? '&nbsp;' : c}</span>`).join('');
   const sub = $('#overSub');
   sub.hidden = true;
   $('#again').textContent = 'עוד פעם';
@@ -1059,6 +1057,32 @@ $('#again').onclick = () => {
   if (ARCADE) startArcadeStage(ARCADE.next || ARCADE.stage);
   else startMatch();
 };
+// ---- fullscreen, landscape (HS is both) -----------------------------------------
+// On the first touch of a match, a phone goes fullscreen and (where the browser allows it,
+// Android) locks landscape. iOS Safari refuses both from a page; the manifest covers a home-
+// screen install there, and the rotate card covers the rest.
+addEventListener('pointerdown', () => {
+  if (!running || !matchMedia('(pointer: coarse)').matches || document.fullscreenElement) return;
+  const el = document.documentElement;
+  if (!el.requestFullscreen) return;
+  el.requestFullscreen({ navigationUI: 'hide' }).then(() => screen.orientation?.lock?.('landscape')).catch(() => {});
+}, { passive: true });
+
+// ---- the VS intro ---------------------------------------------------------------
+const VS_INTRO = 1.5;
+function startIntro() {
+  if (ONLINE || window.SIM_HOLD || new URLSearchParams(location.search).has('nointro')) return;
+  const vs = $('#vs');
+  for (let i = 0; i < 2; i++) {
+    const el = $('#vsFace' + i), { rarity, number } = M.players[i].char;
+    el.classList.toggle('char-face', !!characterFor(rarity, number));
+    paintHead(el, rarity, number, el.clientWidth || 150, { expr: 'normal', flip: i === 1, fill: 1 });
+  }
+  vs.classList.remove('hidden');
+  vs.style.animation = 'none'; void vs.offsetWidth; vs.style.animation = '';   // restart the CSS
+  introT = VS_INTRO;
+}
+
 // ---- pause (HS: the gold II, top right) ---------------------------------------
 function setPaused(on) {
   paused = on;
@@ -1188,7 +1212,10 @@ function frame(now) {
 
   // Paused offline stops the sim; online it cannot (the other player plays on), so the menu
   // is only a way out there.
-  if (running && !(paused && !ONLINE)) {
+  // THE VS INTRO (HS: ~1.5 s of both heads and a gold VS on a red streak before KICK OFF): the
+  // match waits under it, offline only.
+  if (introT > 0) { introT -= dt; if (introT <= 0) { introT = 0; $('#vs').classList.add('hidden'); last = now; } }
+  if (running && !(paused && !ONLINE) && !(introT > 0)) {
     const simDt = vsyncDt(dt);
     if (ONLINE) {
       // The net module owns the tick clock online: it has to replay from whatever tick a
@@ -1503,8 +1530,10 @@ function applyBars() {
   const grass = STAGE.grass ? STAGE.grass[0] : barSky;
   if (ground === barsGround && barSky === barsSky && grass === barsGrass) return;
   barsGround = ground; barsSky = barSky; barsGrass = grass;
+  // HS letterboxes in BLACK beside the pitch (HS-GAP-AUDIT U18); below the ground line the grass
+  // runs on under the controls.
   $('#stage').style.background =
-    `linear-gradient(to bottom, ${barSky} 0 ${ground}px, ${grass} ${ground}px 100%)`;
+    `linear-gradient(to bottom, #000 0 ${ground}px, ${grass} ${ground}px 100%)`;
 }
 
 function draw() {
@@ -2270,8 +2299,12 @@ function drawBall(g, b) {
   // A POWER BALL is the plain ball at the nose of its family's comet (champ-vfx.js draws the
   // comet under it, docs/HS-POWER-SHOTS.md §3). An Aerial up off the top of the screen is not drawn.
   if (VFXR.drawBall(g, b)) return;
+  // KICK OFF: the ball flies in from the camera — huge, then down to its spot (HS M1–M4).
+  const zoom = b === M.ball ? kickoffZoom() : 1;
+  if (zoom === 0) return;
   g.save();
   g.translate(d.x, d.y);
+  if (zoom !== 1) g.scale(zoom, zoom);
   // It ROLLS: turned by the distance it has travelled over its own radius (it was 1/5 of that,
   // so a ball skidding across the grass looked like it was sliding on ice).
   const spin = b.x / b.r;
@@ -2375,70 +2408,71 @@ function drawParts(g, front) {
 // THE BANNERS, timed by the sim (m.banner / m.bannerT): KICK OFF for the 2.17s the kickoff
 // holds, GOAL! for the 2.05s after a goal (HS M3/M4). They are presentation, but HS times its
 // restarts off them, so they live on the match clock rather than on a CSS animation.
+// When the KICK OFF ball comes in: hidden under the banner's slide-in, then from the camera.
+const ZOOM_AT = 0.45, ZOOM_FOR = 0.55;
+function kickoffZoom() {
+  if (M.phase !== 'kickoff') return 1;
+  const t = C.KICKOFF_FREEZE - M.freeze;
+  if (t < ZOOM_AT) return 0;
+  const k = Math.min(1, (t - ZOOM_AT) / ZOOM_FOR);
+  return 1 + 7 * (1 - k) * (1 - k);          // 8x → 1x, easing out as it lands
+}
+
+// THE BANNERS, timed by the sim (m.banner / m.bannerT / m.freeze): KICK OFF for the 2.17 s the
+// kickoff holds, GOAL! for the 2.05 s after a goal (HS M3/M4). HS draws them as gold-chrome
+// italic lettering that slides in from the right and out to the left (KICK OFF), or flies in
+// letter by letter and drops out the same way (GOAL!), with no dimming of the pitch. They are an
+// HD DOM layer (#hsb) rather than pitch texels, so they are sharp on every screen.
+let HSB_TXT = '';
+const easeOut = (x) => 1 - (1 - x) * (1 - x) * (1 - x);
+function hsbSet(txt) {
+  const el = $('#hsb');
+  if (txt === HSB_TXT) return el;
+  HSB_TXT = txt;
+  el.innerHTML = [...txt].map((c) => `<span>${c === ' ' ? '&nbsp;' : c}</span>`).join('');
+  el.className = 'hsb' + (txt ? ' on' : '');
+  return el;
+}
 function drawReady(g) {
   if (M.banner === 'goal') {
-    // Only the pre-kickoff freeze dims the pitch. Blacking out the post-goal freeze too hid
-    // the one moment the game is showing off — the celebration.
-    const col = M.lastScorer === 0 ? '#4ea0ff' : '#ff5c7a';
+    const el = hsbSet('GOAL!');
     const t = C.GOAL_BANNER - M.bannerT;                  // seconds since the goal
-    const pop = t < 0.18 ? 0.6 + 0.4 * (t / 0.18) + 0.25 * Math.sin((t / 0.18) * Math.PI) : 1;
-    g.save();
-    g.textAlign = 'center';
-    g.textBaseline = 'middle';
-    // The page is right-to-left (Hebrew), and a canvas inherits that: 'GOAL!' came out '!GOAL'.
-    g.direction = 'ltr';
-    // Under the scoreboard, not on it: at the KICK OFF line a 72px GOAL! sat on the score digits.
-    g.translate(C.W / 2, C.H * 0.35);
-    g.scale(pop, pop);
-    g.font = '900 64px -apple-system, Arial';
-    g.lineJoin = 'round';
-    g.lineWidth = 10;
-    g.strokeStyle = OUTLINE;
-    g.strokeText('GOAL!', 0, 0);
-    g.fillStyle = col;
-    g.fillText('GOAL!', 0, 0);
-    g.restore();
+    const spans = el.children, n = spans.length;
+    for (let i = 0; i < n; i++) {
+      const tin = (t - i * 0.07) / 0.28;                  // each letter flies in from the right…
+      const tout = (t - (C.GOAL_BANNER - 0.5) - i * 0.06) / 0.3;   // …and drops out in turn
+      const x = tin < 1 ? (1 - easeOut(Math.max(0, tin))) * 70 : 0;
+      const y = tout > 0 ? easeOut(Math.min(1, tout)) * 60 : 0;
+      const sweep = -Math.min(t, C.GOAL_BANNER) * 1.5;      // the word drifts left as it holds
+      spans[i].style.transform = `translate(${x + sweep}vw, ${y}vh)`;
+      spans[i].style.opacity = tin <= 0 || tout >= 1 ? 0 : 1;
+    }
     return;
   }
-  if (M.phase !== 'kickoff') return;
-  g.save();
-  g.fillStyle = '#000000b0';
-  g.fillRect(0, -SKY_TOP, C.W, SKY_TOP + C.H);
-  g.textAlign = 'center';
-  g.textBaseline = 'middle';
-  const txt = 'KICK OFF';
-  g.direction = 'ltr';
-  g.font = '900 46px -apple-system, Arial';
-  g.lineJoin = 'round';
-  g.lineWidth = 8;
-  g.strokeStyle = OUTLINE;
-  g.strokeText(txt, C.W / 2, C.H * 0.30);
-  g.fillStyle = '#ffd23c';
-  g.fillText(txt, C.W / 2, C.H * 0.30);
-  g.direction = 'inherit';                 // the Hebrew control rows below keep the page's RTL
+  if (M.phase !== 'kickoff') { hsbSet(''); return; }
+  const el = hsbSet('KICK OFF');
+  const t = C.KICKOFF_FREEZE - M.freeze, T = C.KICKOFF_FREEZE;
+  const x = t < 0.3 ? (1 - easeOut(t / 0.3)) * 100 : t > T - 0.3 ? -easeOut((t - (T - 0.3)) / 0.3) * 100 : 0;
+  for (const sp of el.children) { sp.style.transform = `translate(${x}vw, 0)`; sp.style.opacity = 1; }
 
-  // The controls, on the glass, every kickoff. "How do I kick?" should never need a README
-  // — and on desktop there is no touch pad to read the answer off.
-  if (!document.body.classList.contains('no-touch')) { g.restore(); return; }
+  // Desktop has no touch pad to read the controls off, so the very first kickoff lists them
+  // under the banner (on the pitch, no dimming). HS has no keyboard; phones never see this.
+  if (!document.body.classList.contains('no-touch') || M.score[0] + M.score[1] > 0 || M.t > C.KICKOFF_FREEZE + 0.1) return;
   const rows = [
     ['זוז', BINDS.left.filter(Boolean).map(keyLabel).join(' / ') + '  ' + BINDS.right.filter(Boolean).map(keyLabel).join(' / ')],
     ['בעיטה', BINDS.kick.filter(Boolean).map(keyLabel).join(' / ')],
     ['קפיצה', BINDS.jump.filter(Boolean).map(keyLabel).join(' / ')],
     ['כוח', BINDS.power.filter(Boolean).map(keyLabel).join(' / ')],
     ['ריצה', 'לחיצה כפולה'],
-    ['הרמה', 'קפיצה + בעיטה'],
   ];
-  const y0 = C.H * 0.5;
-  const lh = 26;
-  g.font = '700 17px -apple-system, Arial';
+  g.save();
+  g.textBaseline = 'middle';
+  g.font = '700 15px -apple-system, Arial';
+  g.lineJoin = 'round'; g.lineWidth = 4; g.strokeStyle = OUTLINE;
   for (let i = 0; i < rows.length; i++) {
-    const y = y0 + i * lh;
-    g.textAlign = 'right';
-    g.fillStyle = '#8ea0be';
-    g.fillText(rows[i][0], C.W / 2 + 130, y);
-    g.textAlign = 'left';
-    g.fillStyle = '#ffd166';
-    g.fillText(rows[i][1], C.W / 2 - 120, y);
+    const y = C.H * 0.56 + i * 21;
+    g.textAlign = 'right'; g.strokeText(rows[i][0], C.W / 2 + 110, y); g.fillStyle = '#dfe7f5'; g.fillText(rows[i][0], C.W / 2 + 110, y);
+    g.textAlign = 'left'; g.strokeText(rows[i][1], C.W / 2 - 100, y); g.fillStyle = '#ffd166'; g.fillText(rows[i][1], C.W / 2 - 100, y);
   }
   g.restore();
 }
@@ -2636,7 +2670,7 @@ function youMarker(g, p, t) {
   const top = depthPoint(p.x, headY(p) - r);
   const bob = Math.sin(t * 5) * 2;
   const w = r * 2.8, h = r * 1.45, x = top.x, y = top.y - 12 - h / 2 + bob;
-  const col = p.index === 1 ? '#ff5c7a' : '#4ea0ff';
+  const col = '#8b3dff';                                   // HS's YOU bubble is purple, whichever side
   g.save();
   // the bubble and its tail, one keyline round both
   const shape = () => {
@@ -2731,7 +2765,13 @@ function syncHud() {
   const pb = HUD.power;
   // Up only when a press would arm: HS hides the POWER plaque on the press and shows it again
   // when the bar is full (M4 36.56 s → 54.88 s). The glow on the head is what says armed.
-  pb.classList.toggle('ready', gaugeView(mine).button);
+  const ready = gaugeView(mine).button;
+  if (!ready && pb.classList.contains('ready')) {
+    pb.classList.add('fired');                     // the flash, then the fade (style.css)
+    requestAnimationFrame(() => pb.classList.add('fade'));
+    setTimeout(() => pb.classList.remove('fired', 'fade'), 180);
+  }
+  pb.classList.toggle('ready', ready);
   txt(HUD.rtt, ONLINE ? `${NET.rtt}ms` : '');
 }
 

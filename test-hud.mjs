@@ -124,7 +124,7 @@ ok('every second of it formats to four characters',
   ok('a bad gauge value reads as empty', gaugeView({ gauge: NaN, armed: 0 }).pct === 0);
   // The renderer paints the bar and the button off gaugeView and nothing else.
   const js = readFileSync(new URL('./public/game.js', import.meta.url), 'utf8');
-  ok('game.js lights the button off gaugeView', /toggle\('ready', gaugeView\(mine\)\.button\)/.test(js));
+  ok('game.js lights the button off gaugeView', /const ready = gaugeView\(mine\)\.button;[\s\S]{0,400}toggle\('ready', ready\)/.test(js));
   ok('and paints the bar off it', /prop\(gEl, '--p', gv\.pct/.test(js));
 }
 

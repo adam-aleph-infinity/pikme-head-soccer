@@ -24,7 +24,7 @@ const TYPES = {
   '.js': 'text/javascript; charset=utf-8',
   '.mjs': 'text/javascript; charset=utf-8',
   '.css': 'text/css; charset=utf-8',
-  '.json': 'application/json; charset=utf-8',
+  '.json': 'application/json; charset=utf-8', '.webmanifest': 'application/manifest+json',
   '.webp': 'image/webp', '.png': 'image/png', '.jpg': 'image/jpeg', '.svg': 'image/svg+xml',
   '.mp3': 'audio/mpeg', '.ico': 'image/x-icon',
 };

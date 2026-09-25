@@ -6,6 +6,8 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <link rel="icon" href="img/saltiz-sm.jpg">
 <link rel="apple-touch-icon" href="img/saltiz-sm.jpg">
+<!-- HS is landscape-only and fullscreen (HS-GAP-AUDIT U10/U14) -->
+<link rel="manifest" href="manifest.webmanifest">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Rubik:wght@500;700;900&display=swap">
 <title>סלטיז ראשים · Head Soccer mock</title>
@@ -176,6 +178,8 @@
 <section id="match" class="screen hidden">
   <div id="stage">
     <canvas id="cv"></canvas>
+    <!-- HS's gold KICK OFF / GOAL! lettering, HD, above the pitch (drawReady) -->
+    <div class="hsb" id="hsb" aria-hidden="true"></div>
     <!-- The characters' bodies and boots, full resolution (body-art.js), under the cut-in's dark and the heads. -->
     <canvas id="cvbody" class="fx"></canvas>
     <!-- Power-shot light UNDER the heads, full resolution (champ-vfx.js drawUnder: the cut-in). -->
@@ -251,6 +255,8 @@
   </div>
 
   <div class="over hidden" id="over">
+    <div class="ov-res gold">RESULT</div>
+    <div class="ov-spell gold" id="ovSpell"></div>
     <h2 id="overTitle"></h2>
     <div class="over-faces"><i class="ov-face" id="ovFace0"></i><p id="overScore"></p><i class="ov-face" id="ovFace1"></i></div>
     <p class="over-sub" id="overSub" hidden></p>
@@ -258,6 +264,14 @@
       <button id="again">עוד פעם</button>
       <button id="back">קלפים</button>
     </div>
+  </div>
+
+  <!-- HS is landscape-only: a phone held upright is asked to turn -->
+  <div class="rotate" id="rotate"><b>⟳</b><span>סובבו את הטלפון</span></div>
+
+  <!-- HS's VS intro: both heads, a gold VS on a red streak, before KICK OFF -->
+  <div class="vs hidden" id="vs" aria-hidden="true">
+    <i class="vs-face" id="vsFace0"></i><b class="vs-txt gold">VS</b><i class="vs-face" id="vsFace1"></i>
   </div>
 
   <!-- HS's pause: the gold II at the top right stops the match; resume, retry or quit -->

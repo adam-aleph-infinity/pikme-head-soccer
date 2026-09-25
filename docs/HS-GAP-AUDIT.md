@@ -81,23 +81,23 @@ At the audit, `node test-hs-parity.mjs` passed 82 of 88 rows. The 6 failures are
 | # | Sev | Gap | Ours | HS | Source |
 |---|---|---|---|---|---|
 | U1 ✅ | H | The action buttons are in the wrong order. Checked on a screenshot | JUMP, KICK (POWER) | POWER, KICK, JUMP, with JUMP in the corner | meas |
-| U2 | H | KICK OFF is wrong. Ours dims the pitch 70%, uses flat system-font text, and shows a key-binding table (also on phones). The ball just appears (`ballDrop` isn't handled) | `game.js:2362-2402` | No dim; gold-chrome KICK OFF slides in and out; a giant ball flies in from the camera | meas |
-| U3 | H | GOAL! is wrong: a 64 px system font with a pop and 60 pieces of confetti | `game.js:2337-2360, 810` | Huge gold-chrome letters fly in one by one, sweep across and drop out; no confetti | meas |
-| U4 | M | No VS intro | Cuts straight to the match `game.js:984` | ~1.5 s of both heads with a gold VS on a red band | meas |
-| U5 | M | Buttons are the wrong shape: ~1:1 squares | 78×78 `game.js:1340` | Wide ~3:1 plaques, ~17% of the width × 11% of the height | meas |
-| U6 | M | The gauge fills backwards | From the screen edge inward, red next to the score `style.css:351-363` | From the flag outward, green → red | meas |
-| U7 | M | The result screen differs | Instant blur, plain text | A panel slides in; gold RESULT, YOU WIN spelled letter by letter, loser as a black silhouette, one NEXT MATCH button | meas |
+| U2 ✅ | H | KICK OFF is wrong. Ours dims the pitch 70%, uses flat system-font text, and shows a key-binding table (also on phones). The ball just appears (`ballDrop` isn't handled) | `game.js:2362-2402` | No dim; gold-chrome KICK OFF slides in and out; a giant ball flies in from the camera | meas |
+| U3 ✅ | H | GOAL! is wrong: a 64 px system font with a pop and 60 pieces of confetti | `game.js:2337-2360, 810` | Huge gold-chrome letters fly in one by one, sweep across and drop out; no confetti | meas |
+| U4 ✅ | M | No VS intro | Cuts straight to the match `game.js:984` | ~1.5 s of both heads with a gold VS on a red band | meas |
+| U5 ✅ | M | Buttons are the wrong shape: ~1:1 squares | 78×78 `game.js:1340` | Wide ~3:1 plaques, ~17% of the width × 11% of the height | meas |
+| U6 ✅ | M | The gauge fills backwards | From the screen edge inward, red next to the score `style.css:351-363` | From the flag outward, green → red | meas |
+| U7 ✅❓ | M | Gold RESULT + spelled YOU WIN/LOSE + slide-in done. **Loser portrait left as is: the two audits disagree** (black silhouette vs dark grey with readable features; the code's own note says the latter). The result screen differs | Instant blur, plain text | A panel slides in; gold RESULT, YOU WIN spelled letter by letter, loser as a black silhouette, one NEXT MATCH button | meas |
 | U8 | M | The menu flow differs | Card album → 2 modes → arcade board | Title → main menu (8 modes) → PLAYER SELECT → match | wiki |
-| U9 | M | Wrong fonts: `-apple-system`/Arial everywhere | — | A gold-chrome italic display face | meas |
-| U10 | M | Portrait mode is playable (tiny pitch, no rotate prompt) | — | Landscape only | know |
-| U11 | L | The clock turns red and pulses at ≤10 s; it's yellow, with no TIME pill | `style.css:251` | White digits under a dark "TIME" label, white to the end | meas |
+| U9 ✅ | M | Wrong fonts: `-apple-system`/Arial everywhere | — | A gold-chrome italic display face | meas |
+| U10 ✅ | M | Portrait mode is playable (tiny pitch, no rotate prompt) | — | Landscape only | know |
+| U11 ✅ | L | The clock turns red and pulses at ≤10 s; it's yellow, with no TIME pill | `style.css:251` | White digits under a dark "TIME" label, white to the end | meas |
 | U12 ✅ | L | Extra text HS doesn't have: "פגיעה!" with a yellow ring on each tackle, "כדור חדש", "מוות פתאומי", sparks on every kick | `game.js:1120-1138` | None (a hurt is only a red spray) | meas |
 | U13 ✅ | L | Pinch-zoom isn't blocked | `touch-action: manipulation` `style.css:39` | — | code |
-| U14 | L | No fullscreen, manifest or orientation lock | — | — | code |
-| U15 | L | The POWER button vanishes instantly when pressed | — | Flashes yellow, fades over ~0.15 s | meas |
-| U16 | L | The gauge glows when full | — | No glow | meas |
-| U17 | L | The YOU bubble is the player's colour | — | Purple | meas |
-| U18 | L | The side bars are sky-coloured and the meters stick out over them | — | Black | meas |
+| U14 ✅ | L | No fullscreen, manifest or orientation lock | — | — | code |
+| U15 ✅ | L | The POWER button vanishes instantly when pressed | — | Flashes yellow, fades over ~0.15 s | meas |
+| U16 ✅ | L | The gauge glows when full | — | No glow | meas |
+| U17 ✅ | L | The YOU bubble is the player's colour | — | Purple | meas |
+| U18 ✅ | L | The side bars are sky-coloured and the meters stick out over them | — | Black | meas |
 
 ## 6. Visuals, animation and audio
 
