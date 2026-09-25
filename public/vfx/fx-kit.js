@@ -254,9 +254,9 @@ export function boltBlit(g, bk, x1, y1, x2, y2, wid, a = 1, pick = Math.random()
 // The frame after POWER the player is wrapped in bright yellow electric FLAME LICKS: 3–5 thick
 // flowing S-curves with white-hot cores, rising off the sides of the head and body and over the
 // crown (about a head tall), some ending in a hot blob, all with a soft yellow bloom; a yellow
-// glow hugs the whole silhouette and lights the edge of the hair. They are redrawn every other
-// frame (≈ 30 Hz), so it crackles — no pulse, no ring.
-export const ARMED = { SLOTS: 6, HZ: 30 };
+// glow hugs the whole silhouette and lights the edge of the hair. 3–4 are lit at a time, each
+// held ≈ 3 frames (≈ 20 Hz), so it crackles — no pulse, no ring.
+export const ARMED = { SLOTS: 6, HZ: 20 };
 export function licks() {
   return book('licks', 12, 96, 192, (g, w, h, k) => {
     const r = rng(900 + k * 53);
@@ -336,8 +336,8 @@ export function auraTex(col = '#ffd21a') {
 // `col` recolours it (HS's is yellow for every character).
 const LICK_SLOTS = [
   // [x (head radii from the head centre), y of its root, height (r), lean (rad)]
-  [-1.2, 0.5, 2.2, -0.12], [1.2, 0.45, 2.15, 0.12],             // up the sides of the head
-  [-0.95, -0.45, 1.6, -0.5], [0.95, -0.5, 1.55, 0.52],          // off the upper sides, curling out
+  [-1.2, 0.5, 2.6, -0.12], [1.2, 0.45, 2.55, 0.12],             // up the sides of the head
+  [-0.95, -0.45, 1.9, -0.45], [0.95, -0.5, 1.85, 0.47],         // off the upper sides, curling out
   [-1.0, 1.7, 1.5, -0.2], [1.02, 1.7, 1.5, 0.2],                // beside the body
 ];
 export function drawArmedGlow(g, hx, hy, r, fx, fy, t, seed = 0) {
@@ -345,17 +345,17 @@ export function drawArmedGlow(g, hx, hy, r, fx, fy, t, seed = 0) {
   const R = rng(f * 7919 + seed * 104729);
   const flick = 0.82 + 0.18 * R();
   // the silhouette glow (head and body)
-  blit(g, auraTex(), hx, hy, r * 4.8, r * 4.8, 0, flick * 0.8, true);
+  blit(g, auraTex(), hx, hy, r * 4.8, r * 4.8, 0, flick * 0.66, true);
   const bh = fy - (hy + r * 0.85);
-  if (bh > 4) blit(g, glow('#ffd21a', 0.02), fx, fy - bh / 2, r * 2.6, bh * 2.6, 0, flick * 0.55, true);
+  if (bh > 4) blit(g, glow('#ffd21a', 0.02), fx, fy - bh / 2, r * 2.6, bh * 2.6, 0, flick * 0.35, true);
   // the flame licks: most slots lit, each with its own frame, mirror, size and lean
   const bk = licks();
   let lit = 0;
   for (let i = 0; i < LICK_SLOTS.length; i++) {
     const s = LICK_SLOTS[i];
-    if (R() < 0.3 && lit >= 3) continue;
+    if (R() < 0.45 && lit >= 3) continue;                        // 3–4 lit at a time, as filmed
     lit++;
-    const k = Math.floor(R() * bk.length), H = r * s[2] * (0.8 + 0.35 * R()), W = H * 0.5;
+    const k = Math.floor(R() * bk.length), H = r * s[2] * (0.8 + 0.35 * R()), W = H * 0.62;
     const x = hx + s[0] * r + (R() - 0.5) * r * 0.2, y = hy + s[1] * r;
     g.save();
     g.globalCompositeOperation = 'lighter';
