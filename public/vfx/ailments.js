@@ -71,6 +71,34 @@ export const AILMENT_VFX = {
       g.restore();
     },
   },
+  // Frozen in Russia's block of ice (wiki: "frozen in a block of ice"): a translucent blue cube
+  // round the head and body, the head showing through it, a bevel, glints, a crack, frost at the foot.
+  iced: {
+    draw(g, p, s) {
+      const w = s.r * 1.3, top = s.hy - s.r * 1.25, bot = s.fy + 3, x0 = s.hx - w, x1 = s.hx + w;
+      g.save(); g.lineJoin = 'round';
+      const ig = g.createLinearGradient(x0, top, x1, bot);
+      ig.addColorStop(0, 'rgba(225,250,255,0.62)'); ig.addColorStop(0.5, 'rgba(150,215,245,0.45)'); ig.addColorStop(1, 'rgba(90,170,225,0.6)');
+      g.fillStyle = ig;
+      g.beginPath(); g.roundRect ? g.roundRect(x0, top, w * 2, bot - top, 6) : g.rect(x0, top, w * 2, bot - top); g.fill();
+      g.strokeStyle = '#e9fbff'; g.lineWidth = 2.5; g.stroke();
+      g.strokeStyle = '#3f8fc4'; g.lineWidth = 1; g.stroke();
+      // the bevel: a lighter top face and a darker side face
+      g.fillStyle = 'rgba(255,255,255,0.45)';
+      g.beginPath(); g.moveTo(x0 + 3, top + 3); g.lineTo(x1 - 3, top + 3); g.lineTo(x1 - 10, top + 11); g.lineTo(x0 + 10, top + 11); g.closePath(); g.fill();
+      g.fillStyle = 'rgba(40,110,170,0.25)';
+      g.beginPath(); g.moveTo(x1 - 3, top + 3); g.lineTo(x1 - 3, bot - 3); g.lineTo(x1 - 10, bot - 10); g.lineTo(x1 - 10, top + 11); g.closePath(); g.fill();
+      // glints and cracks
+      g.strokeStyle = 'rgba(255,255,255,0.9)'; g.lineWidth = 2;
+      g.beginPath(); g.moveTo(x0 + 7, top + 18); g.lineTo(x0 + 7, top + 18 + s.r * 0.9); g.moveTo(x0 + 12, top + 16); g.lineTo(x0 + 12, top + 26); g.stroke();
+      g.strokeStyle = 'rgba(255,255,255,0.6)'; g.lineWidth = 1;
+      g.beginPath(); g.moveTo(x1 - 14, bot - 6); g.lineTo(x1 - 22, bot - 18); g.lineTo(x1 - 18, bot - 26); g.lineTo(x1 - 28, bot - 36); g.stroke();
+      // frost at the foot
+      g.fillStyle = 'rgba(255,255,255,0.8)';
+      for (let i = 0; i < 6; i++) { const fx = x0 + 4 + i * ((w * 2 - 8) / 5); g.beginPath(); g.arc(fx, bot - 1, 3 + (i % 2) * 2, Math.PI, TAU); g.fill(); }
+      g.restore();
+    },
+  },
   // Reversed controls: ??? over the head.
   reverse: {
     draw(g, p, s) {

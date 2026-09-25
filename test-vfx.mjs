@@ -57,7 +57,7 @@ function recorder() {
 // ── 1. the registry: every family and every ailment has a renderer ─────────
 ok('all 11 families have a renderer', FAMILIES_DRAWN.length === 11 && FAMILY_ORDER.every((f) => typeof FAMILY_VFX[f]?.draw === 'function'), FAMILIES_DRAWN.join(','));
 ok('no renderer for a family that does not exist', Object.keys(FAMILY_VFX).every((f) => FAMILY_ORDER.includes(f)));
-ok('all 8 ailments (6 + the Grab\'s thrown + the tornado\'s twister) have an overlay', AILMENTS_DRAWN.length === 8 && AILMENT_ORDER.every((a) => typeof AILMENT_VFX[a]?.draw === 'function'), AILMENTS_DRAWN.join(','));
+ok('all 9 ailments (6 + the Grab\'s thrown + the tornado\'s twister + Russia\'s ice block) have an overlay', AILMENTS_DRAWN.length === 9 && AILMENT_ORDER.every((a) => typeof AILMENT_VFX[a]?.draw === 'function'), AILMENTS_DRAWN.join(','));
 ok('every family has a 3-colour palette (+ an optional seam)', FAMILY_ORDER.every((f) => Array.isArray(FAMILY_VFX[f].palette) && FAMILY_VFX[f].palette.length >= 3 && FAMILY_VFX[f].palette.length <= 4));
 ok('the Aerial draws its warning streaks', typeof FAMILY_VFX.aerial.warn === 'function');
 

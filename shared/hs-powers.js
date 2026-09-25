@@ -67,6 +67,10 @@ export const AILMENTS = Object.freeze({
   // 3 seconds"): up and spinning for the flight, then the stars. Only the tornado sets it
   // (shared/champion-powers/stage-03.js).
   twister:  { id: 'twister',  name: 'סחרור',  dur: 1.6,  color: '#c9b48a' },
+  // Frozen in Russia's block of ice (wiki: "frozen in a block of ice for a short period of time,
+  // able to be kicked and dashed into the goal"): no control, and slippery — pushed, it slides on.
+  // Only the Ice Shot sets it (shared/champion-powers/stage-06.js).
+  iced:     { id: 'iced',     name: 'קרח',    dur: 2.5,  color: '#bfefff' },
 });
 export const AILMENT_ORDER = Object.freeze(Object.keys(AILMENTS));
 export const AURA_ORDER = Object.freeze(['none', 'stun', 'push', 'reverse', 'freeze']);
@@ -588,6 +592,7 @@ export function ailMods(p) {
     case 'stars': o.dead = true; o.noDash = true; break;
     case 'thrown': o.dead = true; o.noDash = true; o.grav = 5; break;
     case 'twister': o.dead = true; o.noDash = true; break;
+    case 'iced': o.dead = true; o.noJump = true; o.noDash = true; o.friction = 0.975; break;
     case 'beheaded': o.dead = true; o.noDash = true; break;   // (and sim.js drops the head's contacts)
     default: break;
   }
