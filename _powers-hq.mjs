@@ -129,6 +129,7 @@ if (MODE === 'stills') {
     await js('__tick(9)'); await shot(`${OUT}/${tag}-e-fly.png`);
     const hit = await js(`(() => { let g = 0, seen = null; while (g++ < 240 && !seen) { __tick(1); seen = ${HIT}; } __tick(${n === 3 ? 14 : 4}); return seen ? seen.type + (seen.how ? ':' + seen.how : '') : null; })()`);
     await shot(`${OUT}/${tag}-f-impact.png`);
+    if (process.env.DBG) console.log('   dbg:', JSON.stringify(await js(process.env.DBG)));
     await js('__tick(24)'); await shot(`${OUT}/${tag}-g-after.png`);
     console.log(`  ${hit ? '✓' : '✗'} ${n} ${CHAMPION_POWERS[n].hsPower}: ${hit}`);
     if (!hit) bad++;
