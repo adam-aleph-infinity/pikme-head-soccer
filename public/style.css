@@ -173,6 +173,8 @@ body.safedemo { --safe-l: 44px; --safe-r: 44px; --safe-b: 21px; --safe-t: 12px; 
 .head.char > i {
   -webkit-clip-path: none; clip-path: none; filter: none;
   background: transparent no-repeat 0 0 / 100% 100%;
+  /* the pitch sprite (px-*.webp) is at the pitch's texel size: blown up hard, like #cv */
+  image-rendering: pixelated; image-rendering: crisp-edges;
 }
 /* A dash afterimage: a see-through copy of the head (opacity set per frame by drawHeadGhosts). */
 .head.ghost { will-change: transform, opacity; }

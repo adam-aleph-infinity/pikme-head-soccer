@@ -73,7 +73,7 @@ const CHAR_WARM = new Set();
 function warmCharacter(ch) {
   if (CHAR_WARM.has(ch.dir)) return;
   CHAR_WARM.add(ch.dir);
-  for (const e of CHAR_EXPRESSIONS) { const im = new Image(); im.src = charUrl(ch, e); }
+  for (const e of CHAR_EXPRESSIONS) for (const px of [false, true]) { const im = new Image(); im.src = charUrl(ch, e, px); }
 }
 // A portrait (pick slot, arcade hexagons, scoreboard): the whole head, hair included, fitted
 // into the box with the drawn head box `fill` of its width, a touch above centre so the hair
@@ -2479,7 +2479,7 @@ function paintPitchChar(inner, ch, w, expr, flip) {
   Object.assign(inner.style, {
     left: `${-CHAR_BOX.x * u}px`, top: `${-CHAR_BOX.y * u}px`, right: 'auto', bottom: 'auto',
     width: `${CHAR_BOX.w * u}px`, height: `${CHAR_BOX.h * u}px`,
-    backgroundImage: `url("${charUrl(ch, expr)}")`, backgroundSize: '100% 100%', backgroundPosition: '0 0',
+    backgroundImage: `url("${charUrl(ch, expr, true)}")`, backgroundSize: '100% 100%', backgroundPosition: '0 0',
     transform: flip ? 'scaleX(-1)' : '',
   });
   // the red-nose bruise (.hurt1..3) sits on this face's nose, not the photo head's
@@ -2518,7 +2518,7 @@ function drawHeads() {
       el.dataset.expr = expr;
     } else if (ch && el.dataset.expr !== expr) {
       // Only the face changes: the same box, a different file (all of them already fetched).
-      el.firstElementChild.style.backgroundImage = `url("${charUrl(ch, expr)}")`;
+      el.firstElementChild.style.backgroundImage = `url("${charUrl(ch, expr, true)}")`;
       el.dataset.expr = expr;
     }
     // Through the same projection as the body, or a player walking into the goal leaves their

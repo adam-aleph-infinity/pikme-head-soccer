@@ -18,14 +18,18 @@ export const EXPRESSIONS = ['normal', 'kick', 'hurt', 'happy', 'sad'];
 // bruise (.hurt1..3, style.css); fit: the drawn head's box in frame units, which portraits fit to
 // their element. Both printed by build-real.py (registry:).
 export const CHARACTERS = {
-  'legendary:1': { dir: 'legendary-1', name: 'Shoval', nose: [0.558, 0.559], fit: [10.7, 7, 118, 128.7] },
-  'legendary:2': { dir: 'legendary-2', name: 'Ori', nose: [0.547, 0.586], fit: [7.3, 12.7, 128, 131.7] },
+  'legendary:1': { dir: 'legendary-1', name: 'Shoval', nose: [0.569, 0.627], fit: [5.8, 2.0, 135.1, 121.2] },
+  'legendary:2': { dir: 'legendary-2', name: 'Ori', nose: [0.569, 0.627], fit: [3.0, 1.8, 140.6, 121.3] },
 };
 
 export const characterFor = (rarity, number) => CHARACTERS[`${rarity}:${number}`] || null;
 
-export const charUrl = (ch, expr = 'normal') =>
-  `img/chars/${ch.dir}/${EXPRESSIONS.includes(expr) ? expr : 'normal'}.webp`;
+// The pitch sprite of the same face: the art box-filtered to the pitch's own texel size (the head
+// box is ~31 texels of the half-res canvas) and shown pixelated, as HS's in-match heads are.
+export const CHAR_PX = { w: 45, h: 44 };
+
+export const charUrl = (ch, expr = 'normal', px = false) =>
+  `img/chars/${ch.dir}/${px ? 'px-' : ''}${EXPRESSIONS.includes(expr) ? expr : 'normal'}.webp`;
 
 // Which face a player on the pitch is making, from match state only (the sim is not touched):
 // hurt while stunned (the knockout's stars, or a power-shot daze), happy after scoring and sad
