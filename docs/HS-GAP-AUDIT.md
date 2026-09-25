@@ -86,7 +86,7 @@ At the audit, `node test-hs-parity.mjs` passed 82 of 88 rows. The 6 failures are
 | U4 ✅ | M | No VS intro | Cuts straight to the match `game.js:984` | ~1.5 s of both heads with a gold VS on a red band | meas |
 | U5 ✅ | M | Buttons are the wrong shape: ~1:1 squares | 78×78 `game.js:1340` | Wide ~3:1 plaques, ~17% of the width × 11% of the height | meas |
 | U6 ✅ | M | The gauge fills backwards | From the screen edge inward, red next to the score `style.css:351-363` | From the flag outward, green → red | meas |
-| U7 ✅❓ | M | Gold RESULT + spelled YOU WIN/LOSE + slide-in done. **Loser portrait left as is: the two audits disagree** (black silhouette vs dark grey with readable features; the code's own note says the latter). The result screen differs | Instant blur, plain text | A panel slides in; gold RESULT, YOU WIN spelled letter by letter, loser as a black silhouette, one NEXT MATCH button | meas |
+| U7 ✅ | M | Settled on the footage (M3 91.6 → 93.05 s): the loser starts in colour and sinks to a near-black silhouette; green pitch panel, gold score + VS, small YOU over red LOSE / gold WIN. The result screen differs | Instant blur, plain text | A panel slides in; gold RESULT, YOU WIN spelled letter by letter, loser as a black silhouette, one NEXT MATCH button | meas |
 | U8 | M | The menu flow differs | Card album → 2 modes → arcade board | Title → main menu (8 modes) → PLAYER SELECT → match | wiki |
 | U9 ✅ | M | Wrong fonts: `-apple-system`/Arial everywhere | — | A gold-chrome italic display face | meas |
 | U10 ✅ | M | Portrait mode is playable (tiny pitch, no rotate prompt) | — | Landscape only | know |

@@ -1012,10 +1012,14 @@ function endMatch() {
   $('#overTitle').textContent = iWon ? 'ניצחת!' : 'הפסדת';
   $('#overTitle').hidden = !ARCADE;          // HS says it in gold (#ovSpell); the arcade adds its news
   $('#overTitle').style.color = iWon ? 'var(--hot)' : 'var(--p1)';
-  $('#overScore').textContent = `${a} : ${b}`;
+  // HS M3 92.6 s: the scores in gold either side of a gold VS, on a green pitch panel
+  $('#overScore').innerHTML = `<b class="gold">${a}</b><b class="gold ov-vs">VS</b><b class="gold">${b}</b>`;
   // HS's lettering: a gold RESULT, then YOU WIN / YOU LOSE spelled out a letter at a time.
-  const word = a === b ? 'DRAW' : iWon ? 'YOU WIN' : 'YOU LOSE';
-  $('#ovSpell').innerHTML = [...word].map((c, i) => `<span style="animation-delay:${0.35 + i * 0.08}s">${c === ' ' ? '&nbsp;' : c}</span>`).join('');
+  // HS: a small YOU over the big word, LOSE in red (WIN in gold), spelled a letter at a time
+  const word = a === b ? 'DRAW' : iWon ? 'WIN' : 'LOSE';
+  $('#ovSpell').className = 'ov-spell ' + (a === b ? 'draw' : iWon ? 'win' : 'lose');
+  $('#ovSpell').innerHTML = (a === b ? '' : '<small>YOU</small>') +
+    '<em>' + [...word].map((c, i) => `<span style="animation-delay:${0.35 + i * 0.1}s">${c}</span>`).join('') + '</em>';
   const sub = $('#overSub');
   sub.hidden = true;
   $('#again').textContent = 'עוד פעם';
