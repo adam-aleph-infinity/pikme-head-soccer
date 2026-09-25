@@ -16,9 +16,12 @@ our own canvas drawing.
 ## 1. The press: arming aura (M4 36.49 s, also 39.95–40.20 s, 122.4 s, 150.1 s)
 
 - **Instant.** The frame after POWER is pressed the player is outlined; no build-up, no burst, no ring.
-- **Look:** a thin bright yellow-white rim hugging the whole silhouette (head and body), plus 2–4 jagged
-  electric "flame tongues" rising off the crown and shoulders, about half a head tall. They are redrawn
-  every frame (random flicker), so the outline crackles rather than pulses.
+- **Look** (re-studied every frame at full resolution, M4 36.45–36.85 s): a diffuse bright yellow glow
+  hugging the silhouette, strongest down the sides, lighting the edge of the hair; and 3–4 FAT flowing
+  flame licks — S- and C-curves with white-hot cores, saturated lemon-yellow bodies and a wide soft
+  bloom, some ending in a hot blob — rising up the sides of the head and body and curling off the upper
+  head, reaching about a head above the crown. Each lick holds ≈ 3 frames before another replaces it, so
+  it crackles rather than pulses. (Ours: fx-kit.js drawArmedGlow, painted flipbook sprites.)
 - **Stays until the shot fires.** M4 36.49 → 41.9 s the glow held for 5.4 s with no touch; the arm never
   expires (`power.armHold` in `hs-estimates.json`).
 - The aura does not touch the other player in M4 (the starter character's aura is `none`). Characters
@@ -162,11 +165,11 @@ Idan's rule: nothing is drawn that the footage does not show. Every visual eleme
 
 | our element | HS evidence |
 |---|---|
-| armed: thin bright rim round head and body (static drop-shadow + stroke) | M4 36.49–36.60 s (§1) |
-| armed: 2–4 jagged gold/white tongues off crown and shoulders, re-rolled each frame | M4 36.55–36.90 s |
+| armed: a diffuse yellow glow hugging the head's own outline (strongest down the sides) and the body (painted, fx-kit) | M4 36.49–36.60 s (§1) |
+| armed: 3–4 fat lemon-yellow flame licks with white-hot cores and bloom, up the sides and curling off the upper head, ≈ a head above the crown, each held ≈ 3 frames (20 Hz flipbook) | M4 36.55–36.90 s, every frame |
 | cut-in: 1.34 s of dark from the touch, fading in over 0.2 s and out over 0.2 s after it; the backdrop to ≈ 22 % black-over (keeps ≈ 32 %), no pool of light beyond the disc | 7 luma traces (§2 review), M4 60.8 s stands luma 106 → 36 |
-| cut-in: solid white disc ≈ 1.8 head radii, a gold glow round it, a thin gold ring at ≈ 3.6 radii | M4 40.75 s full-res (disc Ø 195, ring Ø 385 px at 2 px a world px) |
-| cut-in: 8 wide soft gold rays (≈ 235 px, ≈ 45 px across at the tip, still visible there) + 8 thin hot yellow-white ones, turning slowly, flickering length | M4 40.6, 40.75, 41.2 s, M3 73.75 s |
+| cut-in: solid white disc ≈ 1.7 head radii with a soft gold falloff, under the shooter's head and body; a golden halo ring of fine radial striations with sparkle spikes at ≈ 3.2 radii; the backdrop blurred under the dark | M4 40.36–40.66 s full-res, every frame |
+| cut-in: 8 hot gold rays with white cores (≈ 240 px) + 8 wide soft streaky cream rays (≈ 200 px, ≈ 50 px across at the end), irregular, turning slowly, flickering length | M4 40.6, 40.75, 41.2 s, M3 73.75 s |
 | cut-in: no text, no band, no zoom | all 14 cut-ins |
 | cut-in: rays + disc gone 0.1 s after the ball leaves, dark stays to 1.34 s | M4 41.50 → 41.57 s |
 | ball leaves 1.14 s after the touch (1.04 s after half-dark) and flies under the last of the dark | M4 40.40 → 41.41, 60.17 → 61.27, 122.87 → 123.97 s (§2 review) |
@@ -181,10 +184,10 @@ Idan's rule: nothing is drawn that the footage does not show. Every visual eleme
 | Grab: a giant dark-navy hand on a thick arm out of the shooter, four arched fingers up and forward, thumb down, light rims, motion blur; ball at the heel of the palm; no comet | M3 73.88–74.02 s full-res |
 | Grab: the fist round the seized player's body, its arm back to the shooter, dragging him there | M3 74.08–74.30 s |
 | Grab: thrown — flung up out of the screen, back down in a blue whirlwind of rings, stars | M3 74.3–75.9 s |
-| block: a glowing yellow-white orb round the ball with thin yellow sparks crackling out, for the whole grind, no comet | M4 61.45–62.25 s, 79.55–80.25 s |
-| hit: red spark droplets (7, the only particles) | M4 43.33 s |
-| hit: after-images following the bounced ball | M4 43.33–43.6 s |
-| daze: three gold stars on a flat orbit over the crown | M4 80.85 s, M3 74.1 s |
+| block: a translucent pale-yellow orb ≈ 37 px round the ball (bright rim, soft heart), yellow spears of light shooting out of it for the whole grind, no comet | M4 61.45–62.25 s, 61.55–61.80 s full-res |
+| hit: 7 soft red droplets thrown up and falling | M4 43.33 s, 80.85 s |
+| hit: motion-blurred after-images of the bounced ball | M4 43.33–43.6 s |
+| daze: three puffy, lit gold stars (≈ 0.9 head radii) with a dark keyline on a thin glowing orbit over the crown, the far side smaller | M4 80.85–80.95 s full-res, M3 74.1 s |
 | other families' colours (Ground brown, Downward violet, Destructive red, Delay indigo, Multi gold, Up-and-Down green, Ailment magenta, Critical red-white) | **not filmed** — the filmed comet on the family's path (§9), recoloured only so two shots can be told apart |
 | freeze = a snowman; shock = a blue wash + sparks; reverse `???`; burn flames; beheaded a missing head | **not filmed** — the wiki's descriptions (§9) |
 
