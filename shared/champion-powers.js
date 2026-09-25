@@ -18,6 +18,7 @@ import S01 from './champion-powers/stage-01.js';
 import S02 from './champion-powers/stage-02.js';
 import S03 from './champion-powers/stage-03.js';
 import S04 from './champion-powers/stage-04.js';
+import S05 from './champion-powers/stage-05.js';
 
 // The registry: one line per built stage.
 export const CHAMPION_POWERS = Object.freeze({
@@ -25,6 +26,7 @@ export const CHAMPION_POWERS = Object.freeze({
   2: S02,
   3: S03,
   4: S04,
+  5: S05,
 });
 
 export const BUILT_STAGES = Object.freeze(Object.keys(CHAMPION_POWERS).map(Number));

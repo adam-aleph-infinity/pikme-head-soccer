@@ -1115,5 +1115,45 @@ const first = (log, type, f = () => true) => log.find((e) => e.type === type && 
   }
 }
 
+{
+  // POWER 5 — Japan's Ninja Shot: up over the head, hidden among five; its turn in the volley
+  // (middle, very low, highest, a little lower, middle — one every 0.13 s), then a straight line down
+  // to that height at the goal line. A kick blocks it, but knocks the blocker out.
+  const { NINJA, NINJA_HEIGHTS, ninjaTarget } = await import('./shared/champion-powers/stage-05.js');
+  ok('NINJA: the guide\'s order of heights', NINJA_HEIGHTS[0] === NINJA_HEIGHTS[4] && NINJA_HEIGHTS[1] < 0.2 && NINJA_HEIGHTS[2] === Math.max(...NINJA_HEIGHTS) && NINJA_HEIGHTS[3] < NINJA_HEIGHTS[2] && NINJA_HEIGHTS[3] > NINJA_HEIGHTS[0]);
+  const slots = new Set();
+  for (const seat of [0, 1]) {
+    const r = fireCp(5, seat, { gap: 700, s: 1.0 });
+    const pw = r.pw0;
+    slots.add(pw.slot);
+    ok(`JAPAN (seat ${seat}): the ball goes up over his head and waits, untouchable`, pw.ph === 'nwait' && pw.y0 < headY(r.a) - 100);
+    const waited = r.path.filter((q) => q.ph === 'nwait').length * C.TICK;
+    ok(`JAPAN (seat ${seat}): …for its turn in the volley`, Math.abs(waited - pw.slot * NINJA.GAP) < 0.04, `slot ${pw.slot}, ${waited.toFixed(2)} s`);
+    const fly = r.path.filter((q) => q.cp === 'ninja' && q.ph === 'fly');
+    const T = ninjaTarget(pw, pw.slot);
+    ok(`JAPAN (seat ${seat}): then a straight line down toward its height at the goal line`, fly.length > 3 && fly[1].vy > 0 && fly[1].vx * r.a.side > 0 &&
+       Math.abs(fly[2].vy / fly[2].vx - (T.y - pw.y0) / (T.x - pw.x0)) < 0.01);
+    const k = fireCp(5, seat, { gap: 300, kick: true, s: 1.5 });
+    const blk = first(k.log, 'blocked', (e) => e.player === 1 - seat);
+    ok(`JAPAN (seat ${seat}): a kick blocks it — and the blocker is knocked out for it`, !blk || !!first(k.log, 'stunned', (e) => e.player === 1 - seat && e.time === NINJA.KO));
+  }
+  // (at least once, the streak is low enough for the blocker: set a slot by hand)
+  {
+    const r = fireCp(5, 0, { gap: 10, s: 0 });
+    r.m.ball.power.slot = 1;                                    // the very low one
+    const z = r.z; z.x = ninjaTarget(r.m.ball.power, 1).x - 90;
+    let blk = null, pressed = false;
+    for (let i = 0; i < 90 && !blk; i++) {
+      const b = r.m.ball, inp = [{}, {}];
+      if (!pressed && b.power && b.power.ph === 'fly' && Math.abs(b.x - z.x) < 130) { pressed = true; inp[1] = { kick: true }; }
+      step(r.m, inp);
+      blk = r.m.events.find((e) => e.type === 'blocked');
+      if (blk) ok('JAPAN: the low streak kicked is blocked, and the blocker knocked out 1.2 s', z.stunned > 1.0 && z.ail === 'stars');
+      r.m.events.length = 0;
+    }
+    ok('JAPAN: the low streak can be blocked at all', !!blk);
+  }
+}
+
 console.log(`test-ultimate: ${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);
