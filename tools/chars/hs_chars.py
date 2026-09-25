@@ -388,4 +388,62 @@ NAVEH_BOX = char(
 for e in NAVEH_BOX['eyes']:
     e['tilt'] = U(12)
 
-CHARS = {'legendary:1': SHOVAL, 'legendary:2': ORI, 'legendary:3': NAVEH_GRILL, 'legendary:4': NAVEH_BOX}
+# ── #5 Paz at the ice pool: a straw fedora with a dark band, round glasses, a full ginger beard,
+#    a big grin (card: "פז והארטיק") ───────────────────────────────────────────────────────────────
+_GINGER = {'base': '#b35a28', 'shade': '#7e3a16', 'hi': '#d4783e', 'hi2': '#eea264', 'line': '#52240c'}
+_STRAW = {'base': '#dcbc7c', 'shade': '#b18e4e', 'hi': '#f0daa4', 'hi2': '#fbefcf', 'line': '#6e5222'}
+_FRAME = {'base': '#3b2a1e', 'shade': '#24180f', 'hi': '#6a5140', 'line': '#1a100a'}
+
+
+def _ring(cx, cy, rx, ry, n=18):
+    return R([(cx + math.cos(k / n * 2 * math.pi) * rx, cy + math.sin(k / n * 2 * math.pi) * ry) for k in range(n + 1)])
+
+
+PAZ = char(
+    dir='legendary-5', name='Paz', ink='#1f120b',
+    scale=0.88,                                  # the brim is the widest thing on any head: a touch smaller keeps it in frame
+    skin=_NAVEH_SKIN,
+    # the brim's shadow across the forehead
+    hairShadow=R([(96, 248, 'c'), (330, 226), (570, 248, 'c'), (600, 0, 'c'), (60, 0, 'c')]),
+    # the hat's CROWN is the "hair": pinched at the top, sitting on the brow
+    hair=R([(118, 206, 'c'), (126, 126), (168, 56), (250, 26), (330, 40), (410, 22), (490, 46), (532, 116), (542, 206, 'c'),
+            (450, 192), (330, 188), (210, 194)]),
+    hairTones=_STRAW,
+    hairShade=[R([(100, 214, 'c'), (112, 120), (160, 40), (200, 34), (170, 120), (168, 208, 'c')])],
+    hairHi=[R([(260, 40, 'c'), (330, 52), (400, 36), (380, 62), (300, 66)])],
+    extras=[
+        # the dark band round the crown
+        {'pts': R([(120, 200, 'c'), (122, 162), (330, 150), (540, 160), (542, 198, 'c'), (330, 186)]),
+         'tones': {'base': '#3a2a1c', 'shade': '#241810', 'hi': '#5e4630', 'line': '#1a100a'}, 'lw': 1.0},
+        # the wide brim, over the top of the head
+        {'pts': R([(4, 236, 'c'), (60, 200), (170, 184), (330, 180), (490, 184), (590, 200), (636, 234, 'c'), (580, 256),
+                   (330, 250), (70, 258)]),
+         'tones': _STRAW, 'lw': 1.4,
+         'shade': [R([(4, 236, 'c'), (70, 258), (330, 250), (580, 256), (636, 234, 'c'), (590, 244), (330, 236), (60, 244)])],
+         'hi': [R([(60, 204, 'c'), (200, 188), (330, 186), (220, 196)])]},
+        # ginger curls peeking out under the brim at the back of the head
+        {'pts': R([(56, 256, 'c'), (34, 292), (40, 336), (70, 350), (96, 326), (104, 280), (92, 256)]), 'tones': _GINGER, 'lw': 1.1, 'layer': 'back'},
+        # round glasses: two rims, the bridge, the arm back to the ear
+        {'cl': _ring(262, 288, 90, 66), 'w': (U(9), U(9)), 'tones': _FRAME, 'lw': 0.8},
+        {'cl': _ring(486, 290, 60, 60), 'w': (U(8), U(8)), 'tones': _FRAME, 'lw': 0.8},
+        {'cl': R([(352, 280), (388, 270), (426, 282)]), 'w': (U(8), U(8)), 'tones': _FRAME, 'lw': 0.8},
+        {'cl': R([(172, 282), (130, 278), (96, 284)]), 'w': (U(8), U(7)), 'tones': _FRAME, 'lw': 0.8},
+    ],
+    beard={
+        'tones': _GINGER,
+        'shape': R([(126, 226), (112, 300), (104, 372), (124, 440), (200, 486), (340, 496), (480, 488), (552, 452), (578, 392),
+                    (568, 330), (556, 290), (548, 326), (520, 356), (470, 368), (432, 366), (404, 372), (340, 372), (280, 364),
+                    (220, 352), (172, 326), (146, 290), (148, 232)]),
+        'moustache': R([(318, 384, 'c'), (360, 360), (432, 356), (478, 372, 'c'), (440, 380), (384, 374)]),
+        'shade': [R([(80, 380, 'c'), (180, 470), (330, 500), (520, 492), (600, 440, 'c'), (600, 560, 'c'), (80, 560, 'c')])],
+        'streaks': [R([(160, 340, 'c'), (170, 410), (220, 460, 'c'), (190, 400)]), R([(290, 400, 'c'), (300, 450), (340, 482, 'c'), (310, 440)]),
+                    R([(470, 400, 'c'), (480, 440), (520, 468, 'c'), (494, 430)])],
+    },
+    browC='#6a3216', browHi='#9a5428',
+    mouth={'x': P1((396, 0))[0], 'y': P1((0, 394))[1], 'w': U(104), 'lw': 2.8, 'grinH': 15, 'shoutH': 12},
+    mouthInk='#3a140a',
+    exprs={'normal': {'mouth': 'grin', 'browLift': 2.4, 'browTilt': -2.5, 'lid': (-1.5, -2), 'furrow': 0, 'look': (0.35, 0)}},
+    rim={'dx': 1.5, 'dy': 1.7, 'c': '#fff3a0', 'a': 230, 'zone': R([(-40, -40, 'c'), (420, -40, 'c'), (200, 140), (120, 330), (140, 560, 'c'), (-40, 560, 'c')])},
+)
+
+CHARS = {'legendary:1': SHOVAL, 'legendary:2': ORI, 'legendary:3': NAVEH_GRILL, 'legendary:4': NAVEH_BOX, 'legendary:5': PAZ}

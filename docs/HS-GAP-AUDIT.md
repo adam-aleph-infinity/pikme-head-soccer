@@ -103,7 +103,7 @@ At the audit, `node test-hs-parity.mjs` passed 82 of 88 rows. The 6 failures are
 
 | # | Sev | Gap | Ours | HS | Source |
 |---|---|---|---|---|---|
-| V1 ✂️⏸ | H | **Scoped by Idan to the first 5; #5 paused for your OK** (each is a hand-traced rig from the card photo — tell me which card is #5). Only 4 of 180 characters have HS-style art; the other 176 are photo crops | `characters.js:24-29`, `game.js:2510` | All are painted cartoons | meas |
+| V1 ✅✂️ | H | Scoped by Idan to the first 5: legendary #1–#5 are HS-style characters (#5 Paz added 2026-09-26). Only 4 of 180 characters have HS-style art; the other 176 are photo crops | `characters.js:24-29`, `game.js:2510` | All are painted cartoons | meas |
 | V2 ✅ | H | Idan chose HS: the pitch renders at the screen's resolution, smooth. The pitch renders at half resolution as pixel art, with gradients banned on purpose. The HD heads and effects on top give the picture two different sharpness levels | `PIXEL=2` `game.js:1238`, `art-directions.js:30` | Smooth painted HD | meas |
 | V3 ✅ | H | Three HS stadiums (day, night, wooden arena): painted still crowd in two tiers, aisles, banners, floodlights; the fantasy stages stay reachable by ?stage= but out of rotation. No stadium: all 11 backdrops are fantasy pixel scenes | `stages.js` | Packed stands, floodlights, day or night, a floor that changes per stage | meas |
 | V4 ✅ | H | No music: the game has no audio files at all | — | Continuous music with a steady beat | meas (audio) |

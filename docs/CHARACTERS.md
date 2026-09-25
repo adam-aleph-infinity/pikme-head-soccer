@@ -17,6 +17,7 @@ dismantled"). Idan's brief: HS's art style, related to the cards, not deep.
 | legendary #2 | `legendary-2` (Ori) | young woman; long wavy blonde hair parted in the middle, darker roots, falling past the jaw onto the shoulders; her own softer face (no jowls, no ear showing), big lashed eyes with brown rings, thin arched brows, full pink lips, blush |
 | legendary #3 | `legendary-3` (Naveh, grill) | bearded man; full auburn beard, big grin; the card's yellow hat with the red logo |
 | legendary #4 | `legendary-4` (Naveh, box) | same man; big mop of copper curls, light stubble, wide excited eyes, open grin |
+| legendary #5 | `legendary-5` (Paz, ice pool) | straw fedora with a dark band, round glasses, full ginger beard, big grin |
 
 All four share one head traced off HS's Korea (Ori with her own softer outline on the same eye band) (`BASE` in `tools/chars/hs_chars.py`, points in the reference crop's pixels via `R()`), so they read as the same game's roster.
 
