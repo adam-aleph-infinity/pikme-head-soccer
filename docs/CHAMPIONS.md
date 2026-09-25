@@ -28,7 +28,7 @@ How a power shot plays (docs/HS-POWER-SHOTS.md): fill the gauge, press POWER to 
 |---|---|---|---|---|---|---|---|---|---|---|---|
 | 1 | שכונה | התותחן | 🔵 הילה כחולה | Destructive | — | — | 0.1 | 2/2/3/2/3 | 0.84/0.89/0.89 | 0.9 | ½ |
 | 2 | שכונה | אדון התולעים | ⚡ ברק | Grab (gentle) | shock (1.7s) | — | 0.1 | 3/3/2/3/2 | 0.89/0.92/0.84 | 0.85 | ½ |
-| 3 | שכונה | השף הבוער | 🔥 מנגל בוער | Straight | burn (1.42s) | — | 0.14 | 2/2/4/2/4 | 0.84/0.89/0.93 | 0.95 | ½ |
+| 3 | שכונה | השף הבוער | 🌪️ טורנדו | Straight | burn (1.42s) | — | 0.14 | 2/2/4/2/4 | 0.84/0.89/0.93 | 0.95 | ½ |
 | 4 | שכונה | מלך הבוץ | 🟤 בוץ | Ground | shock (1.82s) | — | 0.16 | 2/3/3/2/4 | 0.84/0.92/0.89 | 0.95 | ★ |
 | 5 | שכונה | בונה החומות | 🧱 חומת שער | Ground | — | — | 0.18 | 2/4/3/2/4 | 0.84/0.95/0.89 | 0.95 | ★ |
 | 6 | שכונה | איל ההון | 🪙 גשם מטבעות | Multi-Ball (gentle) | — | — | 0.1 | 4/3/3/3/3 | 0.93/0.92/0.89 | 0.9 | ★ |
@@ -83,6 +83,7 @@ How a power shot plays (docs/HS-POWER-SHOTS.md): fill the gauge, press POWER to 
 | burn (בוער) | cannot kick, 0.8× speed | 2s at intensity 0.5 (×0.6–1.4 with intensity) |
 | stars (כוכבים) | dazed, no control | 1s at intensity 0.5 (×0.6–1.4 with intensity) |
 | thrown (מושלך) | flung up out of the screen by a Grab, back down in a blue whirlwind, no control (only the Grab sets it) | 1.25s at intensity 0.5 (×0.6–1.4 with intensity) |
+| twister (סחרור) | undefined | 1.6s at intensity 0.5 (×0.6–1.4 with intensity) |
 
 | Aura | On the press, an opponent within the radius |
 |---|---|

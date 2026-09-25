@@ -63,6 +63,10 @@ export const AILMENTS = Object.freeze({
   // inside a blue whirlwind; heavy (5× gravity) so the whole flight is HS's ≈1.2 s. Never a
   // shot's own ailment — only the Grab's release sets it.
   thrown:   { id: 'thrown',   name: 'מושלך',  dur: 1.25, color: '#3b6bff' },
+  // Caught in Nigeria's tornado (wiki: "they fly and spin in the air and they stay unconscious for
+  // 3 seconds"): up and spinning for the flight, then the stars. Only the tornado sets it
+  // (shared/champion-powers/stage-03.js).
+  twister:  { id: 'twister',  name: 'סחרור',  dur: 1.6,  color: '#c9b48a' },
 });
 export const AILMENT_ORDER = Object.freeze(Object.keys(AILMENTS));
 export const AURA_ORDER = Object.freeze(['none', 'stun', 'push', 'reverse', 'freeze']);
@@ -583,6 +587,7 @@ export function ailMods(p) {
     case 'burn': o.noKick = true; o.speed = 0.8; break;
     case 'stars': o.dead = true; o.noDash = true; break;
     case 'thrown': o.dead = true; o.noDash = true; o.grav = 5; break;
+    case 'twister': o.dead = true; o.noDash = true; break;
     case 'beheaded': o.dead = true; o.noDash = true; break;   // (and sim.js drops the head's contacts)
     default: break;
   }

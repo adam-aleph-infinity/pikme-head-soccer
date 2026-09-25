@@ -54,6 +54,23 @@ export const AILMENT_VFX = {
       g.restore();
     },
   },
+  // Caught in Nigeria's tornado (wiki: "they fly and spin in the air"): a small sandy whirlwind
+  // spinning round him for the flight (game.js spins his head); the stars take over on landing.
+  twister: {
+    draw(g, p, s) {
+      g.save(); g.lineCap = 'round';
+      const top = s.hy - s.r * 1.5, bot = s.fy + 6, n = 5;
+      for (let i = 0; i < n; i++) {
+        const f = i / (n - 1), y = bot + (top - bot) * f, rx = s.r * (0.7 + 0.9 * f), ry = 3 + rx * 0.22;
+        const a0 = s.t * 16 + i * 1.4;
+        g.globalAlpha = 0.5; g.strokeStyle = '#8a7654'; g.lineWidth = 4;
+        g.beginPath(); g.ellipse(s.hx, y, rx, ry, 0, a0 + 3.3, a0 + 5.6); g.stroke();
+        g.globalAlpha = 0.95; g.strokeStyle = i % 2 ? '#f4ecd8' : '#dccfae'; g.lineWidth = 3;
+        g.beginPath(); g.ellipse(s.hx, y, rx, ry, 0, a0, a0 + 2.4); g.stroke();
+      }
+      g.restore();
+    },
+  },
   // Reversed controls: ??? over the head.
   reverse: {
     draw(g, p, s) {

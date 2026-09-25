@@ -2496,7 +2496,8 @@ function drawHeads() {
     const x = OX + d.x * SC, y = OY + d.y * SC;
     // UPRIGHT. An HS head does not lean into a run — it rides level on the feet paddling under
     // it — and only tips back, with the body (drawBody), when a hit knocks the player back.
-    const tilt = reeling(p) ? -p.side * 0.45 : 0;
+    // (caught in Nigeria's tornado he spins as he flies — hs-powers `twister`)
+    const tilt = p.ail === 'twister' && !p.onGround ? (performance.now() / 1000) * 14 * p.side : reeling(p) ? -p.side * 0.45 : 0;
     el.style.transform = `translate(${x - w / 2}px, ${y - h / 2}px) rotate(${tilt}rad)`;
     drawHeadGhosts(i, el, w, h);
     // ARMED: THE PLAYER GLOWS LIKE A FULL POWER BAR.

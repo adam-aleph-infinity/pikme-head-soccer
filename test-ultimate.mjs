@@ -1075,5 +1075,26 @@ const first = (log, type, f = () => true) => log.find((e) => e.type === type && 
   }
 }
 
+{
+  // POWER 3 — Nigeria's Tornado Shot: down onto the grass and along it, the ball hopping quickly in
+  // the funnel; it catches a jumper too; caught, you are thrown up spinning and out for 3 s; a kick
+  // blocks it.
+  for (const seat of [0, 1]) {
+    const r = fireCp(3, seat, { gap: 700, s: 0.5 });
+    const roll = r.path.filter((q) => q.cp === 'tornado' && q.ph === 'roll');
+    const ys = roll.map((q) => q.y);
+    ok(`NIGERIA (seat ${seat}): runs along the grass, bouncing up and down quickly`, roll.length > 8 && Math.max(...ys) > C.GROUND_Y - C.BALL_R - 2 && Math.min(...ys) < C.GROUND_Y - C.BALL_R - 6 && Math.min(...ys) > C.GROUND_Y - C.BALL_R - 14 &&
+       (roll[roll.length - 1].x - roll[0].x) * r.a.side > 150, `${roll.length} ticks, hop ${(Math.max(...ys) - Math.min(...ys)).toFixed(1)}px`);
+    const h = fireCp(3, seat, { s: 1.0 });
+    const tw = first(h.log, 'powerHit', (e) => e.how === 'twister');
+    ok(`NIGERIA (seat ${seat}): caught, he is thrown up spinning and out for 3 s, the ball drops loose`, tw && first(h.log, 'stunned', (e) => e.player === 1 - seat && e.time === 3) &&
+       Math.min(...h.path.map((q) => q.zy)) < C.GROUND_Y - 120 && !h.m.ball.power);
+    const j = fireCp(3, seat, { jump: true, s: 1.0 });
+    ok(`NIGERIA (seat ${seat}): jumping over it is no escape — the funnel catches him in the air`, !!first(j.log, 'powerHit', (e) => e.how === 'twister'));
+    const k = fireCp(3, seat, { kick: true });
+    ok(`NIGERIA (seat ${seat}): a kick into it blocks it`, !!first(k.log, 'blocked', (e) => e.player === 1 - seat) && !first(k.log, 'powerHit', (e) => e.how === 'twister'));
+  }
+}
+
 console.log(`test-ultimate: ${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);
