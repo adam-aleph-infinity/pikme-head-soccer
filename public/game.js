@@ -926,7 +926,7 @@ function startOnlineMatch(msg) {
   for (let i = 0; i < 2; i++) {
     $('#head' + i).className = 'head p' + i;
     $('#head' + i).dataset.card = '';
-    $(`.gauge.g${i} .nm`).textContent = M.players[i].shot.name;
+    $(`.gauge.g${i} .nm`).textContent = 'POWER';           // HS letters its bar POWER
   }
   resize();
   cancelAnimationFrame(raf);
@@ -994,7 +994,7 @@ function beginLocal(me, foe, opts, bot) {
     const el = $('#head' + i);
     el.className = 'head p' + i;
     el.dataset.card = '';
-    $(`.gauge.g${i} .nm`).textContent = powerName(M.players[i]);
+    $(`.gauge.g${i} .nm`).textContent = 'POWER';           // HS letters its bar POWER
   }
   resize();
   playEvent('whistle');
@@ -1004,7 +1004,6 @@ function beginLocal(me, foe, opts, bot) {
 }
 
 // What a player's power shot is called (its champion's theme, or its family's name).
-const powerName = (p) => p.shot.name;
 
 function endMatch() {
   running = false;
@@ -2842,8 +2841,7 @@ function syncHud() {
     prop(gEl, '--p', gv.pct.toFixed(2) + '%');
     gEl.classList.toggle('full', gv.full);
     gEl.classList.toggle('powered', armed);
-    const nm = powerName(p);
-    txt(HUD.gaugeName[i], armed ? `${nm} ⚡` : nm);
+    txt(HUD.gaugeName[i], 'POWER');                  // HS letters the bar POWER; the arm shows as the glow
   }
   const me = ONLINE ? NET.you : 0;
   const mine = M.players[me];

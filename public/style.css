@@ -346,12 +346,13 @@ body.safedemo { --safe-l: 44px; --safe-r: 44px; --safe-b: 21px; --safe-t: 12px; 
 .meter.m1 { justify-self: end; }
 /* no halo pulse at full: HS's bar just sits full (HS-GAP-AUDIT U16) */
 .gauge {
-  /* A plain rectangle, by request. The flame and bolt silhouettes were tried and dropped;
-     what carries this meter is the colour ramp and the halo, not the outline. Keeping it
-     square also gives the shot name the whole height back — every shape attempt here ended
-     up fighting that label, because a clip shears a child rather than drawing over it. */
-  width: 100%; height: calc(var(--face) * .46); min-height: 15px; max-height: 24px;
+  /* HS's FLAME (hs-video/M4 44 s): tongues of flame along the top, a flat bottom, tapering to a
+     tip at the flag end, POWER lettered at the outer end. It was a plain rectangle by request;
+     Idan chose HS. The label sits low, clear of the tongues, so the clip never shears it. */
+  width: 100%; height: calc(var(--face) * .62); min-height: 20px; max-height: 32px;
   position: relative;
+  clip-path: polygon(0% 100%, 0% 42%, 7% 0%, 11% 46%, 21% 6%, 25% 46%, 35% 12%, 39% 50%, 51% 22%, 55% 55%,
+                     69% 34%, 73% 62%, 87% 52%, 100% 72%, 100% 100%);
   /* The frame used to be a solid pale slab with a solid black tank inside it — two opaque
      rectangles laid over the stadium, and the widest thing on the screen. Both are now
      translucent, so the sky, the crowd and the hoardings run behind the bar. What kept the
@@ -372,6 +373,10 @@ body.safedemo { --safe-l: 44px; --safe-r: 44px; --safe-b: 21px; --safe-t: 12px; 
    gauge keeps the shot name the right way round; the transform lands after the clip, so one
    line mirrors the ramp and the clip together. */
 .g0 .fill, .g0::after { transform: scaleX(-1); }
+/* the right-hand flame is the left one mirrored: tip at its flag (the left end), label at the right */
+.g1 { clip-path: polygon(100% 100%, 100% 42%, 93% 0%, 89% 46%, 79% 6%, 75% 46%, 65% 12%, 61% 50%, 49% 22%, 45% 55%,
+                         31% 34%, 27% 62%, 13% 52%, 0% 72%, 0% 100%); }
+.g1 .nm { justify-content: flex-end; }
 /* ONE ramp, across the FULL track, revealed by the clip — never a growing box. The colour
    therefore belongs to a position on the bar rather than to a tier, so the leading edge
    slides green -> lime -> yellow -> amber -> orange -> red with no step anywhere in it.
@@ -390,7 +395,7 @@ body.safedemo { --safe-l: 44px; --safe-r: 44px; --safe-b: 21px; --safe-t: 12px; 
   background: repeating-linear-gradient(104deg, #0000 0 11px, #0000003d 11px 13px);
 }
 .gauge .nm {
-  position: absolute; inset: 0; display: grid; place-items: center;
+  position: absolute; inset: 0; display: flex; align-items: flex-end; padding: 0 9% 3px; font-style: italic;
   /* line-height pinned: the ⚡ added at full has a taller line box than Hebrew text, which
      pushed the whole centred label down past the bar and sheared its bottom off. Only at
      full, which is exactly when the label matters most. */
@@ -403,10 +408,7 @@ body.safedemo { --safe-l: 44px; --safe-r: 44px; --safe-b: 21px; --safe-t: 12px; 
 }
 /* FULL. The bolt only appears when the move is actually available, so the icon is the
    signal rather than decoration — see it, press POWER. */
-.gauge.full .nm::before {
-  content: '\26A1'; margin-inline-end: 4px; -webkit-text-stroke: 0;
-  font-size: 9px; line-height: 1; vertical-align: middle;
-}
+/* (no bolt at full: HS's bar just sits full; the POWER plaque is the signal) */
 /* At full the ramp STAYS — swapping it for a flat gold was the "jumping colour" this was
    asked to stop. What marks ready is the bolt, the glow, and a white-hot sheen over the
    top of the ramp rather than instead of it. */
