@@ -1370,6 +1370,134 @@
     ]
   },
   {
+    "id": "cpu.touchesPerMin",
+    "value": 17.4,
+    "unit": "/min",
+    "clips": [
+      "M3"
+    ],
+    "n": 15,
+    "sd": 4.3,
+    "tol": 8.7,
+    "scenario": "cpuStrong",
+    "status": "estimated",
+    "source": "M3 (hs-video/M3-airdrop-full) 6.16–90.84 s, the five-star Mexico CPU (right side; it won 4–3), 0.88 min of live play",
+    "how": "Tracks: scratchpad cpu/pass3.mjs (half-res foreground vs a median background: per-4px-column mass, head top, skin and dark counts, bright compact ball blobs) -> cpu/trk.mjs (player humps; identity by continuity, re-voted per clean segment on appearance — skin tone in M3, the face/hair offset that shows which way a head faces in M4 — so the CPU is followed when it gets past the human). Live = no banner/cut-in overlay, and 0.8 s after a banner for the ball drop. Calibration wallL 107, wallR 1172, ground y 489, s 0.9953. Same fit both sides: the video tracks were written as a tracks document (world px, attempt tag \"cpu\") and measured with tools/hs-fit-lib.mjs, the function the harness runs on our sim. It counts touches the way a camera can — breaks between free ball flights, the ball lost while it overlaps a player's blob — because that camera misses touches: on our own matches rendered into the tracker's format it counts 78% of the tier-5 bot's true touches and 48% of the tier-0 bot's.",
+    "note": "15 touch episodes (contacts < 0.2 s apart are one) in 0.88 min; 74% at the head. The first image-space pass (no blob-occlusion model) read 21.7. Sim: scenario cpuStrong (tier 5 on the right vs the tier-3 bot), mean of 8 seeded matches."
+  },
+  {
+    "id": "cpu.jumpsPerMin",
+    "value": 37.7,
+    "unit": "/min",
+    "clips": [
+      "M3"
+    ],
+    "n": 33,
+    "sd": 6.5,
+    "tol": 13,
+    "scenario": "cpuStrong",
+    "status": "estimated",
+    "source": "M3 (hs-video/M3-airdrop-full) 6.16–90.84 s, the five-star Mexico CPU (right side; it won 4–3), 0.88 min of live play",
+    "how": "Tracks: scratchpad cpu/pass3.mjs (half-res foreground vs a median background: per-4px-column mass, head top, skin and dark counts, bright compact ball blobs) -> cpu/trk.mjs (player humps; identity by continuity, re-voted per clean segment on appearance — skin tone in M3, the face/hair offset that shows which way a head faces in M4 — so the CPU is followed when it gets past the human). Live = no banner/cut-in overlay, and 0.8 s after a banner for the ball drop. Calibration wallL 107, wallR 1172, ground y 489, s 0.9953. A jump = the CPU's head top more than 10 px above its local standing line (median top over ±1.5 s), 8+ frames, landed inside 1.2 s. Sim: the CPU's jump events.",
+    "note": "33 jumps in 0.88 min, median apex 42 px. A few are the CPU standing on the human's head (it did, often: 55.0–55.9 s)."
+  },
+  {
+    "id": "cpu.kicksPerMin",
+    "value": 45,
+    "unit": "/min",
+    "clips": [
+      "M3"
+    ],
+    "n": 26,
+    "sd": 9,
+    "tol": 18,
+    "scenario": "cpuStrong",
+    "status": "estimated",
+    "source": "M3 (hs-video/M3-airdrop-full) 6.16–90.84 s, the five-star Mexico CPU (right side; it won 4–3), 0.88 min of live play",
+    "how": "Tracks: scratchpad cpu/pass3.mjs (half-res foreground vs a median background: per-4px-column mass, head top, skin and dark counts, bright compact ball blobs) -> cpu/trk.mjs (player humps; identity by continuity, re-voted per clean segment on appearance — skin tone in M3, the face/hair offset that shows which way a head faces in M4 — so the CPU is followed when it gets past the human). Live = no banner/cut-in overlay, and 0.8 s after a banner for the ball drop. Calibration wallL 107, wallR 1172, ground y 489, s 0.9953. Boot out = dark pixels 30–72 px ahead of the CPU's head inside its own blob (the boot swings out at head-bottom height, ahead of the face), on frames where the CPU stands clear of the human (0.58 min). Checked by eye on CPU-following strips (M3 3240–3530, M4 8100–8390): out on every frame the eye called out but one, in on 9 of 10. Rate = (time out / the 0.26 s leg-out) per minute = 43; debounced onsets = 48. Sim: kick presses (and aimed headers) per live minute.",
+    "note": "Near the ball it mashes: 135 onsets a minute within 160 px, near the 172 the kick cooldown allows. Clear of the human is the only place a boot can be seen, so this leans low for the play around the ball."
+  },
+  {
+    "id": "cpu.dashesPerMin",
+    "value": 13.7,
+    "unit": "/min",
+    "clips": [
+      "M3"
+    ],
+    "n": 12,
+    "sd": 3.9,
+    "tol": 7.9,
+    "scenario": "cpuStrong",
+    "status": "estimated",
+    "source": "M3 (hs-video/M3-airdrop-full) 6.16–90.84 s, the five-star Mexico CPU (right side; it won 4–3), 0.88 min of live play",
+    "how": "Tracks: scratchpad cpu/pass3.mjs (half-res foreground vs a median background: per-4px-column mass, head top, skin and dark counts, bright compact ball blobs) -> cpu/trk.mjs (player humps; identity by continuity, re-voted per clean segment on appearance — skin tone in M3, the face/hair offset that shows which way a head faces in M4 — so the CPU is followed when it gets past the human). Live = no banner/cut-in overlay, and 0.8 s after a banner for the ball drop. Calibration wallL 107, wallR 1172, ground y 489, s 0.9953. A dash = the CPU's x moving 1300–2600 px/s for 3 straight frames, each step 12–55 px (HS dash: 1790 px/s for 0.07 s), 0.35 s apart. Sim: the CPU's dash events.",
+    "note": "12 dashes at 16.79, 20.93, 32.02, 33.18, 41.92, 54.00, 58.80, 62.81, 64.41, 66.01, 68.52, 69.67 s (1362–1966 px/s): at the ball off a kickoff (32.02 s, afterimage trail on the strip) and onto loose balls (68.52 s: dash, then kick)."
+  },
+  {
+    "id": "cpu.meanDepth",
+    "value": 427,
+    "unit": "px",
+    "clips": [
+      "M3"
+    ],
+    "n": 1,
+    "sd": 30,
+    "tol": 60,
+    "scenario": "cpuStrong",
+    "status": "estimated",
+    "source": "M3 (hs-video/M3-airdrop-full) 6.16–90.84 s, the five-star Mexico CPU (right side; it won 4–3), 0.88 min of live play",
+    "how": "Tracks: scratchpad cpu/pass3.mjs (half-res foreground vs a median background: per-4px-column mass, head top, skin and dark counts, bright compact ball blobs) -> cpu/trk.mjs (player humps; identity by continuity, re-voted per clean segment on appearance — skin tone in M3, the face/hair offset that shows which way a head faces in M4 — so the CPU is followed when it gets past the human). Live = no banner/cut-in overlay, and 0.8 s after a banner for the ball drop. Calibration wallL 107, wallR 1172, ground y 489, s 0.9953. Mean over live frames of the CPU's distance from its own (right) wall, world px. The tolerance is the spread between matches (M4: 309 vs 341) doubled, not the within-match error (±5).",
+    "note": "40% of the pitch. Median 408, quartiles 166–660, 10–90% 26–796: it ranges the whole pitch and sometimes stands in its own goal mouth. The human averaged 315 from his wall."
+  },
+  {
+    "id": "cpu.rangeConv",
+    "value": 0.7,
+    "unit": "",
+    "clips": [
+      "M3"
+    ],
+    "n": 23,
+    "sd": 0.096,
+    "tol": 0.19,
+    "scenario": "cpuStrong",
+    "status": "estimated",
+    "source": "M3 (hs-video/M3-airdrop-full) 6.16–90.84 s, the five-star Mexico CPU (right side; it won 4–3), 0.88 min of live play",
+    "how": "Tracks: scratchpad cpu/pass3.mjs (half-res foreground vs a median background: per-4px-column mass, head top, skin and dark counts, bright compact ball blobs) -> cpu/trk.mjs (player humps; identity by continuity, re-voted per clean segment on appearance — skin tone in M3, the face/hair offset that shows which way a head faces in M4 — so the CPU is followed when it gets past the human). Live = no banner/cut-in overlay, and 0.8 s after a banner for the ball drop. Calibration wallL 107, wallR 1172, ground y 489, s 0.9953. Same fit both sides: the video tracks were written as a tracks document (world px, attempt tag \"cpu\") and measured with tools/hs-fit-lib.mjs, the function the harness runs on our sim. It counts touches the way a camera can — breaks between free ball flights, the ball lost while it overlaps a player's blob — because that camera misses touches: on our own matches rendered into the tracker's format it counts 78% of the tier-5 bot's true touches and 48% of the tier-0 bot's. An entry = the visible ball coming within 110 px of the CPU's head centre from outside (at most one per 0.5 s); converted = a CPU touch within 1 s.",
+    "note": "How much of what reaches it the CPU plays: the five-star CPU 70%, the weak ones under half."
+  },
+  {
+    "id": "cpu.powerDelay",
+    "value": 6.2,
+    "unit": "s",
+    "clips": [
+      "M3"
+    ],
+    "n": 3,
+    "sd": 1.2,
+    "tol": 2.4,
+    "scenario": "cpuStrong",
+    "status": "estimated",
+    "source": "M3 CPU power bar (right HUD, yellow-pixel count in x 815–1095, y 20–62, every 0.5 s: scratchpad cpu/hud.mjs): full at 20.0, 45.7, 65.5 s; bar empties (the press) at 23.3, 48.8, 69.3 s; cut-ins 27.42, 49.60, 72.88 s",
+    "how": "Gauge full (bar plateau) to the CPU's cut-in. Sim: cpu_gauge_full to the CPU's powershot event.",
+    "note": "7.4, 3.9, 7.4 s. Full to press 3.3, 3.0, 3.8 s (it arms about 3.4 s after full), press to touch 4.1, 0.85, 3.5 s. Its first fill came ~4 s early: the bar jumped by about half at 14.5 s, the restart after the goal it conceded at 11.37 s (and again at 62.5 s, after 59.42 s) — a possible concede bonus, left for the gauge rows."
+  },
+  {
+    "id": "cpu.goals",
+    "value": 4,
+    "unit": "goals",
+    "clips": [
+      "M3"
+    ],
+    "n": 1,
+    "sd": 2,
+    "tol": 4,
+    "scenario": "cpuStrong",
+    "status": "estimated",
+    "source": "M3: the CPU scored 4 (final 3–4, HUD at 90 s)",
+    "how": "Scoreboard. Sim: goals by player 1 per match.",
+    "note": "M3's seven goals: 11.37, 29.15, 39.01, 45.74, 51.13, 59.42, 85.11 s; three came within 2 s of a power-shot cut-in."
+  },
+  {
     "id": "ball.gravity.m3respawn",
     "value": 561,
     "unit": "px/s²",
@@ -1404,18 +1532,155 @@
   },
   {
     "id": "jump.airtime.match",
-    "value": 0.7,
+    "value": 0.78,
     "unit": "s",
     "clips": [
       "M3"
     ],
-    "n": 1,
-    "sd": 0.03,
-    "tol": 0.06,
+    "n": 10,
+    "sd": 0.005,
+    "tol": 0.0234,
     "metric": "jump.airtime.tap",
     "scenario": "jumpTap",
     "status": "estimated",
-    "source": "M3 13.43–14.13 s",
-    "note": "Takeoff to landing, in a match: a running jump under the READY banner, n = 1, not re-measured — the feet are under the banner for most of it. M4's clean standstill jumps, re-measured, give 0.772 (their 0.74 was an under-count), so this 0.70 is probably one too; kept, and flagged."
+    "source": "M3 (hs-video/M3-airdrop-full) live play, the human's standstill and running jumps well clear of every banner: takeoffs 15.18, 16.81, 22.06, 23.26, 24.46, 25.53, 56.46, 63.16, 67.11, 79.67 s",
+    "how": "Head-top track of the left player (scratchpad cpu/trk.mjs on the half-res pass cpu/pass3.mjs, standing top y 418), one free parabola per jump through every frame >= 3 px up, airtime between its two crossings of the standing line (cpu/airfit.mjs) — the M4 method (jump.airtime.tap). The raw count of frames >= 3 px up is 0.717–0.750 s, the same as M4's raw 0.748 before its crossing extrapolation.",
+    "note": "RE-MEASURED 2026-09-25: 0.772 0.774 0.775 0.778 0.780 0.780 0.782 0.784 0.785 0.786 — mean 0.780, apex 44.7–46.8 px, g 590–617. The old 0.70 (13.43–14.13 s, n = 1) was an under-count: that jump is the first after the 11.37 s goal, landing under the banner, and M4's clean jumps (0.772) already said so. M3 and M4 agree; our sim's 0.790 is 1% long."
+  },
+  {
+    "id": "cpu.touchesPerMin.weak",
+    "value": 9.2,
+    "unit": "/min",
+    "clips": [
+      "M4"
+    ],
+    "n": 17,
+    "sd": 2.2,
+    "tol": 4.5,
+    "metric": "cpu.touchesPerMin",
+    "scenario": "cpuWeak",
+    "status": "estimated",
+    "source": "M4 (hs-video/M4-gaps) match 1 19.62–91.39 s (human won 3–0) and match 2 98.31–183.64 s (CPU won 5–2), 1.86 min of live play",
+    "how": "Tracks: scratchpad cpu/pass3.mjs (half-res foreground vs a median background: per-4px-column mass, head top, skin and dark counts, bright compact ball blobs) -> cpu/trk.mjs (player humps; identity by continuity, re-voted per clean segment on appearance — skin tone in M3, the face/hair offset that shows which way a head faces in M4 — so the CPU is followed when it gets past the human). Live = no banner/cut-in overlay, and 0.8 s after a banner for the ball drop. Calibration wallL 107, wallR 1172, ground y 489, s 0.9953. Same fit both sides: the video tracks were written as a tracks document (world px, attempt tag \"cpu\") and measured with tools/hs-fit-lib.mjs, the function the harness runs on our sim. It counts touches the way a camera can — breaks between free ball flights, the ball lost while it overlaps a player's blob — because that camera misses touches: on our own matches rendered into the tracker's format it counts 78% of the tier-5 bot's true touches and 48% of the tier-0 bot's.",
+    "note": "8.5 and 9.9 a minute in the two matches (time-weighted 9.2). Sim: cpuWeak (tier 0 on the right vs the tier-3 bot), 8 seeds."
+  },
+  {
+    "id": "cpu.jumpsPerMin.weak",
+    "value": 26.3,
+    "unit": "/min",
+    "clips": [
+      "M4"
+    ],
+    "n": 49,
+    "sd": 3.8,
+    "tol": 7.5,
+    "metric": "cpu.jumpsPerMin",
+    "scenario": "cpuWeak",
+    "status": "estimated",
+    "source": "M4 (hs-video/M4-gaps) match 1 19.62–91.39 s (human won 3–0) and match 2 98.31–183.64 s (CPU won 5–2), 1.86 min of live play",
+    "how": "As cpu.jumpsPerMin.",
+    "note": "24.5 and 28.1 a minute (22 + 27 jumps), apex 40–44 px."
+  },
+  {
+    "id": "cpu.kicksPerMin.weak",
+    "value": 23,
+    "unit": "/min",
+    "clips": [
+      "M4"
+    ],
+    "n": 18,
+    "sd": 5,
+    "tol": 10,
+    "metric": "cpu.kicksPerMin",
+    "scenario": "cpuWeak",
+    "status": "estimated",
+    "source": "M4 (hs-video/M4-gaps) match 1 19.62–91.39 s (human won 3–0) and match 2 98.31–183.64 s (CPU won 5–2), 1.86 min of live play",
+    "how": "As cpu.kicksPerMin (0.81 min observable).",
+    "note": "22.2 and 23.3 a minute by leg-out time; debounced onsets 29 and 57 (the second on only 0.26 min observable). Also mashes near the ball."
+  },
+  {
+    "id": "cpu.dashesPerMin.weak",
+    "value": 2.2,
+    "unit": "/min",
+    "clips": [
+      "M4"
+    ],
+    "n": 4,
+    "sd": 1.1,
+    "tol": 2.2,
+    "metric": "cpu.dashesPerMin",
+    "scenario": "cpuWeak",
+    "status": "estimated",
+    "source": "M4 (hs-video/M4-gaps) match 1 19.62–91.39 s (human won 3–0) and match 2 98.31–183.64 s (CPU won 5–2), 1.86 min of live play",
+    "how": "As cpu.dashesPerMin.",
+    "note": "4 dashes: 68.11, 69.41, 141.39, 174.59 s."
+  },
+  {
+    "id": "cpu.meanDepth.weak",
+    "value": 325,
+    "unit": "px",
+    "clips": [
+      "M4"
+    ],
+    "n": 2,
+    "sd": 16,
+    "tol": 60,
+    "metric": "cpu.meanDepth",
+    "scenario": "cpuWeak",
+    "status": "estimated",
+    "source": "M4 (hs-video/M4-gaps) match 1 19.62–91.39 s (human won 3–0) and match 2 98.31–183.64 s (CPU won 5–2), 1.86 min of live play",
+    "how": "As cpu.meanDepth.",
+    "note": "309 and 341 (medians 180 and 272): sits deeper and comes out less; it hides in its own goal (135.0–136.8 s, behind the net)."
+  },
+  {
+    "id": "cpu.rangeConv.weak",
+    "value": 0.47,
+    "unit": "",
+    "clips": [
+      "M4"
+    ],
+    "n": 35,
+    "sd": 0.085,
+    "tol": 0.17,
+    "metric": "cpu.rangeConv",
+    "scenario": "cpuWeak",
+    "status": "estimated",
+    "source": "M4 (hs-video/M4-gaps) match 1 19.62–91.39 s (human won 3–0) and match 2 98.31–183.64 s (CPU won 5–2), 1.86 min of live play",
+    "how": "As cpu.rangeConv.",
+    "note": "0.50 and 0.45."
+  },
+  {
+    "id": "cpu.powerDelay.weak",
+    "value": 8.45,
+    "unit": "s",
+    "clips": [
+      "M4"
+    ],
+    "n": 6,
+    "sd": 1.5,
+    "tol": 3,
+    "metric": "cpu.powerDelay",
+    "scenario": "cpuWeak",
+    "status": "estimated",
+    "source": "M4, the weaker CPUs: kickoff/cut-in times against the measured 15.0 s fill and 15.2 s refill (gauge.fillTime, gauge.refillTime)",
+    "how": "Gauge full to cut-in.",
+    "note": "5.2, 6.8, 5.2, 10.5, 14.7, 8.3 s (was quoted in shared/bot.js)."
+  },
+  {
+    "id": "cpu.goals.weak",
+    "value": 2.5,
+    "unit": "goals",
+    "clips": [
+      "M4"
+    ],
+    "n": 2,
+    "sd": 1.1,
+    "tol": 2.5,
+    "metric": "cpu.goals",
+    "scenario": "cpuWeak",
+    "status": "estimated",
+    "source": "M4: the CPU scored 0 (3–0 at 91 s) and 5 (2–5 at 183 s)",
+    "how": "Scoreboard.",
+    "note": "Match 2's goals: 117.85, 124.44, 146.75, 152.18, 164.22, ~174.9, ~179.6 s (the 174.72 and 179.48 s banners are goals too). All five M1–M4 matches: 8, 11, 7, 3, 7 goals."
   }
 ]

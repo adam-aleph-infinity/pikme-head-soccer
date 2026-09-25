@@ -97,6 +97,8 @@ node -e "for (const r of require('./docs/hs-reference.json')) console.log(r.stat
   at the metric that measures it, `prefer` lets a by-eye number beat a script-tagged fit.
 - `node test-hs-parity.mjs` runs every reference row's scenario in our sim through the same
   fit and prints `id | HS value | our sim | diff % | tol | ok/OFF`.
+  A scenario with `seeds` (the whole-match ones: `botMatch`, `cpuStrong`, `cpuWeak`) runs once per
+  seed and its value is the mean over those takes — one seeded bot match is a coin toss.
 - **Save** writes `docs/hs-clips/<clip>.tracks.json`. Commit those files.
 
 Numbers that can't be recorded (for example power shots you don't own) go in
