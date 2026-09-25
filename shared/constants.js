@@ -216,9 +216,6 @@ export let KICK_POWER = 367;         // 540 at the old PACE 0.68 — the kick co
 // Most of the gap is flat shots hitting a defender's body instead of sailing over it, which
 // is the trade the flat shot is supposed to make.
 export let KICK_LIFT = 272;          // 400 x the old PACE 0.68
-// Body contact KILLS the ball's pace (Adam: 'if it dosnt kick, the ball kinda stops and
-// rolles'). The head still bounces — that is the aerial tool — but your torso deadens.
-export let BODY_DEADEN = 0.18;
 // A HEAD IS SPRINGY (HS M4). The passive touch — no KICK — is a restitution bounce off the
 // head, measured RELATIVE to the head: the ball leaves along the normal at HEAD_BOUNCE times
 // the speed it closed at, plus the head's own speed. So a standing head sends a 466px/s drop
@@ -537,7 +534,6 @@ export function setHS(on) { HS = !!on; }
 const SETTERS = {
   DEADEN_ZONE: (v) => { DEADEN_ZONE = v; },
   CONTACT_IMPACT_V: (v) => { CONTACT_IMPACT_V = v; },
-  BODY_DEADEN: (v) => { BODY_DEADEN = v; },
   HEAD_BOUNCE: (v) => { HEAD_BOUNCE = v; },
   BODY_GRIP: (v) => { BODY_GRIP = v; },
   BALL_IDLE_RESET: (v) => { BALL_IDLE_RESET = v; },
@@ -617,7 +613,6 @@ export function snapshot() {
   return {
     DEADEN_ZONE,
     CONTACT_IMPACT_V,
-    BODY_DEADEN,
     HEAD_BOUNCE,
     BODY_GRIP,
     BALL_IDLE_RESET,

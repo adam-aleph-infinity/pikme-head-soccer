@@ -923,7 +923,11 @@ function stepBall(m, dt, fx, a0 = 0, aSpan = 1) {
   // nothing to run away, and clamping them here silently pinned POWER_SHOT_SPEED to
   // BALL_MAX_SPEED — the power shot's speed knob did nothing for as long as it existed.
   const sp = Math.hypot(b.vx, b.vy);
-  const cap = C.BALL_MAX_SPEED;
+  // Never slower than the fastest body on the pitch, though: a dash (1790 px/s) outruns the cap,
+  // and a capped ball it kept catching was bounced again every tick — pumped to 2300–3600 px/s
+  // off a body that sprang back. Just ahead of the dash it is pushed, not fired, and the cap is
+  // the ordinary 1100 again the moment the dash ends.
+  const cap = Math.max(C.BALL_MAX_SPEED, 1.1 * Math.max(Math.abs(m.players[0].vx), Math.abs(m.players[1].vx)));
   if (!powered && sp > cap) { b.vx *= cap / sp; b.vy *= cap / sp; }
 
   // Sub-step the ball so it can never skip past a body in one tick. Discrete stepping
@@ -1287,48 +1291,6 @@ function kickDamage(m, foe, by) {
   if (stun(m, foe, C.KICK_KO_TIME)) m.events.push({ type: 'knockout', player: foe.index, by: by.index, time: C.KICK_KO_TIME });
 }
 
-// ONE contact response for every surface a player has. `nx,ny` is the unit normal pointing
-// out of the player toward the ball; `keep` is how much of the ball's pace survives the
-// touch (BODY_DEADEN) and `carry` how much of the player's run it picks up. (The head used to
-// come through here too, with HEAD_DEADEN; it bounces now — bounceOffHead.)
-// Returns whether this was an IMPACT, so the caller can add the extras that only belong to
-// one (a jump's lift, a strike event).
-//
-// Three rules here are what stop a ball welding itself to a player:
-//
-// 1. NEVER SINK. Any approach along the normal is cancelled, on every contact, strike or
-//    not. This is the only part that runs unconditionally.
-//
-// 2. THE DEADEN IS A STRIKE, NOT A STATE. Scrubbing the pace only happens when the ball is
-//    actually going INTO the player harder than CONTACT_IMPACT_V. The old code re-scrubbed
-//    on every tick of an overlap, and `vy *= 0.18` sixty times a second is a brake that
-//    beats gravity — so a ball held against a player hung there with its physics apparently
-//    switched off. Note this has to be a SPEED cutoff and not merely "is it approaching":
-//    on a curved surface, the side of a head, a ball sliding down under gravity is moving
-//    into the surface every tick by definition, and it would never get to roll off.
-//
-// 3. NON-PENETRATION FLOOR. However dead the touch, the ball may not leave it travelling
-//    into the player along the normal SLOWER than the player is travelling along it. The
-//    old code handed the ball 0.22 of a 310px/s run, so the player closed on it at 227px/s
-//    and the contact walked from the front of the torso, through the middle and out the
-//    back — the ball "passed through" the player while touching it the whole way. Matching
-//    the player's own normal speed is the deadest response that is still physical: zero
-//    restitution, nothing bounced, but the surface can never overtake the ball again.
-function contactResponse(b, p, nx, ny, keep, carry, spinKeep) {
-  const vn = (b.vx - p.vx) * nx + (b.vy - p.vy) * ny;
-  if (vn < 0) { b.vx -= vn * nx; b.vy -= vn * ny; }      // cancel the approach, never reflect
-  const impact = vn < -C.CONTACT_IMPACT_V;
-  if (impact) {
-    b.vx = b.vx * keep + p.vx * carry;
-    b.vy *= keep;
-    b.spin *= spinKeep;
-  }
-  const out = b.vx * nx + b.vy * ny;
-  const pn = p.vx * nx + p.vy * ny;
-  if (out < pn) { const add = pn - out; b.vx += add * nx; b.vy += add * ny; }
-  return impact;
-}
-
 // THE PASSIVE HEAD TOUCH IS A BOUNCE (HS M4, see HEAD_BOUNCE). An impulse along the normal on
 // the ball's velocity RELATIVE to the head: what closed at `vn` leaves at HEAD_BOUNCE·vn, on top
 // of the head's own velocity. That is the whole of it — no deaden, no nudge, no extra lift: a
@@ -1517,13 +1479,12 @@ function resolveBallPlayers(m, fx, alpha = 1) {
       }
       b.x = keepOutOfGoal(fromX, fromY, b.x, b.y, b.r);
 
-      // "Head bounces, body deadens" has to be a rule about HEIGHT, not about which collider
-      // you clipped. At real Head Soccer proportions the character is ~80% head, so the torso
-      // is a 12px sliver and a box-based rule almost never fired. Contact on the upper part
-      // of the silhouette is a header; chest height and below is a body touch and dies.
+      // Chest height and below is a BODY touch. In HS it bounces like everything else on the
+      // pitch (Box2D, one restitution; the wiki: "receive the ball with your body, the ball will
+      // go up diagonally quickly") — it used to be deadened on request, and Idan chose HS.
       if (zoneNy > C.DEADEN_ZONE) {
         m.idle = 0;
-        contactResponse(b, p, nx, ny, C.BODY_DEADEN, 0.22, 0.5);
+        bounceOffHead(b, p, nx, ny);
         fx.hit(b.x, b.y, '#cfd8ea', 0.4);
       } else if (bounceOffHead(b, p, nx, ny) > C.CONTACT_IMPACT_V) {
         // A real touch, not a ball resting on the crown. Only a touch counts as play for the
@@ -1616,7 +1577,7 @@ function resolveBallPlayers(m, fx, alpha = 1) {
     const fromX = b.x, fromY = b.y;
     b.x = sx + nx * b.r; b.y = sy + ny * b.r;
     b.x = keepOutOfGoal(fromX, fromY, b.x, b.y, b.r);
-    contactResponse(b, p, nx, ny, C.BODY_DEADEN, 0.22, 0.5);
+    bounceOffHead(b, p, nx, ny);                  // the torso bounces it too, as in HS
     fx.hit(b.x, b.y, '#cfd8ea', 0.4);
   }
 }

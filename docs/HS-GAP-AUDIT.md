@@ -31,7 +31,7 @@ At the audit, `node test-hs-parity.mjs` passed 82 of 88 rows. The 6 failures are
 
 | # | Sev | Gap | Ours | HS | Source |
 |---|---|---|---|---|---|
-| P1 ❓ | M | **Needs Idan:** `BODY_DEADEN` was Adam's explicit request ("the ball kinda stops and rolls"). HS bounces it. The body kills the ball instead of bouncing it | `BODY_DEADEN` 0.18 `constants.js:215`; walking into the ball pushes it at 228 px/s | Bounces off the chest and shins at roughly 390 px/s | wiki + Box2D |
+| P1 ✅ | M | Idan chose HS (2026-09-26): the body bounces with the head's measured restitution; the ball cap stays above a dash so it cannot pump. The body kills the ball instead of bouncing it | `BODY_DEADEN` 0.18 `constants.js:215`; walking into the ball pushes it at 228 px/s | Bounces off the chest and shins at roughly 390 px/s | wiki + Box2D |
 | P2 ✅ | M | Walls and posts bounce too much | walls 0.86 `constants.js:81`, post 0.78 `sim.js:1163` | every measured surface is 0.63–0.79 (our crossbar is 0.67) | meas (other surfaces) |
 | P3 ✅ | M | Air drag is too strong, so long balls land ~40 px short | 0.184/s `constants.js:78` | 0.099/s (17 M4 flights, IQR 0.095–0.105) | meas |
 | P4 ✅ | H | A rolling ball stops far too soon | decays at 0.73/s: an 80 px/s ball stops after 111 px | 0.11–0.21/s: a roll lasted 6.6 s over 404 px | meas (n=2) |
@@ -65,7 +65,7 @@ At the audit, `node test-hs-parity.mjs` passed 82 of 88 rows. The 6 failures are
 | R3 ✅ | M | Sudden death doesn't restart play; it only sets a flag | `sim.js:321` | Red wipe and banner, both players reset, the ball drops at the centre ~2.5 s later | meas (M2) |
 | R4 ✅ | M | The clock stops during power cut-ins, so matches run 5–11 s long | `sim.js:262-280` | The clock keeps ticking | meas (M4) |
 | R5 ✅ | M | The 5★ CPU plays too far forward, from a fixed waiting spot | 511 px avg, `bot.js:445` | 427 px | meas |
-| R6 ⏳ | M | **Still open** (0.46–0.51; two tuning tries either did nothing or flattened the difficulty ladder, so they were reverted). The 5★ CPU lets too many balls go | plays 49% of balls in reach | 70% | meas |
+| R6 ⏳ | M | **Borderline** (0.45–0.51 over runs; with the body bouncing it hit 0.70's tolerance in one run). The 5★ CPU lets too many balls go | plays 49% of balls in reach | 70% | meas |
 | R7 | M | Missing modes | Arcade (45 stages) + private online rooms only | Tournament, League, Survival, Head Cup, Death Mode, Fight, 2P on one device | wiki |
 | R8 | M | No points economy | — | 100 pts for the first win, 50 after; some modes cost 5,000 to enter | wiki |
 | R9 | M | No stat upgrades | Base stats forever | 5 stats × 10 levels, 500–256,000 points per step | wiki |

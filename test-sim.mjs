@@ -439,7 +439,7 @@ function kickInto(m, i, reach = 130, ticks = 90) {
 // --- the head bounces, the chest deadens ---------------------------------------
 {
   // HS M4: the passive head touch is a restitution bounce (HEAD_BOUNCE, ~0.75 relative to the
-  // head). The chest still kills the ball (BODY_DEADEN), so the head is the lively surface.
+  // head). The body bounces the same way (HS is one Box2D restitution everywhere).
   const drop = (yOffset) => {
     const m = fresh();
     const p = m.players[0];
@@ -450,12 +450,17 @@ function kickInto(m, i, reach = 130, ticks = 90) {
   const head = drop(-C.HEAD_R - C.BALL_R + 4);
   ok('a head sends a drop back up at ~HEAD_BOUNCE of its pace', Math.abs(head - 400 * C.HEAD_BOUNCE) < 400 * 0.1,
      `${head.toFixed(0)} of 400 (HEAD_BOUNCE ${C.HEAD_BOUNCE})`);
-  ok('and it is livelier than the chest', C.HEAD_BOUNCE > C.BODY_DEADEN,
-     `head ${C.HEAD_BOUNCE} vs body ${C.BODY_DEADEN}`);
+  // Walking into a still ball: HS's body sends it on at ~(1 + e) of your pace, not dead at your feet.
+  const w = fresh(), q = w.players[0];
+  q.x = 400; w.players[1].x = C.W - 60;
+  w.ball.x = q.x + C.BODY_W / 2 + C.BALL_R + 3; w.ball.y = C.GROUND_Y - C.BALL_R; w.ball.vx = 0; w.ball.vy = 0;
+  let out = 0;
+  for (let i = 0; i < 20; i++) { step(w, [{ right: true }, {}]); out = Math.max(out, w.ball.vx); }
+  ok('walking into the ball bounces it on ahead of you (HS)', out > C.PLAYER_SPEED * 1.4, `${out.toFixed(0)} px/s vs walk ${C.PLAYER_SPEED}`);
 }
 {
-  // Low contact — chest height and below — kills it. At Head Soccer proportions the torso
-  // is a sliver, so this is a rule about HEIGHT on the silhouette, not about which box.
+  // Low contact — chest height and below — BOUNCES, as in HS (one Box2D restitution; it used to
+  // be deadened on request, and Idan chose HS).
   const m = fresh();
   const p = m.players[0];
   const hy = headY(p);
@@ -463,8 +468,8 @@ function kickInto(m, i, reach = 130, ticks = 90) {
   m.ball.y = hy + (C.HEAD_R + C.BALL_R) * 0.7;      // ny ≈ 0.7, well past DEADEN_ZONE
   m.ball.vx = -600; m.ball.vy = 0;
   step(m, NONE);
-  ok('low contact deadens the ball', Math.abs(m.ball.vx) < 200, `vx=${m.ball.vx.toFixed(0)} (was -600)`);
-  ok('and it does not fly back', m.ball.vx > -200);
+  ok('low contact bounces the ball back out', m.ball.vx > 150, `vx=${m.ball.vx.toFixed(0)} (was -600)`);
+  ok('at no more than the head\'s restitution', m.ball.vx <= 600 * C.HEAD_BOUNCE + 5, `vx=${m.ball.vx.toFixed(0)}`);
 }
 {
   // A head RISING from its jump is a surface moving up, so it returns the ball faster than a
@@ -1658,6 +1663,11 @@ const jumpArc = (input) => {
         const b = m.ball, cx = Math.max(p.x - C.BODY_W / 2, Math.min(b.x, p.x + C.BODY_W / 2));
         const cy = Math.max(p.y - C.BODY_H, Math.min(b.y, p.y));
         if (onGrass && C.BALL_R - Math.hypot(b.x - cx, b.y - cy) < 1.5) continue;
+        // …and one WEDGED AGAINST A SIDE WALL by a body driving into it (a dash into the corner):
+        // the wall holds it on one side, the body on the other. Found when the body started
+        // bouncing the ball as HS's does (tick 3381: the wall clamps the ball, the dashing body pushes it
+        // 5 px back off it, 15 px into the head).
+        if ((b.x - C.BALL_R < 8 || b.x + C.BALL_R > C.W - 8) && Math.abs(b.x - p.x) < C.BODY_W / 2 + C.BALL_R + C.HEAD_R) continue;
         const e = embed(m, p);
         if (e > deepest) { deepest = e; worst = { i, p: p.index }; }
       }
