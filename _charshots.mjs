@@ -16,7 +16,7 @@ import { setTimeout as sleep } from 'node:timers/promises';
 import { chromePath } from './_chrome.mjs';
 import { ensureServer } from './_serve.mjs';
 const CHROME = chromePath();
-const PORT = process.env.PORT || 3047, CDP = 9533;
+const PORT = process.env.PORT || 3047, CDP = +(process.env.CDP || 9533);
 await ensureServer(PORT);
 const OUT = process.env.SHOT_OUT || `${import.meta.dirname}/.shots/chars`;
 mkdirSync(OUT, { recursive: true });
@@ -40,6 +40,9 @@ await send('Emulation.setDeviceMetricsOverride', { width: 844, height: 390, devi
 await send('Page.navigate', { url: `http://127.0.0.1:${PORT}/?diff=3&solo=1` });
 await sleep(2200);
 await ev('window.BOT_OFF = true; startMatch()');
+// CARD0=rarity_n / CARD1=… : pose a given card instead of the one the match picked (a card with
+// no real-face character shows the photo head in HEAD_SHAPE — the shape the body is cut to).
+for (const i of [0, 1]) if (process.env['CARD' + i]) { const [r, n] = process.env['CARD' + i].split('_'); await ev(`Object.assign(MATCH.players[${i}].char, { rarity: '${r}', number: ${+n} })`); }
 await sleep(1500);
 
 // [name, player-one state, player-two state, match state]. Anything not given is reset to a
@@ -56,6 +59,16 @@ const POSES = [
   ['dash', {}, {}],
   ['stunned', {}, { stunned: 1 }],
 ];
+// BODY=1: the body sheet's extra poses — the run cycle at four phases (__runT pins the flipbook's
+// clock) and the kick at HS's frames 1, 2, 4 and 8 of its 16.
+const RUN_PH = [0, 0.07, 0.14, 0.21], KICK_K = [1 / 16, 2 / 16, 4 / 16, 8 / 16];
+if (process.env.BODY) {
+  // (before the dash: its afterimages hang on a frozen clock and would haunt every later pose)
+  POSES.splice(POSES.findIndex(([n]) => n === 'dash'), 0,
+    ...RUN_PH.map((t, i) => ['run' + String.fromCharCode(97 + i), { vx: 228, __runT: t }, { vx: -228, __runT: t }]),
+    ...KICK_K.map((k, i) => ['kick' + String.fromCharCode(97 + i), { kickT: KT * (1 - k) }, {}]),
+    ['ingoal', { x: (await ev('C.GOAL_W')) * 0.55 }, {}]);   // the near net over the body (netOverBodies)
+}
 
 const shots = [];
 for (const [name, a, b, m = {}] of POSES) {
@@ -66,6 +79,7 @@ for (const [name, a, b, m = {}] of POSES) {
     Object.assign(M.players[1], base, { x: 610 }, ${JSON.stringify(b)});
     M.ball.x = 480; M.ball.y = 200; M.ball.vx = M.ball.vy = 0;
     window.__POSE = ${JSON.stringify(name)};
+    window.__RUN_T = ${a.__runT ?? null};
   })()`);
   await sleep(350);
   // A dash is the one pose that needs history (its afterimages): let the sim run it for a few
@@ -145,7 +159,32 @@ if (existsSync(VID) && FF) {
     + HS.map((_, i) => `[a${i}]`).join('') + `hstack=${k}[top];`
     + HS.map((_, i) => `[b${i}]`).join('') + `hstack=${k}[bot];[top][bot]vstack`;
   execFileSync(FF, ['-v', 'error', '-y', ...row('hs-', ''), ...row('', '-zoom'), '-filter_complex', f, `${OUT}/side_by_side.png`]);
+  if (process.env.BODY) bodySheets(FF, VID, OUT, S);
   console.log('side by side (HS top, ours below) →', `${OUT}/side_by_side.png`);
+}
+// THE BODY SHEETS (BODY=1): stand, run x4, jump, kick x4, dash, stunned — HS on top, ours under,
+// the same framing. body_sheet-1x.png is the whole 2.6-head square; body_sheet-3x.png is the
+// lower body (chin to shadow) blown up 3x, where the boots and the collar are judged.
+function bodySheets(FF, VID, OUT, S) {
+  const L = [['stand', 29.98, 660, 892], ...['a', 'b', 'c', 'd'].map((c, i) => ['run' + c, 32.75 + (i * 4) / 60, [895, 915, 960, 980][i], 899]),
+    ['jump', 21.25, 661, 830], ...['a', 'b', 'c', 'd'].map((c, i) => ['kick' + c, 29.68 + [1, 2, 4, 8][i] / 60, 660, 892]),
+    ['dash', 57.967, 1909, 905], ['stunned', 62.5, 1010, 816]];
+  for (const [n, ts, x, y] of L) {
+    execFileSync(FF, ['-v', 'error', '-y', '-ss', ts.toFixed(4), '-i', VID, '-frames:v', '1', '-vf',
+      `crop=${S}:${S}:${x - S / 2 | 0}:${y - S / 2 | 0},scale=260:260`, `${OUT}/hs-${n}.png`]);
+  }
+  const k = L.length, ins = [...L.flatMap(([n]) => ['-i', `${OUT}/hs-${n}.png`]), ...L.flatMap(([n]) => ['-i', `${OUT}/${n}-zoom.png`])];
+  for (const [tag, [W, H, X, Y], px] of [['1x', [1, 1, 0, 0], 130], ['3x', [0.8, 0.55, 0.1, 0.35], 390]]) {
+    const ph = Math.round(px * H / W);
+    const cut = (i, o) => `[${i}]crop=iw*${W}:ih*${H}:iw*${X}:ih*${Y},scale=${px}:${ph}:flags=lanczos[${o}]`;
+    const f = [...L.map((_, i) => cut(i, 'a' + i)), ...L.map((_, i) => cut(i + k, 'b' + i))].join(';') + ';';
+    // 3x is too wide for one row: two rows of HS-over-ours pairs
+    const rows = tag === '3x' ? [L.slice(0, 7).map((_, i) => i), L.slice(7).map((_, i) => i + 7)] : [L.map((_, i) => i)];
+    const g = rows.map((r, j) => r.map((i) => `[a${i}]`).join('') + `hstack=${r.length}[t${j}];` + r.map((i) => `[b${i}]`).join('') + `hstack=${r.length}[u${j}];`).join('');
+    const pad = rows.length > 1 ? `[t1]pad=${px * rows[0].length}:ih[t1p];[u1]pad=${px * rows[0].length}:ih[u1p];[t0][u0][t1p][u1p]vstack=4` : '[t0][u0]vstack';
+    execFileSync(FF, ['-v', 'error', '-y', ...ins, '-filter_complex', f + g + pad, `${OUT}/body_sheet-${tag}.png`]);
+  }
+  console.log('body sheets →', `${OUT}/body_sheet-1x.png, body_sheet-3x.png`);
 }
 if (errs.length) console.log('page errors:', errs.slice(0, 5));
 chrome.kill();
