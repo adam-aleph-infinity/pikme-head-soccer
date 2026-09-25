@@ -6,10 +6,12 @@
 // hideInCut?, cutin?(g, s), over?(g, s) } — see champ-vfx.js for what `s` carries.
 
 import P01 from './stage-01.js';
+import P02 from './stage-02.js';
 
 // The registry: one line per built stage.
 const LIST = [
   P01,
+  P02,
 ];
 
 export const POWER_VFX = Object.freeze(Object.fromEntries(LIST.map((v) => [v.id, v])));

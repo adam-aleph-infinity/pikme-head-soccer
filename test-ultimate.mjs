@@ -1060,5 +1060,20 @@ const first = (log, type, f = () => true) => log.find((e) => e.type === type && 
   }
 }
 
+{
+  // POWER 2 — Cameroon's Thunderbolt Shot: straight, a touch quicker than Korea's; a hit leaves the
+  // shock (half speed, no jump) for 1.8 s; a kick still blocks it.
+  for (const seat of [0, 1]) {
+    const r = fireCp(2, seat, { gap: 600, s: 0.2 });
+    const p = r.path.filter((q) => q.cp === 'thunderbolt');
+    const vx = (p[p.length - 1].x - p[0].x) / ((p.length - 1) * C.TICK);
+    ok(`CAMEROON (seat ${seat}): straight and flat at 0.95 × 2150 px/s`, p.length > 5 && Math.abs(Math.abs(vx) - 2150 * 0.95) < 40 && p.every((q) => Math.abs(q.y - p[0].y) < 0.5), `${vx.toFixed(0)} px/s`);
+    const h = fireCp(2, seat, { s: 0.3 });
+    ok(`CAMEROON (seat ${seat}): a hit shocks the defender for 1.8 s`, first(h.log, 'powerHit') && first(h.log, 'ailment', (e) => e.ail === 'shock' && Math.abs(e.time - 1.8) < 1e-9) && h.z.ail === 'shock');
+    const k = fireCp(2, seat, { kick: true });
+    ok(`CAMEROON (seat ${seat}): a kick into it blocks it, and the blocker is not shocked`, !!first(k.log, 'blocked', (e) => e.player === 1 - seat) && !first(k.log, 'ailment', (e) => e.ail === 'shock' && e.player === 1 - seat));
+  }
+}
+
 console.log(`test-ultimate: ${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);

@@ -15,10 +15,12 @@
 // piece of state lives as a plain scalar on `ball.power` or the player.
 
 import S01 from './champion-powers/stage-01.js';
+import S02 from './champion-powers/stage-02.js';
 
 // The registry: one line per built stage.
 export const CHAMPION_POWERS = Object.freeze({
   1: S01,
+  2: S02,
 });
 
 export const BUILT_STAGES = Object.freeze(Object.keys(CHAMPION_POWERS).map(Number));
