@@ -64,15 +64,15 @@ At the audit, `node test-hs-parity.mjs` passed 82 of 88 rows. The 6 failures are
 | R2 ✅ | M | The goal restart is ~0.8 s too slow. `GOAL_RESUME` is defined but never used, and there's no short hold on the kickoff spots | Ball lands at 3.58 s `constants.js:530` | Players move at 2.24 s, the ball drops at 2.795 s | meas |
 | R3 ✅ | M | Sudden death doesn't restart play; it only sets a flag | `sim.js:321` | Red wipe and banner, both players reset, the ball drops at the centre ~2.5 s later | meas (M2) |
 | R4 ✅ | M | The clock stops during power cut-ins, so matches run 5–11 s long | `sim.js:262-280` | The clock keeps ticking | meas (M4) |
-| R5 | M | The 5★ CPU plays too far forward, from a fixed waiting spot | 511 px avg, `bot.js:445` | 427 px | meas |
-| R6 | M | The 5★ CPU lets too many balls go | plays 49% of balls in reach | 70% | meas |
+| R5 ✅ | M | The 5★ CPU plays too far forward, from a fixed waiting spot | 511 px avg, `bot.js:445` | 427 px | meas |
+| R6 ⏳ | M | **Still open** (0.46–0.51; two tuning tries either did nothing or flattened the difficulty ladder, so they were reverted). The 5★ CPU lets too many balls go | plays 49% of balls in reach | 70% | meas |
 | R7 | M | Missing modes | Arcade (45 stages) + private online rooms only | Tournament, League, Survival, Head Cup, Death Mode, Fight, 2P on one device | wiki |
 | R8 | M | No points economy | — | 100 pts for the first win, 50 after; some modes cost 5,000 to enter | wiki |
 | R9 | M | No stat upgrades | Base stats forever | 5 stats × 10 levels, 500–256,000 points per step | wiki |
 | R10 | L | Arcade progress is one counter shared by every card | `arcade.js:4` | Per character | wiki |
 | R11 | L | No costumes and no achievements (card unlocks may be a deliberate product choice) | — | Yes | wiki |
-| R12 | L | The CPU is never fooled by delayed shots, because it reads the power ball's real path | `bot.js:189` | Jumps too early | know |
-| R13 | L | The weak CPU dashes too rarely | 0.4/min | 2.2/min | meas |
+| R12 🎥 | L | The CPU is never fooled by delayed shots, because it reads the power ball's real path | `bot.js:189` | Jumps too early | know |
+| R13 ✅ | L | The weak CPU dashes too rarely | 0.4/min | 2.2/min | meas |
 | R14 ✅ | L | The clock pause after a goal is tied to the wrong moment; once R2 is fixed, the clock must stay stopped until the ball drops | — | Stopped until the drop (3.0–3.8 s) | meas |
 | R15 ✅ | L | The comment at `sim.js:1760` is wrong: the code does give the conceding side the gauge bonus | — | — | code |
 

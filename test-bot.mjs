@@ -156,8 +156,10 @@ const ladder = (hi, lo, n, seed0) => {
   const top = ladder(5, 0, 16, 4000);
   ok('the legendary bot beats the very-easy one, from either end', top.diff > 1.5 && top.wins > 2 * top.losses,
      `${top.diff.toFixed(2)} goals a match, ${top.wins}W ${top.losses}L over 32`);
-  const mid = ladder(4, 1, 16, 7000);
-  ok('tier 4 beats tier 1', mid.diff > 0.8, `${mid.diff.toFixed(2)} goals a match, ${mid.wins}W ${mid.losses}L over 32`);
+  // 160 matches, not 32: at 32 one seed block alone swung this from +0.4 to +2.0. Five blocks of
+  // 64 (seeds 7000–15000) read +0.55 +1.00 +1.52 +1.45 +1.69 — the pair's real gap is ~+1.2.
+  const mid = ladder(4, 1, 80, 7000);
+  ok('tier 4 beats tier 1', mid.diff > 0.8, `${mid.diff.toFixed(2)} goals a match, ${mid.wins}W ${mid.losses}L over 160`);
   const near = ladder(3, 2, 16, 9000);
   ok('even neighbouring tiers keep their order on average (3 over 2)', near.diff > -0.3,
      `${near.diff.toFixed(2)} goals a match, ${near.wins}W ${near.losses}L over 32`);
