@@ -1096,5 +1096,24 @@ const first = (log, type, f = () => true) => log.find((e) => e.type === type && 
   }
 }
 
+{
+  // POWER 4 — USA's Illusion Shot: slightly downward and bouncing; invisible for a while, and then it
+  // goes through the defender — only a counter stops it; visible, a kick blocks it.
+  for (const seat of [0, 1]) {
+    const r = fireCp(4, seat, { gap: 700, s: 0.7 });
+    const p = r.path.filter((q) => q.cp === 'illusion');
+    ok(`USA (seat ${seat}): slightly downward, then it bounces off the grass`, p.length > 10 && p[3].vy > 0 && Math.abs(p[3].vy / p[3].vx) < 0.1 && !!first(r.log, 'illusionBounce'));
+    // (it reaches the far goal in ≈ 0.4 s, so: invisible from ≈ 0.12 s on, for as long as it flies)
+    const i0 = p.findIndex((q) => q.inv);
+    ok(`USA (seat ${seat}): invisible from ≈ 0.12 s, after the fakes, for the rest of the flight`, i0 > 0 && Math.abs(i0 * C.TICK - 0.12) < 0.04 && p.slice(i0).every((q, i) => q.inv || (i0 + i) * C.TICK > 0.66), `from ${(i0 * C.TICK).toFixed(2)} s`);
+    const t = fireCp(4, seat, { gap: 420, s: 1.2 });
+    ok(`USA (seat ${seat}): invisible, it goes straight through the defender into the goal`, !!first(t.log, 'powerHit', (e) => e.how === 'pass') && t.z.stunned <= 0 && !!first(t.log, 'goal', (e) => e.player === seat));
+    const k = fireCp(4, seat, { gap: 420, kick: true, s: 1.2 });
+    ok(`USA (seat ${seat}): …even through a kick`, !first(k.log, 'blocked'));
+    const c = fireCp(4, seat, { gap: 180, kick: true });
+    ok(`USA (seat ${seat}): visible (released close), a kick still blocks it`, !!first(c.log, 'blocked', (e) => e.player === 1 - seat));
+  }
+}
+
 console.log(`test-ultimate: ${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);
