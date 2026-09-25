@@ -801,6 +801,7 @@ function atDefender(fam, o = {}, { kick = false, armed = false, gap = 320 } = {}
   { const { m, p } = on('burn'); m.ball.x = p.x + C.KICK_REACH; m.ball.y = p.y - C.BODY_H * 0.5; step(m, [{ kick: true }, {}]); ok('BURN: the boot does nothing', p.kickT === 0 && m.ball.vx === 0); }
   { const { m, p } = on('beheaded'); m.ball.x = p.x; m.ball.y = headY(p); m.ball.vx = 0; m.ball.vy = 0; step(m, NONE);
     ok('BEHEADED: the ball passes where the head was', Math.abs(m.ball.x - p.x) < 1 && !m.events.some((e) => e.type === 'strike')); }
+  { const { m, p } = on('beheaded'); const x = p.x; run(m, 10, [{ right: true }, {}]); ok('BEHEADED: "unable to do anything for a moment" (wiki, Honduras)', Math.abs(p.x - x) < 0.5); }
   { const { m, p } = on('shock'); run(m, TICK_S(2) + 2);
     ok('an ailment ends on its clock', p.ail === '' && p.ailT === 0); }
   { const { m, p } = on('freeze'); ok('a shorter ailment does not replace a longer one', !applyAilment(m, p, 'reverse', 1) && p.ail === 'freeze'); }

@@ -66,24 +66,35 @@ export const AILMENT_VFX = {
       g.restore();
     },
   },
-  // Frozen: a block of ice round head and body.
+  // Frozen: turned into a snowman (wiki, Switzerland's Snowman Shot: "you'll also get turned into a
+  // snowman") — a big snowball for the body, a smaller one over the head, coal eyes, a carrot.
   freeze: {
     draw(g, p, s) {
-      const w = s.r * 2.5, top = s.hy - s.r - 6, h = s.fy - top + 3, x = s.hx - w / 2;
-      g.save();
-      g.globalAlpha = 0.5; g.fillStyle = '#bfefff';
-      roundRect(g, x, top, w, h, 8); g.fill();
-      g.globalAlpha = 0.95; g.strokeStyle = '#ffffff'; g.lineWidth = 2.5;
-      roundRect(g, x, top, w, h, 8); g.stroke();
-      g.lineWidth = 3; g.globalAlpha = 0.8;
-      g.beginPath(); g.moveTo(x + 8, top + 10); g.lineTo(x + 8, top + h * 0.45); g.stroke();
+      const R = s.r, by = s.fy - R * 0.95, hy = s.hy - R * 0.1, d = p.side || 1;
+      g.save(); g.lineWidth = 2; g.strokeStyle = '#8fb4d8';
+      for (const [y, rr] of [[by, R * 1.15], [hy, R * 1.02]]) {
+        const sg = g.createRadialGradient(s.hx - rr * 0.35, y - rr * 0.35, rr * 0.1, s.hx, y, rr);
+        sg.addColorStop(0, '#ffffff'); sg.addColorStop(1, '#d4e6f7');
+        g.fillStyle = sg; g.beginPath(); g.arc(s.hx, y, rr, 0, TAU); g.fill(); g.stroke();
+      }
+      g.fillStyle = '#1b1f2a';
+      for (const e of [-0.35, 0.35]) { g.beginPath(); g.arc(s.hx + e * R, hy - R * 0.2, R * 0.1, 0, TAU); g.fill(); }
+      g.fillStyle = '#ff8a1c';
+      g.beginPath(); g.moveTo(s.hx, hy); g.lineTo(s.hx + d * R * 0.7, hy + R * 0.08); g.lineTo(s.hx, hy + R * 0.18); g.closePath(); g.fill();
+      for (const k of [-0.3, 0.1]) { g.fillStyle = '#1b1f2a'; g.beginPath(); g.arc(s.hx, by + k * R, R * 0.09, 0, TAU); g.fill(); }
       g.restore();
     },
   },
-  // Shocked: sparks over the body.
+  // Shocked (wiki, Cameroon: "the opponent turns blue and is surrounded in electricity"): a blue
+  // wash over the head and body, sparks round them.
   shock: {
     draw(g, p, s) {
-      g.save(); g.lineJoin = 'round'; g.strokeStyle = '#fff27a'; g.lineWidth = 2.5;
+      g.save();
+      g.globalAlpha = 0.45; g.fillStyle = '#2a7bff';
+      g.beginPath(); g.arc(s.hx, s.hy, s.r * 1.02, 0, TAU); g.fill();
+      g.fillRect(s.hx - s.r * 0.75, s.hy + s.r * 0.8, s.r * 1.5, Math.max(0, s.fy - s.hy - s.r * 0.8));
+      g.globalAlpha = 1;
+      g.lineJoin = 'round'; g.strokeStyle = '#fff27a'; g.lineWidth = 2.5;
       const seed = Math.floor(s.t * 15);
       for (let i = 0; i < 3; i++) {
         const a = (i / 3) * TAU + seed;
@@ -115,11 +126,6 @@ export const AILMENT_VFX = {
   },
 };
 
-function roundRect(g, x, y, w, h, r) {
-  g.beginPath();
-  g.moveTo(x + r, y); g.arcTo(x + w, y, x + w, y + h, r); g.arcTo(x + w, y + h, x, y + h, r);
-  g.arcTo(x, y + h, x, y, r); g.arcTo(x, y, x + w, y, r); g.closePath();
-}
 function zig(g, x1, y1, x2, y2, seed, amp) {
   g.beginPath(); g.moveTo(x1, y1);
   for (let i = 1; i < 4; i++) {

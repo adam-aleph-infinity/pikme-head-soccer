@@ -861,8 +861,8 @@ const jumpArc = (input) => {
   const a = m.players[0], b = m.players[1];
   a.shot = shotById('straight');
   firePower(m, 0, undefined, true);
-  // 1.34s of dark (POWER_CUTIN), of which the first 0.97s is a hold: the ball leaves then and play
-  // runs under the last POWER_RELEASE (M4 40.44 → 41.41 → 41.78 s).
+  // 1.34s of dark (POWER_CUTIN), of which the first 1.14s is a hold: the ball leaves then and play
+  // runs under the last POWER_RELEASE (M4 60.17 → 61.27 → 61.49 s).
   const HOLD = C.POWER_CUTIN - C.POWER_RELEASE;
   ok('firing a power shot starts a cut-in', m.cutin === C.POWER_CUTIN && m.cutinBy === 0 && Math.abs(m.hitStop - HOLD) < C.TICK,
      `cutin=${m.cutin} hitStop=${m.hitStop} by=${m.cutinBy}`);

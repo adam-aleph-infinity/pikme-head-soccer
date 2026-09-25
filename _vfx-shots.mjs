@@ -23,7 +23,7 @@ import { FAMILY_ORDER, AILMENT_ORDER } from './shared/hs-powers.js';
 
 const want = process.argv.slice(2);
 const FAMS = want.length ? FAMILY_ORDER.filter((f) => want.includes(f)) : FAMILY_ORDER;
-const PORT = 3131, CDP = 9531;
+const PORT = Number(process.env.PORT) || 3131, CDP = PORT + 6400;
 const server = await ensureServer(PORT);
 const OUT = `${import.meta.dirname}/.shots/vfx`;
 mkdirSync(OUT, { recursive: true });

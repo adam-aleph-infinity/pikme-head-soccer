@@ -38,9 +38,43 @@ export function createVfx({ now = () => performance.now() / 1000, drawBall: pain
   const track = new Map();               // ball → { hist, t0 (release, on the SIM clock m.t), ph, ghost }
   const drops = [];                      // the hit's red spark droplets (§4) — the only particles
   const stats = { balls: 0, drops: 0 };  // what was drawn (tests)
+  const lastCut = { by: -1, at: 0 };     // the cut-in that just ended, for the dark's fade-out
 
   const rec = (b) => { let r = track.get(b); if (!r) { r = { hist: [], t0: M.t, ph: '', ghost: 0 }; track.set(b, r); } return r; };
   const balls = () => (M ? [M.ball, ...(M.xballs || [])] : []);
+
+  // the block's burst, the Grab's fist, the Aerial's lances, the hit's droplets and after-images
+  function pitchFx(g) {
+      const t = now();
+      for (const b of balls()) {
+        const pw = b.power;
+        if (pw && pw.ph === 'grind') { const d = depthPoint(b.x, b.y); drawGrind(g, d.x, d.y, t); }
+        // the Grab's fist round the seized player's body, its arm back to the shooter (§3 M3 74.15 s)
+        if (pw && pw.ph === 'grab' && M.players[pw.tgt] && M.players[pw.owner]) {
+          const q = M.players[pw.tgt], a = M.players[pw.owner];
+          const f = depthPoint(q.x, q.y - 34), o = depthPoint(a.x, headY(a));
+          drawFist(g, f.x, f.y, pw.dir, o.x, o.y, t);
+        }
+        if (pw && pw.fam === 'aerial' && (pw.ph === 'wait' || pw.ph === 'dive')) FAMILY_VFX.aerial.warn(g, { pw, now: t });
+        const r = track.get(b);
+        if ((!pw || pw.hit) && r && r.ghost > 0 && r.hist.length > 3) {
+          g.save();
+          for (let i = 1; i <= 4; i++) {
+            const h = r.hist[i * 2]; if (!h) break;
+            g.globalAlpha = (0.34 - i * 0.07) * Math.min(1, r.ghost / 0.15);
+            g.fillStyle = '#ffffff'; g.strokeStyle = '#1b2436'; g.lineWidth = 1.5;
+            g.beginPath(); g.arc(h.x, h.y, b.r, 0, TAU); g.fill(); g.stroke();
+          }
+          g.restore();
+        }
+      }
+      if (drops.length) {
+        g.save(); g.fillStyle = '#ff2a1a';
+        for (const p of drops) { g.globalAlpha = 1 - p.t / p.life; g.beginPath(); g.arc(p.x, p.y, 3.2, 0, TAU); g.fill(); }
+        g.restore();
+        stats.drops += drops.length;
+      }
+  }
 
   return {
     stats, track, drops,
@@ -118,39 +152,12 @@ export function createVfx({ now = () => performance.now() / 1000, drawBall: pain
 
     // OVER the ball, on the pitch: the block's grind, the Aerial's warning, the hit's droplets and
     // the after-images of a hit ball.
+    // (Under a cut-in's dark these are painted by drawCutin instead, over the dark: in HS the block's
+    // burst and the comet are the bright things on a darkened pitch — M4 61.45 s.)
     drawOver(g) {
-      if (!M) return;
-      const t = now();
-      for (const b of balls()) {
-        const pw = b.power;
-        if (pw && pw.ph === 'grind') { const d = depthPoint(b.x, b.y); drawGrind(g, d.x, d.y, t); }
-        // the Grab's fist round the seized player's body, its arm back to the shooter (§3 M3 74.15 s)
-        if (pw && pw.ph === 'grab' && M.players[pw.tgt] && M.players[pw.owner]) {
-          const q = M.players[pw.tgt], a = M.players[pw.owner];
-          const f = depthPoint(q.x, q.y - 34), o = depthPoint(a.x, headY(a));
-          drawFist(g, f.x, f.y, pw.dir, o.x, o.y, t);
-        }
-        if (pw && pw.ph === 'wait' && FAMILY_VFX.aerial.warn) FAMILY_VFX.aerial.warn(g, { pw, now: t });
-        const r = track.get(b);
-        if ((!pw || pw.hit) && r && r.ghost > 0 && r.hist.length > 3) {
-          g.save();
-          for (let i = 1; i <= 4; i++) {
-            const h = r.hist[i * 2]; if (!h) break;
-            g.globalAlpha = (0.34 - i * 0.07) * Math.min(1, r.ghost / 0.15);
-            g.fillStyle = '#ffffff'; g.strokeStyle = '#1b2436'; g.lineWidth = 1.5;
-            g.beginPath(); g.arc(h.x, h.y, b.r, 0, TAU); g.fill(); g.stroke();
-          }
-          g.restore();
-        }
-      }
-      if (drops.length) {
-        g.save(); g.fillStyle = '#ff2a1a';
-        for (const p of drops) { g.globalAlpha = 1 - p.t / p.life; g.beginPath(); g.arc(p.x, p.y, 3.2, 0, TAU); g.fill(); }
-        g.restore();
-        stats.drops += drops.length;
-      }
+      if (!M || M.cutin > 0 || (lastCut.by >= 0 && now() - lastCut.at < 0.2)) return;
+      pitchFx(g);
     },
-
     // THE PRESS (§1), on the layer above the heads: a thin bright rim round the head and the body,
     // and 2–4 jagged flame tongues off the crown and shoulders, re-rolled every frame so it crackles.
     drawArmed(g, p) {
@@ -200,33 +207,48 @@ export function createVfx({ now = () => performance.now() / 1000, drawBall: pain
     },
 
     // THE CUT-IN (§2), over everything, heads included. The pause is the sim's (m.cutin, 1.34s);
-    // this is the picture: the pitch 55→65% darker with the shooter left in a pool of light, a
-    // white disc ≈ 1.6 head radii with a gold halo to ≈ 2.2 behind the head (the DOM head covers
-    // its middle), and 8 wide gold rays alternating with 8 thin white ones, ≈ 190px long, widest at
-    // the far end, turning at 0.5 rad/s. They grow in over the first 0.1s; it all lifts over the
-    // last 0.1s. No text, no band, no zoom.
+    // this is the picture: the pitch under 76→80% black (HS keeps ≈ 32% of its brightness), a solid
+    // white disc ≈ 1.8 head radii with a gold glow and a thin gold ring at ≈ 3.6 radii (the DOM head
+    // covers its middle), and 8 wide soft gold rays alternating with 8 thin hot white ones, ≈ 235px
+    // long, widest at the far end, turning at 0.5 rad/s (M4 40.75 s full-res). The rays grow in over
+    // the first 0.1s; the dark fades in over 0.2s and out over 0.2s after the cut-in. No text, no
+    // band, no zoom.
     drawCutin(g) {
-      if (!M || !(M.cutin > 0) || !(M.cutinBy >= 0)) return;
-      const p = M.players[M.cutinBy];
+      if (!M) return;
+      // HS's dark fades in over ≈ 0.25 s and back out over ≈ 0.25 s, and is 1.31–1.37 s long
+      // between the half-dark points (7 cut-ins, M4/M3 luma traces — docs §2). The sim's cut-in is
+      // those 1.34 s; the picture fades in over its first 0.2 s and out over 0.2 s AFTER it (wall
+      // clock, remembered here), so half-dark to half-dark is the same 1.34 s.
+      let el, fade;
+      if (M.cutin > 0 && M.cutinBy >= 0) {
+        el = C.POWER_CUTIN - M.cutin;                           // seconds into the cut-in
+        fade = Math.min(1, el / 0.2);
+        lastCut.by = M.cutinBy; lastCut.at = now();
+      } else {
+        const since = now() - lastCut.at;
+        if (!(lastCut.by >= 0) || since >= 0.2 || since < 0) { lastCut.by = -1; return; }
+        el = C.POWER_CUTIN + since; fade = 1 - since / 0.2;
+      }
+      const p = M.players[M.cutin > 0 ? M.cutinBy : lastCut.by];
       if (!p) return;
-      const T = C.POWER_CUTIN, el = T - M.cutin;                // seconds into the cut-in
-      const fade = Math.min(1, el / 0.08) * Math.min(1, M.cutin / 0.1);
       // The rays and the disc go with the ball: gone 0.1s after it leaves (M4 41.50 → 41.57 s),
       // while the dark stays down to the end.
-      const glow = fade * Math.max(0, Math.min(1, (M.cutin - C.POWER_RELEASE + 0.1) / 0.1));
+      const glow = Math.min(1, el / 0.08) * Math.max(0, Math.min(1, (M.cutin - C.POWER_RELEASE + 0.1) / 0.1));
       const grow = Math.min(1, 0.3 + el / 0.1 * 0.7);
       const h = depthPoint(p.x, headY(p));
       const r = headR(M, p);
-      const dark = 0.55 + 0.1 * Math.min(1, el / 1.0);
+      // HS leaves the pitch at ≈ 32 % of its brightness (M4 60.8 s stands: luma 106 → 36, 123 → 39),
+      // everywhere but the disc and the rays — no wide pool of light round the shooter.
+      const dark = 0.76 + 0.04 * Math.min(1, el / 1.0);
       g.save();
-      const gr = g.createRadialGradient(h.x, h.y, r * 1.2, h.x, h.y, r * 7);
+      const gr = g.createRadialGradient(h.x, h.y, r * 1.4, h.x, h.y, r * 4);
       gr.addColorStop(0, 'rgba(4,3,10,0)');
-      gr.addColorStop(0.35, `rgba(4,3,10,${(dark * 0.8).toFixed(3)})`);
       gr.addColorStop(1, `rgba(4,3,10,${dark.toFixed(3)})`);
       g.globalAlpha = fade; g.fillStyle = gr; g.fillRect(0, -SKY_PAD, C.W, C.H + SKY_PAD + 40);
       g.restore();
       // the shot, bright over the dark once it has left
       if (paintBall && M.cutin <= C.POWER_RELEASE) for (const b of balls()) if (b.power) paintBall(g, b);
+      pitchFx(g);                                                 // the block's burst etc., bright too
       if (!(glow > 0)) return;
       g.save();
       // the rays (M4 40.75 s full-res, 2.0 px a world px: wide soft gold beams ≈ 230 px long and

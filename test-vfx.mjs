@@ -56,8 +56,8 @@ function recorder() {
 // ── 1. the registry: every family and every ailment has a renderer ─────────
 ok('all 11 families have a renderer', FAMILIES_DRAWN.length === 11 && FAMILY_ORDER.every((f) => typeof FAMILY_VFX[f]?.draw === 'function'), FAMILIES_DRAWN.join(','));
 ok('no renderer for a family that does not exist', Object.keys(FAMILY_VFX).every((f) => FAMILY_ORDER.includes(f)));
-ok('all 6 ailments have an overlay', AILMENTS_DRAWN.length === 6 && AILMENT_ORDER.every((a) => typeof AILMENT_VFX[a]?.draw === 'function'), AILMENTS_DRAWN.join(','));
-ok('every family has a 3-colour palette', FAMILY_ORDER.every((f) => Array.isArray(FAMILY_VFX[f].palette) && FAMILY_VFX[f].palette.length === 3));
+ok('all 7 ailments (6 + the Grab\'s thrown) have an overlay', AILMENTS_DRAWN.length === 7 && AILMENT_ORDER.every((a) => typeof AILMENT_VFX[a]?.draw === 'function'), AILMENTS_DRAWN.join(','));
+ok('every family has a 3-colour palette (+ an optional seam)', FAMILY_ORDER.every((f) => Array.isArray(FAMILY_VFX[f].palette) && FAMILY_VFX[f].palette.length >= 3 && FAMILY_VFX[f].palette.length <= 4));
 ok('the Aerial draws its warning streaks', typeof FAMILY_VFX.aerial.warn === 'function');
 
 // ── 2. only what Head Soccer shows ──────────────────────────────────────────
@@ -69,7 +69,8 @@ ok('the Aerial draws its warning streaks', typeof FAMILY_VFX.aerial.warn === 'fu
   // The filmed comet: full while the screen is still dark, faint by the time it lifts (§3).
   ok('the comet is full size for its first 0.2s', cometAlpha(0) === 1 && cometAlpha(COMET.FULL - 0.01) === 1);
   ok('…and faint 0.1s after that', cometAlpha(COMET.FULL + COMET.FADE) <= COMET.FLOOR + 1e-9);
-  ok('the comet is the filmed size: ~95px tall at the ball, ~360px long', COMET.BODY_W0 * 2 > 85 && COMET.BODY_W0 * 2 < 105 && COMET.BODY_L > 300 && COMET.BODY_L < 400);
+  ok('the comet is the filmed size (M4 43.07 s): ~70px tall at the ball, ~130px at its widest behind it, ~330px long',
+     COMET.BODY[0] * 2 > 60 && COMET.BODY[0] * 2 < 80 && COMET.BODY[2] * 2 > 115 && COMET.BODY[2] * 2 < 145 && COMET.BODY_L > 300 && COMET.BODY_L < 360);
 }
 
 // ── 3. every family, fired in the sim, watched and drawn ────────────────────

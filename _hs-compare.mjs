@@ -36,15 +36,15 @@ export const SHOTS = [
     note: 'over the standing keeper, goal' },
   { id: 'm4-171.91', video: 'M4-gaps', hs: [171.7, 172.5, 173.02, 173.2, 173.5], shooter: 1, sx: 560, jump: true, fam: 'straight', dx: 190, does: 'kick',
     note: 'kick-block at the goal line, grind' },
-  { id: 'm3-37.2', video: 'M3-airdrop-full', hs: [36.95, 37.6, 38.15, 38.25, 38.45], shooter: 0, sx: 800, jump: false, fam: 'straight', dx: 930, does: 'stand',
+  { id: 'm3-37.2', video: 'M3-airdrop-full', hs: [36.95, 37.6, 38.28, 38.33, 38.5], shooter: 0, sx: 800, jump: false, fam: 'straight', dx: 930, does: 'stand',
     note: 'hits the standing keeper square on, bounces straight back' },
-  { id: 'm3-71.5', video: 'M3-airdrop-full', hs: [71.0, 71.8, 72.3, 72.75, 73.3], shooter: 0, sx: 330, jump: true, fam: 'straight', dx: 660, does: 'armedJump', dfam: 'grab',
+  { id: 'm3-71.5', video: 'M3-airdrop-full', hs: [71.0, 71.8, 72.6, 72.75, 73.3], shooter: 0, sx: 330, jump: true, fam: 'straight', dx: 660, does: 'armedJump', dfam: 'grab',
     note: 'the armed Mexico CPU counters (its own cut-in)' },
   { id: 'm3-mexico', video: 'M3-airdrop-full', hs: [72.6, 73.3, 73.93, 74.12, 74.5], shooter: 1, sx: 660, jump: false, fam: 'grab', dx: 200, does: 'stand',
     note: 'the Mexico counter: the claw seizes the player (stars)' },
   { id: 'm2-0-05', video: 'M2-arcade-kor-uk', hs: [102.25, 103.0, 103.72, 103.8, 104.1], shooter: 0, sx: 220, jump: false, fam: 'straight', dx: 630, does: 'stand',
     note: 'game clock 0:05: hits the UK player, bounces back to the shooter' },
-  { id: 'm2-aerial', video: 'M2-arcade-kor-uk', hs: [41.7, 42.3, 43.7, 44.35, 44.6], shooter: 1, sx: 560, jump: false, fam: 'aerial', dx: 100, does: 'stand', aerial: true,
+  { id: 'm2-aerial', video: 'M2-arcade-kor-uk', hs: [41.7, 42.3, 43.7, 44.35, 44.6], shooter: 1, sx: 560, jump: false, fam: 'aerial', dx: 45, does: 'stand', aerial: true,
     note: 'game clock 0:43: the UK meteor — up, warning streaks, dive' },
 ];
 
@@ -167,13 +167,19 @@ for (const sc of LIST) {
     flyAt = 2;
   }
   await shot(`${OUT}/${sc.id}-ours-${flyAt}.png`);                                // flight
+  // The Aerial's HS "impact" frame (M2 44.35 s) is the meteor mid-dive, 0.1 s before it meets
+  // the keeper: take ours at the same point of the dive, then 'after' past the meeting.
+  if (sc.aerial) {
+    await js(`(() => { let g = 0; while (g++ < 200 && !(MATCH.ball.power && MATCH.ball.power.ph === 'dive' && MATCH.ball.power.t >= 0.1)) __tick(1); })()`);
+    await shot(`${OUT}/${sc.id}-ours-3.png`);
+  }
   const met = await js(`(() => { const sc = window.__sc; let g = 0, seen = null;
     // from the shot itself: a close one can land before the flight picture was taken
     const from = sc.log.findIndex((e) => e.type === 'powershot') + 1;
     while (g++ < 300 && !seen) { __tick(1); seen = sc.log.slice(from).find((e) => ['powerHit', 'blocked', 'grabbed', 'goal'].includes(e.type) || (e.type === 'powershot' && e.countered)); }
     __tick(2); return seen ? seen.type + (seen.how ? ':' + seen.how : '') + (seen.y ? ' @' + seen.x.toFixed(0) + ',' + seen.y.toFixed(0) : '') : null; })()`);
-  await shot(`${OUT}/${sc.id}-ours-3.png`);                                       // impact
-  await js(`__tick(${T(Math.max(0.1, sc.hs[4] - sc.hs[3]))})`);
+  if (!sc.aerial) await shot(`${OUT}/${sc.id}-ours-3.png`);                       // impact
+  await js(`__tick(${T(Math.max(0.1, sc.hs[4] - sc.hs[3] - (sc.aerial ? 0.15 : 0)))})`);
   await shot(`${OUT}/${sc.id}-ours-4.png`);                                       // after
   const log = await js(`window.__sc.log.map((e) => e.type).filter((t) => !['jump', 'stunned', 'ailment', 'ailmentEnd', 'revive'].includes(t)).join(' ')`);
   console.log(`  ${met ? '✓' : '✗'} ${sc.id}: ${met || 'never met'} — ${sc.note}\n      ours: ${log}`);
@@ -190,6 +196,11 @@ for (const sc of LIST) {
     cols.push('-i', col);
   });
   spawnSync('ffmpeg', ['-hide_banner', '-v', 'error', '-y', ...cols, '-filter_complex', `hstack=inputs=${sc.hs.length}`, `${OUT}/${sc.id}.png`]);
+}
+// The contact sheet: every strip stacked, in SHOTS order (from whatever strips are on disk).
+{
+  const have = SHOTS.map((s) => `${OUT}/${s.id}.png`).filter((f) => existsSync(f));
+  if (have.length > 1) spawnSync('ffmpeg', ['-hide_banner', '-v', 'error', '-y', ...have.flatMap((f) => ['-i', f]), '-filter_complex', `vstack=inputs=${have.length}`, `${OUT}/ALL.png`]);
 }
 if (errs.length) { console.log('page exceptions:', errs.slice(0, 4).join(' | ')); bad++; }
 ws.close(); chrome.kill(); server.stop();

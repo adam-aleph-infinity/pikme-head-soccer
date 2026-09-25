@@ -53,7 +53,9 @@ export const AILMENTS = Object.freeze({
   reverse:  { id: 'reverse',  name: 'בלבול',  dur: 3.0, color: '#e04cff' },   // left is right (???)
   shock:    { id: 'shock',    name: 'חשמל',   dur: 2.5, color: '#ffe23a' },   // half speed, no jump, no dash
   freeze:   { id: 'freeze',   name: 'קפוא',   dur: 1.5, color: '#9fe8ff' },   // an ice block: no control at all
-  beheaded: { id: 'beheaded', name: 'בלי ראש', dur: 3.0, color: '#b9a7d6' },  // no head: no header, the ball passes where it was
+  // no head: no header, the ball passes where it was — and (wiki Power_Shots, Honduras) "unable
+  // to do anything for a moment": no control either, so a moment it is
+  beheaded: { id: 'beheaded', name: 'בלי ראש', dur: 1.5, color: '#b9a7d6' },
   burn:     { id: 'burn',     name: 'בוער',   dur: 2.0, color: '#ff6a1a' },   // cannot kick, a little slower
   stars:    { id: 'stars',    name: 'כוכבים', dur: 1.0, color: '#ffd23c' },   // dazed: no control (HS §4's three gold stars)
   // Thrown by the Grab (§3 M3 74.3–75.5 s): flung straight up out of the screen and back down
@@ -204,7 +206,9 @@ export function launch(m, b, p, kit, fx, o = {}) {
   }
   b.vx = pw.dir * S; b.vy = 0;
   if (pw.fam === 'multiball' && m.xballs) {
-    const n = shot.gentle ? 1 : pw.int >= 0.9 ? 2 : 1;
+    // HS's Multi-Ball is three balls, every one of which can score (wiki Power_Shots, Germany's
+    // "3 homing balls", Spain's "three balls towards the goal"); the gentle first tier has two.
+    const n = shot.gentle ? 1 : 2;
     const k = shot.gentle ? 0.7 : 0.95;
     for (let i = 0; i < n; i++) {
       const up = i % 2 === 0 ? -1 : 1;
@@ -304,11 +308,14 @@ export function stepPower(m, b, dt, kit, fx) {
       if (b.y >= pw.ty - 2 || pw.t > pw.life) return endPower(b);
       return true;
     }
-    // ─ Downward: a short hop up, then a straight line down into the foot of the goal ─
+    // ─ Downward (wiki: Brazil's firebird "goes up at about a 15 degree angle, then shoots
+    //   downwards towards the opponent's goal"): up at 15°, then a straight line down into the
+    //   foot of the goal ─
     case 'rise':
-      b.vx = pw.dir * S * 0.35; b.vy = -S * 0.5;
+      b.vx = pw.dir * S * 0.966; b.vy = -S * 0.259;              // cos, sin 15° (literals: no Math.cos)
       pw.k += dt;
-      if (pw.k >= 0.14) { pw.ph = 'fly'; pw.k = 0; aimAt(b, pw.tx, pw.ty, S); }
+      // (and down at once near the goal: the dive needs room to come down into the mouth)
+      if (pw.k >= 0.16 || b.y <= C.SKY_Y + b.r || (goalLineX(pw.dir) - b.x) * pw.dir < 260) { pw.ph = 'fly'; pw.k = 0; aimAt(b, pw.tx, pw.ty, S); }
       return true;
     // ─ Ground: down onto the turf, then along it ─
     case 'drop':
@@ -386,9 +393,8 @@ export function skipContact(b, p) {
 // Returns the outcome: 'block' | 'hit' | 'smash' | 'through' | 'pass' | 'grab' | 'deflect'.
 export function contact(m, p, b, kit, fx) {
   const pw = b.power;
-  // The dark lifts the moment the shot meets someone (M4: the block at 61.45 s and the hit at
-  // 43.33 s both land as the screen comes back up).
-  if (m.cutin > 0 && m.cutin <= C.POWER_RELEASE && m.hitStop <= 0) { m.cutin = 0; m.cutinBy = -1; }
+  // (The dark does NOT lift on contact: M3 38.25 s is a hit 0.24 s before the screen comes back,
+  // and all seven measured darks are 1.31–1.37 s whatever the shot met — docs §2.)
   const F = FAMILIES[pw.fam];
   // The leg is out for KICK_TIME after the press, whether or not the swing already met the ball
   // (a strike cuts kickT short; the cooldown still says how long ago the press was).
@@ -549,7 +555,8 @@ export function ailMods(p) {
     case 'burn': o.noKick = true; o.speed = 0.8; break;
     case 'stars': o.dead = true; o.noDash = true; break;
     case 'thrown': o.dead = true; o.noDash = true; o.grav = 5; break;
-    default: break;                                   // beheaded: sim.js drops the head's contacts
+    case 'beheaded': o.dead = true; o.noDash = true; break;   // (and sim.js drops the head's contacts)
+    default: break;
   }
   return o;
 }

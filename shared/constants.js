@@ -471,10 +471,14 @@ export const headReach = () => (JUMP_V * JUMP_V) / (2 * PLAYER_GRAV) + BODY_H + 
 // pause (m.hitStop, and m.cutin says whose), not a client effect, so an online match freezes on
 // the same tick on both phones; the renderer only draws the spotlight over it.
 export let POWER_CUTIN = 1.34;
-// …but only the first 0.97s of it is a freeze: the ball leaves then and play runs under the last
-// 0.37s of the dark — the defender at M4 61.45 s kicks and blocks before it lifts (40.44 → 41.41 s,
-// 41.97 → 42.95 s).
-export const POWER_RELEASE = 0.37;
+// …but only the first 1.14s of it is a freeze: the ball leaves then and play runs under the last
+// 0.2s of the dark — the defender at M4 61.45 s kicks and blocks before it lifts. Measured against
+// the dark itself (luma traces, docs/HS-POWER-SHOTS.md §2): the ball leaves 1.01–1.10 s after the
+// half-dark point and the dark is half-lifted 0.22–0.31 s after it leaves (M4 40.40 → 41.41 →
+// 41.72 s, 60.17 → 61.27 → 61.49 s, 122.87 → 123.97 → 124.24 s). The picture's dark is half-down
+// 0.1 s after the touch and half-up 0.1 s after the sim's cut-in ends (champ-vfx drawCutin), so
+// this puts the release 1.04 s after half-dark and the lift 0.3 s after the release.
+export const POWER_RELEASE = 0.2;
 // HS M4 43.33 s and 80.85 s: a power shot that hits a player who is NOT armed dazes them for
 // ~0.5s (three gold stars over the head).
 export let POWER_BLOCK_STUN = 0.5;

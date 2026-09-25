@@ -28,19 +28,20 @@ const r2 = (v) => Math.round(v * 100) / 100;
 const FAMILY_TEXT = {
   straight: 'The filmed comet: dead flat at the goal at POWER_SHOT_SPEED (HS M4, 2150 px/s).',
   ground: 'Drops to the turf and rolls along it. Cannot be blocked: a kick does not stop it; it trips whoever it meets and rolls on. Only a counter answers it.',
-  downward: 'A short hop up, then a straight line down into the foot of the goal.',
+  downward: 'Up at 15°, then a straight line down into the foot of the goal (wiki: Brazil, "up at about a 15 degree angle, then shoots downwards").',
   destructive: 'A slower, heavy straight shot that smashes a kick-block aside and rolls on.',
   aerial: `Straight up and off the top of the screen, ~${HS.AERIAL_WAIT}s of warning streaks, then a dive at ${HS.AERIAL_DIVE_DEG}° into the goal mouth (HS M2).`,
   delay: `Flies a beat (${HS.DELAY_GO}s), hangs dead in the air — untouchable — for 0.35–0.8s by intensity, then bursts on at the goal.`,
-  grab: 'A claw that seizes a defender who does not kick it and carries him toward his own goal (HS M3), then flies on. Gentle (stage 2): a third of the way, and a jump breaks it.',
-  multiball: 'The shot plus one or two extra power balls fanned off it, any of which may score. Gentle (stage 6): one extra at 70% pace.',
+  grab: 'A giant hand that seizes a defender who does not kick it, drags him back to the shooter — away from his own goal — and flings him up out of the screen (HS M3, wiki "pull the defender back"); the ball pops loose. Gentle (stage 2): a third of the way back, and a jump breaks it.',
+  multiball: 'Three balls — the shot plus two extra power balls fanned off it — every one of which may score, so all three must be stopped (wiki: Germany, Spain). Gentle (stage 6): one extra at 70% pace.',
   updown: 'Rises and falls as it flies (a literal sine table, so every phone flies the same wave).',
   ailment: 'A curse shot whose point is its ailment, which lands even through a block and lasts 1.4× as long.',
   critical: 'The fastest shot (1.3×). It goes through a kick-block at full pace; only a counter stops it.',
 };
 const AIL_TEXT = {
-  reverse: 'left and right swapped (???)', shock: 'half speed, no jump, no dash', freeze: 'frozen in ice, no control',
-  beheaded: 'no head: no header, the ball passes where it was', burn: 'cannot kick, 0.8× speed', stars: 'dazed, no control',
+  reverse: 'left and right swapped (???)', shock: 'half speed, no jump, no dash', freeze: 'turned into a snowman (wiki: Switzerland), no control',
+  beheaded: 'no head and no control for a moment: no header, the ball passes where it was', burn: 'cannot kick, 0.8× speed', stars: 'dazed, no control',
+  thrown: 'flung up out of the screen by a Grab, back down in a blue whirlwind, no control (only the Grab sets it)',
 };
 const AURA_TEXT = {
   none: '—', stun: `stuns (${HS.AURA_STUN}s, stars)`, push: `pushes away (${HS.AURA_PUSH} px/s)`,
@@ -55,7 +56,7 @@ export function render() {
   out.push('');
   out.push('The arcade (שחקן יחיד) is 45 stages, one champion each. Stage *n* is legendary card *n*, and beating a stage opens only the next one. Every champion is a Head Soccer power shot and nothing else: a **family** (how the ball flies), an optional **ailment** (what it leaves on the player it hits), an **aura** (what pressing POWER does to an opponent within the radius), HS\'s five 1–10 **stats** and a star rating. The names, art and sounds are original.');
   out.push('');
-  out.push('How a power shot plays (docs/HS-POWER-SHOTS.md): fill the gauge, press POWER to arm (the player crackles gold), and the next head or body touch of the ball fires the shot. The screen darkens for 1.34s round the shooter; the ball leaves 0.97s in and flies under the dark. When it reaches the other player: **armed** → he counters it with his own shot; **kicking** → he blocks it (0.8s grinding on the boot, 0.4s dead, then it fires back as his); **otherwise** → he is knocked back, dazed 0.5s with three stars, the ailment lands, and the ball bounces off him (square on it flies straight back). Online, every card fires its family at the same middle intensity on equal stats.');
+  out.push('How a power shot plays (docs/HS-POWER-SHOTS.md): fill the gauge, press POWER to arm (the player crackles gold), and the next head or body touch of the ball fires the shot. The screen darkens for ' + C.POWER_CUTIN + 's round the shooter; the ball leaves ' + r2(C.POWER_CUTIN - C.POWER_RELEASE) + 's in and flies under the dark. When it reaches the other player: **armed** → he counters it with his own shot; **kicking** → he blocks it (0.8s grinding on the boot, 0.4s dead, then it fires back as his); **otherwise** → he is knocked back, dazed 0.5s with three stars, the ailment lands, and the ball bounces off him (square on it flies straight back). Online, every card fires its family at the same middle intensity on equal stats.');
   out.push('');
   out.push('## The families');
   out.push('');

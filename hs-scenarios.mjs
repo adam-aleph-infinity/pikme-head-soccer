@@ -453,7 +453,7 @@ export function runScenario(name, seed = 0) {
     // The leg back in.
     if (st.kickT > 0 && a.kickT <= 0) tag(i, 'kick_end');
     st.kickT = a.kickT;
-    // The cut-in ends when the dark lifts — 0.37s after play moves again (POWER_RELEASE).
+    // The cut-in ends when the dark lifts — 0.2s after play moves again (POWER_RELEASE).
     if (st.cut && !(m.cutin > 0)) { tag(i, 'cutin_off'); st.cut = false; }   // the dark lifting (it outlasts the freeze)
     // The gauge and the arm, as the HUD shows them.
     if (st.gauge < 1 && a.gauge >= 1) tag(i, 'gauge_full');

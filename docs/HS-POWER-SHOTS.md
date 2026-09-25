@@ -36,7 +36,20 @@ Frame by frame at 15 fps, M4 40.22–41.70 s:
 | +0.13 s | full effect: backdrop ~55–60% darker (and softened), a **white core disc ≈ 1.4 head radii** with a **gold halo**, and **8 long gold rays alternating with 8 thin white ones**, each ~⅓ of the screen long, widest at the far end |
 | +0.2 → +0.9 s | the rays **rotate slowly** (≈ 0.5 rad/s) and flicker in length; the darkening deepens a little; the ball hangs just above and in front of the head |
 | +0.97 s | the ball is released (41.41 s; 42.95 s for the 41.97 cut-in); rays and disc go within 0.1 s; the comet flies bright across the still-dark pitch |
-| +1.34 s | the dark lifts over ~0.1 s — or at once when the shot meets someone or scores |
+| +1.34 s | the dark lifts over ~0.25 s — whatever the shot met: it does **not** lift early on a hit, a block or a goal (review, below) |
+
+**Review (luma traces of the stands band, 60 fps, `dark.mjs`-style half-level crossings).** The dark
+fades in over ≈ 0.25 s and out over ≈ 0.25 s. Half-dark to half-lifted: M4 40.40 1.315 s, 60.17
+1.315 s, 78.38 1.313 s, 122.87 1.365 s, 150.58 1.347 s, 171.93 1.315 s, M3 37.16 1.332 s — mean 1.33 s,
+the same whether the shot was countered, blocked, hit someone or scored (M3 37.2 hits the keeper at
+38.25 s and the dark still runs to 38.49 s; M4 150.59 scores at 151.85 s and it runs to 151.93 s).
+The ball leaves **1.01–1.10 s after half-dark** (M4 40.40 → 41.41, 60.17 → 61.27, 122.87 → 123.97 s)
+and the dark is half-lifted **0.22–0.31 s after it leaves** (41.72, 61.49, 124.24 s). The "+0.97 s"
+above was measured from the half-dark point, not the touch. So ours: the sim's cut-in is 1.34 s from
+the touch with the release 1.14 s in (`POWER_RELEASE` 0.2 s); the picture fades in over the first 0.2 s
+and out over 0.2 s after the sim's cut-in ends, which puts the release 1.04 s after half-dark and the
+lift 0.3 s after the release. The backdrop keeps ≈ 32 % of its brightness (M4 60.8 s stands: luma
+106 → 36, 123 → 39) with no pool of light round the shooter beyond the disc — ours 0.76–0.8 black.
 
 - **No text, no banner, no name, no zoom.** The camera does not move; the shooter stays where they were
   (mid-air if they jumped) and switches to a wind-up pose (head turned up, profile).
@@ -59,22 +72,39 @@ Frame by frame at 15 fps, M4 40.22–41.70 s:
 
 ### Aerial (flaming meteor) — M2's CPU (England), 41.8–44.5 s
 
-- During the cut-in the ball is flicked **straight up** in an orange flame column and leaves the top of
-  the screen (M2 42.7 s).
-- For ~1.0 s (43.2–44.2 s) nothing but **thin red warning streaks** slide down diagonally from the top
-  corner toward the defending goal: the ball is coming back.
-- Then the ball dives out of the sky at ~30° below horizontal as a **meteor with a big orange fire tail**,
-  in about 0.25 s, straight at the mouth of the goal (M2 44.25–44.5 s). It lands in front of the keeper and
-  bounces; here the armed keeper got to it and M2's player scored the rebound.
+- It is the UK's "Hawk-Eye Shot" (wiki: "shoots a total of 11 red laser-arrows vertically in the
+  air, and then they come" back diagonally at the goal; the first ten carry no ball, the 11th does).
+  Filmed twice: M2 41.8–44.5 s and 95.8–97.9 s (clock 0:07–0:06, that one scores).
+- At the end of the cut-in **red laser lances shoot straight up** off the shooter — two at a time, a
+  head's width apart (M2 42.65, 42.75, 96.35 s) — and the ball leaves the top of the screen.
+- For ~1.0 s (43.05–44.2 s) **ten red lances rain down diagonally** at ≈ 30–35° toward the defending
+  goal, one about every 0.1 s, two or three on screen at once on parallel lines, fast (≈ 2500 px/s).
+  Each is a pointed spear ≈ 300 px long (≈ 180–220 px of the 848-wide frame, 1.5 world px a frame px):
+  a hot yellow-white core ≈ 7 px, a red body ≈ 18 px, a red glow ≈ 36 px, fading to the back. They end
+  on the wall over the goal and in its mouth (M2 43.55, 43.8, 44.05, 97.2–97.65 s full-res).
+- Then the ball dives as the **11th, a meteor in a yellow-orange fire tail** ≈ 300 px long and ≈ 55 px
+  thick (yellow core, orange flame, red edge), the last lances still beside it, at ≈ 2150 px/s and
+  ≈ 35–40° (ball per 1/20 s at M2 44.35 → 44.50 s: (205,105) → (145,145) → (90,190) → (60,225) frame
+  px) into the mouth of the goal. It hits the keeper standing in the mouth and bounces; here the
+  armed keeper got to it and M2's player scored the rebound.
 
 ### Grab (dark claw) — M3's CPU (Mexico), counter at 72.8 s, flight 73.9–74.3 s
 
-- The ball is carried by a **giant dark-blue ghostly hand** (fingers spread, blue speed streaks behind it)
-  at head height, at roughly the comet's speed.
-- On reaching the other player the hand **seizes him**: three **gold stars** appear over his head, a puff of
-  dark smoke at his feet, and the ball pops away up-field. The seized player is then flung high into the
-  air (74.3–74.7 s) and comes back down spinning inside a **blue whirlwind of rings** (75.1–75.7 s), dazed
-  on landing.
+- The ball is carried by a **giant dark-navy hand** on a long thick arm reaching out of the shooter
+  (M3 73.88–74.02 s, full-res crops, 1 world px a frame px): ≈ 300 px from the fingertips back to the
+  ball and ≈ 200 px tall — a third of the screen's height — four thick arched fingers (≈ 35 px across)
+  fanned forward and up at ≈ 20–70°, a thumb down, lighter blue rims, soft motion-blurred edges; the
+  ball at the heel of the palm, at head height. It flies at the comet's pace (ball 487 → 347 px in
+  1/15 s at 73.95 → 74.02 s ≈ 2100 px/s).
+- On reaching the other player the hand **closes into a fist round his body** (74.08–74.15 s), three
+  **gold stars** over his head, and the ball pops loose, up and on toward his goal. The fist then
+  **drags him back to the shooter** — away from his own goal — at ≈ 2400 px/s (x 200 → 300 → 460 →
+  600 px at 74.08, 74.15, 74.22, 74.30 s) and lets go just in front of him (wiki, Grab shots: they
+  "pull the defender back once it hits them … give you a lot of time … to score in a chance for open
+  goal"; Mexico: "grabs the opponent and brings him to Mexico").
+- He is flung **straight up out of the top of the screen** (74.3–74.6 s), is off it until ≈ 75.0 s,
+  and comes back down spinning inside a **blue whirlwind of rings** (75.0–75.5 s), dazed with stars
+  on landing (to ≈ 75.9 s) — ≈ 2 s without control in all (wiki: "immobilized ~2s").
 
 ## 4. What happens to the defender
 
@@ -112,10 +142,10 @@ Three different outcomes, depending on what the defender is doing when the ball 
 | rule | number | source |
 |---|---|---|
 | arming aura | electric rim + flicker, instant, never expires | §1 |
-| cut-in | 1.34 s freeze, no text, 55–60% dim, white disc 1.4 r, 8+8 rotating rays | §2 |
+| cut-in | 1.34 s of dark (fixed), release 1.14 s in, no text, backdrop to ≈ 32 %, white disc 1.8 r + thin gold ring 3.6 r, 8+8 rotating rays ≈ 235 px | §2 |
 | straight speed | `POWER_SHOT_SPEED` 2150 px/s, flat | §3 |
-| aerial | up and out, ~1.0 s of warning streaks, 0.25 s dive at ~30° into the mouth | §3 |
-| grab | the ball carries the defender toward his goal, stars on release | §3 |
+| aerial | two red lances up, ten lances raining at 32° for ~1.0 s, the ball the 11th in a fire tail | §3 |
+| grab | a giant hand seizes him, drags him back to the shooter, flings him up out of the screen; the ball pops loose | §3 |
 | counter | armed touch → own shot + own cut-in | §4 |
 | block | kick into it → 0.8 s grind + 0.4 s dead → fires back as the blocker's shot | §4 |
 | hit | unarmed, not kicking → knocked back and dazed 0.5 s (stars); the ball bounces off him | §4 |
@@ -134,29 +164,30 @@ Idan's rule: nothing is drawn that the footage does not show. Every visual eleme
 |---|---|
 | armed: thin bright rim round head and body (static drop-shadow + stroke) | M4 36.49–36.60 s (§1) |
 | armed: 2–4 jagged gold/white tongues off crown and shoulders, re-rolled each frame | M4 36.55–36.90 s |
-| cut-in: 1.34 s of dark, 55 → 65 % over the pitch, the shooter in a pool of light | M4 40.44–41.78 s, 7 cut-ins (`power.cutinTime`) |
-| cut-in: white disc + gold halo behind the head | M4 40.50 s, M2 42.0 s |
-| cut-in: 8 wide gold + 8 thin white rays, ~190 px, turning slowly, flickering length | M4 40.5–41.4 s, M3 71.6 s |
+| cut-in: 1.34 s of dark from the touch, fading in over 0.2 s and out over 0.2 s after it; the backdrop to ≈ 22 % black-over (keeps ≈ 32 %), no pool of light beyond the disc | 7 luma traces (§2 review), M4 60.8 s stands luma 106 → 36 |
+| cut-in: solid white disc ≈ 1.8 head radii, a gold glow round it, a thin gold ring at ≈ 3.6 radii | M4 40.75 s full-res (disc Ø 195, ring Ø 385 px at 2 px a world px) |
+| cut-in: 8 wide soft gold rays (≈ 235 px, ≈ 45 px across at the tip, still visible there) + 8 thin hot yellow-white ones, turning slowly, flickering length | M4 40.6, 40.75, 41.2 s, M3 73.75 s |
 | cut-in: no text, no band, no zoom | all 14 cut-ins |
 | cut-in: rays + disc gone 0.1 s after the ball leaves, dark stays to 1.34 s | M4 41.50 → 41.57 s |
-| ball leaves 0.97 s into the cut-in and flies under the dark | M4 40.44 → 41.41 s, 41.97 → 42.95 s |
-| dark lifts on impact / goal | M4 61.45 s (block), 43.33 s (hit), 124.1 s (goal) |
-| comet: the plain ball at the nose of a white-hot core | M4 43.07 s |
-| comet: cyan teardrop body, blue edge, streaky grain, fading to the back | M4 43.07–43.13 s |
+| ball leaves 1.14 s after the touch (1.04 s after half-dark) and flies under the last of the dark | M4 40.40 → 41.41, 60.17 → 61.27, 122.87 → 123.97 s (§2 review) |
+| the dark never lifts early (no lift on impact or goal) | M3 38.25 hit / 38.49 lift, M4 151.85 goal / 151.93 lift |
+| the comet, the block's burst, the Grab's fist, the lances and the droplets are painted OVER the dark | M4 43.07 s, 61.5 s |
+| comet: the plain ball at the nose; white-hot core ≈ 70 px tall, soft-edged, with a green-yellow seam; cyan body fanning OUT to ≈ 130 px tall ≈ 130 px behind the ball, thinning to streaks ≈ 330 px back; nose only ≈ 30 px ahead of the ball | M4 43.07 s full-res (re-measured) |
 | comet: full while dark, faint streak 0.1 s after | M4 43.24 s |
 | comet: 4 faded after-images of the ball | M4 43.24 s, 43.33–43.45 s |
-| comet painted over the dark (bright on a dark pitch) | M4 43.07 s |
-| Aerial: thin orange streak going up | M2 42.75 s |
-| Aerial: red/orange warning streaks down the dive line | M2 43.2–44.2 s |
-| Aerial: the dive as an orange comet | M2 44.25–44.35 s |
-| Grab: big dark-blue hand, fingers spread, ball in the palm, blue speed streaks | M3 73.93–74.0 s |
-| Grab: fingers close on the seized player | M3 74.12 s |
-| block: crackling yellow-white spark burst for the whole grind, no comet | M4 61.45–62.25 s, 79.55–80.25 s |
+| Aerial: two red laser lances straight up off the shooter | M2 42.65, 42.75, 96.35 s |
+| Aerial: ten pointed red lances (yellow-white core, red body, red glow, ≈ 300 px) raining at 32°, one every 0.1 s, on parallel lines ending on the wall over the goal and in its mouth | M2 43.05–44.3 s, 97.2–97.65 s; wiki United_Kingdom "11 red laser-arrows" |
+| Aerial: the dive, the ball in a yellow-orange fire tail, the last lances beside it | M2 44.3–44.5 s |
+| Grab: a giant dark-navy hand on a thick arm out of the shooter, four arched fingers up and forward, thumb down, light rims, motion blur; ball at the heel of the palm; no comet | M3 73.88–74.02 s full-res |
+| Grab: the fist round the seized player's body, its arm back to the shooter, dragging him there | M3 74.08–74.30 s |
+| Grab: thrown — flung up out of the screen, back down in a blue whirlwind of rings, stars | M3 74.3–75.9 s |
+| block: a glowing yellow-white orb round the ball with thin yellow sparks crackling out, for the whole grind, no comet | M4 61.45–62.25 s, 79.55–80.25 s |
 | hit: red spark droplets (7, the only particles) | M4 43.33 s |
 | hit: after-images following the bounced ball | M4 43.33–43.6 s |
 | daze: three gold stars on a flat orbit over the crown | M4 80.85 s, M3 74.1 s |
-| other families' colours (Ground brown, Downward violet, Destructive red, Delay indigo, Multi gold, Up-and-Down green, Ailment magenta, Critical red-white) | **not filmed** — the filmed comet unchanged, recoloured only so two shots can be told apart |
-| ailments reverse `???`, ice block, sparks, flames, missing head | **not filmed** — one plain shape each, as the brief names them |
+| other families' colours (Ground brown, Downward violet, Destructive red, Delay indigo, Multi gold, Up-and-Down green, Ailment magenta, Critical red-white) | **not filmed** — the filmed comet on the family's path (§9), recoloured only so two shots can be told apart |
+| freeze = a snowman; shock = a blue wash + sparks; reverse `???`; burn flames; beheaded a missing head | **not filmed** — the wiki's descriptions (§9) |
+
 
 Removed because no frame shows them: the old super cut-in band with name and icon, screen shake,
 flashes, colour grades, the stage dim, comic words, confetti, power banners ("נחסם!", "קאונטר!",
@@ -168,19 +199,58 @@ flashes, colour grades, the stage dim, comic words, confetti, power banners ("נ
 |---|---|---|
 | straight speed | 0.135 pitch / (1/15 s) = 2.03 pitch/s ≈ 2150 px/s (M4 41.50–41.77, 43.07–43.33 s) | 2150 px/s at intensity 0.5 (`POWER_SHOT_SPEED`; 0.85–1.15× by champion intensity) |
 | straight path | level ±2 % of frame height, release → defender | dead flat, vy = 0 |
-| comet core | ≈ 80 px tall, ≈ 230 px long | 80 × 230 px |
-| comet body | ≈ 95 px tall at the ball, ≈ 50 px at the back, ≈ 360 px long | 94 → 52 px over 360 px |
+| comet core | ≈ 70 px tall, ≈ 150 px of full white, ≈ 230 px to its tip | 60 → 72 px, 230 px long, soft-edged |
+| comet body | ≈ 70 px tall at the ball, ≈ 130 px at its widest ≈ 130 px back, ≈ 330 px long | 72 → 128 px at 0.4 of 330 px → 32 px |
 | comet full / faint | full through 43.13 s (0.2 s), faint by 43.24 s | full 0.2 s, fades over 0.1 s to 20 % |
-| cut-in | 1.34 s (1.33–1.35, n = 7) | 1.34 s (parity: 1.35) |
-| cut-in hold | ball leaves 0.97 s in | 0.97 s hold (`POWER_CUTIN − POWER_RELEASE`) |
-| cut-in darkness | backdrop ≈ 55–60 % darker | 55 → 65 % |
-| cut-in rays | 8 gold + 8 white, ≈ ⅓ screen long | 16 rays, ≈ 190 px (⅕ of 1060) |
+| cut-in (dark, half to half) | 1.33 s (1.31–1.37, n = 7), never shortened | 1.34 s from the touch (parity: 1.35) |
+| release | 1.01–1.10 s after half-dark; half-lifted 0.22–0.31 s after | 1.14 s after the touch = 1.04 after half-dark; half-lifted 0.3 s after |
+| cut-in darkness | backdrop keeps ≈ 32 % (luma) | 0.76–0.8 black (measured ≈ 34–45 % kept on our strip) |
+| cut-in rays | 8 gold + 8 white, ≈ 230 px from the head (M4 40.75 s full-res) | 16 rays, 235 px (white 0.9×) |
+| cut-in disc | white Ø ≈ 3.6 head r, thin gold ring Ø ≈ 7.2 r | white to 1.8 r + glow to 2.5 r, ring at 3.6 r |
 | arm | instant, never expires (≥ 5.4 s) | instant flag (parity armHold ok) |
 | block | 0.8 s grind + 0.4 s dead, fires back ≈ 1.2–1.3 s after contact | 0.8 + 0.4 s (`HS.BLOCK_GRIND`, `BLOCK_REST`) |
+| block burst | orb r ≈ 30 px, sparks ≈ 50–100 px | orb r 34, 7 sparks 48–100 px |
 | block daze | ≈ 0.5 s | 0.5 s (parity blockStun 0.517) |
 | hit bounce | ≈ 1800 of 2150 px/s back off the body (M3 38.30–38.45 s) | 0.84 × pace (`POWER_BLOCK_REBOUND`) |
-| Aerial | up out of frame ≈ 0.3 s, ≈ 1.0 s wait, ≈ 0.25 s dive at 30–40° | 1600 px/s up, 1.0 s wait (0.85–1.15 by intensity), dive at 40° |
+| Aerial | lances up ≈ 0.3 s, ≈ 1.0 s of 10 lances at 30–35°, dive ≈ 2150 px/s at 35–40° | 1600 px/s up, 1.0 s wait (0.85–1.15 by intensity), 10 lances at 32° / 2600 px/s / 300 px, dive at 40° |
+| Grab flight | ≈ 2100 px/s (M3 73.95–74.02 s) | 2150 px/s (speed 1.0; was 0.8) |
+| Grab hand | ≈ 300 × 200 px, fingers ≈ 35 px thick | ≈ 290 × 210 px (0.88 × the drawn model), fingers 34–40 px |
+| Grab drag | back to the shooter at ≈ 2400 px/s, ≈ 0.22 s | `HS.GRAB_PULL` 2400 px/s to 2 head radii in front of him |
+| Grab throw | up off the screen and back ≈ 1.2 s, dazed to ≈ 75.9 s | 1850 px/s up at 5× gravity = 1.24 s (`thrown`), then 0.45 s of stars |
 | counter | armed touch → own cut-in, own shot | same (parity armedCounter ok) |
 
 Side-by-side strips, HS frames on top and ours below, press → cut-in → flight → impact → after, for
-all 12 moments: `node _hs-compare.mjs` → `.shots/compare/<id>.png`.
+all 12 moments: `node _hs-compare.mjs` → `.shots/compare/<id>.png`, and every pair stacked in
+`.shots/compare/ALL.png`.
+
+## 9. The families we never filmed — what the wiki says, and what ours does
+
+Sources: the Head Soccer wiki — [Power Shots](https://headsoccer.wiki.gg/wiki/Power_Shots) (the family
+descriptions) and the character pages [Japan](https://headsoccer.wiki.gg/wiki/Japan),
+[Germany](https://headsoccer.wiki.gg/wiki/Germany), [Spain](https://headsoccer.wiki.gg/wiki/Spain),
+[Cameroon](https://headsoccer.wiki.gg/wiki/Cameroon), [Switzerland](https://headsoccer.wiki.gg/wiki/Switzerland),
+[Saudi Arabia](https://headsoccer.wiki.gg/wiki/Saudi_Arabia), [Mexico](https://headsoccer.wiki.gg/wiki/Mexico),
+[United Kingdom](https://headsoccer.wiki.gg/wiki/United_Kingdom), [Italy](https://headsoccer.wiki.gg/wiki/Italy),
+[Nigeria](https://headsoccer.wiki.gg/wiki/Nigeria), [Brazil](https://headsoccer.wiki.gg/wiki/Brazil),
+[Greece](https://headsoccer.wiki.gg/wiki/Greece), [Argentina](https://headsoccer.wiki.gg/wiki/Argentina),
+[Netherlands](https://headsoccer.wiki.gg/wiki/Netherlands), [Devil](https://headsoccer.wiki.gg/wiki/Devil),
+[Belgium](https://headsoccer.wiki.gg/wiki/Belgium), [Honduras](https://headsoccer.wiki.gg/wiki/Honduras)
+(read 2026-09-25). There is no Ailments or Critical page; both live on Power Shots.
+
+| family | the wiki | ours |
+|---|---|---|
+| Ground | "shots that go on the ground such as Italy's and Nigeria's … Most of them cannot be deflected … if they don't counter it then it is almost for sure a goal"; Italy's big ball "rolls along the ground … drags the opponent with it into the goal" | drops to the turf and rolls; a kick does not stop it, it trips whoever it meets and rolls on; only a counter answers it (unchanged — consistent) |
+| Downward | "start above the character and shoot downward" (Brazil, Chile, Canada); Brazil's firebird "goes up at about a 15 degree angle, then shoots downwards towards the opponent's goal" | **changed**: up at 15° (was a steep 55° hop) for ≤ 0.16 s, then a straight line down into the foot of the goal; down at once inside 260 px of the goal |
+| Destructive | "deal heavy damage to the defender … making it harder to jump up and deflect" (Greece, UK) | slower heavy shot that smashes a kick-block aside (unchanged — consistent) |
+| Aerial | "start from the top of the screen such as the United Kingdom's shot and Spain's" | filmed — §3 |
+| Delay | "either move slowly or don't shoot right away such as Argentina and the Netherlands … a lot of people will jump early" | flies a beat, hangs dead and untouchable 0.35–0.8 s, bursts on (unchanged — consistent) |
+| Grab | "pull the defender back once it hits them such as Mexico's … time while the defender is being pulled back to … score in a chance for open goal … won't go directly into the goal" | filmed — §3; **changed** to pull him back to the shooter (it used to carry him toward his own goal) |
+| Multi-Ball | "shoot multiple balls all of which are capable of scoring … can't be blocked by a Power Shot"; Germany "3 homing balls", Spain "three balls towards the goal. Only one of them is needed" | **changed**: always three balls (was two below intensity 0.9), every one a power ball that can score, one touch knocks each dead, so all three must be stopped; the gentle first tier keeps two. (Japan's Ninja Shot — five streaks, one real — is a single character's shot, not the family) |
+| Up-and-Down | "go up and down as the character shoots them. Devil and Belgium" | the literal sine-table wave (unchanged — consistent) |
+| Ailment | Cameroon "Shocked … slowing them down and rendering them unable to jump", "turns blue and is surrounded in electricity"; Honduras "Beheaded … unable to do anything for a moment"; Switzerland "turned into a snowman" | shock: half speed, no jump, no dash, **now drawn** as a blue wash + sparks; beheaded: **now also no control**, 1.5 s base (was 3 s, head gone only); freeze: **now drawn** as a snowman (was an ice block); reverse `???`, burn flames (no wiki text for those) |
+| Critical | "a chance to be triggered … signaled by a cutscene … making them last longer, and inflicting an ailment on the opponent in the end" | the approved champion map's Critical (fastest, through a block); the wiki's random trigger is not modelled — noted, not changed |
+
+Not modelled on purpose (one character's shot, not a family): the UK lances' own hits on the
+defender ("block jumping/dashing"), Germany's shrink, Japan's decoys and log, Saudi Arabia's oil
+barrels, Greece's field items, Switzerland's yeti.
+

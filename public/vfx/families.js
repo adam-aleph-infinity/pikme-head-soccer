@@ -3,23 +3,28 @@
 // Idan's rule: the shots look EXACTLY like Head Soccer, and nothing is drawn that the footage does
 // not show. So there is one shot picture — the comet filmed in M4 (docs/HS-POWER-SHOTS.md §3) —
 // and the families differ only by the PATH it flies and its colour, plus the two pieces HS itself
-// adds to a family we filmed: the Aerial's warning streaks (§3 M2 43.2–44.2 s) and the Grab's claw
-// (§3 M3 73.9–74.3 s). No particles, shakes, flashes or rings.
+// adds to a family we filmed: the Aerial's red laser lances (§3 M2 42.65–44.3 s) and the Grab's
+// giant hand and fist (§3 M3 73.88–74.30 s). No particles, shakes, flashes or rings.
 //
 // THE COMET, measured off M4 43.05–43.25 s (full-res crops):
-//   • the ball, drawn as itself, at the nose of a WHITE-HOT CORE ≈ 80 px tall and ≈ 230 px long;
-//   • round it a CYAN body, a teardrop ≈ 95 px tall at the ball tapering to ≈ 50 px over ≈ 360 px,
-//     deep blue at the edges, fading out toward the back (side-by-side with M4 43.07–43.13 s);
+//   • the ball, drawn as itself, at the nose of a soft WHITE-HOT CORE ≈ 70 px tall, ≈ 230 px long;
+//   • round it a CYAN body fanning OUT to ≈ 130 px tall ≈ 130 px behind the ball, thinning to
+//     streaks ≈ 330 px back, blue at the edges (COMET below; side-by-side with M4 43.07 s);
 //   • full size while the screen is still dark (0.2 s after release: 43.07, 43.13 s), then fading
 //     over ~0.1 s, as the dark lifts, to a faint streak (43.24 s);
 //   • 4–5 faded AFTER-IMAGES of the ball behind it once the tail has faded (43.25 s).
 // All in world px (the footage's pitch is our 1060 at scale 0.995; its heads are ours).
 //
-// Each entry: palette [core, body, edge], and draw(g, b, s) — s = { t (s since release), hist
-// (screen path, newest first), x, y, pw, groundY }.
+// Each entry: palette [core, body, edge, seam?], and draw(g, b, s) — s = { t (s since release),
+// hist (screen path, newest first), x, y, pw, groundY, fx/fy (where it was fired, on screen) }.
 
 const TAU = Math.PI * 2;
-export const COMET = { CORE_W: 40, CORE_L: 230, BODY_W0: 47, BODY_W1: 26, BODY_L: 360, FULL: 0.2, FADE: 0.12, FLOOR: 0.2 };
+// Re-measured off M4 43.07 s at full resolution (1 world px a frame px): the nose sits only ≈ 30 px
+// ahead of the ball's centre; the white-hot core is ≈ 60–70 px tall and ≈ 150 px long, soft-edged;
+// the cyan body is NOT widest at the ball — it fans out to ≈ 130 px tall ≈ 130 px behind it and
+// thins to streaks ≈ 330 px back. Half-widths: [at the ball, where the widest is (0–1), widest, end].
+export const COMET = { CORE: [30, 0.25, 36, 0], CORE_L: 230, BODY: [36, 0.4, 64, 16], BODY_L: 330, FULL: 0.2, FADE: 0.12, FLOOR: 0.2 };
+const halfW = (P, f, k) => k * (f < P[1] ? P[0] + (P[2] - P[0]) * (f / P[1]) * (2 - f / P[1]) : P[2] + (P[3] - P[2]) * ((f - P[1]) / (1 - P[1])));
 
 // How bright the tail is `t` seconds after release (§3: full, then faint by ~0.25 s).
 export const cometAlpha = (t) => (t < COMET.FULL ? 1 : Math.max(COMET.FLOOR, 1 - ((t - COMET.FULL) / COMET.FADE) * (1 - COMET.FLOOR)));
@@ -41,9 +46,9 @@ function spine(hist, len, x, y, dir) {
   return pts;
 }
 
-// One tapered layer along the spine: half-width w0 at the ball, w1 at the far end, fading out
+// One layer along the spine, its half-width following the profile P (scaled by k), fading out
 // toward the far end (one linear gradient a layer — the filmed tail has no hard back edge).
-function layer(g, pts, w0, w1, col, alpha) {
+function layer(g, pts, P, k, col, alpha, hold = 0.55) {
   let total = 0;
   const run = [0];
   for (let i = 1; i < pts.length; i++) { total += Math.hypot(pts[i].x - pts[i - 1].x, pts[i].y - pts[i - 1].y); run.push(total); }
@@ -52,18 +57,18 @@ function layer(g, pts, w0, w1, col, alpha) {
   for (let i = 0; i < pts.length; i++) {
     const o = pts[Math.max(0, i - 1)], q = pts[Math.min(pts.length - 1, i + 1)];
     let dx = q.x - o.x, dy = q.y - o.y; const d = Math.hypot(dx, dy) || 1; dx /= d; dy /= d;
-    const f = run[i] / total, w = w0 + (w1 - w0) * f;
+    const w = halfW(P, run[i] / total, k);
     L.push(pts[i].x - dy * w, pts[i].y + dx * w); R.push(pts[i].x + dy * w, pts[i].y - dx * w);
   }
-  const end = pts[pts.length - 1];
+  const end = pts[pts.length - 1], w0 = halfW(P, 0, k);
   const lg = g.createLinearGradient(pts[0].x, pts[0].y, end.x, end.y);
-  lg.addColorStop(0, col); lg.addColorStop(0.55, col); lg.addColorStop(1, transparent(col));
+  lg.addColorStop(0, col); lg.addColorStop(hold, col); lg.addColorStop(1, transparent(col));
   g.globalAlpha = alpha; g.fillStyle = lg;
   g.beginPath();
   for (let i = 0; i < L.length; i += 2) g.lineTo(L[i], L[i + 1]);
   for (let i = R.length - 2; i >= 0; i -= 2) g.lineTo(R[i], R[i + 1]);
   g.closePath(); g.fill();
-  // the round nose, just ahead of the ball
+  // the round nose, centred on the ball: it reaches only ≈ 30 px ahead of it
   g.fillStyle = col;
   g.beginPath(); g.arc(pts[0].x, pts[0].y, w0, 0, TAU); g.fill();
 }
@@ -95,10 +100,14 @@ export function drawComet(g, s, pal, k = 1, kl = k) {
   const core = spine(s.hist, COMET.CORE_L * kl, s.x, s.y, dir);
   g.save();
   g.globalCompositeOperation = 'lighter';
-  layer(g, body, COMET.BODY_W0 * k * 1.12, COMET.BODY_W1 * k * 1.1, pal[2], 0.45 * a);  // soft blue edge
-  layer(g, body, COMET.BODY_W0 * k, COMET.BODY_W1 * k * 0.8, pal[1], 0.65 * a);          // the cyan body, fanning out
-  grain(g, body, COMET.BODY_W1 * k * 0.8, pal[0], 0.35 * a);
-  layer(g, core, COMET.CORE_W * k, 0, pal[0], 0.95 * a);                                 // the white-hot core
+  // soft edges: every layer twice, a wider faint pass under a narrower full one
+  layer(g, body, COMET.BODY, k * 1.25, pal[2], 0.22 * a, 0.4);                 // blue haze
+  layer(g, body, COMET.BODY, k * 1.05, pal[2], 0.35 * a, 0.45);                // blue edge
+  layer(g, body, COMET.BODY, k * 0.85, pal[1], 0.6 * a);                       // the cyan body, fanning out
+  grain(g, body, COMET.BODY[2] * k * 0.55, pal[0], 0.3 * a);
+  if (pal[3]) layer(g, core, COMET.CORE, k * 1.5, pal[3], 0.3 * a, 0.4);      // (M4: a green-yellow seam round the core)
+  layer(g, core, COMET.CORE, k * 1.25, pal[0], 0.35 * a, 0.3);                 // the white-hot core's glow…
+  layer(g, core, COMET.CORE, k * 0.9, pal[0], 0.9 * a, 0.35);                  // …and the core
   g.restore();
   // After-images once the tail has faded (§3, M4 43.25 s): faded copies of the ball behind it.
   if (s.t > COMET.FULL + COMET.FADE * 0.5 && s.hist && s.hist.length > 8) {
@@ -121,7 +130,7 @@ export function drawComet(g, s, pal, k = 1, kl = k) {
 const comet = (palette) => ({ palette, draw(g, b, s) { drawComet(g, s, palette, s.pw.extra ? 0.7 : 1); } });
 
 export const FAMILY_VFX = {
-  straight: comet(['#ffffff', '#3fe0ff', '#1a6dff']),         // §3 M4: white core, cyan body, blue edge
+  straight: comet(['#ffffff', '#3fe0ff', '#1a8cff', '#c8ff8a']), // §3 M4 43.07: white core, green-yellow seam, cyan body, blue edge
   ground: comet(['#ffffff', '#ffb45a', '#b8621c']),
   downward: comet(['#ffffff', '#c996ff', '#6a2cff']),
   destructive: comet(['#ffffff', '#ff8a3a', '#e0200a']),
@@ -130,7 +139,7 @@ export const FAMILY_VFX = {
   // carrying the ball). Going up: red laser lances; while it is off the top: ten lances raining down
   // diagonally toward the goal (warn(), over the pitch); coming down: the ball in a big fire tail.
   aerial: {
-    palette: ['#fff6c8', '#ffb030', '#ff4a0a'],                 // §3 M2 44.35 s: the fire tail
+    palette: ['#ffd860', '#ff9a20', '#ff3a08'],                 // §3 M2 44.3 s: yellow core, orange fire, red edge
     draw(g, b, s) {
       const pw = s.pw;
       if (pw.ph === 'up') {
@@ -149,7 +158,8 @@ export const FAMILY_VFX = {
       const ux = dir * 0.848, uy = 0.53;                          // cos, sin 32°
       const wallX = pw.tx - dir * 30;                             // the goal line
       for (let i = 0; i < LANCE_END.length; i++) {
-        const run = (pw.k - i * 0.1) * 2600;
+        // (the last ones are still coming down beside the ball as it dives, M2 44.3 s)
+        const run = ((pw.ph === 'dive' ? pw.k + pw.t : pw.k) - i * 0.1) * 2600;
         if (run <= 0) break;
         const ye = LANCE_END[i], track = (ye + 120) / uy;          // from above the top of the screen
         const sx = wallX - ux * track, sy = ye - uy * track;
@@ -195,9 +205,10 @@ function laser(g, hx, hy, ux, uy, L) {
     g.closePath(); g.fill();
   };
   g.save();
-  spear(18, '#ff2a0a', 0.35, L);
-  spear(9, '#ff3010', 0.95, L);
-  spear(3.5, '#fff4b8', 1, L * 0.75);
+  spear(22, '#ff2a0a', 0.45, L);
+  spear(11, '#ff3a10', 0.95, L);
+  spear(6, '#ffb040', 0.9, L * 0.85);
+  spear(3, '#fff6c8', 1, L * 0.7);
   g.restore();
 }
 
@@ -208,14 +219,17 @@ function laser(g, hx, hy, ux, uy, L) {
 // toward where the shot was fired. Local frame: +x along the flight, y down; `dir` mirrors it.
 const PALM = { x: 77, y: -38, rx: 58, ry: 52 };
 // [angle in degrees (0 = straight ahead, −90 = up), palm centre → tip px, half-width at the base]
-const FINGERS = [[-13, 228, 17], [-26, 200, 17], [-40, 165, 16], [-57, 122, 15]];
-const THUMB = [40, 118, 18];
+const FINGERS = [[-20, 222, 20], [-36, 200, 20], [-52, 170, 19], [-69, 132, 17]];
+const THUMB = [28, 118, 20];
 const rad = (d) => (d * Math.PI) / 180;
 
-function handPath(g, ox) {
+// (each part painted on its own: the palm and a finger wind opposite ways, and one path would
+// leave holes where they overlap)
+function handPath(g, ox, paint) {
   g.beginPath();
   g.ellipse(PALM.x + ox, PALM.y, PALM.rx, PALM.ry, -0.35, 0, TAU);
-  for (const [deg, len, w] of [...FINGERS, THUMB]) digit(g, PALM.x + ox, PALM.y, rad(deg), len, w);
+  paint();
+  for (const [deg, len, w] of [...FINGERS, THUMB]) { g.beginPath(); digit(g, PALM.x + ox, PALM.y, rad(deg), len, w); paint(); }
 }
 // one finger: from inside the palm out to a rounded tip, tapering, the tip curling a little down
 function digit(g, cx, cy, a, len, w) {
@@ -255,33 +269,37 @@ function armBand(g, x0, y0, x1, y1, w0, w1, a0) {
 export function drawHand(g, x, y, dir, fx, fy, t) {
   const K = 0.88;
   g.save();
-  // the arm, back from the palm toward the shooter (never longer than 420 px)
-  const px = x + dir * PALM.x * 0.5 * K, py = y + PALM.y * 0.4 * K;
+  // the arm: a thick wrist out of the palm, back toward the shooter (never longer than 420 px)
+  const px = x + dir * PALM.x * 0.7 * K, py = y + PALM.y * 0.6 * K;
   let ax = fx ?? x - dir * 400, ay = fy ?? y;
   const d = Math.hypot(ax - px, ay - py);
   if (d > 420) { ax = px + (ax - px) * 420 / d; ay = py + (ay - py) * 420 / d; }
-  armBand(g, px, py, ax, ay, 30, 12, 0.95);
+  armBand(g, px, py, ax, ay, 40, 14, 0.95);
   g.translate(x, y); g.scale(dir * K, K);
-  // motion blur: two fainter copies trailing behind
+  // motion blur: three fainter copies smeared behind (M3 73.95 s: the hand is soft-edged)
   g.fillStyle = '#1a3490';
-  g.globalAlpha = 0.14; handPath(g, -60); g.fill();
-  g.globalAlpha = 0.26; handPath(g, -30); g.fill();
-  // a soft blue rim, then the dark navy hand
-  g.globalAlpha = 0.35; g.strokeStyle = '#2450e0'; g.lineWidth = 8; g.lineJoin = 'round';
-  handPath(g, 0); g.stroke();
-  const rg = g.createRadialGradient(PALM.x, PALM.y, 10, PALM.x, PALM.y, 220);
-  rg.addColorStop(0, '#08113a'); rg.addColorStop(0.5, '#0f2168'); rg.addColorStop(1, '#1a3890');
-  g.globalAlpha = 1; g.fillStyle = rg; handPath(g, 0); g.fill();
-  // highlights along the upper edge of each digit, following its arch
-  g.strokeStyle = '#5b82ea'; g.lineWidth = 3.5; g.lineCap = 'round'; g.globalAlpha = 0.75;
-  for (const [deg, len, w] of [...FINGERS, THUMB]) {
-    const a = rad(deg), ux = Math.cos(a), uy = Math.sin(a), qx = -uy, qy = ux;
-    const up = qy < 0 ? 1 : -1, tipW = w * 0.72, o = up * 0.5;
-    const b = PALM.rx * 0.75, mx = PALM.x + ux * len * 0.55 + qx * up * len * 0.09, my = PALM.y + uy * len * 0.55 + qy * up * len * 0.09;
-    const tx = PALM.x + ux * (len - tipW * 1.6), ty = PALM.y + uy * (len - tipW * 1.6) + len * 0.05;
+  const fill = () => g.fill(), stroke = () => g.stroke();
+  g.globalAlpha = 0.06; handPath(g, -66, fill);
+  g.globalAlpha = 0.1; handPath(g, -44, fill);
+  g.globalAlpha = 0.16; handPath(g, -22, fill);
+  // a soft blue glow, then a lighter rim stroked UNDER the fill (only its outer half shows, so no
+  // lines inside the hand), then the dark navy hand
+  g.lineJoin = 'round';
+  g.globalAlpha = 0.28; g.strokeStyle = '#2450e0'; g.lineWidth = 11;
+  handPath(g, 0, stroke);
+  g.globalAlpha = 0.65; g.strokeStyle = '#3a62d8'; g.lineWidth = 6;
+  handPath(g, 0, stroke);
+  const rg = g.createRadialGradient(PALM.x, PALM.y, 10, PALM.x, PALM.y, 230);
+  rg.addColorStop(0, '#08113a'); rg.addColorStop(0.55, '#0f2168'); rg.addColorStop(1, '#1a3890');
+  g.globalAlpha = 1; g.fillStyle = rg; handPath(g, 0, fill);
+  // blurred lighter streaks along the top of each finger (M3 73.95 s)
+  g.strokeStyle = '#3f6ae0'; g.lineWidth = 5; g.lineCap = 'round'; g.globalAlpha = 0.5;
+  for (const [deg, len, w] of FINGERS) {
+    const a = rad(deg), ux = Math.cos(a), uy = Math.sin(a), o = -w * 0.5;   // the side facing up
+    const qx = -uy * o, qy = ux * o;
     g.beginPath();
-    g.moveTo(PALM.x + ux * b + qx * w * o, PALM.y + uy * b + qy * w * o);
-    g.quadraticCurveTo(mx + qx * w * 0.85 * o, my + qy * w * 0.85 * o, tx + qx * tipW * o, ty + qy * tipW * o);
+    g.moveTo(PALM.x + ux * PALM.rx * 0.2 + qx, PALM.y + uy * PALM.rx * 0.2 + qy);
+    g.quadraticCurveTo(PALM.x + ux * len * 0.5 + qx * 1.4, PALM.y + uy * len * 0.5 + qy * 1.4, PALM.x + ux * len * 0.78 + qx, PALM.y + uy * len * 0.78 + qy);
     g.stroke();
   }
   g.restore();
@@ -314,15 +332,21 @@ export function drawFist(g, x, y, dir, ox, oy, t) {
 // THE BLOCK (§4 M4 61.45–62.25 s): a crackling yellow-white spark burst where the ball grinds on
 // the boot, re-drawn every frame for as long as the grind lasts. No particles.
 export function drawGrind(g, x, y, now) {
+  // M4 61.5–62.1 s: the ball glows inside a yellow-white orb ≈ 30 px in radius, thin yellow
+  // sparks ≈ 50–100 px long crackling out of it, re-rolled every other frame.
   const seed = Math.floor(now * 30);
-  g.save(); g.globalCompositeOperation = 'lighter'; g.lineCap = 'round';
-  for (let i = 0; i < 10; i++) {
+  g.save(); g.globalCompositeOperation = 'lighter'; g.lineCap = 'round'; g.lineJoin = 'round';
+  const og = g.createRadialGradient(x, y, 4, x, y, 34);
+  og.addColorStop(0, 'rgba(255,255,240,0.95)'); og.addColorStop(0.45, 'rgba(255,240,140,0.7)'); og.addColorStop(1, 'rgba(255,220,60,0)');
+  g.fillStyle = og; g.beginPath(); g.arc(x, y, 34, 0, TAU); g.fill();
+  for (let i = 0; i < 7; i++) {
     const j = Math.sin((seed + i * 7) * 12.9898) * 43758.5453, rnd = j - Math.floor(j);
-    const a = (i / 10) * TAU + rnd * 0.5, L = 22 + rnd * 30;
-    g.globalAlpha = 0.9; g.strokeStyle = i % 2 ? '#fff6b0' : '#ffffff'; g.lineWidth = i % 2 ? 4 : 2.5;
-    g.beginPath(); g.moveTo(x + Math.cos(a) * 6, y + Math.sin(a) * 6); g.lineTo(x + Math.cos(a) * L, y + Math.sin(a) * L); g.stroke();
+    const a = (i / 7) * TAU + rnd * 0.7, L = 48 + rnd * 52;
+    const mx = x + Math.cos(a + 0.12) * L * 0.55, my = y + Math.sin(a + 0.12) * L * 0.55;
+    for (const [col, lw, al] of [['#ffd23c', i % 3 ? 6 : 8, 0.45], ['#fff6c0', i % 3 ? 2.2 : 3.2, 1]]) {
+      g.globalAlpha = al; g.strokeStyle = col; g.lineWidth = lw;
+      g.beginPath(); g.moveTo(x + Math.cos(a) * 14, y + Math.sin(a) * 14); g.lineTo(mx, my); g.lineTo(x + Math.cos(a) * L, y + Math.sin(a) * L); g.stroke();
+    }
   }
-  g.globalAlpha = 0.85; g.fillStyle = '#fffbe0';
-  g.beginPath(); g.arc(x, y, 14 + (seed % 3) * 2, 0, TAU); g.fill();
   g.restore();
 }

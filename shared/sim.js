@@ -280,6 +280,8 @@ export function step(m, inputs, dt = C.TICK, fx = NO_FX) {
 
   if (m.freeze > 0) {
     m.freeze -= dt;
+    // a cut-in's dark that a goal landed under runs out over the goal's freeze (M4 151.85 s)
+    if (m.cutin > 0) { m.cutin -= dt; if (m.cutin <= 0) { m.cutin = 0; m.cutinBy = -1; } }
     if (m.freeze <= 0 && (m.phase === 'kickoff' || m.phase === 'goal')) m.phase = 'play';
     // Frozen: no physics, no clock, and no gauge — not under the KICK OFF banner (M4 times the
     // first fill from its end) and not through a GOAL's restart (M4: the bar stands still from
@@ -288,7 +290,7 @@ export function step(m, inputs, dt = C.TICK, fx = NO_FX) {
     return m;
   }
 
-  // THE DARK OUTLASTS THE FREEZE. The cut-in's last POWER_RELEASE (0.37s) is played: the ball is
+  // THE DARK OUTLASTS THE FREEZE. The cut-in's last POWER_RELEASE (0.2s) is played: the ball is
   // away and both players can move and kick while the screen is still dark — the block at M4
   // 61.45 s is a kick pressed under it (docs/HS-POWER-SHOTS.md §2, §4). `cutin` runs down here.
   if (m.cutin > 0) {
@@ -1672,9 +1674,9 @@ function fireUltimateOnContact(m, p, b, fx) {
 }
 
 // THE CUT-IN: the screen goes dark round the shooter for POWER_CUTIN (1.34s, HS M4) the moment a
-// power shot goes off, and for the first 0.97s of it the whole match holds — then the ball leaves
-// and play runs under the last POWER_RELEASE (0.37s) of the dark (M4 40.44 → 41.41 → 41.78 s and
-// 41.97 → 42.95 → 43.31 s). The hold rides the hit-stop, which already freezes everything,
+// power shot goes off, and for the first 1.14s of it the whole match holds — then the ball leaves
+// and play runs under the last POWER_RELEASE (0.2s) of the dark (constants.js: M4 60.17 → 61.27 →
+// 61.49 s against the dark's luma trace). The hold rides the hit-stop, which already freezes everything,
 // already travels in the snapshot and already watches the buttons for releases; `cutin`/`cutinBy`
 // say that this is the shooter's moment, for the renderer's spotlight and so a stun is not run
 // down under the hold.
@@ -1716,8 +1718,8 @@ function checkGoal(m, fx, scorer) {
 
   m.score[scorer]++;
   m.lastScorer = scorer;
-  // A goal lifts a cut-in's dark at once (M4 124.1 s: the net bulges under a bright screen).
-  if (m.cutin > 0 && m.hitStop <= 0) { m.cutin = 0; m.cutinBy = -1; }
+  // (A goal does not lift a cut-in's dark early: M4 150.59 scores at 151.85 s and the dark still
+  // runs its 1.35 s to 151.93 s — docs/HS-POWER-SHOTS.md §2.)
   m.events.push({ type: 'goal', player: scorer, power: !!b.power, shot: b.power?.fam || null });
   fx.goal(b.x, b.y, b.power?.color || '#ffffff');
   // A goal ends a Multi-Ball's extra balls. (Not the arm or the meter — those follow the
