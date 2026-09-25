@@ -108,7 +108,7 @@ At the audit, `node test-hs-parity.mjs` passed 82 of 88 rows. The 6 failures are
 | V3 ❓ | H | **Needs Idan:** the 11 fantasy stages are Saltiz's own art; replacing them with an HS stadium is an art call. No stadium: all 11 backdrops are fantasy pixel scenes | `stages.js` | Packed stands, floodlights, day or night, a floor that changes per stage | meas |
 | V4 ✅ | H | No music: the game has no audio files at all | — | Continuous music with a steady beat | meas (audio) |
 | V5 ✅ | M | No crowd ambience; only a 1.8 s noise burst on a goal | `audio.js:96` | Ambient crowd sound | meas |
-| V6 ❓ | M | **Needs Idan:** audio.js was written to a brief ("sounds from Street Fighter II"). All sound is chiptune synth | `audio.js:118-158` | Sampled sounds | meas |
+| V6 ✅ | M | Idan chose HS: re-voiced natural (ball thump, head knock, trilled whistle, crowd roar), still our own synth. All sound is chiptune synth | `audio.js:118-158` | Sampled sounds | meas |
 | V7 ✅ | M | Missing sounds: no floor bounce (no event exists), `SFX.post` is never fired, no sound for knockout, stun, hurt, power hit or ailments, and `synth()` (per-power sounds) is never called | `audio.js` | All present | meas |
 | V8 ❓ | M | **Needs Idan:** goes with V2/V3 (the pitch art). Flat pitch floor: stripes, a centre line, half a circle | `game.js:1738` | Perspective floor with penalty boxes | meas |
 | V9 ✅ | L | The crowd bobs, redrawn 12 times a second | — | Completely still | meas |

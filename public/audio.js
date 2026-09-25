@@ -1,10 +1,9 @@
-// Arcade SFX, synthesised — no audio files anywhere.
+// Match SFX, synthesised — no audio files anywhere.
 //
-// The brief was "sounds from Street Fighter II". Those samples are Capcom's, so this is the
-// nearest honest thing: the same *vocabulary* built out of WebAudio primitives. Early-90s
-// arcade hardware was making these noises the same way — a short noise burst through a
-// bandpass for an impact, a square sweep for a whoosh, a detuned pair for a fanfare. Which
-// means a synth gets genuinely close rather than merely approximating a sample.
+// Voiced after Head Soccer's (Idan, 2026-09-26: "do everything like HS"): natural sounds — a
+// round thump off the boot, a springy knock off the head, a referee's trilled whistle, a crowd
+// that roars on a goal — rather than the Street Fighter II chiptune this kit was first written to.
+// The sounds themselves stay our own: built from WebAudio noise, filters and sine partials.
 //
 // Everything is created on demand and thrown away. No buffers to preload, nothing to block
 // the first frame, and it survives the WebView with no asset pipeline at all.
@@ -112,54 +111,60 @@ function crowd({ dur = 1.4, peak = 0.5, t = 0 } = {}) {
 
 // ---------------------------------------------------------------------------
 // The kit. One entry per sim event, so game.js just forwards event types here.
+// A referee's whistle: a pea whistle's ~2.9 kHz tone, trilled by the pea (fast wobble).
+function whistleBlast(t = 0, dur = 0.32) {
+  for (let k = 0; k * 0.028 < dur; k++) blip({ freq: k % 2 ? 2750 : 2950, type: 'sine', peak: 0.2, dur: 0.034, t: t + k * 0.028 });
+}
+// A struck metal tube: inharmonic sine partials ringing down.
+function clang(peak = 0.4, t = 0) {
+  [[620, 1], [1705, 0.55], [2790, 0.35], [4100, 0.2]].forEach(([f, g]) => blip({ freq: f, type: 'sine', peak: peak * g, dur: 0.5 * (1.2 - g * 0.4), t }));
+}
+
 export const SFX = {
-  kick()      { thud({ freq: 260, peak: 0.7, decay: 0.12 }); sweep({ from: 420, to: 130, peak: 0.22, dur: 0.1 }); },
-  head()      { thud({ freq: 500, q: 2.2, peak: 0.5, decay: 0.09 }); },
-  jump()      { sweep({ from: 240, to: 620, type: 'square', peak: 0.16, dur: 0.11 }); },
-  dash()      { sweep({ from: 900, to: 220, type: 'sawtooth', peak: 0.2, dur: 0.14 }); },
-  post()      { blip({ freq: 1400, type: 'triangle', peak: 0.45, dur: 0.22 }); blip({ freq: 2100, type: 'triangle', peak: 0.2, dur: 0.16, t: 0.01 }); },
+  // The boot on the ball: a round low thump with a pitch drop, no chip in it.
+  kick()      { thud({ freq: 140, q: 0.9, peak: 0.85, decay: 0.09 }); sweep({ from: 190, to: 60, type: 'sine', peak: 0.5, dur: 0.12 }); },
+  // The head: springier — a knock with a short boing on top.
+  head()      { thud({ freq: 420, q: 1.6, peak: 0.45, decay: 0.07 }); sweep({ from: 330, to: 150, type: 'sine', peak: 0.35, dur: 0.14 }); },
+  jump()      { thud({ freq: 1800, q: 0.7, peak: 0.08, decay: 0.12 }); },
+  dash()      { thud({ freq: 2200, q: 0.5, peak: 0.16, decay: 0.16 }); },
+  post()      { clang(0.42); },
 
-  // A punch connecting: low body thud plus a bright crack on top.
-  tackle()    { thud({ freq: 170, peak: 1.0, decay: 0.2 }); thud({ freq: 1600, q: 3, peak: 0.5, decay: 0.07 }); },
+  // A boot to the shins: a heavy body knock with a smack on it.
+  tackle()    { thud({ freq: 150, peak: 1.0, decay: 0.18 }); thud({ freq: 2400, q: 1.5, peak: 0.35, decay: 0.05 }); },
 
-  // Charging up. Rising detuned pair — the classic "I am about to do something" cue.
+  // Armed: a rising swell of air and tone — the power gathering.
   armed()     {
-    sweep({ from: 180, to: 900, type: 'sawtooth', peak: 0.3, dur: 0.45 });
-    sweep({ from: 180, to: 900, type: 'sawtooth', peak: 0.3, dur: 0.45, detune: 14 });
-    blip({ freq: 1320, peak: 0.3, dur: 0.1, t: 0.42 });
+    const a = ctx(), t0 = now(), src = noise(), bp = a.createBiquadFilter();
+    bp.type = 'bandpass'; bp.Q.value = 2; bp.frequency.setValueAtTime(300, t0); bp.frequency.exponentialRampToValueAtTime(3000, t0 + 0.5);
+    src.connect(bp); env(bp, t0, 0.35, 0.4, 0.15); src.start(t0); src.stop(t0 + 0.6);
+    sweep({ from: 220, to: 880, type: 'sine', peak: 0.2, dur: 0.5 });
   },
 
-  // Fireball: a big downward whoosh with a noise body riding under it.
+  // The shot going off: a big rushing whoosh over a low boom.
   powershot() {
-    sweep({ from: 1200, to: 180, type: 'sawtooth', peak: 0.55, dur: 0.38 });
-    thud({ freq: 900, q: 0.8, peak: 0.8, decay: 0.34 });
-    blip({ freq: 220, type: 'square', peak: 0.35, dur: 0.3 });
+    thud({ freq: 1400, q: 0.5, peak: 0.7, decay: 0.45 });
+    sweep({ from: 110, to: 38, type: 'sine', peak: 0.7, dur: 0.4 });
   },
 
-  // Metal on metal — you got in the way and it cost you.
-  blocked()   {
-    thud({ freq: 2600, q: 6, peak: 0.7, decay: 0.16 });
-    blip({ freq: 1760, type: 'triangle', peak: 0.4, dur: 0.24 });
-    blip({ freq: 1174, type: 'triangle', peak: 0.3, dur: 0.28, t: 0.02 });
+  // Blocked: the ball stopped dead against a boot — a thud with a ring.
+  blocked()   { thud({ freq: 180, peak: 0.9, decay: 0.2 }); clang(0.25, 0.01); },
+
+  counter()   { [1320, 1980, 2640].forEach((f, i) => blip({ freq: f, type: 'sine', peak: 0.28, dur: 0.3, t: i * 0.03 })); },
+
+  // Goal: the crowd goes up, long and loud.
+  goal()      { crowd({ dur: 2.6, peak: 0.75 }); crowd({ dur: 2.2, peak: 0.35, t: 0.15 }); },
+
+  whistle()   { whistleBlast(0, 0.34); },
+
+  // Full time: three blasts over the crowd (a win cheers, a loss groans).
+  win()       { whistleBlast(0, 0.22); whistleBlast(0.3, 0.22); whistleBlast(0.6, 0.5); crowd({ dur: 2.6, peak: 0.6 }); },
+  lose()      {
+    whistleBlast(0, 0.22); whistleBlast(0.3, 0.22); whistleBlast(0.6, 0.5);
+    const a = ctx(), t0 = now() + 0.2, src = noise(), lp = a.createBiquadFilter();
+    lp.type = 'lowpass'; lp.frequency.setValueAtTime(900, t0); lp.frequency.exponentialRampToValueAtTime(250, t0 + 1.6);
+    src.loop = true; src.connect(lp); env(lp, t0, 0.35, 0.3, 1.4); src.start(t0); src.stop(t0 + 1.8);
   },
-
-  counter()   { blip({ freq: 2093, type: 'triangle', peak: 0.5, dur: 0.16 }); blip({ freq: 3136, type: 'triangle', peak: 0.35, dur: 0.2, t: 0.04 }); },
-
-  // Goal: fanfare over a terrace roar.
-  goal()      {
-    crowd({ dur: 1.8, peak: 0.55 });
-    const notes = [523, 659, 784, 1047];
-    notes.forEach((f, i) => {
-      blip({ freq: f, type: 'square', peak: 0.34, dur: 0.16, t: i * 0.075 });
-      blip({ freq: f * 1.5, type: 'square', peak: 0.12, dur: 0.16, t: i * 0.075 });
-    });
-  },
-
-  whistle()   { sweep({ from: 2100, to: 2400, type: 'sine', peak: 0.3, dur: 0.16 }); sweep({ from: 2400, to: 2000, type: 'sine', peak: 0.3, dur: 0.2, t: 0.16 }); },
-
-  win()       { [523, 659, 784, 1047, 1319].forEach((f, i) => blip({ freq: f, type: 'square', peak: 0.36, dur: 0.2, t: i * 0.1 })); crowd({ dur: 2.2, peak: 0.5 }); },
-  lose()      { [523, 466, 392, 311].forEach((f, i) => blip({ freq: f, type: 'square', peak: 0.32, dur: 0.28, t: i * 0.14 })); },
-  reset()     { blip({ freq: 880, type: 'triangle', peak: 0.22, dur: 0.1 }); },
+  reset()     { blip({ freq: 880, type: 'sine', peak: 0.18, dur: 0.1 }); },
 
   // ── the sounds HS has that this kit did not (HS-GAP-AUDIT V7) ──
   // The ball on the grass: a soft low thump, as loud as the bounce was hard.
@@ -196,16 +201,16 @@ export const SFX = {
 // A power shot's own sound, by FAMILY (the powershot event carries it): the shared whoosh,
 // pitched and coloured per family so a Tornado does not sound like a Thunderbolt.
 const FAMILY_VOICE = {
-  straight: { from: 1400, to: 300 }, aerial: { from: 400, to: 2200 }, grab: { from: 300, to: 120, type: 'square' },
-  delay: { from: 900, to: 900, type: 'square' }, ground: { from: 300, to: 60 }, destructive: { from: 1000, to: 80 },
-  critical: { from: 2400, to: 200 }, downward: { from: 2000, to: 150 }, multiball: { from: 700, to: 1400, type: 'square' },
+  straight: { from: 1400, to: 300 }, aerial: { from: 400, to: 2200 }, grab: { from: 300, to: 120, type: 'triangle' },
+  delay: { from: 900, to: 900, type: 'triangle' }, ground: { from: 300, to: 60 }, destructive: { from: 1000, to: 80 },
+  critical: { from: 2400, to: 200 }, downward: { from: 2000, to: 150 }, multiball: { from: 700, to: 1400, type: 'triangle' },
   updown: { from: 500, to: 1600, type: 'triangle' }, ailment: { from: 1200, to: 400, type: 'triangle' },
 };
 const basePowershot = SFX.powershot;
 SFX.powershot = (e) => {
   basePowershot();
   const v = FAMILY_VOICE[e?.fam];
-  if (v) sweep({ from: v.from, to: v.to, type: v.type || 'sawtooth', peak: 0.28, dur: 0.3, t: 0.04, detune: 7 });
+  if (v) sweep({ from: v.from, to: v.to, type: v.type || 'triangle', peak: 0.28, dur: 0.3, t: 0.04, detune: 7 });
 };
 
 // ── THE MATCH BED: music and crowd (HS-GAP-AUDIT V4, V5) ─────────────────────────
@@ -223,7 +228,7 @@ function bedTick() {
     const t = bed.next - a.currentTime, i = bed.step % 16, bar = Math.floor(bed.step / 4) % 4;
     thud({ freq: 90, q: 1, peak: 0.34, decay: 0.12, t });                                   // kick
     blip({ freq: BASS[i], type: 'triangle', peak: 0.22, dur: BEAT * 0.8, t });              // bass
-    if (bed.step % 2 === 1) STAB[bar].forEach((f) => blip({ freq: f, type: 'square', peak: 0.045, dur: 0.09, t: t + BEAT / 2 }));
+    if (bed.step % 2 === 1) STAB[bar].forEach((f) => blip({ freq: f, type: 'triangle', peak: 0.07, dur: 0.12, t: t + BEAT / 2 }));
     thud({ freq: 7000, q: 5, peak: 0.08, decay: 0.03, t: t + BEAT / 2 });                   // hat
     bed.next += BEAT; bed.step++;
   }
