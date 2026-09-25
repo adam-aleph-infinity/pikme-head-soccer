@@ -18,6 +18,7 @@ import { DIRECTIONS } from './art-directions.js';
 import { CHAMPIONS, TIERS, stageConfig, championForStage } from '../shared/champions.js';
 import * as ARC from '../shared/arcade.js';
 import { createVfx } from './champ-vfx.js';
+import { createBodyArt, RUN_FRAMES, BOOT_H } from './body-art.js';
 
 // What a Head Soccer power shot looks like: the aura, the cut-in, the comet, the ailments. It
 // only watches the match (see champ-vfx.js).
@@ -1219,6 +1220,9 @@ const ctxNet = cvNet.getContext('2d');
 // (champ-vfx.js useLayers): a soft glow upscaled 2x pixelated is a staircase.
 const cvFx0 = $('#cvfx0'), cvFx1 = $('#cvfx1');
 const ctxFx0 = cvFx0 && cvFx0.getContext('2d'), ctxFx1 = cvFx1 && cvFx1.getContext('2d');
+// The characters' bodies, at the screen's own resolution too, between the pitch and the heads
+// (body-art.js): painted sprites, not pitch texels. Without it they go on the pitch as before.
+const cvBody = $('#cvbody'), ctxBody = cvBody && cvBody.getContext('2d');
 if (ctxFx0 && ctxFx1) VFXR.useLayers(true);
 let pitchBlurPx = 0;                 // the CSS blur on #cv under a cut-in (VFXR.pitchBlur)
 // SC is world units -> CSS px. OX/OY are where world (0,0) lands inside the stage, and they
@@ -1279,7 +1283,7 @@ function resize() {
   // Anchored by the GROUND LINE rather than by either edge: everything else follows from
   // where the players' feet have to be.
   OY = (vh - band) - C.GROUND_Y * scale;
-  for (const el of [cv, cvNet, cvFx0, cvFx1]) {
+  for (const el of [cv, cvNet, cvBody, cvFx0, cvFx1]) {
     if (!el) continue;
     el.style.left = OX + 'px';
     el.style.top = (OY - SKY_TOP * scale) + 'px';     // the canvas starts SKY_TOP above y=0
@@ -1304,8 +1308,9 @@ function resize() {
   }
   // (the effect layers: device pixels, capped at 2x — soft light needs no more, and it is cheaper)
   const fxK = Math.min(2, window.devicePixelRatio || 1) * scale;
-  for (const [el, c] of [[cvFx0, ctxFx0], [cvFx1, ctxFx1]]) {
+  for (const [el, c] of [[cvBody, ctxBody], [cvFx0, ctxFx0], [cvFx1, ctxFx1]]) {
     if (!el) continue;
+    c.imageSmoothingEnabled = true;
     el.width = Math.ceil(C.W * fxK);
     el.height = Math.ceil((SKY_TOP + C.H + BLEED) * fxK);
     c.setTransform(fxK, 0, 0, fxK, 0, SKY_TOP * fxK);
@@ -1488,15 +1493,24 @@ function draw() {
   if (!(M.hitStop > 0)) TRAIL_CLOCK.t += Math.min(0.1, Math.max(0, wall - TRAIL_CLOCK.wall));
   TRAIL_CLOCK.wall = wall;
   const now = TRAIL_CLOCK.t;
+  for (const p of M.players) drawShadow(g, p);
+  // The bodies go on their own full-resolution layer (#cvbody), shaken with the pitch.
+  const gb = ctxBody || g;
+  if (ctxBody) {
+    ctxBody.save(); ctxBody.setTransform(1, 0, 0, 1, 0, 0); ctxBody.clearRect(0, 0, cvBody.width, cvBody.height); ctxBody.restore();
+    ctxBody.save();
+    if (shake > 0) ctxBody.translate((Math.random() - .5) * shake, (Math.random() - .5) * shake);
+  }
   for (const p of M.players) {
     trackTrail(p, now);
     GHOSTS[p.index] = trailGhosts(p, now);
     for (let k = GHOSTS[p.index].length - 1; k >= 0; k--) {
       const q = GHOSTS[p.index][k];
-      g.save(); g.globalAlpha = q.alpha; drawBody(g, q, true); g.restore();
+      gb.save(); gb.globalAlpha = q.alpha; drawBody(gb, q, true); gb.restore();
     }
   }
-  for (const p of M.players) drawBody(g, p);
+  for (const p of M.players) drawBody(gb, p);
+  if (ctxBody) { netOverBodies(ctxBody); ctxBody.restore(); }
   drawParts(g, false);
   drawBall(g, M.ball);
   for (const eb of M.xballs) drawBall(g, eb);      // a Multi-Ball's extras
@@ -1522,7 +1536,7 @@ function draw() {
     VFXR.drawUnder(ctxFx0);          // the cut-in's dark, rays and disc, under the heads
     VFXR.drawTop(ctxFx1);            // shots, glows, bursts, stars, ailments, over them
     const blur = VFXR.pitchBlur();   // …and the backdrop out of focus under a cut-in, as HS does
-    if (blur !== pitchBlurPx) { pitchBlurPx = blur; cv.style.filter = blur ? `blur(${blur}px)` : ''; }
+    if (blur !== pitchBlurPx) { pitchBlurPx = blur; cv.style.filter = blur ? `blur(${blur}px)` : ''; if (cvBody) cvBody.style.filter = cv.style.filter; }
   } else {
     for (const p of M.players) VFXR.drawArmed(ctxNet, p);
     VFXR.drawOverlay(ctxNet);
@@ -1598,6 +1612,26 @@ function drawHeadNet() {
       drawGoalFront(ctxNet, left, true);   // net only — see drawGoalFront
       ctxNet.restore();
     }
+  }
+}
+
+// THE NEAR NET OVER A BODY IN THE GOAL. The bodies are on #cvbody, above the pitch canvas that
+// draws the net, so the net is laid over them again here — composited source-atop, so it lands
+// on body pixels only and nowhere the pitch has already netted. Same bounding test as the heads.
+function netOverBodies(g) {
+  for (const left of [true, false]) {
+    const box = goalBox(left);
+    const xs = [box.wallX, box.wallX + box.wx, box.lineX, box.lineX + box.wx];
+    const near = M.players.some((p) => {
+      const d = depthPoint(p.x, p.y), r = C.HEAD_R * 2.3;
+      return !(d.x + r < Math.min(...xs) || d.x - r > Math.max(...xs) || d.y < box.top + box.wy);
+    });
+    if (!near) continue;
+    g.save();
+    g.globalCompositeOperation = 'source-atop';
+    g.imageSmoothingEnabled = false;
+    drawGoalFront(g, left, true);
+    g.restore();
   }
 }
 
@@ -1999,32 +2033,35 @@ function drawGoalFrontRaw(g, left, netOnly = false) {
 // THE BODY UNDER THE HEAD, drawn the way a Head Soccer character is built — see
 // docs/HS-CHARACTER-LOOK.md for the frames this was measured from. HS has no gi, no arms and no
 // legs: under the head there is a small dark suit with a coloured collar peeking out below the
-// chin, and two chunky boots. The whole body is barely more than a quarter of a head tall, and
-// that is the proportion that makes it read as HS — the head is the character, the rest is a
-// pedestal with feet. (Ours, not theirs: the suit, collar and boots are drawn here from paths;
-// nothing is traced from an HS sprite.)
+// chin, and two chunky black football boots. The head is the character, the rest is a pedestal
+// with feet. (Ours, not theirs: painted from paths in body-art.js; nothing traced from HS.)
 //
-// The canvas is half resolution (PIXEL 2), so one texel is 2 world px. HS's own sprites sit on
-// almost the same grid — its head is ~24 native pixels tall, ours is 26 texels — so every
-// keyline here is ONE texel, the way HS's is.
+// The art is painted ONCE into offscreen sprites at 3x (body-art.js) and blitted onto #cvbody,
+// a layer at the screen's own resolution just under the DOM heads — not on the half-res pitch,
+// where a 13-texel boot upscaled pixelated read as a wheel. drawBody works on any context in
+// world units (the cut-in redraws the shooter on the effect layer with it).
 const OUTLINE = '#0b0710';
 // Team colour lives in the COLLAR (and the YOU bubble), not in a ring round the head: HS keeps
 // the head clean and puts the kit colour under the chin.
 const KIT = [
-  { collar: '#3d8bff', collarDark: '#1c4fb4' },
-  { collar: '#ff4a64', collarDark: '#a3182f' },
+  { collar: '#2f8cff', collarDark: '#1a4aa8', collarLight: '#9fd0ff' },
+  { collar: '#ff4a64', collarDark: '#a3182f', collarLight: '#ffb3bf' },
 ];
 // The rim light — HS edges its dark suit and boots with a thin gold line on the back. Ours takes
 // the colour of the card's rarity, so a legendary is trimmed in gold and a common in silver.
 const TRIM = { legendary: '#ffcc33', epic: '#d08cff', rare: '#6fd0ff', common: '#c8d0da' };
-const SUIT = '#1f2130', SUIT_LIGHT = '#3b4058';
-const BOOT = '#16171e', BOOT_LIGHT = '#555b73';
-// Measured sizes, in world px on the 26.4 head (HS M4 29.68 s, standing, full resolution):
-// the boot is about one head RADIUS long and half a radius tall, the two boots together span
-// 1.7 radii, and the body shows 0.57 radii below the chin.
-const BOOT_L = 25, BOOT_H = 14;
-const BOOT_BACK = -10, BOOT_FRONT = 11;             // boot centres, standing, along the facing
-const SUIT_W = 30, SUIT_BOT = -7;                  // the suit sits down inside the boots
+// The sprites need the head's silhouette (the collar is cut to the jaw), which is declared
+// further down — so the art is built on first use.
+let BODY_ART = null, BODY_ART_R = 0;
+function bodyArt() {
+  if (!BODY_ART || BODY_ART_R !== C.HEAD_R) {
+    const R = C.HEAD_R;
+    BODY_ART = createBodyArt({ headShape: HEAD_SHAPE, headBox: { cy: -(C.BODY_H + R - C.NECK), rx: R * HEAD_W, ry: R * HEAD_H } });
+    BODY_ART_R = R;
+  }
+  return BODY_ART;
+}
+
 
 // THE KICK, as HS animates it (M4 29.68–31.96 s, every frame): no leg ever shows. The front boot
 // leaves the body and rides up in front of the face — low and forward on the first frame, at
@@ -2051,64 +2088,37 @@ function kickPose(k) {
   return [a[1] + (b[1] - a[1]) * u, a[2] + (b[2] - a[2]) * u, a[3] + (b[3] - a[3]) * u];
 }
 
-// One boot, toe toward +x in its own space, sole on y = 0. A clog, not a football boot: flat
-// sole, a round toe, and the upper swelling highest at the ankle — the chunky shape that still
-// reads at 13 texels long.
-function bootPath(g) {
-  const L = BOOT_L / 2, H = BOOT_H;
-  g.beginPath();
-  g.moveTo(-L + 3, 0);
-  g.lineTo(L - 4, 0);
-  g.quadraticCurveTo(L + 1, 0, L + 1, -4);
-  g.quadraticCurveTo(L + 1, -H * 0.72, L - 7, -H * 0.8);    // round toe cap
-  g.lineTo(-1, -H * 0.86);
-  g.quadraticCurveTo(-L + 1, -H * 1.05, -L, -H * 0.5);      // high ankle, rounded heel
-  g.quadraticCurveTo(-L, 0, -L + 3, 0);
-  g.closePath();
-}
-function drawBoot(g, x, y, face, ang, trim) {
-  g.save();
-  g.translate(x, y);
-  g.scale(face, 1);
-  g.rotate(-ang);
-  // No clip (a clip per boot per frame is the expensive kind of canvas call on a phone): the
-  // details are placed inside the shape, and the keyline goes on LAST and covers the texel of
-  // slack at their ends.
-  bootPath(g);
-  g.fillStyle = BOOT; g.fill();
-  g.fillStyle = BOOT_LIGHT;                                  // the sheen across the upper
-  g.fillRect(-5, -BOOT_H * 0.8, 10, 2);
-  g.fillStyle = trim;                                        // rim light down the heel
-  g.fillRect(-BOOT_L / 2 + 1, -BOOT_H * 0.72, 2, BOOT_H * 0.5);
-  g.lineWidth = 2; g.lineJoin = 'round'; g.strokeStyle = OUTLINE; g.stroke();
-  g.restore();
-}
-
-// The ground shadow — HS draws a soft dark ellipse about as wide as the head under every
-// player, and leaves it on the grass when they jump, a little smaller and fainter the higher
-// they go. It is the only thing that tells you how high a jumping head is.
+// The ground shadow — HS draws a soft dark ellipse ~2.6 R wide under every player (M4 29.98:
+// 143 x 28 full-res px), and leaves it on the grass when they jump, a little smaller and
+// fainter the higher they go. It is the only thing that tells you how high a jumping head is.
+// On the pitch canvas, under the ball (a ball rolling under a jumping player rolls OVER his
+// shadow) — the one part of the character that is not on #cvbody.
 function drawShadow(g, p) {
   const s = depthPoint(p.x, C.GROUND_Y);
   const k = Math.max(0, Math.min(1, (C.GROUND_Y - p.y) / 130));
+  const rx = C.HEAD_R * 1.32 * (1 - 0.3 * k), ry = C.HEAD_R * 0.26 * (1 - 0.3 * k);
   g.save();
-  g.globalAlpha = 0.42 * (1 - 0.45 * k);
-  g.fillStyle = '#000';
-  g.beginPath();
-  g.ellipse(s.x, s.y + 1, C.HEAD_R * 1.5 * (1 - 0.3 * k), C.HEAD_R * 0.24 * (1 - 0.3 * k), 0, 0, 6.2832);
-  g.fill();
+  g.translate(s.x, s.y + ry * 0.35);                        // mostly on the grass, as HS's is
+  g.scale(rx, ry);
+  const gr = g.createRadialGradient(0, 0, 0, 0, 0, 1);
+  const a = 0.5 * (1 - 0.45 * k);
+  gr.addColorStop(0, `rgba(20,10,4,${a})`);
+  gr.addColorStop(0.62, `rgba(20,10,4,${a * 0.9})`);
+  gr.addColorStop(1, 'rgba(20,10,4,0)');
+  g.fillStyle = gr;
+  g.beginPath(); g.arc(0, 0, 1, 0, 6.2832); g.fill();
   g.restore();
 }
 
 function drawBody(g, p, ghost = false) {
+  const art = bodyArt();
   const kit = KIT[p.index] || KIT[0];
   const trim = TRIM[p.char && p.char.rarity] || TRIM.legendary;
   const R = C.HEAD_R;
   // Projected at the FEET, which is the anchor the whole sprite hangs off.
   const d = depthPoint(p.x, p.y);
-  if (!ghost) drawShadow(g, p);
-
   g.save();
-  g.translate(Math.round(d.x), Math.round(d.y));
+  g.translate(d.x, d.y);
   // Facing: `side`, the goal this player attacks — which is also the opponent. HS characters
   // face the other player the whole match, running backwards included, and the sim latches the
   // kick to the same rule (kickDir), so the boot that swings is the boot that can reach.
@@ -2119,60 +2129,42 @@ function drawBody(g, p, ghost = false) {
   // Every kick that lands rocks the victim back like this for the shove (HS M4 102–121 s:
   // KICK_REEL on the grass), and a knockout holds it under the stars (reeling()).
   if (reeling(p)) {
-    g.translate(0, -C.BODY_H);
+    const ny = -(C.BODY_H + R - C.NECK);                    // the head's centre: head and body turn as one
+    g.translate(0, ny);
     g.rotate(-face * 0.45);
-    g.translate(0, C.BODY_H);
+    g.translate(0, -ny);
   }
   const air = !p.onGround;
   const kicking = p.kickT > 0;
-  // THE RUN: the boots shuffle, alternating a few px fore and aft with a small lift — HS's
-  // walk cycle is a pair of feet paddling under a head that does not bob or lean.
-  const run = !air && Math.abs(p.vx) > 20 ? Math.min(1, Math.abs(p.vx) / C.PLAYER_SPEED) : 0;
-  const ph = performance.now() / 1000 * Math.PI * 2 / 0.28;
-  const sw = Math.sin(ph) * 4 * run, lift = Math.max(0, Math.cos(ph)) * 3 * run;
+  // THE RUN: a flipbook of RUN_FRAMES paddle poses (body-art.js), stepped at HS's cadence —
+  // a pair of feet shuffling under a head that does not bob or lean.
+  const running = !air && Math.abs(p.vx) > 20;
+  let pose = 'stand';
+  if (kicking) pose = 'kick';
+  else if (air) pose = 'air';
+  else if (running) {
+    // (window.__RUN_T: _charshots.mjs pins the cycle's clock to pose its four phases)
+    const t = typeof window.__RUN_T === 'number' ? window.__RUN_T : performance.now() / 1000;
+    pose = 'run' + (Math.floor(t / 0.28 * RUN_FRAMES) % RUN_FRAMES);
+  }
+  art.lower(g, kit, trim, pose, face);
 
-  // back boot
-  if (air) drawBoot(g, face * (BOOT_BACK - 4), -1, -face, -0.45, trim);      // splayed: toe out, down
-  else drawBoot(g, face * (BOOT_BACK - sw), -lift * (sw < 0 ? 1 : 0), face, 0, trim);
-
-  // the suit: a rounded dark body, collar in the team colour just under the chin, and the
-  // rim-light trim down its back edge
-  const top = -C.BODY_H, h = SUIT_BOT - top;
-  roundRect(g, -SUIT_W / 2, top, SUIT_W, h, 8);
-  g.fillStyle = SUIT; g.fill();
-  g.fillStyle = SUIT_LIGHT;                                  // lit front
-  g.fillRect(face > 0 ? 3 : -11, top + 8, 8, h - 10);
-  g.fillStyle = trim;                                        // rim light on the back
-  g.fillRect(face > 0 ? -SUIT_W / 2 + 1 : SUIT_W / 2 - 3, top + 7, 2, h - 10);
-  // The collar, just under the chin: the head is drawn 7% taller than its hitbox (HEAD_H), so
-  // the chin is 15 px off the grass and the collar sits in the first texels below it.
-  g.fillStyle = kit.collarDark;
-  g.fillRect(-9, top + 8, 18, 6);
-  g.fillStyle = kit.collar;
-  g.fillRect(-7, top + 9, 14, 3);
-  roundRect(g, -SUIT_W / 2, top, SUIT_W, h, 8);
-  g.lineWidth = 2; g.strokeStyle = OUTLINE; g.stroke();
-
-  // front boot — or the kick
   if (kicking) {
     const k = 1 - p.kickT / C.KICK_TIME;
     const [fx, fy, ang] = kickPose(k);
     // the swoosh: a faint arc behind the rising boot, only while it is climbing
     if (k < 0.3 && !ghost) {
       g.save();
-      g.globalAlpha = 0.5 * (1 - k / 0.3);
+      g.globalAlpha *= 0.55 * (1 - k / 0.3);
       g.strokeStyle = '#ffffff';
-      g.lineWidth = 3;
+      g.lineWidth = 2.5;
+      g.lineCap = 'round';
       g.beginPath();
       g.arc(0, -R * 0.2, R * 1.9, face > 0 ? -0.95 : Math.PI - 0.2, face > 0 ? 0.2 : Math.PI + 0.95);
       g.stroke();
       g.restore();
     }
-    drawBoot(g, face * fx * R, -fy * R + BOOT_H / 2, face, ang, trim);
-  } else if (air) {
-    drawBoot(g, face * (BOOT_FRONT + 3), -1, face, -0.45, trim);           // splayed: toe down
-  } else {
-    drawBoot(g, face * (BOOT_FRONT + sw), -lift * (sw > 0 ? 1 : 0), face, 0, trim);
+    art.boot(g, trim, face * fx * R, -fy * R + BOOT_H / 2, face, ang);
   }
   g.restore();
 }

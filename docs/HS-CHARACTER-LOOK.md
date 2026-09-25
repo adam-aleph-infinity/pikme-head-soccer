@@ -65,3 +65,42 @@ folder holding `M4-gaps.mp4` it also cuts the same poses out of HS at the same f
 `.shots/chars/side_by_side.png` (HS top row, ours below), and `heads-lineup.png`: eight Saltiz
 faces in the pitch head's shape and crop, mis-measured anchors included (`LINEUP_ZOOMS=1,1.3,1.6`
 adds a row per crop zoom).
+
+## The body, re-studied (painted at full resolution)
+
+Idan: "the legs look like car wheels, and the head looks dismantled". The body was drawn from
+paths on the half-res pitch (PIXEL 2): 13-texel clogs upscaled pixelated read as wheels, and the
+suit's hard texels never met the head's smooth keyline. Re-measured at full resolution (M4 29.98
+stand, 32.6-33.1 run, 21.25 jump, 29.68-29.95 every kick frame, 57.97 dash, 62.5 stunned;
+2.1 full-res px per world px):
+
+| | Head Soccer | Ours now (`public/body-art.js`) |
+|---|---|---|
+| Head on body | The chin sits straight on the collar and the boot tops — ~30 full-res px chin to sole, of which ~22 is boot; no neck, no gap | Chin 15 world px off the grass; boots 13.5 tall; the collar is cut to `HEAD_SHAPE`'s jaw line and runs up under the chin, so any head in that shape sits on it |
+| Collar | A strip of bright team cyan under the chin, dark suit at the sides | Team-colour band following the jaw, its top in the collar's shade tone (the chin's shadow), keyline under it |
+| Boots | Chunky near-black, ~27 x 11, flat sole, domed upper, gold rim at the heel and along the top | Football boot: flat sole (lighter band + welt line), heel counter to a padded ankle collar, domed toe cap, three lace dashes, toe-cap specular, rarity-colour heel stripe (back boot only) and rim light; 2-3 cel tones; keyline 2.6 (the head's 5%) in the head's own `#140c08` |
+| Run | The boots paddle fore/aft ~5-6 px, the one coming forward lifted, heel up | 8-frame flipbook, ±6.5 px, 3 px lift, 0.26 rad heel-up, 0.28 s cycle |
+| Jump | Boots splay toes out, nearly flat | Splayed ±0.2 rad |
+| Kick | One boot on the arc (`KICK_KEYS`), sole to the ball, held high | Unchanged arc; the boot sprite blitted rotated |
+| Shadow | Soft dark ellipse ~2.6 R x 0.5 R, mostly below the soles | Soft radial ellipse 2.64 R x 0.52 R, centred a third below the soles, on the pitch canvas (so a ball rolls over it) |
+
+**How it is drawn.** body-art.js paints each boot and the whole lower body for every pose (stand,
+run0-7, air, kick) ONCE at 3 texture px per world px (fx-kit `tex` cache), and `drawBody` blits
+one sprite per player (two while kicking) onto `#cvbody`, a canvas at the screen's resolution
+between the pitch and `#cvfx0` (so the cut-in's dark still covers a non-shooter). The pitch's
+shake is applied to it too, the cut-in blur follows `#cv`'s, and the near net is laid back over a
+body in the goal with `source-atop` (`netOverBodies`), so it lands on body pixels only.
+
+**Cost** (`node _bodycost.mjs`: live match, 844x390, 4x CPU throttle): 16.7 ms median / 16.8
+p95, 0.3% of frames over 20 ms; `drawBody` 3.4 µs a call.
+
+**Checking it:** `BODY=1 node _charshots.mjs` (with `HS_VIDEO_DIR`) adds the run at four phases,
+the kick at HS frames 1/2/4/8 and a player in the goal, and writes `body_sheet-1x.png` (whole
+2.6-head square) and `body_sheet-3x.png` (chin to shadow), HS over ours. `CARD0=rarity_n` poses a
+given card (a photo card shows the head in `HEAD_SHAPE`, the shape the collar is cut to).
+
+Quality passes: (1) layer + sprites; boots too long/thin, stripe loud → (2) boot 24 x 13.5, feet
+closer (±4), jump splay flattened, collar thinner → (3) domed toe cap, laces brighter, stripe
+narrower, BODY sheets added → (4) de-blued blacks, collar band 3.8 with a 1.1 chin shadow, run
+paddle ±6.5 with lift, shadow moved onto the grass → (5-6) heel stripe only on the back boot (two
+side by side read as "11"), in-goal net check.
