@@ -405,11 +405,12 @@ function fireChampion(stage, i, gap = 460) {
   // AND AGAIN for the Phase E bot (hs/bot-like-hs): the bot is rebuilt to play like the HS CPU
   // (meets the ball, mashes the boot, dashes, defends every power family) — a bot change, which
   // is what these three bot-vs-bot matches are made of. The sim itself did not change.
+  // AND the conceder's bonus (+1/3 gauge on the ball drop after a goal, HS M4 43.5 s).
   // AND AGAIN for the power-shot review (hs/power-review): the cut-in's dark no longer lifts early
   // on a hit or a goal and the ball leaves 1.14 s in (POWER_RELEASE 0.2, measured against the dark);
   // the Grab drags the defender back to the shooter and flings him; Multi-Ball is always three
   // balls; Downward rises at 15°; beheaded takes the controls for a moment. All HS-parity changes.
-  const GOLDEN = '9f96e5c5d6b506a8c319279a070cfe20911dc533f97ce84ebaf6ee549d857a0b';
+  const GOLDEN = '0e47725c69e0730c76bd77bdedb460932b0f34663ad4b73c4c7439213844c393';
   const h = createHash('sha256');
   const cases = [
     [{ rarity: 'legendary', number: 3 }, { rarity: 'legendary', number: 2 }, 3, 3, 11],

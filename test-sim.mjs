@@ -2113,18 +2113,21 @@ const jumpArc = (input) => {
         if (e.type === 'strike' && e.head) n.head++;
       }
       const evs = m.events.map((e) => e.type).join(',');
+      const drop = m.events.some((e) => e.type === 'ballDrop');
       m.events.length = 0;
       m.players.forEach((p, i) => {
         const rate = m.champ ? p.meterRate || 1 : 1;
+        // The ONE non-clock gain: the conceder's bonus, on the ball-drop tick after a goal.
+        const bonus = drop && i !== m.lastScorer ? C.GAUGE_CONCEDE : 0;
         const d = p.gauge - before[i];
-        if (d > C.TICK * C.GAUGE_PASSIVE * rate + 1e-9 || d < -1e-9) {
+        if (d > C.TICK * C.GAUGE_PASSIVE * rate + bonus + 1e-9 || d < -1e-9) {
           if (!bad++) first = `P${i + 1} tick ${k}: ${before[i].toFixed(4)} -> ${p.gauge.toFixed(4)} [${evs}]`;
         }
       });
     }
     ok(`${r.name}: the scenario really kicked, tackled and headed`, n.kick > 100 && n.tackle > 10 && n.head > 0,
        JSON.stringify(n));
-    ok(`${r.name}: no kick, header, tackle or goal moved either gauge off the clock`, bad === 0,
+    ok(`${r.name}: no kick, header or tackle moved either gauge off the clock (only the conceder's bonus)`, bad === 0,
        `${bad} ticks; first ${first}`);
   }
 }
@@ -2394,6 +2397,20 @@ const jumpArc = (input) => {
     const koOf = (mm) => { let k = 0; while (mm.players[1].stunned === 0 && k < KO) { land(mm); k++; } return k; };
     ok('…and a restored client knocks out on the same kick', koOf(m) === koOf(twin) && m.players[1].stunned > 0);
   }
+}
+
+// --- the conceder's bonus: +1/3 gauge to whoever let the goal in, on the ball drop (HS M4 43.5 s)
+{
+  const m = createMatch({ rarity: 'legendary', number: 3 }, { rarity: 'legendary', number: 2 });
+  m.phase = 'play'; m.freeze = 0; m.hitStop = 0;
+  m.lastScorer = 0; m.ballWait = C.TICK / 2;              // P1 just scored; the ball drops this tick
+  m.players[0].gauge = 0.2; m.players[1].gauge = 0.2;
+  step(m, [{}, {}], C.TICK);
+  const g0 = m.players[0].gauge, g1 = m.players[1].gauge;
+  ok('the conceder gets a third of a bar on the ball drop', Math.abs(g1 - (0.2 + C.GAUGE_CONCEDE)) < 0.02, `${g1.toFixed(4)}`);
+  ok('the scorer gets no bonus', g0 < 0.2 + 0.02, `${g0.toFixed(4)}`);
+  m.players[1].gauge = 0.9; m.ballWait = C.TICK / 2; step(m, [{}, {}], C.TICK);
+  ok('the bonus never overfills the bar', m.players[1].gauge <= 1, `${m.players[1].gauge}`);
 }
 
 console.log(`test-sim: ${pass} passed, ${fail} failed`);
