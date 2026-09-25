@@ -338,11 +338,11 @@ export function drawFist(g, x, y, dir, ox, oy, t) {
 export function drawGrind(g, x, y, now) {
   const R = rng(Math.floor(now * 30) * 131 + 7);
   const k = 0.9 + 0.1 * R();
-  blit(g, glow('#ffd21a', 0.3), x, y, 120 * k, 120 * k, 0, 0.55, true);
-  blit(g, bubble(), x, y, 64 * k, 64 * k, R() * TAU, 0.95, true);
+  blit(g, glow('#ffd21a', 0.3), x, y, 170 * k, 170 * k, 0, 0.55, true);
+  blit(g, bubble(), x, y, 96 * k, 96 * k, R() * TAU, 0.95, true);
   const sp = spark('#ffe14a');
   for (let i = 0; i < 5; i++) {
-    const a = R() * TAU, L = 50 + R() * 50;
-    blit(g, sp, x + Math.cos(a) * (L * 0.5 + 16), y + Math.sin(a) * (L * 0.5 + 16), L, 12, a, 0.9, true);
+    const a = R() * TAU, L = 60 + R() * 60;
+    blit(g, sp, x + Math.cos(a) * (L * 0.5 + 26), y + Math.sin(a) * (L * 0.5 + 26), L, 18, a, 0.9, true);
   }
 }

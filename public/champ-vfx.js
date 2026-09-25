@@ -32,7 +32,7 @@ import { FAMILY_ORDER, AILMENT_ORDER } from '../shared/hs-powers.js';
 import { FAMILY_VFX, drawGrind, drawFist } from './vfx/families.js';
 import { AILMENT_VFX } from './vfx/ailments.js';
 import { POWER_VFX } from './vfx/powers/index.js';
-import { drawArmedGlow, drawStars, headPath, blit, glow, spark, ghostBall, licks, auraTex, bodyAuraTex, starTex, orbitTex, LIVE, TAU } from './vfx/fx-kit.js';
+import { drawArmedGlow, drawStars, headPath, blit, glow, spark, ghostBall, licks, auraTex, starTex, orbitTex, bubble, LIVE, TAU } from './vfx/fx-kit.js';
 import { drawRays, drawDisc, goldRay, softRay, disc, halo } from './vfx/cutin.js';
 
 export { FAMILY_VFX, AILMENT_VFX, POWER_VFX };
@@ -56,8 +56,8 @@ const powerVfx = (pw) => (pw && pw.cp && !pw.rb ? POWER_VFX[pw.cp] || null : nul
 // stalls a frame (each is a one-off per-pixel paint of a few ms).
 function warmTextures() {
   if (!LIVE || typeof setTimeout !== 'function') return;
-  const jobs = [licks, auraTex, bodyAuraTex, starTex, orbitTex, goldRay, softRay, disc, () => halo(0), () => halo(1), ghostBall,
-    () => spark('#ffd21a'), () => glow('#ff2a14', 0.05), ...Object.values(POWER_VFX).filter((P) => P.warm).map((P) => () => P.warm())];
+  const jobs = [licks, auraTex, () => glow('#ffd21a', 0.02), starTex, orbitTex, goldRay, softRay, disc, () => halo(0), () => halo(1), ghostBall,
+    () => spark('#ffd21a'), () => spark('#ffe14a'), () => glow('#ff2a14', 0.05), () => glow('#ffd21a', 0.3), bubble, ...Object.values(POWER_VFX).filter((P) => P.warm).map((P) => () => P.warm())];
   const idle = typeof requestIdleCallback === 'function' ? (f) => requestIdleCallback(f, { timeout: 500 }) : (f) => setTimeout(f, 16);
   const next = () => { const j = jobs.shift(); if (!j) return; try { j(); } catch {} idle(next); };
   setTimeout(() => idle(next), 400);
@@ -111,7 +111,7 @@ export function createVfx({ now = () => performance.now() / 1000, drawBall: pain
       const sp = spark('#ffd21a');
       for (const s of shards) {
         const f = s.t / s.life, v = Math.hypot(s.vx, s.vy) || 1;
-        blit(g, sp, s.x, s.y, s.len * (1 - 0.4 * f), 14, Math.atan2(s.vy, s.vx), (1 - f * f), true, 1, 0.5);
+        blit(g, sp, s.x, s.y, s.len * (1 - 0.4 * f), 20, Math.atan2(s.vy, s.vx), (1 - f * f), true, 1, 0.5);
       }
     }
     // the hit's droplets: soft red blobs thrown up and falling (§4 M4 43.33, 80.85 s)
@@ -257,7 +257,7 @@ export function createVfx({ now = () => performance.now() / 1000, drawBall: pain
         if (b.power && b.power.ph === 'grind' && shards.length < 14 && Math.random() < dt * 40) {
           // the grind throws a spear of light every ≈ 25 ms
           const d = depthPoint(b.x, b.y), a = Math.random() * TAU, v = 380 + Math.random() * 420;
-          shards.push({ x: d.x + Math.cos(a) * 10, y: d.y + Math.sin(a) * 10, vx: Math.cos(a) * v, vy: Math.sin(a) * v, t: 0, life: 0.14 + Math.random() * 0.1, len: 34 + Math.random() * 40 });
+          shards.push({ x: d.x + Math.cos(a) * 26, y: d.y + Math.sin(a) * 26, vx: Math.cos(a) * v, vy: Math.sin(a) * v, t: 0, life: 0.14 + Math.random() * 0.1, len: 50 + Math.random() * 60 });
         }
         if (!b.power && !(r && r.ghost > 0)) continue;
         const q = rec(b);
@@ -346,6 +346,16 @@ export function createVfx({ now = () => performance.now() / 1000, drawBall: pain
       pitchFx(g);
       cutExtras(g);
       overHeads(g);
+    },
+
+    // HS softens the darkened backdrop under a cut-in (M4 40.4–41.7 s: the stands go out of
+    // focus). CSS px of blur for the pitch canvas now — game.js puts it on #cv as a CSS filter
+    // (the canvas is half resolution, so the GPU blur is cheap), quantized so the style only
+    // changes during the fades.
+    pitchBlur() {
+      if (!M) return 0;
+      const s = cutState();
+      return s ? Math.round(s.fade * 1.6 * 4) / 4 : 0;
     },
 
     // WITH LAYERS — game.js calls these two every frame.

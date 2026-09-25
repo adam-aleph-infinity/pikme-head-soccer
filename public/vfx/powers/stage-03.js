@@ -41,7 +41,7 @@ function footDust(g, x, gy, t, dir, a = 1) {
 export default {
   id: 'tornado',
   palette: ['#f4ecd8', '#c9b48a', '#8a7654'],
-  warm() { SAND(); for (let i = 0; i < 4; i++) smoke(i, '#d9ccb0'); },
+  warm() { SAND(); smoke(0, '#d9ccb0'); smoke(0, '#cbbd9e'); glow('#e8d6a8', 0.05); },
   draw(g, b, s) {
     const dir = s.pw.dir || 1, gy = C.GROUND_Y, t = s.now;
     const sway = Math.sin(t * 5) * 10;

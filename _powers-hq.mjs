@@ -57,16 +57,27 @@ const js = async (expr) => {
   if (r?.exceptionDetails) errs.push(r.exceptionDetails.exception?.description || r.exceptionDetails.text);
   return r?.result?.value;
 };
+// where things are on each picture, in device px (for the comparison sheets' crops)
+const POS = {};
 const shot = async (file) => {
   await js('new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)))');
   const s = await send('Page.captureScreenshot', { format: 'png' });
   if (s?.data) writeFileSync(file, Buffer.from(s.data, 'base64'));
+  POS[file.split('/').pop()] = await js(`(async () => {
+    const { headY } = await import('/shared/sim.js');
+    const cv = document.getElementById('cv'), rc = cv.getBoundingClientRect(), k = rc.width / C.W, D = devicePixelRatio;
+    const T = document.getElementById('cvfx1').getContext('2d').getTransform(), top = T.f / T.a;
+    const at = (x, y) => ({ x: Math.round((rc.left + x * k) * D), y: Math.round((rc.top + (y + top) * k) * D) });
+    const [z, a] = MATCH.players;
+    return { k: k * D, shooter: at(a.x, headY(a)), defender: at(z.x, headY(z)), ball: at(MATCH.ball.x, MATCH.ball.y) };
+  })()`);
 };
+const savePos = () => writeFileSync(`${OUT}/pos.json`, JSON.stringify(POS, null, 1));
 await send('Page.enable');
 await send('Runtime.enable');
 await send('Emulation.setDeviceMetricsOverride', { width: 844, height: 390, deviceScaleFactor: DPR, mobile: true });
 // the fake clock, before any page script runs
-await send('Page.addScriptToEvaluateOnNewDocument', { source: `(() => { const real = performance.now.bind(performance); window.__clock = null; performance.now = () => (window.__clock == null ? real() : window.__clock * 1000); })();` });
+await send('Page.addScriptToEvaluateOnNewDocument', { source: `(() => { const real = performance.now.bind(performance); window.__realNow = real; window.__clock = null; performance.now = () => (window.__clock == null ? real() : window.__clock * 1000); })();` });
 
 const HELPERS = (stage) => `(async () => {
   window.SIM_HOLD = true;
@@ -122,6 +133,7 @@ if (MODE === 'stills') {
     console.log(`  ${hit ? '✓' : '✗'} ${n} ${CHAMPION_POWERS[n].hsPower}: ${hit}`);
     if (!hit) bad++;
   }
+  savePos();
 } else if (MODE === 'video') {
   for (const n of STAGES) {
     const tag = `stage-${String(n).padStart(2, '0')}`, dir = `${OUT}/${tag}`;
@@ -153,27 +165,34 @@ if (MODE === 'stills') {
   const st = await js(`(() => { let g = 0; while (g++ < 200 && !MATCH.players.some((p) => p.stunned > 0 && !(MATCH.ball.power && MATCH.ball.power.ph === 'grind'))) __tick(1); __tick(6); return MATCH.players.map((p) => p.stunned); })()`);
   await shot(`${OUT}/stars-0.png`); await js('__tick(5)'); await shot(`${OUT}/stars-1.png`);
   console.log(`  block: ${kicked}; stunned ${JSON.stringify(st)}`);
+  savePos();
 } else if (MODE === 'perf') {
   // Each stage fired live (rAF running, fake clock off), CPU throttled, and the FX layers'
   // draw time measured per frame round VFXR.drawUnder/drawTop.
   await send('Emulation.setCPUThrottlingRate', { rate: CPU });
   for (const n of STAGES) {
     await open(n);
+    // (performance.now is coarsened to 0.1 ms here, so each layer's draw is repeated REP times
+    // inside the timer and divided back; the canvas is cleared by the next real draw anyway.
+    // A second number: the frame's whole wall time, rAF to rAF, FX frames against plain ones.)
     const r = await js(`(async () => {
-      window.__clock = null;
-      const T = [], U = VFXR.drawUnder.bind(VFXR), P = VFXR.drawTop.bind(VFXR);
+      performance.now = window.__realNow;
+      const REP = 10, T = [], U = VFXR.drawUnder.bind(VFXR), P = VFXR.drawTop.bind(VFXR);
       let acc = 0;
-      VFXR.drawUnder = (g) => { const t0 = performance.now(); U(g); acc += performance.now() - t0; };
-      VFXR.drawTop = (g) => { const t0 = performance.now(); P(g); acc += performance.now() - t0; T.push(acc); acc = 0; };
+      VFXR.drawUnder = (g) => { const t0 = performance.now(); for (let i = 0; i < REP; i++) U(g); acc += (performance.now() - t0) / REP; };
+      VFXR.drawTop = (g) => { const t0 = performance.now(); for (let i = 0; i < REP; i++) P(g); acc += (performance.now() - t0) / REP; T.push(acc); acc = 0; };
       const wait = (ms) => new Promise((r) => setTimeout(r, ms));
-      ${PRESS}; await wait(400);
+      const frameTimes = async (ms, step) => { const out = []; let last = performance.now(); const t0 = last; while (performance.now() - t0 < ms) { if (step) __tick(1); await new Promise((r) => requestAnimationFrame(r)); const now = performance.now(); out.push(now - last); last = now; } return out.sort((a, b) => a - b); };
+      const plain = await frameTimes(1000, false);
+      ${PRESS}; await wait(300);
       ${TOUCH};
-      const t0 = performance.now(), frames0 = T.length;
-      while (performance.now() - t0 < 3000) { __tick(1); await new Promise((r) => requestAnimationFrame(r)); }
+      const frames0 = T.length;
+      const fx = await frameTimes(2600, true);
       const s = T.slice(frames0).sort((a, b) => a - b);
-      return { n: s.length, med: s[s.length >> 1], p95: s[Math.floor(s.length * 0.95)], max: s[s.length - 1] };
+      const q = (a, p) => a[Math.min(a.length - 1, Math.floor(a.length * p))];
+      return { n: s.length, med: q(s, 0.5), p95: q(s, 0.95), max: s[s.length - 1], plain: q(plain, 0.5), fxf: q(fx, 0.5), fx95: q(fx, 0.95) };
     })()`);
-    console.log(`  stage ${n} @${CPU}x CPU: ${r ? `${r.n} frames, FX median ${r.med.toFixed(2)} ms, p95 ${r.p95.toFixed(2)} ms, max ${r.max.toFixed(2)} ms` : 'no data'}`);
+    console.log(`  stage ${n} @${CPU}x CPU: FX draw (JS) median ${r.med.toFixed(2)} ms, p95 ${r.p95.toFixed(2)}, max ${r.max.toFixed(2)} (${r.n} frames); frame time plain ${r.plain.toFixed(1)} ms, with FX median ${r.fxf.toFixed(1)} / p95 ${r.fx95.toFixed(1)} ms`);
   }
 }
 if (errs.length) { console.log('page exceptions:', errs.slice(0, 4).join(' | ')); bad++; }

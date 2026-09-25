@@ -24,7 +24,7 @@ const PALETTE = ['#ffffff', '#3fe0ff', '#1a78ff', '#c8ff8a'];
 export const KOREA = { L: 560, H: 230, NOSE: 36, D: 1.5 };
 
 const HALF = (u) => (u < 46 ? Math.sqrt(Math.max(0, 46 * 46 - (46 - u) * (46 - u))) : u < 240 ? 46 + 42 * sstep(46, 240, u) : 88 - 26 * sstep(240, 520, u));
-const CORE = (u) => 0.9 * Math.exp(-(((Math.max(0, u - 30)) / 140) ** 2));
+const CORE = (u) => 0.9 * Math.exp(-(((Math.max(0, u - 30)) / 108) ** 2));
 const SEAM = [206, 255, 90], PALE = [200, 255, 250], CYAN = [36, 236, 244], BLUE = [18, 140, 255], DEEP = [12, 60, 220];
 
 function paintComet(g, w, h, k) {
@@ -77,7 +77,7 @@ export function drawKoreaComet(g, x, y, ux, uy, k = 1, frame = 0) {
 export default {
   id: 'blueaura',
   palette: PALETTE,
-  warm() { frames(); bloomTex(); ghostBall(); },
+  warm() { frames(); bloomTex(); ghostBall(); glow('#7fe8ff', 0.25); },
   draw(g, b, s) {
     const dir = s.pw.dir || 1;
     const v = Math.hypot(b.vx, b.vy);

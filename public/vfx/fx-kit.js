@@ -288,15 +288,15 @@ export function licks() {
       }
       x.closePath();
     };
-    x.fillStyle = '#ffc400'; shape(1); x.fill();
-    x.fillStyle = '#ffee55'; shape(0.72); x.fill();
-    x.fillStyle = '#ffffff'; shape(0.4); x.fill();
-    bloom(g, s, [[1, 0.8, '#ffe44a'], [2, 1, '#ffcc00'], [3, 0.9, '#ffb400'], [4, 0.55, '#ff9d00']], w, h);
+    x.fillStyle = '#ffd900'; shape(1); x.fill();
+    x.fillStyle = '#fff47a'; shape(0.72); x.fill();
+    x.fillStyle = '#ffffff'; shape(0.42); x.fill();
+    bloom(g, s, [[1, 0.8, '#fff04a'], [2, 1, '#ffd800'], [3, 0.85, '#ffc400'], [4, 0.5, '#ffae00']], w, h);
   });
 }
 // The silhouette glow: the head's own cartoon outline (game.js HEAD_SHAPE: 1.17 × 1.07 of the
 // hitbox, a dome on top, full cheeks) — a bright rim just on its edge and a yellow glow out
-// from it; `body` the rounded torso and boots.
+// from it (the body gets a soft glow of its own in drawArmedGlow).
 export const HEAD_W = 1.17, HEAD_H = 1.07;
 function headDist(dx, dy) {
   // signed distance (in head radii) to the head's superellipse outline, approximated radially
@@ -326,28 +326,19 @@ export function auraTex(col = '#ffd21a') {
     const out = d > 0 ? Math.exp(-d / 0.2) * 0.95 + 0.35 * Math.exp(-d / 0.55) : Math.exp(d / 0.07);
     const rim = Math.exp(-(((d + 0.02) / 0.06) ** 2));
     o[0] = mix(c[0], 255, rim); o[1] = mix(c[1], 250, rim); o[2] = mix(c[2], 130, rim);
-    o[3] = Math.min(1, out * (d > 0 ? 1 : 0.8) + rim * 0.3) * (1 - sstep(0.9, 1, Math.hypot(x - w / 2, y - h / 2) / (w / 2)));
-  }));
-}
-export function bodyAuraTex(col = '#ffd21a') {
-  const c = hex(col);
-  return tex(`bodyaura${col}`, 96, 96, (g, w, h) => pix(g, w, h, (x, y, o) => {
-    // a rounded box 0.5 × 0.42 of the texture (the body's 28 × 24 world px in a 56 × 56 box)
-    const px = Math.abs(x + 0.5 - w / 2) / w, py = Math.abs(y + 0.5 - h / 2) / h;
-    const qx = Math.max(0, px - 0.2), qy = Math.max(0, py - 0.16);
-    const d = Math.hypot(qx, qy) - 0.06;
-    const out = d > 0 ? Math.exp(-d / 0.06) * 0.8 + 0.3 * Math.exp(-d / 0.14) : Math.exp(d / 0.02) * 0.8;
-    o[0] = c[0]; o[1] = c[1]; o[2] = c[2];
-    o[3] = Math.min(1, out) * (1 - sstep(0.44, 0.5, Math.max(px, py)));
+    // strongest down the sides (where the licks root), weakest over the crown (M4 36.5–36.9 s)
+    const dx = x + 0.5 - w / 2, dy = y + 0.5 - h / 2, sides = Math.abs(dx) / (Math.hypot(dx, dy) || 1);
+    const k = dy < 0 ? 0.35 + 0.65 * sides : 0.75 + 0.25 * sides;
+    o[3] = Math.min(1, out * (d > 0 ? 1 : 0.8) + rim * 0.3) * k * (1 - sstep(0.9, 1, Math.hypot(dx, dy) / (w / 2)));
   }));
 }
 // The whole press look at one player: head centre (hx, hy), radius r, feet (fx, fy), now t.
 // `col` recolours it (HS's is yellow for every character).
 const LICK_SLOTS = [
   // [x (head radii from the head centre), y of its root, height (r), lean (rad)]
-  [-1.22, 0.55, 2.3, -0.1], [1.22, 0.5, 2.25, 0.1],
-  [-0.5, -0.55, 1.9, -0.3], [0.55, -0.6, 1.85, 0.32],
-  [-0.75, 1.6, 2.0, -0.04], [0.78, 1.65, 2.0, 0.04],
+  [-1.2, 0.5, 2.2, -0.12], [1.2, 0.45, 2.15, 0.12],             // up the sides of the head
+  [-0.95, -0.45, 1.6, -0.5], [0.95, -0.5, 1.55, 0.52],          // off the upper sides, curling out
+  [-1.0, 1.7, 1.5, -0.2], [1.02, 1.7, 1.5, 0.2],                // beside the body
 ];
 export function drawArmedGlow(g, hx, hy, r, fx, fy, t, seed = 0) {
   const f = Math.floor(t * ARMED.HZ);
@@ -356,7 +347,7 @@ export function drawArmedGlow(g, hx, hy, r, fx, fy, t, seed = 0) {
   // the silhouette glow (head and body)
   blit(g, auraTex(), hx, hy, r * 4.8, r * 4.8, 0, flick * 0.8, true);
   const bh = fy - (hy + r * 0.85);
-  if (bh > 4) blit(g, bodyAuraTex(), fx, fy - bh / 2 - 1, bh * 2.3, bh * 2.3, 0, flick * 0.9, true);
+  if (bh > 4) blit(g, glow('#ffd21a', 0.02), fx, fy - bh / 2, r * 2.6, bh * 2.6, 0, flick * 0.55, true);
   // the flame licks: most slots lit, each with its own frame, mirror, size and lean
   const bk = licks();
   let lit = 0;
@@ -486,7 +477,8 @@ export function whirl(key = 'sand', light = '#efe6d2', dark = '#7d6c52', n = 8) 
       const side = 0.5 - 0.5 * xn;                               // lit from the left
       const lit = clamp01(0.2 + 0.42 * band + 0.55 * (streaks - 0.5) + 0.3 * (grain - 0.5) + 0.25 * side + 0.15 * (1 - f) + 0.6 * line);
       const edge = 1 - sstep(0.88, 1.06, Math.abs(xn) + 0.12 * (grain - 0.5));
-      const ends = sstep(0, 0.1, f + 0.08 * (grain - 0.5)) * (1 - sstep(0.93, 1, f));
+      // a ragged, cloudy top (never a cut edge) and a soft foot
+      const ends = sstep(0.02, 0.2, f + 0.22 * (grain - 0.5) + 0.06 * Math.sin(turn * TAU * 3)) * (1 - sstep(0.93, 1, f));
       o[0] = mix(Dk[0], L[0], lit); o[1] = mix(Dk[1], L[1], lit); o[2] = mix(Dk[2], L[2], lit);
       o[3] = clamp01((0.62 + 0.45 * limb) * (0.7 + 0.5 * grain) * (0.8 + 0.3 * band) + line * 0.4) * edge * ends;
     });
@@ -501,7 +493,7 @@ export function bubble() {
     const d = Math.hypot(x + 0.5 - 48, y + 0.5 - 48) / 40;
     const rim = Math.exp(-(((d - 0.93) / 0.07) ** 2));
     const fill = d < 0.95 ? 0.38 + 0.22 * d * d : 0;
-    const heart = Math.exp(-((d / 0.42) ** 2));
+    const heart = 0.6 * Math.exp(-((d / 0.3) ** 2));
     const halo = d > 0.93 ? 0.35 * Math.exp(-(d - 0.93) / 0.08) : 0;
     const wht = clamp01(heart * 1.2 + rim * 0.5);
     o[0] = 255; o[1] = mix(232, 255, wht); o[2] = mix(90, 235, wht);

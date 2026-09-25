@@ -1215,6 +1215,7 @@ const ctxNet = cvNet.getContext('2d');
 const cvFx0 = $('#cvfx0'), cvFx1 = $('#cvfx1');
 const ctxFx0 = cvFx0 && cvFx0.getContext('2d'), ctxFx1 = cvFx1 && cvFx1.getContext('2d');
 if (ctxFx0 && ctxFx1) VFXR.useLayers(true);
+let pitchBlurPx = 0;                 // the CSS blur on #cv under a cut-in (VFXR.pitchBlur)
 // SC is world units -> CSS px. OX/OY are where world (0,0) lands inside the stage, and they
 // are NOT always zero: the canvas is COVER-fitted on a wide screen, so it hangs off the top.
 // Anything that positions a DOM node over the pitch must go through all three — the heads are
@@ -1509,12 +1510,14 @@ function draw() {
   }
   drawHeads();
   drawHeadNet();                     // …and the near net again, over a head that is in the goal
-  drawOverHeads(ctxNet);             // YOU at kickoff, stars over a stunned head
-  // Over the heads (they are DOM nodes under this layer): the armed tongues, what a shot left on
-  // a player, and the cut-in — the whole screen darkens but the shooter (champ-vfx.js).
+  drawOverHeads(ctxNet);             // YOU at kickoff
+  // The power effects (champ-vfx.js): the armed glow, the shots, what a shot left on a player,
+  // and the cut-in — the whole screen darkens but the shooter.
   if (VFXR.layered) {
     VFXR.drawUnder(ctxFx0);          // the cut-in's dark, rays and disc, under the heads
     VFXR.drawTop(ctxFx1);            // shots, glows, bursts, stars, ailments, over them
+    const blur = VFXR.pitchBlur();   // …and the backdrop out of focus under a cut-in, as HS does
+    if (blur !== pitchBlurPx) { pitchBlurPx = blur; cv.style.filter = blur ? `blur(${blur}px)` : ''; }
   } else {
     for (const p of M.players) VFXR.drawArmed(ctxNet, p);
     VFXR.drawOverlay(ctxNet);

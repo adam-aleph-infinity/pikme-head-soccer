@@ -33,9 +33,9 @@ export function softRay() {
     const u = (x + 0.5) / w, v = ((y + 0.5) / h) * 2 - 1;
     const hw = 0.22 + 0.78 * u, q = v / hw;
     const across = Math.exp(-(q * q) * 2.4);
-    const streak = 0.45 + 0.4 * n(q * 26 + 40) + 0.25 * n2(q * 60 + 9 + u * 3);
+    const streak = 0.62 + 0.28 * n(q * 20 + 40) + 0.16 * n2(q * 50 + 9 + u * 3);
     const along = sstep(0, 0.12, u) * (1 - sstep(0.4, 1, u));
-    o[0] = 255; o[1] = mix(214, 246, Math.exp(-q * q * 6)); o[2] = mix(120, 212, Math.exp(-q * q * 6));
+    o[0] = 255; o[1] = mix(222, 248, Math.exp(-q * q * 6)); o[2] = mix(110, 190, Math.exp(-q * q * 6));
     o[3] = clamp01(across * streak * along) * 0.95;
   }));
 }
@@ -77,7 +77,7 @@ export function halo(i = 0) {
 }
 
 // jitter per ray, fixed (HS's rays are not a perfect clock face)
-const JIT = (() => { const r = rng(1234); return Array.from({ length: 16 }, () => [(r() - 0.5) * 0.14, 0.85 + r() * 0.3, r() * TAU]); })();
+const JIT = (() => { const r = rng(1234); return Array.from({ length: 16 }, () => [(r() - 0.5) * 0.22, 0.72 + r() * 0.55, r() * TAU, 0.7 + r() * 0.6]); })();
 
 // The light at the head (hx, hy), radius r, `el` s into the cut-in; `glow` its strength (0–1),
 // `grow` how far the rays have grown in (0–1). The DISC is separate (drawDisc) so a caller can
@@ -90,10 +90,10 @@ export function drawRays(g, hx, hy, r, el, glow, grow) {
   blit(g, halo(Math.floor(el * 15) & 1), hx, hy, H, H, -el * 0.3, glow * 0.72, true);
   const gr = goldRay(), sr = softRay();
   for (let i = 0; i < 16; i++) {
-    const [ja, jl, jp] = JIT[i];
+    const [ja, jl, jp, jw] = JIT[i];
     const gold = i % 2 === 0, a = rot + (i / 16) * TAU + ja;
     const fl = 0.88 + 0.12 * Math.sin(el * 9 + jp);
-    const L = (gold ? CUT.GOLD_L : CUT.SOFT_L) * k * jl * fl * grow, W = (gold ? CUT.GOLD_W : CUT.SOFT_W) * k * (0.7 + 0.3 * grow);
+    const L = (gold ? CUT.GOLD_L : CUT.SOFT_L) * k * jl * fl * grow, W = (gold ? CUT.GOLD_W : CUT.SOFT_W) * k * jw * (0.7 + 0.3 * grow);
     const r0 = CUT.R0 * k;
     // the texture's left edge is the ray's root at the disc; anchor it there
     blit(g, gold ? gr : sr, hx + Math.cos(a) * r0, hy + Math.sin(a) * r0, L, W, a, glow * (gold ? 1 : 0.62), true, 0, 0.5);

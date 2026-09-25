@@ -10,7 +10,7 @@
 // rate as HS's armed licks), never re-rolled geometry.
 // Armed: Head Soccer's own yellow flame licks (fx-kit drawArmedGlow) — the same for everyone.
 
-import { beam, bolts, boltBlit, glow, spark, blit, rng, TAU } from '../fx-kit.js';
+import { beam, bolts, boltBlit, glow, spark, blit, rng, auraTex, TAU } from '../fx-kit.js';
 import { cometAlpha } from '../families.js';
 
 const TRAIL = () => beam('thunder', { L: 430, H: 124, mid: '#ffe23a', edge: '#ff8a00', core: 0.16, fan: 1.6, streak: 0.95, head: 0.22 });
@@ -20,7 +20,7 @@ const NOSE = 30;
 export default {
   id: 'thunderbolt',
   palette: ['#fffbe0', '#ffe23a', '#5fb0ff'],
-  warm() { TRAIL(); BOLTS(); glow('#ffe86a', 0.3); glow('#5aa8ff', 0.1); spark('#ffe23a'); },
+  warm() { TRAIL(); BOLTS(); glow('#ffe86a', 0.3); glow('#5aa8ff', 0.1); spark('#ffe23a'); bolts('#7cc4ff', '#ffffff', 8, 33); auraTex('#3f9bff'); },
   draw(g, b, s) {
     const dir = s.pw.dir || 1, x = s.x, y = s.y;
     const v = Math.hypot(b.vx, b.vy);
