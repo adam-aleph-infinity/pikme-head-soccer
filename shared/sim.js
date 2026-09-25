@@ -1377,6 +1377,9 @@ function resolveBallPlayers(m, fx, alpha = 1) {
       const kx = px + dir * (low ? C.KICK_REACH : C.KICK_REACH_HI);
       const ky = py - (low ? C.BALL_R : C.KICK_HI_Y);
       if (Math.hypot(b.x - kx, b.y - ky) < C.KICK_R + b.r) {
+        // ARMED BEATS INCOMING off the boot too: HS's counter is any touch by an armed player
+        // (§4), so a swing that meets their shot fires yours, just as the head and body do.
+        if (b.power && b.power.owner !== p.index && p.armed > 0 && fireUltimateOnContact(m, p, b, fx)) { p.kickT = 0; return; }
         if (!b.power) {
           // ARMED: this touch is the one that spends it (see the note above the hitbox).
           if (p.armed > 0 && fireUltimateOnContact(m, p, b, fx)) { p.kickT = 0; return; }

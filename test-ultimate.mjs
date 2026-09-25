@@ -799,7 +799,8 @@ function atDefender(fam, o = {}, { kick = false, armed = false, gap = 320 } = {}
     ok('SHOCK: half speed, and no jump', Math.abs(vx - C.PLAYER_SPEED * 0.5) < 1 && p.onGround, `vx ${vx}`); }
   { const { m, p } = on('freeze'); const x = p.x; run(m, 10, [{ right: true, jump: true }, {}]); ok('FREEZE: frozen solid', Math.abs(p.x - x) < 0.5 && p.onGround); }
   { const { m, p } = on('stars'); const x = p.x; run(m, 10, [{ left: true }, {}]); ok('STARS: dazed, no control', Math.abs(p.x - x) < 0.5); }
-  { const { m, p } = on('burn'); m.ball.x = p.x + C.KICK_REACH; m.ball.y = p.y - C.BODY_H * 0.5; step(m, [{ kick: true }, {}]); ok('BURN: the boot does nothing', p.kickT === 0 && m.ball.vx === 0); }
+  { const { m, p } = on('burn'); step(m, [{ right: true }, {}]); ok('BURN: the walk runs backwards (wiki Power_Button_Damage_Effects)', p.vx < 0, `vx ${p.vx}`); }
+  { const { m, p } = on('freeze'); step(m, [{ power: true }, {}]); p.gauge = 1; step(m, NONE); step(m, [{ power: true }, {}]); ok('FREEZE: the frozen player can still arm POWER (wiki, Russia)', p.armed > 0); }
   { const { m, p } = on('beheaded'); m.ball.x = p.x; m.ball.y = headY(p); m.ball.vx = 0; m.ball.vy = 0; step(m, NONE);
     ok('BEHEADED: the ball passes where the head was', Math.abs(m.ball.x - p.x) < 1 && !m.events.some((e) => e.type === 'strike')); }
   { const { m, p } = on('beheaded'); const x = p.x; run(m, 10, [{ right: true }, {}]); ok('BEHEADED: "unable to do anything for a moment" (wiki, Honduras)', Math.abs(p.x - x) < 0.5); }
@@ -1052,7 +1053,7 @@ const first = (log, type, f = () => true) => log.find((e) => e.type === type && 
     const r = fireCp(1, seat, { gap: 600, s: 0.2 });
     const p = r.path.filter((q) => q.cp === 'blueaura');
     const vx = (p[p.length - 1].x - p[0].x) / ((p.length - 1) * C.TICK);
-    ok(`KOREA (seat ${seat}): straight and flat at 0.92 × 2150 px/s`, p.length > 5 && Math.abs(Math.abs(vx) - 2150 * 0.92) < 40 && p.every((q) => Math.abs(q.y - p[0].y) < 0.5) && Math.sign(vx) === r.a.side, `${vx.toFixed(0)} px/s`);
+    ok(`KOREA (seat ${seat}): straight and flat at the filmed 2150 px/s`, p.length > 5 && Math.abs(Math.abs(vx) - 2150) < 40 && p.every((q) => Math.abs(q.y - p[0].y) < 0.5) && Math.sign(vx) === r.a.side, `${vx.toFixed(0)} px/s`);
     const h = fireCp(1, seat);
     const hit = first(h.log, 'powerHit');
     ok(`KOREA (seat ${seat}): a standing defender is hit, pushed back toward his goal, dazed`, hit && hit.how === 'hit' && h.z.stunned >= 0 && h.path.some((q) => (q.zx - h.path[0].zx) * h.z.side < -5));

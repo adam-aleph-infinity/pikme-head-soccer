@@ -53,11 +53,14 @@ export const FAMILY_ORDER = Object.freeze(Object.keys(FAMILIES));
 export const AILMENTS = Object.freeze({
   reverse:  { id: 'reverse',  name: 'בלבול',  dur: 3.0, color: '#e04cff' },   // left is right (???)
   shock:    { id: 'shock',    name: 'חשמל',   dur: 2.5, color: '#ffe23a' },   // half speed, no jump, no dash
-  freeze:   { id: 'freeze',   name: 'קפוא',   dur: 1.5, color: '#9fe8ff' },   // an ice block: no control at all
+  // an ice block: no control at all — for 2–3 s (headsoccer wiki Power_Button_Damage_Effects; was 1.5)
+  freeze:   { id: 'freeze',   name: 'קפוא',   dur: 2.5, color: '#9fe8ff' },
   // no head: no header, the ball passes where it was — and (wiki Power_Shots, Honduras) "unable
   // to do anything for a moment": no control either, so a moment it is
   beheaded: { id: 'beheaded', name: 'בלי ראש', dur: 1.5, color: '#b9a7d6' },
-  burn:     { id: 'burn',     name: 'בוער',   dur: 2.0, color: '#ff6a1a' },   // cannot kick, a little slower
+  // on fire: the walk runs backwards (wiki Power_Button_Damage_Effects). It used to take the boot
+  // and slow you instead, which is nothing HS does.
+  burn:     { id: 'burn',     name: 'בוער',   dur: 2.0, color: '#ff6a1a' },
   stars:    { id: 'stars',    name: 'כוכבים', dur: 1.0, color: '#ffd23c' },   // dazed: no control (HS §4's three gold stars)
   // Thrown by the Grab (§3 M3 74.3–75.5 s): flung straight up out of the screen and back down
   // inside a blue whirlwind; heavy (5× gravity) so the whole flight is HS's ≈1.2 s. Never a
@@ -78,7 +81,7 @@ export const AURA_ORDER = Object.freeze(['none', 'stun', 'push', 'reverse', 'fre
 // ── timings ─────────────────────────────────────────────────────────────────────
 export const HS = Object.freeze({
   BLOCK_GRIND: 0.8,       // s the ball grinds on a kicking blocker (§4: M4 61.45–62.25, 79.55–80.25)
-  BLOCK_PUSH: 40,         // px/s the grind pushes him back (§4: "a few pixels")
+  BLOCK_PUSH: 6,          // px/s the grind pushes him back: ~5 px over the grind (§4: "a few pixels"; was 40 = 32 px)
   BLOCK_REST: 0.4,        // s it then sits dead at his feet before firing back (§4: 62.35–62.7)
   HIT_KNOCK: 380,         // px/s the hit defender is thrown toward his own goal (§4 M4 43.33; estimated)
   HIT_LIFT: 240,          // px/s up with it
@@ -91,7 +94,7 @@ export const HS = Object.freeze({
   GRAB_FLING: 1850,       // px/s straight up on release: wholly off the top of the screen, back in ≈1.25 s
   GRAB_THROWN: 1.25,      // s in the air (5× gravity: 2·1850 / (5·595) ≈ 1.24)
   GRAB_DAZE: 0.45,        // s of stars on the ground after landing (M3 75.5–75.9)
-  AURA_STUN: 0.8, AURA_PUSH: 460, AURA_REVERSE: 2.5, AURA_FREEZE: 1.2,
+  AURA_STUN: 0.8, AURA_PUSH: 460, AURA_REVERSE: 2.5, AURA_FREEZE: 2.0,   // freezes last 2–3 s (wiki)
 });
 
 const TAN_DIVE = 0.8391;   // tan 40°, as a literal (no Math.tan in sim code — see ROLLBACK RULES)
@@ -587,20 +590,23 @@ export function ailMods(p) {
   switch (p.ail) {
     case 'reverse': o.reverse = true; break;
     case 'shock': o.speed = 0.5; o.noJump = true; o.noDash = true; break;
-    case 'freeze': o.frozen = true; o.dead = true; o.noJump = true; o.noDash = true; break;
-    case 'burn': o.noKick = true; o.speed = 0.8; break;
+    case 'freeze': o.frozen = true; o.dead = true; o.noJump = true; o.noDash = true; o.canArm = true; break;
+    case 'burn': o.reverse = true; break;
     case 'stars': o.dead = true; o.noDash = true; break;
     case 'thrown': o.dead = true; o.noDash = true; o.grav = 5; break;
     case 'twister': o.dead = true; o.noDash = true; break;
-    case 'iced': o.dead = true; o.noJump = true; o.noDash = true; o.friction = 0.975; break;
+    case 'iced': o.dead = true; o.noJump = true; o.noDash = true; o.friction = 0.975; o.canArm = true; break;
     case 'beheaded': o.dead = true; o.noDash = true; break;   // (and sim.js drops the head's contacts)
     default: break;
   }
   return o;
 }
 const DEAD = Object.freeze({});
+const DEAD_ARM = Object.freeze({ power: true });
 export function ailInput(md, input) {
-  if (md.dead) return DEAD;
+  // Frozen, you can still press POWER (wiki Power_Shot_Guide, Russia: the frozen player can still
+  // activate their power) — the arm waits for the thaw like any other.
+  if (md.dead) return md.canArm && input.power ? DEAD_ARM : DEAD;
   if (!md.reverse && !md.noKick && !md.noJump) return input;
   const o = { ...input };
   if (md.reverse) { o.left = !!input.right; o.right = !!input.left; }

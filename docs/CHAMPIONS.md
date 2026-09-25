@@ -45,13 +45,13 @@ How a power shot plays (docs/HS-POWER-SHOTS.md): fill the gauge, press POWER to 
 | 17 | ליגה | רוכב הסערה | 🌬️ סופה | Straight | — | push (88px) | 0.43 | 7/4/4/6/3 | 1.07/0.95/0.93 | 0.9 | ★★ |
 | 18 | ליגה | הסטרייקר | ⚡ סטרייק | Destructive | stars (0.96s) | stun (88px) | 0.45 | 4/3/8/3/7 | 0.93/0.92/1.11 | 1.1 | ★★ |
 | 19 | נבחרת | הג'וקר | 🔄 בלבול | Ailment | reverse (4.1s) | reverse (105px) | 0.47 | 7/5/4/5/5 | 1.07/0.98/0.93 | 1 | ★★½ |
-| 20 | נבחרת | איש השלג | ❄️ הקפאה | Ailment | freeze (2.08s) | freeze (105px) | 0.49 | 7/5/4/5/5 | 1.07/0.98/0.93 | 1 | ★★½ |
+| 20 | נבחרת | איש השלג | ❄️ הקפאה | Ailment | freeze (3.47s) | freeze (105px) | 0.49 | 7/5/4/5/5 | 1.07/0.98/0.93 | 1 | ★★½ |
 | 21 | נבחרת | צייד המטאורים | ☄️ מטאור | Downward | burn (2.02s) | — | 0.51 | 5/9/5/3/5 | 0.98/1.11/0.98 | 1 | ★★½ |
 | 22 | נבחרת | הגנב | 🫳 גניבת כוח | Ailment | shock (3.58s) | — | 0.53 | 7/6/4/6/5 | 1.07/1.02/0.93 | 1 | ★★½ |
 | 23 | נבחרת | רעם האדמה | 🌋 רעידת אדמה | Destructive | stars (1.04s) | push (105px) | 0.55 | 4/4/7/4/10 | 0.93/0.95/1.07 | 1.25 | ★★★ |
 | 24 | נבחרת | האקרובט | 🤸 טרמפולינה | Up-and-Down | — | — | 0.57 | 5/10/5/4/5 | 0.98/1.14/0.98 | 1 | ★★★ |
 | 25 | נבחרת | המטעה | ⏯️ עצור וסע | Delay | — | — | 0.59 | 5/4/9/4/8 | 0.98/0.95/1.16 | 1.15 | ★★★ |
-| 26 | נבחרת | המחליק | 🧊 רצפת קרח | Ground | freeze (1.63s) | — | 0.61 | 9/5/5/9/3 | 1.16/0.98/0.98 | 0.9 | ★★★ |
+| 26 | נבחרת | המחליק | 🧊 רצפת קרח | Ground | freeze (2.72s) | — | 0.61 | 9/5/5/9/3 | 1.16/0.98/0.98 | 0.9 | ★★★ |
 | 27 | נבחרת | שומר הפורטל | 🌀 פורטל | Delay | — | — | 0.63 | 8/7/5/6/6 | 1.11/1.05/0.98 | 1.05 | ★★★ |
 | 28 | אלופים | זורק הבומרנג | 🪃 בומרנג | Aerial | — | — | 0.65 | 5/4/10/4/9 | 0.98/0.95/1.2 | 1.2 | ★★★½ |
 | 29 | אלופים | הכורה | 🔩 מקדחה | Destructive | — | push (123px) | 0.67 | 5/5/8/5/10 | 0.98/0.98/1.11 | 1.25 | ★★★½ |
@@ -70,7 +70,7 @@ How a power shot plays (docs/HS-POWER-SHOTS.md): fill the gauge, press POWER to 
 | 42 | אגדות | התאום | 👥 שכפול | Multi-Ball | — | push (140px) | 0.94 | 9/9/9/8/8 | 1.16/1.11/1.16 | 1.15 | ★★★★½ |
 | 43 | אגדות | המפצל | 🔱 פיצול | Multi-Ball | — | stun (140px) | 0.96 | 10/7/10/7/10 | 1.2/1.05/1.2 | 1.25 | ★★★★★ |
 | 44 | אגדות | עין הסערה | 🌪 טורנדו | Up-and-Down | stars (1.38s) | push (140px) | 0.98 | 8/8/10/8/10 | 1.11/1.08/1.2 | 1.25 | ★★★★★ |
-| 45 | אגדות | אדון הזמן | ⏱️ עצירת זמן | Delay | freeze (2.1s) | freeze (140px) | 1 | 9/9/9/9/9 | 1.16/1.11/1.16 | 1.2 | ★★★★★ |
+| 45 | אגדות | אדון הזמן | ⏱️ עצירת זמן | Delay | freeze (3.5s) | freeze (140px) | 1 | 9/9/9/9/9 | 1.16/1.11/1.16 | 1.2 | ★★★★★ |
 
 ## Ailments and auras
 
@@ -78,7 +78,7 @@ How a power shot plays (docs/HS-POWER-SHOTS.md): fill the gauge, press POWER to 
 |---|---|---|
 | reverse (בלבול) | left and right swapped (???) | 3s at intensity 0.5 (×0.6–1.4 with intensity) |
 | shock (חשמל) | half speed, no jump, no dash | 2.5s at intensity 0.5 (×0.6–1.4 with intensity) |
-| freeze (קפוא) | turned into a snowman (wiki: Switzerland), no control | 1.5s at intensity 0.5 (×0.6–1.4 with intensity) |
+| freeze (קפוא) | turned into a snowman (wiki: Switzerland), no control | 2.5s at intensity 0.5 (×0.6–1.4 with intensity) |
 | beheaded (בלי ראש) | no head and no control for a moment: no header, the ball passes where it was | 1.5s at intensity 0.5 (×0.6–1.4 with intensity) |
 | burn (בוער) | cannot kick, 0.8× speed | 2s at intensity 0.5 (×0.6–1.4 with intensity) |
 | stars (כוכבים) | dazed, no control | 1s at intensity 0.5 (×0.6–1.4 with intensity) |
@@ -92,7 +92,7 @@ How a power shot plays (docs/HS-POWER-SHOTS.md): fill the gauge, press POWER to 
 | stun | stuns (0.8s, stars) |
 | push | pushes away (460 px/s) |
 | reverse | reverses controls (2.5s) |
-| freeze | freezes (1.2s) |
+| freeze | freezes (2s) |
 
 ## The bot ladder
 

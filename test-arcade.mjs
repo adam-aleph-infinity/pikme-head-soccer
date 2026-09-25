@@ -449,7 +449,7 @@ function fireChampion(stage, i, gap = 460) {
   // on a hit or a goal and the ball leaves 1.14 s in (POWER_RELEASE 0.2, measured against the dark);
   // the Grab drags the defender back to the shooter and flings him; Multi-Ball is always three
   // balls; Downward rises at 15°; beheaded takes the controls for a moment. All HS-parity changes.
-  const GOLDEN = 'add1b2663cd470d5e5b490ef8e65ae0af32ed2361bff6b3905e3290209217aeb';   // re-recorded: HS-GAP-AUDIT stage 1 (kick swing, ball physics, restarts)
+  const GOLDEN = '1fdea3b4552996f631b98f6c602328c77373c68cbc8e85a123468071bd48823b';   // re-recorded: HS-GAP-AUDIT stages 1 + 3
   const h = createHash('sha256');
   const cases = [
     [{ rarity: 'legendary', number: 3 }, { rarity: 'legendary', number: 2 }, 3, 3, 11],

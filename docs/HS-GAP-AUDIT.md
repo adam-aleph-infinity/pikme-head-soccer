@@ -44,17 +44,17 @@ At the audit, `node test-hs-parity.mjs` passed 82 of 88 rows. The 6 failures are
 
 | # | Sev | Gap | Ours | HS | Source |
 |---|---|---|---|---|---|
-| W1 | M | Only 6 of 45 champion powers are built (stages 1–6); the other 39 fire their family's generic shot, drawn as one comet in different colours | `shared/champion-powers/`, `vfx/families.js:134` | Each character has its own shot and look | spec |
-| W2 | M | Burn has the wrong effect | Blocks kicking and slows to 0.8× `hs-powers.js:591` | Reverses your walk | wiki |
-| W3 | L | Freezes are too short | 1.2–2.1 s | 2–3 s | wiki |
-| W4 | L | A frozen or dazed player can't arm their power | `sim.js:487` | Can still arm | wiki |
-| W5 | L | The block window is probably too forgiving: the whole 0.26 s, and a head touch counts too | `hs-powers.js:430, 529` | unmeasured | — |
-| W6 | L | 7 of the 11 families' speeds and paths are guesses, and Critical flies faster (2795 px/s) than anything filmed | — | Only Straight, Aerial and Grab were filmed | meas |
-| W7 | L | Korea's shot is 8% slow | 1978 px/s | 2150 | meas |
-| W8 | L | Online, stages 1–6 fire their family's shot, not the champion's own power | — | — | code |
-| W9 | L | Critical is a fixed family | — | A random trigger with a cutscene | know |
-| W10 | L | A block pushes the defender back 32 px | — | "A few px" | meas |
-| W11 | L | An armed player's boot doesn't counter an incoming power shot (only the head or body does) | — | — | code |
+| W1 ✂️ | M | **Scoped by Idan: only the first 5 champions' powers** (built and painted in the earlier HQ passes). Only 6 of 45 champion powers are built (stages 1–6); the other 39 fire their family's generic shot, drawn as one comet in different colours | `shared/champion-powers/`, `vfx/families.js:134` | Each character has its own shot and look | spec |
+| W2 ✅ | M | Burn has the wrong effect | Blocks kicking and slows to 0.8× `hs-powers.js:591` | Reverses your walk | wiki |
+| W3 ✅ | L | Freezes are too short | 1.2–2.1 s | 2–3 s | wiki |
+| W4 ✅ | L | A frozen or dazed player can't arm their power | `sim.js:487` | Can still arm | wiki |
+| W5 🎥 | L | The block window is probably too forgiving: the whole 0.26 s, and a head touch counts too | `hs-powers.js:430, 529` | unmeasured | — |
+| W6 🎥 | L | 7 of the 11 families' speeds and paths are guesses, and Critical flies faster (2795 px/s) than anything filmed | — | Only Straight, Aerial and Grab were filmed | meas |
+| W7 ✅ | L | Korea's shot is 8% slow | 1978 px/s | 2150 | meas |
+| W8 ❓ | L | Online, stages 1–6 fire their family's shot, not the champion's own power | — | — | code |
+| W9 🎥 | L | Critical is a fixed family | — | A random trigger with a cutscene | know |
+| W10 ✅ | L | A block pushes the defender back 32 px | — | "A few px" | meas |
+| W11 ✅ | L | An armed player's boot doesn't counter an incoming power shot (only the head or body does) | — | — | code |
 
 ## 4. Rules, flow, modes and CPU
 
