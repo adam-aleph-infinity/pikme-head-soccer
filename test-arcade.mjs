@@ -107,7 +107,8 @@ const FOE_CARD = { rarity: 'epic', number: 1 };            // not a champion: no
 // hard to stop as stage n's, by our own behaviour score and by the spec's.
 {
   const spec = JSON.parse(readFileSync(new URL('./docs/hs-45-powers.json', import.meta.url), 'utf8'));
-  ok('the built stages run 1..n with no gaps', BUILT_STAGES.length >= 1 && BUILT_STAGES.every((n, i) => n === i + 1), BUILT_STAGES.join(','));
+  // (built in batches, in parallel: 1–5 and 6–10 can land in either order, so a gap is allowed)
+  ok('the built stages are real stages, in order', BUILT_STAGES.length >= 1 && BUILT_STAGES.every((n, i) => n >= 1 && n <= 45 && (i === 0 || n > BUILT_STAGES[i - 1])), BUILT_STAGES.join(','));
   const ids = new Set();
   for (const n of BUILT_STAGES) {
     const d = CHAMPION_POWERS[n], row = spec[n - 1], c = championForStage(n);
@@ -117,10 +118,11 @@ const FOE_CARD = { rarity: 'epic', number: 1 };            // not a champion: no
     ok(`power ${n}: the board says it in short Hebrew`, /[֐-׿]/.test(d.name) && /[֐-׿]/.test(d.desc) && d.desc.length <= 90 && c.powerName === d.name && c.desc === d.desc, `${d.desc.length} chars`);
     ok(`power ${n}: cites the HS wiki`, d.sources.some((u) => u === row.sources.P));
     ok(`power ${n}: has its renderer (public/vfx/powers/stage-${String(n).padStart(2, '0')}.js)`, (() => { try { return readFileSync(new URL(`./public/vfx/powers/stage-${String(n).padStart(2, '0')}.js`, import.meta.url), 'utf8').includes(`id: '${d.id}'`); } catch { return false; } })());
-    if (n > 1) {
-      const a = CHAMPION_POWERS[n - 1];
-      ok(`power ${n} is at least as hard to stop as power ${n - 1} (behaviour score)`, difficultyScore(d) >= difficultyScore(a), `${difficultyScore(a).toFixed(2)} → ${difficultyScore(d).toFixed(2)}`);
-      ok(`power ${n} is at least as hard as power ${n - 1} (spec score, stars first)`, row.score.total >= spec[n - 2].score.total && d.hsStars >= a.hsStars);
+    const lo = BUILT_STAGES.filter((k) => k < n).pop();            // the nearest built stage below
+    if (lo) {
+      const a = CHAMPION_POWERS[lo];
+      ok(`power ${n} is at least as hard to stop as power ${lo} (behaviour score)`, difficultyScore(d) >= difficultyScore(a), `${difficultyScore(a).toFixed(2)} → ${difficultyScore(d).toFixed(2)}`);
+      ok(`power ${n} is at least as hard as power ${lo} (spec score, stars first)`, row.score.total >= spec[lo - 1].score.total && d.hsStars >= a.hsStars);
     }
     // Only the arcade: online and free play the card keeps its map family.
     const free = createMatch({ rarity: 'legendary', number: n }, FOE_CARD, {});

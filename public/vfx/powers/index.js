@@ -8,12 +8,14 @@
 import P01 from './stage-01.js';
 import P02 from './stage-02.js';
 import P03 from './stage-03.js';
+import P06 from './stage-06.js';
 
 // The registry: one line per built stage.
 const LIST = [
   P01,
   P02,
   P03,
+  P06,
 ];
 
 export const POWER_VFX = Object.freeze(Object.fromEntries(LIST.map((v) => [v.id, v])));
