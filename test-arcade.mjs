@@ -247,22 +247,21 @@ function fireChampion(stage, i, gap = 460) {
   // mostly coin — so what is asserted is the first tier against the last, and the first and last
   // stage against each other, over fixed seeds.
   //
-  // BOTH SIDES FIRE THE SAME PLAIN COMET here, on purpose. With Head Soccer's rules the FAMILY
-  // decides more of a bot-vs-bot scoreline than the ladder does: the bots' defence answers a
-  // straight shot with a timed kick, but not a Ground shot (unblockable), an Aerial or a Downward
-  // (from above), while a Delay or a Multi-Ball's extras are kicked away — measured, 30 matches a
-  // stage: Ground stages +1.5 to +2.5 against the reference, Delay −0.7 to +1.0. So the family mix
-  // of a tier swamps its dials. What this checks is the ladder the arcade controls — the bot's
-  // dials and the champion's HS body — and it climbs tier by tier (−0.22, −0.21, −0.12, +0.08,
-  // +0.28 over 20 a stage). Teaching the bot to defend every family is Phase E.
-  const plain = (m, ints) => m.players.forEach((p, i) => { p.shot = shotById('straight', { intensity: ints[i] }); });
+  // EACH CHAMPION FIRES ITS OWN FAMILY. For a while both sides fired the same plain comet here,
+  // because the bot defended a straight shot with a timed kick but had no answer to a Ground
+  // (unblockable), an Aerial or a Downward shot (from above), so the family mix of a tier swamped
+  // its dials. The Phase E bot defends every family generically — it runs the power ball's own
+  // flight forward (hs-powers stepPower) to find where it crosses a body's height, kicks into
+  // anything a boot can stop (FAMILIES[fam].block), arms itself when an armed opponent's shot
+  // could only be countered, and denies the touch otherwise — so the real families are back.
+  // Measured (_ladder.mjs, 30 a stage): tier 1 −1.3, tier 2 −0.2, tier 3 −0.3, tier 4 +0.6,
+  // tier 5 +1.3 goals a match against the reference bot.
   const vsRef = (stage, n) => {
     const cfg = stageConfig(stage);
     let gd = 0;
     for (let s = 0; s < n; s++) {
       const rng = mulberry32(900 + s * 13);
       const m = createMatch({ rarity: 'legendary', number: 3 }, cfg.champ.card, { ...cfg.matchOpts });
-      plain(m, [0.5, cfg.champ.hs.intensity]);
       const bots = [createBot(3, rng), createBot(0, rng, cfg.bot)];
       for (let k = 0; k < TICKS(200) && m.phase !== 'over'; k++) {
         step(m, [botInput(bots[0], m, 0, C.TICK), botInput(bots[1], m, 1, C.TICK)]);
@@ -274,7 +273,8 @@ function fireChampion(stage, i, gap = 460) {
   };
   const tier = (t) => { let g = 0; for (let n = t * 9 + 1; n <= t * 9 + 9; n++) g += vsRef(n, 20); return g / 9; };
   const t1 = tier(0), t5 = tier(4);
-  ok('the last tier of champions plays harder than the first', t5 > t1 + 0.25, `champion goal difference a match: tier 1 ${t1.toFixed(2)}, tier 5 ${t5.toFixed(2)}`);
+  console.log(`  (info) champion vs the tier-3 bot, goal difference a match: tier 1 ${t1.toFixed(2)}, tier 5 ${t5.toFixed(2)}`);
+  ok('the last tier of champions plays harder than the first', t5 > t1 + 1.5, `champion goal difference a match: tier 1 ${t1.toFixed(2)}, tier 5 ${t5.toFixed(2)}`);
   let hi = 0, lo = 0;
   for (let s = 0; s < 16; s++) {
     for (const flip of [false, true]) {
@@ -283,7 +283,6 @@ function fireChampion(stage, i, gap = 460) {
       const cards = flip ? [B.champ.card, A.champ.card] : [A.champ.card, B.champ.card];
       const stats = flip ? [B.champ.hs.stats, A.champ.hs.stats] : [A.champ.hs.stats, B.champ.hs.stats];
       const m = createMatch(cards[0], cards[1], { champions: true, stats });
-      plain(m, flip ? [B.champ.hs.intensity, A.champ.hs.intensity] : [A.champ.hs.intensity, B.champ.hs.intensity]);
       const strong = createBot(0, rng, A.bot), weak = createBot(0, rng, B.bot);
       const bots = flip ? [weak, strong] : [strong, weak];
       for (let k = 0; k < TICKS(200) && m.phase !== 'over'; k++) {
@@ -294,13 +293,12 @@ function fireChampion(stage, i, gap = 460) {
       lo += flip ? m.score[0] : m.score[1];
     }
   }
-  // Was `hi > lo * 1.2`. That margin was measured when the gauge was EARNED by tackling, which
-  // the stage-45 bot did far more of (and its meterRate multiplied). Under Head Soccer's clock
-  // fill both champions get their power on a timer — stage 1's cannon about three times a match
-  // where it used to earn it rarely — and the head-to-head narrowed to 55 : 51 (swept over fill
-  // rates 1/40–1/20 s: 1.1–1.5x, noisy). The ladder is retuned with Phase D's HS stats; until
-  // then this asserts only that the last stage still beats the first.
-  ok('stage 45\'s champion beats stage 1\'s head to head', hi > lo, `${hi} : ${lo} over 32 matches`);
+  // Was `hi > lo * 1.2`, measured when the gauge was earned by tackling; under Head Soccer's
+  // clock fill it narrowed to 55 : 51 and was loosened to `hi > lo` until the bot could be tuned
+  // on HS movement. With the Phase E bot and every champion on its own family it is 174 : 50 over
+  // these 32 matches, so the margin is back, and doubled.
+  console.log(`  (info) stage 45 vs stage 1 head to head ${hi} : ${lo} over 32 matches`);
+  ok('stage 45\'s champion beats stage 1\'s head to head, by 2 to 1', hi > 2 * lo, `${hi} : ${lo} over 32 matches`);
 }
 
 // ═══ 7. PROGRESS ════════════════════════════════════════════════════════════
@@ -404,7 +402,10 @@ function fireChampion(stage, i, gap = 460) {
   // hurt knocks him out for 2 s (`kicked`, `hurt` joined the snapshot); a standing victim slides
   // instead of being lifted, and TACKLE_IMMUNE is 0.3 s. All non-arcade; no arcade power changed.
   // AND the merge of the two (power shots + kick knockout): re-recorded on the combined sim.
-  const GOLDEN = 'a43e2d50eccc91475dd2589caab1550b494d0a0010f0936071a85c8d87623fd3';
+  // AND AGAIN for the Phase E bot (hs/bot-like-hs): the bot is rebuilt to play like the HS CPU
+  // (meets the ball, mashes the boot, dashes, defends every power family) — a bot change, which
+  // is what these three bot-vs-bot matches are made of. The sim itself did not change.
+  const GOLDEN = '7a2b4f57149267e6da326a7b02e10872b6f46478eb34cb35dde79194534feac3';
   const h = createHash('sha256');
   const cases = [
     [{ rarity: 'legendary', number: 3 }, { rarity: 'legendary', number: 2 }, 3, 3, 11],

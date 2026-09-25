@@ -531,6 +531,40 @@ model (1/13 of wall clock plus a 2s lead) was fitted to a refill timed from the 
 which had the 5.4s of refill between press and fire cut off. Rows: `gauge.emptyOnPress`,
 `gauge.refillStart`, `gauge.refillTime` in `docs/hs-estimates.json`.
 
+## The bot — plays like the Head Soccer CPU (Phase E)
+
+Measured off Idan's footage: M3's five-star Mexico CPU and M4's two weaker CPUs, tracked frame by
+frame (the right-hand player), and held against our bot by `test-hs-parity.mjs` through the same
+fit (`cpu.*` rows; `node _cpu.mjs` is the tuning loop). Ours is tier 5 / tier 0 on the right
+against the tier-3 bot, the mean of 8 seeded matches:
+
+| per minute of live play | HS 5★ | ours (tier 5) | HS weak | ours (tier 0) |
+|---|---|---|---|---|
+| touches (as a camera counts them) | 17.4 | ~15 | 9.2 | ~11 |
+| jumps | 37.7 | ~35 | 26.3 | ~24 |
+| boot out | ~45 | ~50 | ~23 | ~19 |
+| dashes | 13.7 | ~11 | 2.2 | ~0.5 |
+| mean distance from its own wall | 427px | ~455 | 325px | ~313 |
+| balls within 110px it plays | 70% | ~55% | 47% | ~43% |
+| gauge full → power shot | 6.2s | ~5.6 | 8.5s | ~7.6 |
+
+The old bot, tuned on the old physics, stood a boot's length off the ball waiting for a toe-poke:
+on the same sim it touched 6.8 balls a minute at tier 5, jumped 12 times and played 21% of what
+reached it. The new one reads the flight, runs to where the ball can be met, and jumps / kicks /
+dashes on frame-accurate checks; weak tiers misread, mistime and pass on chances. **The ladder is
+monotonic** — every tier beats every lower one over 24 matches both ways (5v0 +3.4 goals a match,
+4v1 +2.0, 3v2 +0.3), and the arcade's champions climb tier by tier on their own power families
+(−1.4 → +1.3 against the reference). Bot-vs-bot goals: 7.5 a match at tier 3 (HS: 8.7, M1–M3).
+It defends every power-shot family generically (runs the power ball's own flight forward to find
+where it crosses a body's height; kicks into anything a boot can stop, arms itself to counter
+what a boot cannot, otherwise denies the touch), never tackles a helpless player, and tackles
+at most once a second on purpose (the kick knockout is a now-and-then thing, not a lock).
+
+Whole-match rows (`match.goals`, `cpu.*`) are the **mean over 8 seeded matches**, not one:
+a single seeded bot match was a coin toss (1 goal on one seed, 7 on the next). Scenarios with
+`seeds` in `hs-scenarios.mjs` are run once per seed and each take is measured on its own, the way
+`_hs-fit.mjs` averages the video's takes.
+
 ## Pace — REMOVED
 
 There used to be a `PACE` dial (shipped at 0.68): one slow-motion scale over every speed,
@@ -784,6 +818,7 @@ the server — run `npm start` first or they fail on an empty page.
 | `node _hudshots.mjs` | is the scoreboard the shape it claims — face over score, clock between, no black panels — on 5 screens? |
 | `node _arrows.mjs` | can a thumb slide from ▶ to ◀ without lifting, is the target bigger than the arrow, and does the brown outline go all the way round? |
 | `node _ladder.mjs` | does the arcade get harder, stage by stage? Each champion as the arcade builds it, against one fixed opponent |
+| `node _cpu.mjs` | does the bot play like the Head Soccer CPU? The `cpu.*` parity metrics for tier 5 / tier 0 vs the tier-3 bot, 8 seeds (`SEEDS=24` for steadier numbers) |
 | `node _arcade-shots.mjs` | can a player get through the arcade — mode page, board, a locked stage, win, reload, lose, retry — and what does each power look like? |
 
 Three real bugs came out of them, all invisible to the unit tests:

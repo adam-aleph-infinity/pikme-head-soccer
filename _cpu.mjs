@@ -1,13 +1,11 @@
 // THE BOT AGAINST THE HEAD SOCCER CPU. Run: node _cpu.mjs [scenario,scenario]
 //
 // Prints the cpu.* metrics (tools/hs-fit-lib.mjs) for the whole-match scenarios in
-// hs-scenarios.mjs — cpuStrong (tier-5 bot on the right vs the tier-3 stand-in), cpuWeak (tier 1),
+// hs-scenarios.mjs — cpuStrong (tier-5 bot on the right vs the tier-3 stand-in), cpuWeak (tier 0),
 // botMatch — as the mean over each scenario's seeded takes, next to the HS values measured
 // off Idan's footage (docs/hs-estimates.json cpu.*). The tuning loop for shared/bot.js.
 import { runTakes, SCENARIOS } from './hs-scenarios.mjs';
 import { measureTracks } from './tools/hs-fit-lib.mjs';
-
-if (process.env.TUNE) globalThis.__botTune = JSON.parse(process.env.TUNE);   // tuning experiments only
 
 const ids = ['cpu.touchesPerMin', 'cpu.jumpsPerMin', 'cpu.kicksPerMin', 'cpu.dashesPerMin', 'cpu.meanDepth', 'cpu.rangeConv', 'cpu.powerDelay', 'match.goals'];
 for (const sc of (process.argv[2] || 'cpuStrong,cpuWeak,botMatch').split(',')) {

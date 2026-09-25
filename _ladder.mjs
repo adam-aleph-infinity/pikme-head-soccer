@@ -1,19 +1,19 @@
 // IS THE ARCADE A LADDER? Each of the 45 stages, exactly as the arcade builds it — the
-// champion's bot, body, meter rate and power — against one fixed opponent standing in for the
-// player: the tier-3 bot on legendary 3, with its own champion power. Prints goal difference and
-// win rate per tier and per stage, from the champion's side.
+// champion's bot, its HS stats and its own power-shot FAMILY — against one fixed opponent
+// standing in for the player: the tier-3 bot on legendary 3 (its own family). Prints goal
+// difference and win rate per tier and per stage, from the champion's side.
 //
-//   node _ladder.mjs          100 matches a stage (~15s)
-//   node _ladder.mjs 300      tighter numbers
+//   node _ladder.mjs          40 matches a stage (~10s)
+//   node _ladder.mjs 200      tighter numbers
 //
-// Bot against bot is noisy — one stage over 100 matches is good to about ±0.25 goals — so read
+// Bot against bot is noisy — one stage over 40 matches is good to about ±0.4 goals — so read
 // the TIER column. It is the number the curve was tuned on (README, "The arcade").
 import * as C from './shared/constants.js';
 import { createMatch, step } from './shared/sim.js';
 import { createBot, botInput } from './shared/bot.js';
 import { stageConfig } from './shared/champions.js';
 
-const N = Number(process.argv[2]) || 100;
+const N = Number(process.argv[2]) || 40;
 function mulberry32(a) {
   return function () {
     a |= 0; a = (a + 0x6D2B79F5) | 0;
@@ -37,12 +37,12 @@ for (let st = 1; st <= 45; st++) {
     gd += m.score[1] - m.score[0];
     if (m.score[1] > m.score[0]) w++;
   }
-  rows.push({ st, power: cfg.champ.power, gd: gd / N, win: w / N });
+  rows.push({ st, fam: cfg.champ.hs.family, gd: gd / N, win: w / N });
 }
 console.log(`champion vs the tier-3 bot on legendary 3, ${N} matches a stage\n`);
 for (let t = 0; t < 5; t++) {
   const r = rows.slice(t * 9, t * 9 + 9);
   const gd = r.reduce((a, x) => a + x.gd, 0) / 9, win = r.reduce((a, x) => a + x.win, 0) / 9;
   console.log(`tier ${t + 1}  goal diff ${gd >= 0 ? '+' : ''}${gd.toFixed(2)}  win ${(win * 100).toFixed(0)}%   ` +
-    r.map((x) => `${x.st}:${x.gd >= 0 ? '+' : ''}${x.gd.toFixed(2)}`).join(' '));
+    r.map((x) => `${x.st}:${x.fam.slice(0, 4)}${x.gd >= 0 ? '+' : ''}${x.gd.toFixed(1)}`).join(' '));
 }

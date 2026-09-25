@@ -290,12 +290,12 @@ export const SCENARIOS = {
   // CPU plays in every recording — against the tier-3 bot standing in for the human, eight
   // seeded matches each. `cpu` turns on the player-1 tags (cpu_jump, cpu_kick, cpu_dash,
   // cpu_touch, cpu_gauge_full, cpu_fire) the cpu.* metrics read. cpuStrong is the top tier
-  // against M3's five-star CPU; cpuWeak the tier-1 bot against M4's two weaker CPUs.
+  // against M3's five-star CPU; cpuWeak the bottom tier (0) against M4's two weaker CPUs.
   cpuStrong: cpuMatch(5),
   cpuWeak: cpuMatch(0),
 };
 
-function cpuMatch(level, standIn = +(globalThis.process?.env?.STANDIN ?? 3)) {
+function cpuMatch(level, standIn = 3) {
   return { clip: 'M', ticks: 60 * 200, seeds: 8, cpu: true, setup: () => {},
     input: (i, m, ctx) => {
       ctx.bots ??= [createBot(standIn, rng(31 + 101 * ctx.seed)), createBot(level, rng(47 + 101 * ctx.seed))];
