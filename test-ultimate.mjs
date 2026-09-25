@@ -26,6 +26,7 @@ import * as C from './shared/constants.js';
 import { createMatch, step, headY, resetPositions, clearUltimate, serialize, restore } from './shared/sim.js';
 import { createBot, botInput } from './shared/bot.js';
 import { shotById, applyAilment, wave, FAMILY_ORDER } from './shared/hs-powers.js';
+import { CHAMPION_POWERS, BUILT_STAGES } from './shared/champion-powers.js';
 
 let pass = 0, fail = 0;
 const ok = (name, cond, extra = '') => {
@@ -995,6 +996,68 @@ function atDefender(fam, o = {}, { kick = false, armed = false, gap = 320 } = {}
   }
   ok('and reaches the grass', touched, `y=${m.ball.y.toFixed(1)}`);
   ok('without sinking through it', sank < 1, `${sank.toFixed(2)}px under`);
+}
+
+// ═══ 16. THE CHAMPIONS' OWN POWERS (shared/champion-powers.js) ═════════════════
+// Each built arcade champion fires one real Head Soccer character's power. Fired here from its card
+// in an arcade match, from either seat, at a defender `gap` px away who stands, kicks or jumps.
+function fireCp(stage, seat, { gap = 400, kick = false, jump = false, s = 2.5 } = {}) {
+  const cards = [];
+  cards[seat] = { rarity: 'legendary', number: stage }; cards[1 - seat] = { rarity: 'epic', number: 1 };
+  const m = createMatch(cards[0], cards[1], { champions: true, duration: 600 });
+  m.freeze = 0; m.phase = 'play'; m.gaugeLead = 0; m.banner = null; m.bannerT = 0;
+  const a = m.players[seat], z = m.players[1 - seat];
+  const X = (x) => (seat === 0 ? x : C.W - x);
+  a.x = X(300); z.x = X(300 + gap);
+  arm(m, seat);
+  m.ball.x = a.x; m.ball.y = headY(a); m.ball.vx = 0; m.ball.vy = 0;
+  step(m, NONE);
+  const log = [...m.events]; m.events.length = 0;
+  const pw0 = m.ball.power ? { ...m.ball.power } : null;
+  while (m.hitStop > 0) { step(m, NONE); log.push(...m.events); m.events.length = 0; }
+  const path = [];
+  let pressed = false;
+  for (let i = 0; i < TICK_S(s) && m.phase === 'play'; i++) {
+    const b = m.ball, inp = [{}, {}];
+    if (kick && !pressed && b.power && b.power.owner === seat && Math.abs(b.x - z.x) < 130 && m.hitStop <= 0) { pressed = true; inp[1 - seat] = { kick: true }; }
+    if (jump && b.power && b.power.owner === seat && Math.abs(b.x - z.x) < 220) inp[1 - seat] = { jump: true };
+    step(m, inp);
+    path.push({ x: b.x, y: b.y, vx: b.vx, vy: b.vy, ph: b.power ? b.power.ph : null, cp: b.power ? b.power.cp : null, inv: b.power ? b.power.inv : 0, zy: z.y, zx: z.x, zail: z.ail, zst: z.stunned });
+    log.push(...m.events.map((e) => ({ ...e, i }))); m.events.length = 0;
+  }
+  return { m, a, z, log, path, pw0 };
+}
+const first = (log, type, f = () => true) => log.find((e) => e.type === type && f(e));
+{
+  // every built one: fires from both seats with its own id, toward the other goal, and flies the
+  // same twice (rollback)
+  for (const n of BUILT_STAGES) {
+    for (const seat of [0, 1]) {
+      const r = fireCp(n, seat);
+      const d = CHAMPION_POWERS[n];
+      ok(`power ${n} ${d.id} (seat ${seat}): fires its own power`, r.pw0 && r.pw0.cp === d.id && r.pw0.dir === r.a.side && !!first(r.log, 'powershot', (e) => e.cp === d.id && e.player === seat));
+      const r2 = fireCp(n, seat);
+      ok(`power ${n} ${d.id} (seat ${seat}): flies the same twice`, JSON.stringify(serialize(r.m)) === JSON.stringify(serialize(r2.m)));
+    }
+  }
+  const src = readFileSync(new URL('./shared/champion-powers.js', import.meta.url), 'utf8') +
+    BUILT_STAGES.map((n) => readFileSync(new URL(`./shared/champion-powers/stage-${String(n).padStart(2, '0')}.js`, import.meta.url), 'utf8')).join('\n');
+  ok('champion-powers uses no Math.sin / cos / tan / random', !/Math\.(sin|cos|tan|random)\b/.test(src.replace(/\/\/.*$/gm, '')));
+}
+{
+  // POWER 1 — South Korea's Blue Aura Shot: the filmed comet, dead flat, a touch under 2150 px/s;
+  // standing in its way knocks you back toward your own goal, a kick blocks it.
+  for (const seat of [0, 1]) {
+    const r = fireCp(1, seat, { gap: 600, s: 0.2 });
+    const p = r.path.filter((q) => q.cp === 'blueaura');
+    const vx = (p[p.length - 1].x - p[0].x) / ((p.length - 1) * C.TICK);
+    ok(`KOREA (seat ${seat}): straight and flat at 0.92 × 2150 px/s`, p.length > 5 && Math.abs(Math.abs(vx) - 2150 * 0.92) < 40 && p.every((q) => Math.abs(q.y - p[0].y) < 0.5) && Math.sign(vx) === r.a.side, `${vx.toFixed(0)} px/s`);
+    const h = fireCp(1, seat);
+    const hit = first(h.log, 'powerHit');
+    ok(`KOREA (seat ${seat}): a standing defender is hit, pushed back toward his goal, dazed`, hit && hit.how === 'hit' && h.z.stunned >= 0 && h.path.some((q) => (q.zx - h.path[0].zx) * h.z.side < -5));
+    const k = fireCp(1, seat, { kick: true });
+    ok(`KOREA (seat ${seat}): a kick into it blocks it (the grind)`, !!first(k.log, 'blocked', (e) => e.player === 1 - seat));
+  }
 }
 
 console.log(`test-ultimate: ${pass} passed, ${fail} failed`);

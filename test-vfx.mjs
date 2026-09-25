@@ -10,7 +10,8 @@ import fs from 'node:fs';
 import * as C from './shared/constants.js';
 import { createMatch, step, headY, serialize } from './shared/sim.js';
 import { shotById, FAMILY_ORDER, AILMENT_ORDER, applyAilment } from './shared/hs-powers.js';
-import { createVfx, FAMILY_VFX, AILMENT_VFX, FAMILIES_DRAWN, AILMENTS_DRAWN } from './public/champ-vfx.js';
+import { createVfx, FAMILY_VFX, AILMENT_VFX, POWER_VFX, FAMILIES_DRAWN, AILMENTS_DRAWN } from './public/champ-vfx.js';
+import { CHAMPION_POWERS, BUILT_STAGES } from './shared/champion-powers.js';
 import { cometAlpha, COMET } from './public/vfx/families.js';
 import { render as renderDoc, DOC_PATH } from './scripts/champions-doc.mjs';
 
@@ -74,16 +75,20 @@ ok('the Aerial draws its warning streaks', typeof FAMILY_VFX.aerial.warn === 'fu
 }
 
 // ── 3. every family, fired in the sim, watched and drawn ────────────────────
-function fired(fam, o = {}, seat = 0) {
-  const m = createMatch({ rarity: 'legendary', number: 8 }, { rarity: 'legendary', number: 9 }, {});
+// (`stage`: fire that arcade champion's own power instead of a family — section 3b)
+function fired(fam, o = {}, seat = 0, stage = 0) {
+  const cards = [{ rarity: 'legendary', number: 8 }, { rarity: 'legendary', number: 9 }];
+  if (stage) { cards[seat] = { rarity: 'legendary', number: stage }; cards[1 - seat] = { rarity: 'epic', number: 1 }; }
+  const m = createMatch(cards[0], cards[1], stage ? { champions: true } : {});
   m.phase = 'play'; m.freeze = 0; m.banner = null; m.bannerT = 0; m.gaugeLead = 0;
   const p = m.players[seat], q = m.players[1 - seat];
-  p.shot = shotById(fam, o);
+  if (!stage) p.shot = shotById(fam, o);
   p.x = seat === 0 ? 300 : C.W - 300; q.x = seat === 0 ? 760 : C.W - 760;
-  const vfx = createVfx({ now: () => m.t, drawBall: () => {} });
+  let painted = 0;
+  const vfx = createVfx({ now: () => m.t, drawBall: () => { painted++; } });
   vfx.bind(m);
   const main = recorder(), over = recorder();
-  const res = { m, vfx, main, over, maxOps: 0, cutOps: 0, frames: 0, events: [] };
+  const res = { m, vfx, main, over, maxOps: 0, cutOps: 0, armOps: 0, frames: 0, events: [], painted: () => painted };
   const frame = () => {
     vfx.update(C.TICK);
     const o0 = main.log.ops + over.log.ops;
@@ -100,7 +105,9 @@ function fired(fam, o = {}, seat = 0) {
   p.gauge = 1; p.prev = {};
   const inp = [{}, {}]; inp[seat] = { power: true };
   step(m, inp);
+  const a0 = over.log.ops;
   frame();
+  res.armOps = over.log.ops - a0;
   m.ball.x = p.x; m.ball.y = headY(p); m.ball.vx = 0; m.ball.vy = 0;
   for (let i = 0; i < 60 * 3.2 && m.phase === 'play'; i++) {
     step(m, NONE);
@@ -130,6 +137,31 @@ for (const fam of FAMILY_ORDER) {
   const r = fired('straight');
   ok('a hit throws at most 7 droplets (§4 red spark droplets)', r.vfx.drops.length <= 7 && r.vfx.stats.drops > 0, `${r.vfx.stats.drops}`);
   ok('the arming rim was drawn on the press', r.over.log.calls.get('arc') > 0);
+}
+
+// ── 3b. every champion's own power (shared/champion-powers.js) has its renderer, and draws ────
+ok('every built champion power has a renderer (public/vfx/powers/)', BUILT_STAGES.every((n) => POWER_VFX[CHAMPION_POWERS[n].id] && typeof POWER_VFX[CHAMPION_POWERS[n].id].draw === 'function'));
+ok('no renderer for a power that is not built', Object.keys(POWER_VFX).every((id) => BUILT_STAGES.some((n) => CHAMPION_POWERS[n].id === id)));
+for (const n of BUILT_STAGES) {
+  const d = CHAMPION_POWERS[n], P = POWER_VFX[d.id];
+  ok(`power ${n} (${d.hs}): a power-button look of its own when armed`, typeof P.armed === 'function');
+  const armed0 = P.armed;
+  for (const seat of [0, 1]) {
+    let r, err = null, armedCalls = 0;
+    P.armed = function (...a) { armedCalls++; return armed0.apply(this, a); };
+    try { r = fired(null, {}, seat, n); } catch (e) { err = e; }
+    P.armed = armed0;
+    const tag = `power ${n} ${d.id} (seat ${seat})`;
+    ok(`${tag}: draws without throwing`, !err, err && err.stack.split('\n').slice(0, 2).join(' '));
+    if (!r) continue;
+    ok(`${tag}: fired`, r.events.some((e) => e.type === 'powershot' && e.cp === d.id));
+    ok(`${tag}: its own renderer drew the shot`, r.vfx.stats.balls > 3, `${r.vfx.stats.balls} frames`);
+    ok(`${tag}: the cut-in was drawn`, r.cutOps > 20);
+    ok(`${tag}: the armed look drew on the press`, armedCalls > 0 && r.armOps > 14, `${armedCalls} calls, ${r.armOps} ops`);
+    ok(`${tag}: no NaN reached the canvas`, r.main.log.bad === 0 && r.over.log.bad === 0, `${r.main.log.bad + r.over.log.bad}`);
+    ok(`${tag}: no shadowBlur`, r.main.log.blur === 0 && r.over.log.blur === 0);
+    ok(`${tag}: an iPhone-cheap frame (< 900 canvas calls)`, r.maxOps < 900, `${r.maxOps}`);
+  }
 }
 
 // ── 4. every ailment overlay draws ──────────────────────────────────────────

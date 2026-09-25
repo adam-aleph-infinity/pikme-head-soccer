@@ -22,6 +22,7 @@
 
 import { HS_MAP } from './hs-champion-map.js';
 import { FAMILIES, AILMENTS } from './hs-powers.js';
+import { championPower } from './champion-powers.js';
 
 export const CHAMPION_COUNT = 45;
 
@@ -78,6 +79,7 @@ export function shotText(hs) {
 
 export const CHAMPIONS = Object.freeze(HS_MAP.map((row, i) => {
   const stage = i + 1;
+  const cp = championPower(stage);
   const hs = Object.freeze({
     family: row.family, ailment: row.ailment, aura: row.aura, auraRadius: row.auraRadius,
     intensity: row.intensity, gentle: row.gentle, stats: row.stats, stars: row.stars, profile: row.profile,
@@ -92,6 +94,9 @@ export const CHAMPIONS = Object.freeze(HS_MAP.map((row, i) => {
     power: row.power.id, powerName: row.power.name, icon: row.power.icon,
     color: FAMILIES[row.family].color,
     desc: shotText(hs),
+    // …unless its own Head Soccer power is built (champion-powers.js): then the board shows that.
+    ...(cp ? { powerName: cp.name, icon: cp.icon, color: cp.color, desc: cp.desc } : {}),
+    cp,
     hs,
     tier: Math.floor(i / PER_TIER),
     style: PROFILE_STYLE[row.profile] || 'striker',

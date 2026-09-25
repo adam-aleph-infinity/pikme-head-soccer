@@ -22,8 +22,9 @@ import { depthPoint } from '../shared/goalbox.js';
 import { FAMILY_ORDER, AILMENT_ORDER } from '../shared/hs-powers.js';
 import { FAMILY_VFX, drawGrind, drawFist } from './vfx/families.js';
 import { AILMENT_VFX } from './vfx/ailments.js';
+import { POWER_VFX } from './vfx/powers/index.js';
 
-export { FAMILY_VFX, AILMENT_VFX };
+export { FAMILY_VFX, AILMENT_VFX, POWER_VFX };
 // The canvas reaches above world y=0 (game.js SKY_TOP: the camera keeps C.VIEW_ABOVE_GROUND of
 // sky). The cut-in's dark has to cover that strip too; the canvas clips whatever is spare.
 const SKY_PAD = Math.max(0, (C.VIEW_ABOVE_GROUND || 0) - C.GROUND_Y) + 8;
@@ -33,13 +34,20 @@ const HIT_GHOSTS = 0.4;                  // s the after-images follow a HIT ball
 
 // `drawBall(g, b)` is the client's own ball painter: the cut-in repaints the power ball with it
 // OVER the dark, as HS does (the comet flies bright across a darkened pitch, M4 43.07 s).
-export function createVfx({ now = () => performance.now() / 1000, drawBall: paintBall = null } = {}) {
+// `me()` is the seat this screen plays (a champion power can look different to its shooter —
+// USA's invisible ball is "translucent to whoever uses the shot").
+// A champion's OWN power (shared/champion-powers.js, a `cp` on the ball's power) is drawn by its
+// renderer in public/vfx/powers/ instead of its family's comet; a block's rebound is the plain shot.
+const powerVfx = (pw) => (pw && pw.cp && !pw.rb ? POWER_VFX[pw.cp] || null : null);
+export function createVfx({ now = () => performance.now() / 1000, drawBall: paintBall = null, me = () => 0 } = {}) {
   let M = null;
   const track = new Map();               // ball → { hist, t0 (release, on the SIM clock m.t), ph, ghost }
   const drops = [];                      // the hit's red spark droplets (§4) — the only particles
   const stats = { balls: 0, drops: 0 };  // what was drawn (tests)
   const lastCut = { by: -1, at: 0 };     // the cut-in that just ended, for the dark's fade-out
 
+  // a plain ball anywhere (a renderer's fakes and orbiting balls), in the game's own art
+  const ballAt = paintBall ? (g, x, y) => paintBall(g, { x, y, r: C.BALL_R, vx: 0, vy: 0, spin: 0, power: null, fake: true }) : null;
   const rec = (b) => { let r = track.get(b); if (!r) { r = { hist: [], t0: M.t, ph: '', ghost: 0 }; track.set(b, r); } return r; };
   const balls = () => (M ? [M.ball, ...(M.xballs || [])] : []);
 
@@ -76,6 +84,16 @@ export function createVfx({ now = () => performance.now() / 1000, drawBall: pain
       }
   }
 
+  // a champion power's pieces above the heads (Japan's log where he stood)
+  function overHeads(g) {
+    for (const b of balls()) {
+      const pw = b.power, P = powerVfx(pw);
+      if (!P || !P.over || !M.players[pw.owner]) continue;
+      const a = M.players[pw.owner], f = depthPoint(a.x, a.y), r = track.get(b);
+      P.over(g, { pw, now: now(), px: f.x, pfy: f.y, pr: headR(M, a), sinceTouch: r && r.touch != null ? now() - r.touch : 9 });
+    }
+  }
+
   return {
     stats, track, drops,
     reset() { track.clear(); drops.length = 0; },
@@ -86,7 +104,7 @@ export function createVfx({ now = () => performance.now() / 1000, drawBall: pain
     onEvent(e) {
       if (!M) return;
       if (e.type === 'powershot') {
-        for (const b of balls()) if (b.power) { const r = rec(b); r.hist.length = 0; r.t0 = M.t + (M.cutin > 0 ? Math.max(0, M.cutin - C.POWER_RELEASE) : 0); r.ph = b.power.ph; }
+        for (const b of balls()) if (b.power) { const r = rec(b); r.hist.length = 0; r.t0 = M.t + (M.cutin > 0 ? Math.max(0, M.cutin - C.POWER_RELEASE) : 0); r.ph = b.power.ph; r.touch = now(); }
       } else if (e.type === 'rebound' || e.type === 'delayGo') {
         const r = rec(M.ball); r.hist.length = 0; r.t0 = M.t;
       } else if (e.type === 'powerHit' && e.how !== 'pass') {
@@ -134,6 +152,9 @@ export function createVfx({ now = () => performance.now() / 1000, drawBall: pain
     drawBall(g, b) {
       const pw = b.power;
       if (!M || !pw) return false;
+      const P = powerVfx(pw);
+      // (a champion power that draws the ball's wait itself — Japan's five circling — hides it)
+      if (P && P.hideInCut && M.cutin > C.POWER_RELEASE) return true;
       // Until 0.97s into the cut-in the ball has not left: HS shows it hanging by the shooter's
       // head, no tail (§2) — then it flies under the dark. A ball carried on through a HIT is drawn
       // as its after-images, not a comet (§4).
@@ -141,15 +162,20 @@ export function createVfx({ now = () => performance.now() / 1000, drawBall: pain
       // Pinned on a boot, dead at the feet, or hanging still: no tail — HS shows only the block's
       // spark burst there (§4, M4 61.45–62.7 s). The comet is a thing that MOVES.
       if (pw.ph === 'grind' || pw.ph === 'rest' || pw.ph === 'hold' || pw.ph === 'grab') return false;
-      const V = FAMILY_VFX[pw.fam] || FAMILY_VFX.straight;
+      const V = P || FAMILY_VFX[pw.fam] || FAMILY_VFX.straight;
       const r = track.get(b);
       const d = depthPoint(b.x, b.y);
       stats.balls++;
       const f0 = depthPoint(pw.x0, pw.y0);
-      V.draw(g, b, { t: r ? Math.max(0, M.t - r.t0) : 0, now: now(), hist: r ? r.hist : null, x: d.x, y: d.y, r: b.r, pw, groundY: C.GROUND_Y, fx: f0.x, fy: f0.y });
-      return pw.ph === 'wait';
+      const hide = V.draw(g, b, { t: r ? Math.max(0, M.t - r.t0) : 0, now: now(), hist: r ? r.hist : null, x: d.x, y: d.y, r: b.r, pw, groundY: C.GROUND_Y, fx: f0.x, fy: f0.y, me: me(), ball: ballAt });
+      return P ? !!hide : pw.ph === 'wait';
     },
 
+    // Whether the ball's own shadow on the grass must go too (an invisible or hidden power ball).
+    hideShadow(b) {
+      const P = M && b && powerVfx(b.power);
+      return !!(P && P.hideShadow && P.hideShadow(b.power, M));
+    },
     // OVER the ball, on the pitch: the block's grind, the Aerial's warning, the hit's droplets and
     // the after-images of a hit ball.
     // (Under a cut-in's dark these are painted by drawCutin instead, over the dark: in HS the block's
@@ -190,6 +216,9 @@ export function createVfx({ now = () => performance.now() / 1000, drawBall: pain
         g.stroke();
       }
       g.restore();
+      // …and a champion's own power-button look round him (public/vfx/powers/)
+      const P = p.shot && p.shot.cp ? POWER_VFX[p.shot.cp] : null;
+      if (P && P.armed) P.armed(g, p, { t: now(), hx: h.x, hy: h.y, r, fx: f.x, fy: f.y });
     },
 
     // THE AILMENTS, on the layer above the heads (a stunned player with no ailment has no shape:
@@ -197,6 +226,7 @@ export function createVfx({ now = () => performance.now() / 1000, drawBall: pain
     drawOverlay(g) {
       if (!M) return;
       const t = now();
+      if (!(M.cutin > 0) && !(lastCut.by >= 0 && t - lastCut.at < 0.2)) overHeads(g);
       for (const p of M.players) {
         if (!p.ail || !AILMENT_VFX[p.ail]) continue;
         // A dazed player's three stars are game.js's (drawOverHeads draws them for any stun).
@@ -249,6 +279,13 @@ export function createVfx({ now = () => performance.now() / 1000, drawBall: pain
       // the shot, bright over the dark once it has left
       if (paintBall && M.cutin <= C.POWER_RELEASE) for (const b of balls()) if (b.power) paintBall(g, b);
       pitchFx(g);                                                 // the block's burst etc., bright too
+      // a champion power's own cut-in pieces (Japan's five balls circling over him) and its pieces
+      // above the heads, bright over the dark
+      for (const b of balls()) {
+        const P = powerVfx(b.power);
+        if (P && P.cutin && M.cutin > C.POWER_RELEASE) { const o = depthPoint(b.power.x0, b.power.y0); P.cutin(g, { pw: b.power, now: now(), fx: o.x, fy: o.y, r: b.r, ball: ballAt }); }
+      }
+      overHeads(g);
       if (!(glow > 0)) return;
       g.save();
       // the rays (M4 40.75 s full-res, 2.0 px a world px: wide soft gold beams ≈ 230 px long and

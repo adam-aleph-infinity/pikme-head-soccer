@@ -25,6 +25,7 @@
 
 import * as C from './constants.js';
 import { HS_MAP } from './hs-champion-map.js';
+import { championPower, cpLaunch, cpStep, cpSkip, cpContact } from './champion-powers.js';
 
 // ── the families ─────────────────────────────────────────────────────────────
 // speed   × POWER_SHOT_SPEED (2150 px/s, the measured comet — §3)
@@ -106,6 +107,15 @@ export const championRow = (char) => (char && char.rarity === 'legendary' ? MAP_
 // family is its identity and never its advantage — the same reason stats are equal online.
 export function shotFor(char, { arcade = false } = {}) {
   const row = championRow(char);
+  // A champion whose own Head Soccer power is built (shared/champion-powers.js) fires it — in the
+  // arcade only.
+  const cp = row && arcade ? championPower(row.stage) : null;
+  if (cp) {
+    return makeShot(cp.family, {
+      ailment: cp.ailment, ailSec: cp.ailSec, aura: 'none', intensity: row.intensity, stage: row.stage,
+      name: cp.name, icon: cp.icon, cp: cp.id, speed: cp.speed,
+    });
+  }
   if (row) {
     return makeShot(row.family, {
       ailment: row.ailment, aura: row.aura, auraRadius: row.auraRadius,
@@ -133,6 +143,9 @@ function makeShot(family, o = {}) {
     gentle: !!o.gentle,
     name: o.name || F.name, icon: o.icon || null,
     color: F.color, glow: F.glow,
+    // a champion's own power (champion-powers.js): its id, its speed (× the comet, replacing the
+    // family's and the intensity's) and how long its ailment lasts
+    cp: o.cp || '', speed: o.speed || 0, ailSec: o.ailSec || 0,
   });
 }
 
@@ -165,7 +178,7 @@ export function wave(u) {
 
 // ── helpers ─────────────────────────────────────────────────────────────────────
 const goalLineX = (dir) => (dir > 0 ? C.W - C.GOAL_W : C.GOAL_W);
-const baseSpeed = (pw) => C.POWER_SHOT_SPEED * FAMILIES[pw.fam].speed * (0.85 + 0.3 * pw.int);
+const baseSpeed = (pw) => (pw.spd ? C.POWER_SHOT_SPEED * pw.spd : C.POWER_SHOT_SPEED * FAMILIES[pw.fam].speed * (0.85 + 0.3 * pw.int));
 export const ailDur = (type, int = 0.5, fam = null) =>
   (AILMENTS[type] ? AILMENTS[type].dur : 1) * (0.6 + 0.8 * int) * (fam === 'ailment' ? 1.4 : 1);
 
@@ -175,6 +188,8 @@ function freshPower(p, shot, o = {}) {
     id: shot.family, fam: shot.family, ail: shot.ailment || '', int: shot.intensity, gentle: shot.gentle ? 1 : 0,
     owner: p.index, dir: p.side, t: 0, life: C.POWER_SHOT_LIFE, ph: 'fly', k: 0,
     x0: 0, y0: 0, tx: 0, ty: 0, vx0: 0, vy0: 0, tgt: -1, pass: 0, extra: 0, rb: 0, hit: 0,
+    // a champion's own power (champion-powers.js) — only then, so every other ball is unchanged
+    ...(shot.cp ? { cp: shot.cp, spd: shot.speed || 0, ailS: shot.ailSec || 0, slot: 0, inv: 0 } : {}),
     color: shot.color, glow: shot.glow,
     ...o,
   };
@@ -205,6 +220,7 @@ export function launch(m, b, p, kit, fx, o = {}) {
     default: break;
   }
   b.vx = pw.dir * S; b.vy = 0;
+  if (pw.cp) cpLaunch(m, b, p, pw, S, kit);
   if (pw.fam === 'multiball' && m.xballs) {
     // HS's Multi-Ball is three balls, every one of which can score (wiki Power_Shots, Germany's
     // "3 homing balls", Spain's "three balls towards the goal"); the gentle first tier has two.
@@ -217,7 +233,7 @@ export function launch(m, b, p, kit, fx, o = {}) {
       m.xballs.push(x);
     }
   }
-  m.events.push({ type: 'powershot', player: p.index, shot: pw.fam, fam: pw.fam, ail: pw.ail, champ: p.champ ? p.champ.id : null, ultimate: true, countered: !!o.countered });
+  m.events.push({ type: 'powershot', player: p.index, shot: pw.fam, fam: pw.fam, ...(pw.cp ? { cp: pw.cp } : {}), ail: pw.ail, champ: p.champ ? p.champ.id : null, ultimate: true, countered: !!o.countered });
   return pw;
 }
 
@@ -228,6 +244,10 @@ export function stepPower(m, b, dt, kit, fx) {
   const pw = b.power;
   if (!pw) return false;
   const S = baseSpeed(pw);
+  if (pw.cp) {
+    const r = cpStep(m, b, dt, pw, S, kit, { wave, end: endPower, contact: (mm, q, bb) => contact(mm, q, bb, kit, fx) });
+    if (r !== undefined) return r;
+  }
   switch (pw.ph) {
     // ─ the block (§4): pinned on the boot, then dead at the feet, then fired back ─
     case 'grind': {
@@ -383,6 +403,7 @@ export function skipContact(b, p) {
   const pw = b.power;
   if (!pw) return false;
   if (pw.owner === p.index) return true;
+  if (pw.cp && cpSkip(pw)) return true;
   // (a Delay hanging in the air is frozen in time: nothing touches it until it goes on)
   if (pw.ph === 'grind' || pw.ph === 'rest' || pw.ph === 'grab' || pw.ph === 'up' || pw.ph === 'wait' || pw.ph === 'hold') return true;
   return (pw.pass & (1 << p.index)) !== 0;
@@ -408,6 +429,11 @@ export function contact(m, p, b, kit, fx) {
     m.events.push({ type: 'blocked', player: p.index, by: pw.owner, fam: pw.fam, extra: true });
     return 'deflect';
   }
+  // A champion's own power has its own answer to some contacts (champion-powers.js).
+  if (pw.cp) {
+    const r = cpContact(m, p, b, kit, pw, kicking, { block: (mm, q, bb, ppw) => block(mm, q, bb, ppw, kit), ailment: applyAilment });
+    if (r !== undefined) return r;
+  }
   // A weak Destructive (the first tier's cannon) is still blockable; from the middle of the
   // campaign on it smashes a block aside (the map's intensity is how strong a family plays).
   const mode = pw.rb ? 'grind' : F.block === 'smash' && pw.int < 0.4 ? 'grind' : F.block;
@@ -432,17 +458,7 @@ export function contact(m, p, b, kit, fx) {
     m.events.push({ type: 'powerHit', player: p.index, by: pw.owner, fam: pw.fam, how: 'pass' });
     return 'pass';
   }
-  if (kicking && (mode === 'grind' || mode === 'grab')) {
-    // THE BLOCK (§4): pinned where it met the boot, the blocker pushed back and held.
-    m.hitStop = Math.max(m.hitStop, C.HIT_STOP_POWER);
-    pw.ph = 'grind'; pw.k = 0; pw.tgt = p.index;
-    pw.x0 = b.x - p.x; pw.y0 = Math.max(b.y, kit.headY(p) - C.HEAD_R) - p.y;
-    // Held while it grinds — the daze HS shows (~0.5s, power.blockStun); the ball grinds on to 0.8s.
-    kit.stun(m, p, C.POWER_BLOCK_STUN);
-    if (pw.fam === 'ailment') landAilment(m, p, pw);
-    m.events.push({ type: 'blocked', player: p.index, by: pw.owner, fam: pw.fam, shot: pw.fam });
-    return 'block';
-  }
+  if (kicking && (mode === 'grind' || mode === 'grab')) return block(m, p, b, pw, kit);
   // THE HIT (§4 M4 43.33, M3 38.25): knocked back and dazed; the ball bounces off (below).
   m.hitStop = Math.max(m.hitStop, C.HIT_STOP_POWER);
   const smash = mode === 'smash' || mode === 'through';
@@ -478,13 +494,25 @@ export function contact(m, p, b, kit, fx) {
   return how;
 }
 
+// THE BLOCK (§4): pinned where it met the boot, the blocker pushed back and held.
+function block(m, p, b, pw, kit) {
+  m.hitStop = Math.max(m.hitStop, C.HIT_STOP_POWER);
+  pw.ph = 'grind'; pw.k = 0; pw.tgt = p.index;
+  pw.x0 = b.x - p.x; pw.y0 = Math.max(b.y, kit.headY(p) - C.HEAD_R) - p.y;
+  // Held while it grinds — the daze HS shows (~0.5s, power.blockStun); the ball grinds on to 0.8s.
+  kit.stun(m, p, C.POWER_BLOCK_STUN);
+  if (pw.fam === 'ailment') landAilment(m, p, pw);
+  m.events.push({ type: 'blocked', player: p.index, by: pw.owner, fam: pw.fam, shot: pw.fam, ...(pw.cp ? { cp: pw.cp } : {}) });
+  return 'block';
+}
+
 function knock(m, p, pw, kit, v, daze, lift = HS.HIT_LIFT) {
   p.vx = pw.dir * v; p.vy = -lift; p.onGround = false;
   kit.stun(m, p, daze);
   if (!p.ail) applyAilment(m, p, 'stars', daze);
 }
 function landAilment(m, p, pw) {
-  if (pw.ail) applyAilment(m, p, pw.ail, ailDur(pw.ail, pw.int, pw.fam));
+  if (pw.ail) applyAilment(m, p, pw.ail, pw.ailS || ailDur(pw.ail, pw.int, pw.fam));
 }
 
 // A KICK a hair before the ball arrives blocks it too: the boot is out in front of the body, and

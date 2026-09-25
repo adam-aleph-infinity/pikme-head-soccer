@@ -15,6 +15,8 @@ import {
   stageConfig, stageDifficulty,
 } from './shared/champions.js';
 import * as A from './shared/arcade.js';
+import { CHAMPION_POWERS, BUILT_STAGES, difficultyScore } from './shared/champion-powers.js';
+import { readFileSync } from 'node:fs';
 
 let pass = 0, fail = 0;
 const ok = (name, cond, extra = '') => {
@@ -65,6 +67,12 @@ const finite = (v) => typeof v === 'number' && Number.isFinite(v);
   ok('the strike card still strikes', championForStage(18).power === 'strike');
 }
 
+// What a champion fires in the arcade: its own HS character's power once that stage is built
+// (shared/champion-powers.js), else its family from the approved map.
+const famOf = (c) => (c.cp ? c.cp.family : c.hs.family);
+const ailOf = (c) => (c.cp ? c.cp.ailment : c.hs.ailment);
+const auraOf = (c) => (c.cp ? 'none' : c.hs.aura);
+
 const IDLE = {};
 const FOE_CARD = { rarity: 'epic', number: 1 };            // not a champion: nothing of its own
 
@@ -79,17 +87,45 @@ const FOE_CARD = { rarity: 'epic', number: 1 };            // not a champion: no
     ok(`champion ${c.stage}: exactly the approved row`, row.stage === c.stage && row.family === h.family && row.ailment === h.ailment &&
        row.aura === h.aura && row.auraRadius === h.auraRadius && row.intensity === h.intensity && row.stars === h.stars);
     ok(`champion ${c.stage}: five 1–10 stats`, ['speed', 'jump', 'kick', 'dash', 'power'].every((k) => Number.isInteger(h.stats[k]) && h.stats[k] >= 1 && h.stats[k] <= 10));
-    ok(`champion ${c.stage}: a Hebrew description of its shot`, /[֐-׿]/.test(c.desc) && c.desc.includes(FAMILIES[h.family].name));
-    // …and the card fires exactly that shot in an arcade match.
+    ok(`champion ${c.stage}: a Hebrew description of its shot`, /[֐-׿]/.test(c.desc) && (c.cp ? c.desc === c.cp.desc : c.desc.includes(FAMILIES[h.family].name)));
+    // …and the card fires exactly that shot in an arcade match: its own power once built.
     const m = createMatch({ rarity: 'legendary', number: c.stage }, FOE_CARD, { champions: true });
     const s = m.players[0].shot;
-    ok(`champion ${c.stage}: its card fires its mapped shot in the arcade`, s.family === h.family && s.ailment === h.ailment && s.aura === h.aura &&
+    if (c.cp) ok(`champion ${c.stage}: its card fires its own HS power (${c.cp.hs}) in the arcade`, s.cp === c.cp.id && s.family === c.cp.family && s.ailment === c.cp.ailment && s.aura === 'none');
+    else ok(`champion ${c.stage}: its card fires its mapped shot in the arcade`, s.family === h.family && s.ailment === h.ailment && s.aura === h.aura &&
        s.intensity === h.intensity && s.gentle === !!h.gentle);
   }
   const fams = new Set(CHAMPIONS.map((c) => c.hs.family));
   ok('all eleven families are in the campaign', FAMILY_ORDER.every((f) => fams.has(f)), [...fams].join(','));
   ok('the gentle Grab and Multi-Ball are stages 2 and 6 (Idan\'s decision 1)', CHAMPIONS.filter((c) => c.hs.gentle).map((c) => c.stage).join() === '2,6');
   ok('the stat total climbs from 12 to 45', (() => { const t = (c) => Object.values(c.hs.stats).reduce((a, b) => a + b, 0); return t(CHAMPIONS[0]) === 12 && t(CHAMPIONS[44]) === 45; })());
+}
+
+// ═══ 2b. THE CHAMPIONS' OWN POWERS (shared/champion-powers.js) ═══════════════
+// Each built stage fires one real Head Soccer character's power — the character the spec gives it
+// (docs/hs-45-powers.json) — and the ladder of powers never steps down: stage n+1's is at least as
+// hard to stop as stage n's, by our own behaviour score and by the spec's.
+{
+  const spec = JSON.parse(readFileSync(new URL('./docs/hs-45-powers.json', import.meta.url), 'utf8'));
+  ok('the built stages run 1..n with no gaps', BUILT_STAGES.length >= 1 && BUILT_STAGES.every((n, i) => n === i + 1), BUILT_STAGES.join(','));
+  const ids = new Set();
+  for (const n of BUILT_STAGES) {
+    const d = CHAMPION_POWERS[n], row = spec[n - 1], c = championForStage(n);
+    ok(`power ${n}: is the spec's HS character (${row.hsCharacter} — ${row.powerName})`, d.stage === n && d.hs === row.hsCharacter && d.hsPower === row.powerName && d.hsStars === row.stars);
+    ok(`power ${n}: flies a real engine family, carries a real ailment`, FAMILY_ORDER.includes(d.family) && (d.ailment === null || AILMENT_ORDER.includes(d.ailment)));
+    ok(`power ${n}: its own id`, !ids.has(d.id)); ids.add(d.id);
+    ok(`power ${n}: the board says it in short Hebrew`, /[֐-׿]/.test(d.name) && /[֐-׿]/.test(d.desc) && d.desc.length <= 90 && c.powerName === d.name && c.desc === d.desc, `${d.desc.length} chars`);
+    ok(`power ${n}: cites the HS wiki`, d.sources.some((u) => u === row.sources.P));
+    ok(`power ${n}: has its renderer (public/vfx/powers/stage-${String(n).padStart(2, '0')}.js)`, (() => { try { return readFileSync(new URL(`./public/vfx/powers/stage-${String(n).padStart(2, '0')}.js`, import.meta.url), 'utf8').includes(`id: '${d.id}'`); } catch { return false; } })());
+    if (n > 1) {
+      const a = CHAMPION_POWERS[n - 1];
+      ok(`power ${n} is at least as hard to stop as power ${n - 1} (behaviour score)`, difficultyScore(d) >= difficultyScore(a), `${difficultyScore(a).toFixed(2)} → ${difficultyScore(d).toFixed(2)}`);
+      ok(`power ${n} is at least as hard as power ${n - 1} (spec score, stars first)`, row.score.total >= spec[n - 2].score.total && d.hsStars >= a.hsStars);
+    }
+    // Only the arcade: online and free play the card keeps its map family.
+    const free = createMatch({ rarity: 'legendary', number: n }, FOE_CARD, {});
+    ok(`power ${n}: not outside the arcade (free play keeps the map family)`, !free.players[0].shot.cp && free.players[0].shot.family === HS_MAP[n - 1].family);
+  }
 }
 
 // ═══ 3. EVERY CHAMPION'S SHOT, FIRED, FLIES ITS FAMILY — FOR EITHER SEAT ══════
@@ -118,11 +154,12 @@ function fireChampion(stage, i, gap = 460) {
     for (const seat of [0, 1]) {
       const { m, p, q, log } = fireChampion(c.stage, seat);
       const shot = log.find((e) => e.type === 'powershot' && e.player === seat);
-      ok(`stage ${c.stage} (seat ${seat}): fires its ${c.hs.family} shot`, shot && shot.fam === c.hs.family && shot.champ === c.id && m.ball.power && m.ball.power.fam === c.hs.family);
+      ok(`stage ${c.stage} (seat ${seat}): fires its ${c.cp ? c.cp.id : c.hs.family} shot`, shot && shot.fam === famOf(c) && shot.champ === c.id && m.ball.power && m.ball.power.fam === famOf(c) &&
+         (m.ball.power.cp || null) === (c.cp ? c.cp.id : null));
       ok(`stage ${c.stage} (seat ${seat}): toward the other goal, with the cut-in`, m.ball.power && m.ball.power.dir === p.side && m.cutinBy === seat);
       // The aura's press: a close opponent gets it, a far one does not (both ways measured in test-ultimate).
       const au = log.find((e) => e.type === 'aura');
-      ok(`stage ${c.stage} (seat ${seat}): an aura exactly when the map has one`, c.hs.aura === 'none' ? !au : !!au && au.aura === c.hs.aura && au.r === c.hs.auraRadius);
+      ok(`stage ${c.stage} (seat ${seat}): an aura exactly when the map has one`, auraOf(c) === 'none' ? !au : !!au && au.aura === c.hs.aura && au.r === c.hs.auraRadius);
       // Play it out: the shot reaches the other player (or the net), and the numbers stay numbers.
       let met = null, bad = false;
       for (let k = 0; k < 60 * 4 && m.phase === 'play' && !met; k++) {
@@ -133,7 +170,7 @@ function fireChampion(stage, i, gap = 460) {
       }
       ok(`stage ${c.stage} (seat ${seat}): the shot reaches the other player or the net`, !!met || m.phase !== 'play', 'never arrived');
       ok(`stage ${c.stage} (seat ${seat}): everything stays finite`, !bad);
-      if (met && met.type === 'powerHit' && c.hs.ailment && q.ail !== c.hs.ailment && q.ail !== 'stars') fleeing.add(c.stage);
+      if (met && met.type === 'powerHit' && ailOf(c) && q.ail !== ailOf(c) && q.ail !== 'stars') fleeing.add(c.stage);
     }
   }
   ok('a champion\'s ailment lands on the player its shot hits', fleeing.size === 0, [...fleeing].join(','));
@@ -173,8 +210,8 @@ function fireChampion(stage, i, gap = 460) {
         m.events.length = 0;
         t = m.t;
       }
-      ok(`bot ${champ.stage} (${champ.hs.family}, seat ${seat}) arms and fires its own shot`,
-         !!fired && fired.champ === champ.id && fired.fam === champ.hs.family, fired ? `${fired.fam} at ${t.toFixed(1)}s` : 'never fired');
+      ok(`bot ${champ.stage} (${champ.cp ? champ.cp.id : champ.hs.family}, seat ${seat}) arms and fires its own shot`,
+         !!fired && fired.champ === champ.id && fired.fam === famOf(champ) && (fired.cp || null) === (champ.cp ? champ.cp.id : null), fired ? `${fired.fam} at ${t.toFixed(1)}s` : 'never fired');
     }
   }
 }

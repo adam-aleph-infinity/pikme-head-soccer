@@ -21,7 +21,7 @@ import { createVfx } from './champ-vfx.js';
 
 // What a Head Soccer power shot looks like: the aura, the cut-in, the comet, the ailments. It
 // only watches the match (see champ-vfx.js).
-const VFXR = createVfx({ drawBall: (g, b) => drawBall(g, b) });
+const VFXR = createVfx({ drawBall: (g, b) => drawBall(g, b), me: () => (ONLINE && NET ? (NET.you ?? 0) : 0) });
 
 // The eleven backdrops a match can roll: the seven Street Fighter II homages plus the four
 // original directions. DIRECTIONS uses the identical { id, name, grass, wall, draw(g, s) }
@@ -2197,13 +2197,16 @@ function drawBall(g, b) {
   // it BETWEEN the two side nets rather than flat against the front of the box. Out on the
   // pitch this is the identity — see shared/goalbox.js.
   const d = depthPoint(b.x, b.y);
-  g.save();
-  g.globalAlpha = .3;
-  g.fillStyle = '#000';
-  g.beginPath();
-  g.ellipse(d.x, C.GROUND_Y + 3, b.r * .9, 5, 0, 0, 6.2832);
-  g.fill();
-  g.restore();
+  // (no shadow for a champion power's drawn extras, nor for its ball while it is invisible)
+  if (!b.fake && !VFXR.hideShadow(b)) {
+    g.save();
+    g.globalAlpha = .3;
+    g.fillStyle = '#000';
+    g.beginPath();
+    g.ellipse(d.x, C.GROUND_Y + 3, b.r * .9, 5, 0, 0, 6.2832);
+    g.fill();
+    g.restore();
+  }
 
   // A POWER BALL is the plain ball at the nose of its family's comet (champ-vfx.js draws the
   // comet under it, docs/HS-POWER-SHOTS.md §3). An Aerial up off the top of the screen is not drawn.
