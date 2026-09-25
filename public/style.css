@@ -134,9 +134,8 @@ body.safedemo { --safe-l: 44px; --safe-r: 44px; --safe-b: 21px; --safe-t: 12px; 
      the stage and hangs off the top, so the stage can stay viewport-sized for the HUD and the
      pad while the pitch fills the width. */
   position: absolute; left: 0; top: 0; display: block;
-  /* Half-res backing upscaled hard — this is what makes it read as pixel art. */
-  image-rendering: pixelated;
-  image-rendering: crisp-edges;
+  /* HD backing at the screen's resolution (HS is smooth painted art, not pixel art). */
+  image-rendering: auto;
 }
 #cvnet { pointer-events: none; }
 /* The power effects' two layers (champ-vfx.js): FULL resolution and smooth — soft light does not
@@ -1235,6 +1234,14 @@ body.safedemo { --safe-l: 44px; --safe-r: 44px; --safe-b: 21px; --safe-t: 12px; 
   background: linear-gradient(#ffe066 0%, #ffc021 46%, #e98f12 100%);
 }
 .pad-l .btn > * { z-index: 0; }
+/* HS letters its arrows L and R, and its plaques KICK / JUMP, in a heavy italic */
+.pad-l .btn b {
+  position: relative; z-index: 2; pointer-events: none;
+  font: italic 900 calc(var(--u) * var(--s) * 0.3)/1 "Arial Black", Arial, sans-serif; color: #4a2708;
+}
+.pad-l .btn[data-k="left"] b { margin-inline-start: 18%; }
+.pad-l .btn[data-k="right"] b { margin-inline-end: 18%; }
+.pad-r .btn { font-style: italic; font-weight: 900; font-family: "Arial Black", Arial, sans-serif; letter-spacing: .02em; }
 .pad-l .btn:active::before, .pad-l .btn.on::before { background: #3a1d05; }
 .pad-l .btn:active::after, .pad-l .btn.on::after {
   background: linear-gradient(#fff3a8 0%, #ffd047 46%, #f5a01a 100%);

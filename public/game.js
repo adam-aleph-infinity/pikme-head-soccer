@@ -14,6 +14,7 @@ import { clockText, gaugeView } from './hud.js';
 import { createNet } from './net.js';
 import { playEvent, SFX, setAudioEnabled, audioEnabled, startBed, stopBed } from './audio.js';
 import { STAGES, randomStage, stageById } from './stages.js';
+import { HS_STAGES } from './hs-stadium.js';
 import { DIRECTIONS } from './art-directions.js';
 import { CHAMPIONS, TIERS, stageConfig, championForStage } from '../shared/champions.js';
 import * as ARC from '../shared/arcade.js';
@@ -27,12 +28,13 @@ const VFXR = createVfx({ drawBall: (g, b) => drawBall(g, b), drawBody: (g, p) =>
 // The eleven backdrops a match can roll: the seven Street Fighter II homages plus the four
 // original directions. DIRECTIONS uses the identical { id, name, grass, wall, draw(g, s) }
 // contract STAGES does, which is why this is a concat and not an adapter.
-const POOL = [...DIRECTIONS, ...STAGES];
+const POOL = [...HS_STAGES, ...DIRECTIONS, ...STAGES];
 // A match only ever rolls one of the four ORIGINAL directions. Putting all eleven in the
 // hat meant 7-in-11 matches served a Street Fighter homage and the new art looked like it
 // had vanished — which is exactly how it was reported. The seven are superseded, not
 // deleted: every one is still reachable by ?stage=<id>.
-const pickStage = () => DIRECTIONS[Math.floor(Math.random() * DIRECTIONS.length)];
+// HS's stadiums are the rotation (Idan: "like HS"); the older stages stay reachable by ?stage=.
+const pickStage = () => HS_STAGES[Math.floor(Math.random() * HS_STAGES.length)];
 const findStage = (id) => POOL.find((x) => x.id === id) || null;
 
 const CARD_ART = 'https://pxsjmychuxwufcvqixgu.supabase.co/storage/v1/object/public/cards';
@@ -1305,11 +1307,10 @@ let pitchBlurPx = 0;                 // the CSS blur on #cv under a cut-in (VFXR
 // DOM nodes, and a head placed with SC alone drifts by exactly the crop.
 let SC = 1, OX = 0, OY = 0, crowd = [];
 
-// Street Fighter II is PIXEL art, and the cheapest honest way to get there is to render at
-// half resolution and upscale with smoothing off. One texel becomes a fat on-screen pixel,
-// every gradient becomes a hard edge, and canvas text picks up the chunky arcade look for
-// free. Drawing "pixel-style" at full res never convinces — the edges stay clean.
-const PIXEL = 2;
+// World px per canvas pixel. It was a fixed 2 (half-res, upscaled hard: the 16-bit look). Head
+// Soccer is smooth painted HD, so the pitch now renders at the screen's own resolution (capped at
+// 2x, like the effect layers) — set on every resize.
+let PIXEL = 1;
 
 // HOW MUCH SKY. The camera used to crop up to 34px off the top of the 530px world to fill a
 // phone's width, which left 401px of sky over the grass on an 844x390 phone. Head Soccer shows
@@ -1374,11 +1375,12 @@ function resize() {
   // Saved offsets are fractions of the stage, so they have to be re-multiplied whenever the
   // stage changes — rotation, a resized window, the keyboard opening on a phone.
   applyLayout($('#pad'), { w: sw, h: sh });
+  PIXEL = 1 / (Math.min(2, window.devicePixelRatio || 1) * scale);
   for (const [el, c] of [[cv, ctx], [cvNet, ctxNet]]) {
     el.width = Math.ceil(C.W / PIXEL);
     el.height = Math.ceil((SKY_TOP + C.H + BLEED) / PIXEL);
-    c.setTransform(1 / PIXEL, 0, 0, 1 / PIXEL, 0, SKY_TOP / PIXEL);   // draw in WORLD units, land on texels
-    c.imageSmoothingEnabled = false;
+    c.setTransform(1 / PIXEL, 0, 0, 1 / PIXEL, 0, SKY_TOP / PIXEL);   // draw in WORLD units
+    c.imageSmoothingEnabled = true;
   }
   // (the effect layers: device pixels, capped at 2x — soft light needs no more, and it is cheaper)
   const fxK = Math.min(2, window.devicePixelRatio || 1) * scale;
@@ -1507,8 +1509,8 @@ function paintLetterbox() {
   if (!STAGE) return;
   if (STAGE.id !== barStage) {
     try {
-      const d = ctx.getImageData(2, SKY_TOP / PIXEL + 2, 1, 1).data;   // raw pixels: below the sky strip
-      barSky = `rgb(${d[0]}, ${d[1]}, ${d[2]})`;
+      if (STAGE.sky) barSky = STAGE.sky;                                 // a stage that says (a cloud can sit on the sample)
+      else { const d = ctx.getImageData(2, SKY_TOP / PIXEL + 2, 1, 1).data; barSky = `rgb(${d[0]}, ${d[1]}, ${d[2]})`; }
       barStage = STAGE.id;
     } catch { return; }        // a tainted canvas would throw; the default background is fine
   }
@@ -1705,7 +1707,6 @@ function netOverBodies(g) {
     if (!near) continue;
     g.save();
     g.globalCompositeOperation = 'source-atop';
-    g.imageSmoothingEnabled = false;
     drawGoalFront(g, left, true);
     g.restore();
   }
@@ -1738,17 +1739,21 @@ let STAGE = pickStage();
 // bob — now updates at BG_HZ. Everything the player is actually looking at (ball, players,
 // goals, the scrolling hoardings below) is untouched and stays at 60.
 const BG_HZ = 12;
-let bgCanvas = null, bgCtx = null, bgAt = -1e9;
+let bgCanvas = null, bgCtx = null, bgAt = -1e9, bgStage = null;
 function stageLayer(t, scene) {
-  if (!bgCanvas) {
+  if (!bgCanvas || bgCanvas.width !== Math.ceil(C.W / PIXEL)) {
     bgCanvas = document.createElement('canvas');
+    bgAt = -1e9;
     bgCanvas.width = Math.ceil(C.W / PIXEL);
     bgCanvas.height = Math.ceil((C.H + BLEED) / PIXEL);
     bgCtx = bgCanvas.getContext('2d');
     bgCtx.setTransform(1 / PIXEL, 0, 0, 1 / PIXEL, 0, 0);
-    bgCtx.imageSmoothingEnabled = false;
+    bgCtx.imageSmoothingEnabled = true;
   }
+  // A STATIC stage (HS's stadiums: a still crowd) is painted once per canvas and stage.
+  if (STAGE.static && bgStage === STAGE && bgAt > -1e9) return bgCanvas;
   if (t - bgAt >= 1 / BG_HZ) {
+    bgStage = STAGE;
     bgAt = t;
     bgCtx.clearRect(0, 0, C.W, C.H + BLEED);
     STAGE.draw(bgCtx, scene);
@@ -1777,7 +1782,10 @@ function drawStadium(g) {
   }), 0, 0, C.W, C.H + BLEED);
   // The strip above world y=0 (SKY_TOP) is sky the stage art does not reach: carry on its top
   // colour, the same sample the letterbox bars are painted with.
-  if (SKY_TOP > 0 && barSky) R2(g, 0, -SKY_TOP, C.W, SKY_TOP + 1, barSky);
+  const topSky = STAGE.sky || barSky;
+  if (SKY_TOP > 0 && topSky) R2(g, 0, -SKY_TOP, C.W, SKY_TOP + 1, topSky);
+
+  if (STAGE.hs) { hsBoardsAndFloor(g, standBot, ledTop, ledBot, gy); return; }
 
   // railing across the front of the crowd, common to every stage
   R2(g, 0, standBot - 6, C.W, 6, OUTLINE);
@@ -1824,6 +1832,75 @@ function drawStadium(g) {
 }
 
 const R2 = (g, x, y, w, h, c) => { g.fillStyle = c; g.fillRect(Math.round(x), Math.round(y), Math.round(w), Math.round(h)); };
+
+// HS'S HOARDINGS AND FLOOR (hs-video/M4 30.2 s). The boards are a row of still, different adverts
+// right under the stands; the floor starts at their foot and runs forward BEHIND the players'
+// feet, marked in perspective — a centre line, a flat centre circle round the feet line, a
+// penalty box and a goal box at each end. Grass in mown stripes, or a wooden court.
+const HS_BOARDS = [
+  { bg: ['#1c3f94', '#12296a'], fg: '#ffd23c', txt: 'SALTIZ' },
+  { bg: ['#d92a3a', '#9e1522'], fg: '#ffffff', txt: 'ראשים' },
+  { bg: ['#111418', '#2a2f38'], fg: '#ffb800', txt: 'SALTIZ ★' },
+  { bg: ['#f7f7f2', '#d9d9d0'], fg: '#1c3f94', txt: 'ראשים ⚽' },
+  { bg: ['#0f8a4a', '#07603a'], fg: '#ffffff', txt: 'GOAL!' },
+  { bg: ['#ff8a00', '#d86a00'], fg: '#1a1000', txt: 'SALTIZ' },
+];
+function hsBoardsAndFloor(g, standBot, ledTop, ledBot, gy) {
+  // the wall under the stands
+  R2(g, 0, standBot - 2, C.W, ledTop - standBot + 2, STAGE.wall);
+  // the boards
+  const n = 6, bw = (C.W - C.GOAL_W * 2) / n, h = ledBot - ledTop;
+  g.save();
+  g.textAlign = 'center'; g.textBaseline = 'middle'; g.direction = 'ltr';   // the page is RTL: '!GOAL'
+  g.font = `italic 900 ${Math.round(h * 0.56)}px "Arial Black", Arial, sans-serif`;
+  for (let i = 0; i < n; i++) {
+    const b = HS_BOARDS[i % HS_BOARDS.length], x = C.GOAL_W + i * bw;
+    const gr = g.createLinearGradient(0, ledTop, 0, ledBot);
+    gr.addColorStop(0, b.bg[0]); gr.addColorStop(1, b.bg[1]);
+    g.fillStyle = gr; g.fillRect(x + 1, ledTop, bw - 2, h);
+    g.fillStyle = '#ffffff30'; g.fillRect(x + 1, ledTop, bw - 2, h * 0.18);        // the gloss along the top
+    g.fillStyle = b.fg; g.fillText(b.txt, x + bw / 2, ledTop + h * 0.54);
+  }
+  // under the goals the boards carry on plain
+  R2(g, 0, ledTop, C.GOAL_W, h, '#2a2f38'); R2(g, C.W - C.GOAL_W, ledTop, C.GOAL_W, h, '#2a2f38');
+  g.restore();
+
+  // the floor, from the foot of the boards down past the world into the BLEED
+  const top = ledBot, bot = C.H + BLEED, fh = bot - top;
+  if (STAGE.floor === 'wood') {
+    const gr = g.createLinearGradient(0, top, 0, bot);
+    gr.addColorStop(0, '#c98a45'); gr.addColorStop(1, '#e0a45e');
+    g.fillStyle = gr; g.fillRect(0, top, C.W, fh);
+    g.fillStyle = '#9a6030'; for (let y = top + 6, k = 0; y < bot; y += 7 + k * 0.6, k++) g.fillRect(0, y, C.W, 1);
+  } else {
+    g.fillStyle = STAGE.grass[0]; g.fillRect(0, top, C.W, fh);
+    // mown stripes, fanned for perspective: narrow at the back, wide at the front
+    g.fillStyle = STAGE.grass[1];
+    const k = 10;
+    for (let i = -k; i <= k; i += 2) {
+      const xb = C.W / 2 + i * 50, xf = C.W / 2 + i * 70;
+      g.beginPath(); g.moveTo(xb, top); g.lineTo(xb + 50, top); g.lineTo(xf + 70, bot); g.lineTo(xf, bot); g.fill();
+    }
+  }
+  // the markings, white, in perspective
+  const L = '#ffffffd0', feet = gy, front = gy + 58;
+  g.strokeStyle = L; g.lineWidth = 2.4;
+  g.beginPath();
+  g.moveTo(0, top + 1); g.lineTo(C.W, top + 1);                              // the back line
+  g.moveTo(C.W / 2, top); g.lineTo(C.W / 2, bot);                            // halfway
+  g.ellipse(C.W / 2, feet, 92, 16, 0, 0, 6.2832);                            // the centre circle
+  for (const side of [1, -1]) {
+    const x0 = side > 0 ? 0 : C.W, dir = side;
+    // penalty box: out from the back line, forward to the front line, back to the edge
+    const pb = x0 + dir * (C.GOAL_W + 150), pf = x0 + dir * (C.GOAL_W + 185);
+    g.moveTo(pb, top); g.lineTo(pf, front); g.lineTo(x0, front);
+    // goal box
+    const gb = x0 + dir * (C.GOAL_W + 55), gf = x0 + dir * (C.GOAL_W + 68), gfy = gy + 22;
+    g.moveTo(gb, top); g.lineTo(gf, gfy); g.lineTo(x0, gfy);
+  }
+  g.stroke();
+  g.beginPath(); g.fillStyle = L; g.ellipse(C.W / 2, feet, 4, 2, 0, 0, 6.2832); g.fill();   // the centre spot
+}
 
 // A stone guardian, the way Sagat's temple stage frames its pitch. Blocky, three flat
 // stone tones, black keyline — same rules as the fighters, so it sits in the same world.
@@ -1975,13 +2052,13 @@ function goalLayer(key, left, painter) {
   const box = goalBox(left);
   const cacheKey = key + (left ? 'L' : 'R');
   let entry = goalLayerCache.get(cacheKey);
-  if (!entry || entry.box !== box) {
+  if (!entry || entry.box !== box || entry.canvas.width !== Math.ceil(C.W / PIXEL)) {
     const cnv = document.createElement('canvas');
     cnv.width = Math.ceil(C.W / PIXEL);
     cnv.height = Math.ceil((C.H + BLEED) / PIXEL);
     const cg = cnv.getContext('2d');
     cg.setTransform(1 / PIXEL, 0, 0, 1 / PIXEL, 0, 0);
-    cg.imageSmoothingEnabled = false;
+    cg.imageSmoothingEnabled = true;
     painter(cg, left);
     entry = { box, canvas: cnv };
     goalLayerCache.set(cacheKey, entry);
