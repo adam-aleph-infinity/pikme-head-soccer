@@ -1611,5 +1611,6 @@ body.editing .pad .btn .grip {
 .bar-txt.lit { fill: #ffe23c; stroke: #9a3a06; stroke-width: 7; }
 .gauge.full .bar-line path { animation: barLine .2s ease-in-out infinite alternate; }
 .gauge.full .fill, .gauge.powered .fill { filter: none; }
-@keyframes barLine { from { stroke: #232f2a; } to { stroke: #1f3fb0; } }
-@keyframes barHalo { from { filter: drop-shadow(0 0 0 #e6ff4a00); } to { filter: drop-shadow(0 0 .35cqh #e6ff4a) drop-shadow(0 0 1.1cqh #d8ff3acc); } }
+@keyframes barLine { from { stroke: #232f2a; } to { stroke: #1f5cff; } }
+/* HS's halo at its peak: a strong, wide yellow (213,244,45 measured) around the whole bar */
+@keyframes barHalo { from { filter: drop-shadow(0 0 0 #e8f63000); } to { filter: drop-shadow(0 0 1cqh #f4ff5a) drop-shadow(0 0 2.6cqh #e2f42e) drop-shadow(0 0 4.5cqh #d5f02dcc); } }
