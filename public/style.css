@@ -1537,43 +1537,42 @@ body.editing .pad .btn .grip {
 
 
 /* ─── HS BUTTONS ─────────────────────────────────────────────────────────────
-   One for one with Head Soccer (hs-video/M4 55.5 s, M1/M2 40 s): the two arrows (L, R) and the
-   POWER / KICK / JUMP plaques are TRANSLUCENT gold glass with a thin dark-brown keyline, so the
-   pitch shows through — on grass they read green-gold, camouflaged into the field. All five are
-   the same colour, always (Idan): no orange POWER, no colour on a press — a press only squashes.
-   Sizes from the frame: 11.4% of the screen's height tall (--hb), 1.8% off the bottom (--hbm);
-   a plaque ~2.8:1 and slanted like italic type, an arrow ~2.5:1; the plaques touching. */
-.pad .pad-l, .pad .pad-r { bottom: calc(var(--hbm) + var(--pb)); gap: calc(var(--hb) * 0.05); align-items: flex-end; }
-.pad .pad-l { left: calc(var(--hbx) + var(--pl)); }
-.pad .pad-r { right: calc(var(--hbx) + var(--pr)); gap: calc(var(--hb) * 0.02); }
+   One for one with HS (Idan's reference screenshot, uploaded-images/ 2026-09-26 15.16): five
+   pieces of the SAME translucent glass — the pitch shows through, tinted a little yellow — with a
+   thin brown keyline and dark-brown italic small-caps lettering. Drawn as SVG (index.html), so the
+   shapes are exact: two arrows (head ~47% of the length, shaft ~half the height, its inner end cut
+   on the slant, the letter there); and the plaques as one row of puzzle pieces — POWER round at
+   the left and slanted at the right, KICK a parallelogram, JUMP slanted at the left and round at
+   the right — every slanted edge parallel (~18°), thin gaps between them.
+   Proportions in button heights (--hb = 11.4% of the screen's height, from HS M4): POWER 3.32,
+   KICK 3.05, JUMP 3.1, arrows 3.0 each; gaps 0.1 (plaques) and 0.14 (arrows); 0.23 in from the
+   left, 0.14 from the right, 1.8% of the height off the bottom. A press squashes, never recolours. */
+.pad .pad-l, .pad .pad-r { bottom: calc(var(--hbm) + var(--pb)); align-items: flex-end; }
+/* the slanted edges overlap each box by ~0.31 (plaques) / 0.19 (arrows) of a height, so each
+   piece after the first pulls back that far (a gap cannot be negative): what is left between two
+   parallel edges is the thin 0.1 / 0.14 of the reference */
+.pad .pad-l { left: calc(var(--hb) * .23 + var(--pl)); gap: 0; }
+.pad .pad-r { right: calc(var(--hb) * .14 + var(--pr)); gap: 0; }
+.pad .pad-l .btn + .btn { margin-left: calc(var(--hb) * (.14 - .19)); }
+.pad .pad-r .btn + .btn { margin-left: calc(var(--hb) * (.1 - .31)); }
 .pad .pad-l .btn, .pad .pad-r .btn {
   opacity: 1; background: none; border: 0; box-shadow: none; backdrop-filter: none; padding: 0; margin: 0;
-  height: calc(var(--hb) * var(--s)); border-radius: 0; position: relative; color: #3a2208; text-shadow: none;
-  animation: none; visibility: visible;
+  height: calc(var(--hb) * var(--s)); min-width: 0; flex: none; border-radius: 0; position: relative; animation: none;
 }
-.pad .pad-l .btn { width: calc(var(--hb) * var(--s) * 2.5); min-width: 0; }
-.pad .pad-l .btn::before, .pad .pad-l .btn::after { display: none; }
-.pad .pad-l .btn svg { width: 100%; height: 100%; display: block; overflow: visible; }
-.hs-glass { fill: url(#hsGlass); stroke: #4a2e0c; stroke-width: 4.5; stroke-linejoin: round; }
-.pad .pad-l .btn text {
-  font: italic 900 46px "Arial Black", "Helvetica Neue", Arial, sans-serif; fill: #3a2208;
-  stroke: #f6e3a8; stroke-width: 2; paint-order: stroke; text-anchor: middle;
+.pad .pad-l .btn::before, .pad .pad-l .btn::after, .pad .pad-r .btn::before, .pad .pad-r .btn::after { display: none; }
+.pad .pad-l .btn { width: calc(var(--hb) * var(--s) * 3.0); height: calc(var(--hb) * var(--s) * 1.03); }
+.pad .pad-r .power { width: calc(var(--hb) * var(--s) * 3.32); }
+.pad .pad-r .kick { width: calc(var(--hb) * var(--s) * 3.05); }
+.pad .pad-r .jump { width: calc(var(--hb) * var(--s) * 3.1); }
+.pad .btn svg { width: 100%; height: 100%; display: block; overflow: visible; }
+.hs-glass { fill: url(#hsGlass); stroke: #7a4614; stroke-width: 4.2; stroke-linejoin: round; }
+.pad .btn svg text {
+  font: italic 900 42px "Arial Black", "Helvetica Neue", Arial, sans-serif; font-variant: small-caps;
+  fill: #4a2508; stroke: #f3e2a4; stroke-width: 1.4; paint-order: stroke; text-anchor: middle;
 }
-.pad .pad-r .btn { min-width: calc(var(--hb) * var(--s) * 2.8); }
-.pad .pad-r .btn::before {                      /* the glass plaque, slanted; the label stays upright */
-  content: ''; position: absolute; inset: 0; transform: skewX(-12deg); border-radius: calc(var(--hb) * .42);
-  background: linear-gradient(180deg, #fff3c49e 0%, #e2bd6a6b 45%, #8a64208c 100%);
-  border: calc(var(--hb) * .045) solid #4a2e0c;
-  box-shadow: inset 0 calc(var(--hb) * .06) 0 #fff8dc80;
-}
-.pad .pad-r .btn span {
-  position: relative; display: block; font: italic 900 calc(var(--hb) * var(--s) * .42)/1 "Arial Black", "Helvetica Neue", Arial, sans-serif;
-  font-variant: small-caps; letter-spacing: .01em; color: #3a2208;
-  -webkit-text-stroke: calc(var(--hb) * .02) #f6e3a8; paint-order: stroke fill;
-}
+.pad .pad-l .btn svg text { font-size: 38px; font-variant: normal; }
 /* POWER stands only while the bar is full (HS), in the same glass as the rest */
 .pad .pad-r .power { visibility: hidden; pointer-events: none; }
 .pad .pad-r .power.ready, .pad .pad-r .power.fired { visibility: visible; pointer-events: auto; }
 .pad .pad-r .power.fired.fade { opacity: 0; transition: opacity .15s linear; }
-/* the press: a squash, never a colour */
-.pad .pad-l .btn:active, .pad .pad-l .btn.on, .pad .pad-r .btn:active, .pad .pad-r .btn.on { background: none; opacity: 1; transform: var(--xf, none) scale(.93); }
+.pad .pad-l .btn:active, .pad .pad-l .btn.on, .pad .pad-r .btn:active, .pad .pad-r .btn.on { background: none; opacity: 1; transform: var(--xf, none) scale(.94); }
