@@ -203,7 +203,7 @@
          as the heads on the pitch (see paintFaces in game.js), so the face on the scoreboard
          is literally the head you are kicking with. -->
     <div class="hud">
-      <div class="meter m0"><div class="gauge g0"><div class="fill"></div><span class="nm"></span></div></div>
+      <div class="meter m0"><div class="gauge g0"><svg class="bar bar-empty" viewBox="0 0 1400 240" aria-hidden="true"><g class="shp"><path d="M25 28 C120 45 200 60 275 74 Q278 55 300 28 Q379 76 458 106 Q459 79 470 44 Q529 86 588 112 Q589 107 598 94 Q683 120 768 136 Q769 114 780 84 Q868 120 955 142 Q956 132 965 114 Q1046 145 1128 164 Q1129 155 1138 138 Q1213 159 1288 172 Q1289 164 1298 148 Q1338 168 1378 214 L1372 219 L140 219 L45 152 L162 142 Q90 100 25 28 Z"/></g><text class="bar-txt" x="300" y="212">POWER</text></svg><div class="fill"><svg class="bar" viewBox="0 0 1400 240" aria-hidden="true"><g class="shp"><path d="M25 28 C120 45 200 60 275 74 Q278 55 300 28 Q379 76 458 106 Q459 79 470 44 Q529 86 588 112 Q589 107 598 94 Q683 120 768 136 Q769 114 780 84 Q868 120 955 142 Q956 132 965 114 Q1046 145 1128 164 Q1129 155 1138 138 Q1213 159 1288 172 Q1289 164 1298 148 Q1338 168 1378 214 L1372 219 L140 219 L45 152 L162 142 Q90 100 25 28 Z" fill="url(#barGrad)"/></g><text class="bar-txt lit" x="300" y="212">POWER</text></svg></div><svg class="bar bar-line" viewBox="0 0 1400 240" aria-hidden="true"><g class="shp"><path d="M25 28 C120 45 200 60 275 74 Q278 55 300 28 Q379 76 458 106 Q459 79 470 44 Q529 86 588 112 Q589 107 598 94 Q683 120 768 136 Q769 114 780 84 Q868 120 955 142 Q956 132 965 114 Q1046 145 1128 164 Q1129 155 1138 138 Q1213 159 1288 172 Q1289 164 1298 148 Q1338 168 1378 214 L1372 219 L140 219 L45 152 L162 142 Q90 100 25 28 Z"/></g></svg><span class="nm" hidden></span></div></div>
       <div class="scoreboard">
         <span class="face f0" id="face0"><i></i></span>
         <span class="face f1" id="face1"><i></i></span>
@@ -212,7 +212,7 @@
         <b class="score s1" id="s1">0</b>
         <em class="rtt" id="rtt"></em>
       </div>
-      <div class="meter m1"><div class="gauge g1"><div class="fill"></div><span class="nm"></span></div></div>
+      <div class="meter m1"><div class="gauge g1"><svg class="bar bar-empty" viewBox="0 0 1400 240" aria-hidden="true"><g class="shp"><path d="M25 28 C120 45 200 60 275 74 Q278 55 300 28 Q379 76 458 106 Q459 79 470 44 Q529 86 588 112 Q589 107 598 94 Q683 120 768 136 Q769 114 780 84 Q868 120 955 142 Q956 132 965 114 Q1046 145 1128 164 Q1129 155 1138 138 Q1213 159 1288 172 Q1289 164 1298 148 Q1338 168 1378 214 L1372 219 L140 219 L45 152 L162 142 Q90 100 25 28 Z"/></g><text class="bar-txt" x="640" y="212">POWER</text></svg><div class="fill"><svg class="bar" viewBox="0 0 1400 240" aria-hidden="true"><g class="shp"><path d="M25 28 C120 45 200 60 275 74 Q278 55 300 28 Q379 76 458 106 Q459 79 470 44 Q529 86 588 112 Q589 107 598 94 Q683 120 768 136 Q769 114 780 84 Q868 120 955 142 Q956 132 965 114 Q1046 145 1128 164 Q1129 155 1138 138 Q1213 159 1288 172 Q1289 164 1298 148 Q1338 168 1378 214 L1372 219 L140 219 L45 152 L162 142 Q90 100 25 28 Z" fill="url(#barGrad)"/></g><text class="bar-txt lit" x="640" y="212">POWER</text></svg></div><svg class="bar bar-line" viewBox="0 0 1400 240" aria-hidden="true"><g class="shp"><path d="M25 28 C120 45 200 60 275 74 Q278 55 300 28 Q379 76 458 106 Q459 79 470 44 Q529 86 588 112 Q589 107 598 94 Q683 120 768 136 Q769 114 780 84 Q868 120 955 142 Q956 132 965 114 Q1046 145 1128 164 Q1129 155 1138 138 Q1213 159 1288 172 Q1289 164 1298 148 Q1338 168 1378 214 L1372 219 L140 219 L45 152 L162 142 Q90 100 25 28 Z"/></g></svg><span class="nm" hidden></span></div></div>
     </div>
 
     <!-- Card call-outs: who played what, under the scoreboard, one lane per player. -->
@@ -224,6 +224,10 @@
          cards; that system is archived (see archive/README.md) and the row is gone with it,
          markup included — a hidden row is still a row the layout editor can drag about. -->
     <svg width="0" height="0" style="position:absolute" aria-hidden="true"><defs>
+      <!-- HS's power-bar ramp (uploaded-images/WhatsApp Video 2026-09-26 16.05.36, sampled): red at the wing, green at the tip -->
+      <linearGradient id="barGrad" x1="0" y1="0" x2="1" y2="0" gradientUnits="objectBoundingBox">
+        <stop offset="0" stop-color="#e8321a"/><stop offset=".22" stop-color="#ea5a00"/><stop offset=".42" stop-color="#ef8a00"/>
+        <stop offset=".6" stop-color="#ffc805"/><stop offset=".8" stop-color="#eefa04"/><stop offset="1" stop-color="#8ef808"/></linearGradient>
       <linearGradient id="hsGlass" x1="0" y1="0" x2="0" y2="1">
         <stop offset="0" stop-color="#f8eaa8" stop-opacity=".40"/><stop offset="1" stop-color="#f8eaa8" stop-opacity=".40"/></linearGradient></defs></svg>
     <div class="pad" id="pad">
