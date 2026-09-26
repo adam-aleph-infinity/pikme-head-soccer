@@ -1,0 +1,74 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Phone Simulator</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<style>
+  :root { --bg: #14161c; --panel: #1e222b; --ink: #e8ecf3; --dim: #8d96a8; --acc: #ffc021; }
+  * { box-sizing: border-box; }
+  body { margin: 0; min-height: 100vh; background: var(--bg); color: var(--ink);
+    font: 14px/1.4 -apple-system, "Segoe UI", Arial, sans-serif; display: flex; flex-direction: column; align-items: center; }
+  header { width: 100%; display: flex; flex-wrap: wrap; gap: 10px; align-items: center; justify-content: center;
+    padding: 12px 16px; background: var(--panel); border-bottom: 1px solid #ffffff14; }
+  select, button, input { font: inherit; color: var(--ink); background: #2a2f3a; border: 1px solid #ffffff22;
+    border-radius: 8px; padding: 6px 10px; }
+  button { cursor: pointer; }
+  button.main { background: var(--acc); color: #221600; border: 0; font-weight: 700; }
+  label { color: var(--dim); display: flex; align-items: center; gap: 6px; }
+  input[type=text] { width: 260px; }
+  main { flex: 1; width: 100%; display: flex; align-items: center; justify-content: center; padding: 20px; overflow: hidden; }
+  .phone { position: relative; background: #050507; border-radius: 44px; padding: 14px; box-shadow: 0 0 0 2px #3a3f4a, 0 20px 60px #000c;
+    transform-origin: center center; flex: none; }
+  .phone::after { content: ''; position: absolute; background: #050507; border-radius: 20px; }
+  .phone.land::after { left: 14px; top: 50%; width: 26px; height: 120px; transform: translate(0, -50%); }
+  .phone.port::after { top: 14px; left: 50%; height: 26px; width: 120px; transform: translate(-50%, 0); }
+  iframe { display: block; border: 0; border-radius: 30px; background: #000; }
+  .info { color: var(--dim); font-size: 12px; padding: 0 0 12px; text-align: center; }
+</style>
+</head>
+<body>
+<header>
+  <label>Phone
+    <select id="dev">
+      <option value="844x390">iPhone 13 / 14 (844×390)</option>
+      <option value="932x430">iPhone 15 Pro Max (932×430)</option>
+      <option value="852x393">iPhone 15 / 16 (852×393)</option>
+      <option value="667x375">iPhone SE (667×375)</option>
+      <option value="915x412">Android large (915×412)</option>
+      <option value="800x360">Android small (800×360)</option>
+    </select>
+  </label>
+  <button id="rot">⟳ Rotate</button>
+  <label><input type="checkbox" id="fit" checked> Fit to window</label>
+  <label>Link <input type="text" id="url" value="/?play=1"></label>
+  <button class="main" id="go">Load</button>
+</header>
+<main><div class="phone land" id="phone"><iframe id="frame" title="game"></iframe></div></main>
+<div class="info" id="info"></div>
+<script>
+  const $ = (id) => document.getElementById(id);
+  let portrait = false;
+  const q = new URLSearchParams(location.search);
+  if (q.get('url')) $('url').value = q.get('url');
+  function size() {
+    const [a, b] = $('dev').value.split('x').map(Number);
+    const w = portrait ? b : a, h = portrait ? a : b;
+    const f = $('frame');
+    f.style.width = w + 'px'; f.style.height = h + 'px';
+    const ph = $('phone');
+    ph.className = 'phone ' + (portrait ? 'port' : 'land');
+    const main = document.querySelector('main').getBoundingClientRect();
+    const k = $('fit').checked ? Math.min(1.6, (main.width - 40) / (w + 28), (main.height - 40) / (h + 28)) : 1;
+    ph.style.transform = `scale(${k})`;
+    $('info').textContent = `${w}×${h} CSS px, shown at ${Math.round(k * 100)}% — click the on-screen buttons, or use the keyboard.`;
+  }
+  function load() { $('frame').src = $('url').value + (($('url').value.includes('?') ? '&' : '?') + 'v=' + Date.now()); size(); }
+  $('dev').onchange = size; $('fit').onchange = size; addEventListener('resize', size);
+  $('rot').onclick = () => { portrait = !portrait; size(); };
+  $('go').onclick = load;
+  $('url').onkeydown = (e) => { if (e.key === 'Enter') load(); };
+  load();
+</script>
+</body>
+</html>
