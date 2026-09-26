@@ -206,6 +206,17 @@ const scoreOn = (m, left, y = C.GROUND_Y - 60, speed = 600) => {
   ok('double-tap dashes', p.dashT > 0 && Math.abs(p.vx) > C.PLAYER_SPEED, `vx=${p.vx.toFixed(0)}`);
 }
 {
+  // no dash in the air: the same double-tap mid-jump does nothing
+  const m = fresh();
+  const p = m.players[0];
+  step(m, [{ jump: true }, {}]);
+  run(m, 6, [{ jump: true }, {}]);
+  step(m, [{ right: true }, {}]);
+  step(m, [{ right: false }, {}]);
+  step(m, [{ right: true }, {}]);
+  ok('no dash in the air', !p.onGround && !(p.dashT > 0), `onGround=${p.onGround} dashT=${p.dashT}`);
+}
+{
   // A player walks INTO their own goal and is stopped by the BACK of the net, not by the goal
   // line — the mouth is a doorway now, see shared/goalbox.js. test-goal.mjs owns the rest of
   // the room (the crossbar ceiling, no entry from above, no teleports); this is the one line

@@ -529,7 +529,8 @@ function stepPlayer(m, p, input, dt, fx) {
   if (p.tapT > 0) p.tapT -= dt;
   for (const [key, d] of [['left', -1], ['right', 1]]) {
     if (input[key] && !prev[key]) {
-      if (p.tapDir === d && p.tapT > 0 && p.dashCd <= 0 && !(md && md.noDash)) {
+      // on the ground only: no dashing in the air (Idan, 2026-09-26)
+      if (p.tapDir === d && p.tapT > 0 && p.dashCd <= 0 && p.onGround && !(md && md.noDash)) {
         p.dashT = C.DASH_TIME; p.dashDir = d; p.dashCd = md && md.dashFree ? 0.12 : C.DASH_COOLDOWN;
         p.tapT = 0; p.tapDir = 0;
         m.events.push({ type: 'dash', player: p.index, dir: d });
