@@ -109,6 +109,106 @@ function crowd({ dur = 1.4, peak = 0.5, t = 0 } = {}) {
   src.stop(t0 + dur + 0.05);
 }
 
+// ── THE CROWD'S VOICE ──────────────────────────────────────────────────────────────
+// A stadium is thousands of people shouting one vowel at once. Each voice here is a buzzing
+// sawtooth at its own pitch (men and women, a little out of tune with each other, each with
+// its own wobble) run through three formant filters — the resonances that make an "O" an "O"
+// and an "A" an "A" — and the filters glide from vowel to vowel, so the crowd SAYS the word.
+// A breath of noise through the same formants, a hall of reverb, and it reads as a terrace.
+let hall = null;
+function crowdBus() {
+  const a = ctx();
+  if (!hall) {
+    const len = Math.floor(a.sampleRate * 1.6), ir = a.createBuffer(2, len, a.sampleRate);
+    for (let c = 0; c < 2; c++) {
+      const d = ir.getChannelData(c);
+      for (let i = 0; i < len; i++) d[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / len, 3);
+    }
+    const conv = a.createConvolver(); conv.buffer = ir;
+    const wet = a.createGain(); wet.gain.value = 0.35;
+    const dry = a.createGain(); dry.gain.value = 0.8;
+    const input = a.createGain();
+    input.connect(dry); dry.connect(master);
+    input.connect(conv); conv.connect(wet); wet.connect(master);
+    hall = input;
+  }
+  return hall;
+}
+const pan = (node, x) => {
+  const a = ctx();
+  if (!a.createStereoPanner) return node;
+  const p = a.createStereoPanner(); p.pan.value = x; node.connect(p); return p;
+};
+// Vowels as [F1, F2, F3] (Hz), averaged across voices.
+const VOWEL = { g: [300, 900, 2300], o: [480, 820, 2500], aw: [620, 980, 2550], a: [760, 1250, 2600], l: [360, 1050, 2600] };
+// shape: [[time fraction, vowel], ...]; pitch: [[time fraction, multiplier], ...]; amp: likewise.
+function chant({ n = 22, dur = 2.2, peak = 0.5, shape, pitch, amp, t = 0, spread = 0.12 }) {
+  const a = ctx(), bus = crowdBus();
+  for (let v = 0; v < n; v++) {
+    const t0 = now() + t + Math.random() * 0.14, d = dur * (0.88 + Math.random() * 0.2);
+    const female = Math.random() < 0.35;
+    const f0 = (female ? 210 : 118) * (1 + (Math.random() - 0.5) * spread * 2);
+    const o = a.createOscillator(); o.type = 'sawtooth';
+    pitch.forEach(([k, m], i) => (i ? o.frequency.linearRampToValueAtTime(f0 * m, t0 + k * d) : o.frequency.setValueAtTime(f0 * m, t0)));
+    // the wobble of a shouting voice
+    const lfo = a.createOscillator(), lg = a.createGain();
+    lfo.frequency.value = 4.5 + Math.random() * 2.5; lg.gain.value = f0 * 0.025;
+    lfo.connect(lg); lg.connect(o.frequency);
+    const breath = noise(); breath.loop = true;
+    const bg = a.createGain(); bg.gain.value = 0.35;
+    breath.connect(bg);
+    const out = a.createGain();
+    out.gain.setValueAtTime(0.0001, t0);
+    amp.forEach(([k, m]) => out.gain.linearRampToValueAtTime(Math.max(0.0001, (peak / Math.sqrt(n)) * m), t0 + k * d));
+    const fm = female ? 1.15 : 1;
+    [0, 1, 2].forEach((fi) => {
+      const bp = a.createBiquadFilter(); bp.type = 'bandpass'; bp.Q.value = [5, 7, 9][fi];
+      shape.forEach(([k, vw], i) => {
+        const f = VOWEL[vw][fi] * fm * (1 + (Math.random() - 0.5) * 0.06);
+        i ? bp.frequency.linearRampToValueAtTime(f, t0 + k * d) : bp.frequency.setValueAtTime(f, t0);
+      });
+      const fg = a.createGain(); fg.gain.value = [1, 0.7, 0.3][fi];
+      o.connect(bp); bg.connect(bp); bp.connect(fg); fg.connect(out);
+    });
+    pan(out, (Math.random() - 0.5) * 1.6).connect(bus);
+    o.start(t0); lfo.start(t0); breath.start(t0);
+    const end = t0 + d + 0.1;
+    o.stop(end); lfo.stop(end); breath.stop(end);
+  }
+}
+// The terrace underneath the words: a wide wash of noise that swells with them.
+function roar({ dur = 2.5, peak = 0.4, t = 0, lo = 500, hi = 1400 } = {}) {
+  const a = ctx(), t0 = now() + t, src = noise(); src.loop = true;
+  const bp = a.createBiquadFilter(); bp.type = 'bandpass'; bp.Q.value = 0.5;
+  bp.frequency.setValueAtTime(lo, t0); bp.frequency.linearRampToValueAtTime(hi, t0 + dur * 0.3); bp.frequency.linearRampToValueAtTime(lo, t0 + dur);
+  const g = a.createGain();
+  g.gain.setValueAtTime(0.0001, t0); g.gain.linearRampToValueAtTime(peak, t0 + dur * 0.15); g.gain.linearRampToValueAtTime(0.0001, t0 + dur);
+  src.connect(bp); bp.connect(g); pan(g, 0).connect(crowdBus());
+  src.start(t0); src.stop(t0 + dur + 0.05);
+}
+// Hands: each clap a tiny crack of band-passed noise, scattered in time and across the stands,
+// thickest just after the goal and thinning out.
+function claps({ count = 50, dur = 3, t = 0, peak = 0.35 } = {}) {
+  const a = ctx(), bus = crowdBus();
+  for (let i = 0; i < count; i++) {
+    const t0 = now() + t + dur * Math.pow(Math.random(), 1.6);
+    const src = noise(), bp = a.createBiquadFilter();
+    bp.type = 'bandpass'; bp.frequency.value = 1100 + Math.random() * 1500; bp.Q.value = 1.2;
+    const g = a.createGain(), pk = peak * (0.4 + Math.random() * 0.6);
+    g.gain.setValueAtTime(0.0001, t0); g.gain.exponentialRampToValueAtTime(pk, t0 + 0.003); g.gain.exponentialRampToValueAtTime(0.0001, t0 + 0.05 + Math.random() * 0.04);
+    src.connect(bp); bp.connect(g); pan(g, (Math.random() - 0.5) * 1.8).connect(bus);
+    src.start(t0, Math.random() * 0.4); src.stop(t0 + 0.12);
+  }
+}
+// A fan's two-finger whistle, rising.
+function fanWhistle(t = 0) {
+  const a = ctx(), t0 = now() + t, o = a.createOscillator(), g = a.createGain();
+  const f = 1800 + Math.random() * 700;
+  o.type = 'sine'; o.frequency.setValueAtTime(f * 0.8, t0); o.frequency.linearRampToValueAtTime(f * 1.15, t0 + 0.25); o.frequency.linearRampToValueAtTime(f, t0 + 0.55);
+  g.gain.setValueAtTime(0.0001, t0); g.gain.linearRampToValueAtTime(0.05, t0 + 0.05); g.gain.linearRampToValueAtTime(0.0001, t0 + 0.6);
+  o.connect(g); pan(g, (Math.random() - 0.5) * 1.6).connect(crowdBus()); o.start(t0); o.stop(t0 + 0.65);
+}
+
 // ---------------------------------------------------------------------------
 // The kit. One entry per sim event, so game.js just forwards event types here.
 // A referee's whistle: a pea whistle's ~2.9 kHz tone, trilled by the pea (fast wobble).
@@ -151,8 +251,32 @@ export const SFX = {
 
   counter()   { [1320, 1980, 2640].forEach((f, i) => blip({ freq: f, type: 'sine', peak: 0.28, dur: 0.3, t: i * 0.03 })); },
 
-  // Goal: the crowd goes up, long and loud.
-  goal()      { crowd({ dur: 2.6, peak: 0.75 }); crowd({ dur: 2.2, peak: 0.35, t: 0.15 }); },
+  // YOUR goal: the whole ground shouts "GOAAAAL!", roaring, clapping, a few fans whistling.
+  goal()      {
+    roar({ dur: 3.4, peak: 0.55, lo: 600, hi: 1600 });
+    chant({ n: 26, dur: 2.3, peak: 0.95, t: 0.05,
+      shape: [[0, 'g'], [0.06, 'o'], [0.22, 'a'], [0.85, 'a'], [1, 'l']],
+      pitch: [[0, 1.05], [0.15, 1.4], [0.8, 1.35], [1, 1.15]],
+      amp: [[0.05, 0.6], [0.2, 1], [0.8, 0.9], [1, 0]] });
+    claps({ count: 70, dur: 3.2, t: 0.25 });
+    for (let i = 0; i < 3; i++) fanWhistle(0.3 + Math.random() * 1.8);
+  },
+  // The OPPONENT'S goal: a long, falling "awwww" and a low grumble, nobody clapping.
+  goalAgainst() {
+    roar({ dur: 2.4, peak: 0.25, lo: 300, hi: 650 });
+    chant({ n: 22, dur: 1.9, peak: 0.7,
+      shape: [[0, 'aw'], [0.6, 'aw'], [1, 'o']],
+      pitch: [[0, 1.2], [0.25, 1.1], [1, 0.72]],
+      amp: [[0.12, 1], [0.6, 0.7], [1, 0]] });
+  },
+  // CLOSE, BUT NO: "ohhhhh" rising on the shot and sinking as it misses.
+  nearMiss()  {
+    roar({ dur: 1.6, peak: 0.25, lo: 450, hi: 900 });
+    chant({ n: 20, dur: 1.4, peak: 0.7,
+      shape: [[0, 'o'], [1, 'o']],
+      pitch: [[0, 1.15], [0.3, 1.28], [1, 0.85]],
+      amp: [[0.1, 1], [0.55, 0.8], [1, 0]] });
+  },
 
   whistle()   { whistleBlast(0, 0.34); },
 
@@ -273,4 +397,16 @@ export function playEvent(type, e) {
   if (!enabled) return;
   const fn = SFX[type];
   if (fn) { try { fn(e); } catch { /* audio is never worth crashing a frame for */ } }
+}
+
+// For a test harness: render one kit sound into an OfflineAudioContext and hand back the
+// samples, so its level can be measured (and listened to) without a speaker.
+export async function renderOffline(name, sec = 4) {
+  const keep = [AC, master, noiseBuf, hall];
+  const off = new OfflineAudioContext(2, Math.ceil(44100 * sec), 44100);
+  AC = off; master = off.createGain(); master.gain.value = 0.32; master.connect(off.destination);
+  noiseBuf = null; hall = null;
+  try { SFX[name](); } finally { [AC, master, noiseBuf, hall] = keep; }
+  const buf = await off.startRendering();
+  return [buf.getChannelData(0), buf.getChannelData(1)];
 }

@@ -1160,13 +1160,39 @@ function banner(text, color) {
 // Last 200 sim events, newest last. Cheap, and the only way to answer "what just happened?"
 // after the fact — a power shot that scores is gone from the ball by the next frame.
 const EVENT_LOG = [];
+// THE NEAR MISS, which the sim has no event for: a ball flying hard at a goal mouth (or ringing
+// off the frame) that is then going away again with no goal scored gets the crowd's "ohhh".
+let CHANCE = null, CHANCE_QUIET = 0;
+function chanceNear(post = false) {
+  if (M.phase !== 'play') return;
+  const b = M.ball, top = C.GROUND_Y - C.GOAL_H;
+  for (const left of [true, false]) {
+    const dx = left ? b.x - C.GOAL_W : C.W - C.GOAL_W - b.x;   // how far out of the mouth
+    const toward = left ? -b.vx : b.vx;
+    if (dx < (post ? 60 : 130) && dx > -C.GOAL_W && b.y > top - 80 && (post || toward > 280)) { CHANCE = { left, t: M.t }; return; }
+  }
+}
+function watchChance() {
+  if (M.phase !== 'play') { CHANCE = null; return; }
+  if (!CHANCE) { chanceNear(); return; }
+  const b = M.ball, dx = CHANCE.left ? b.x - C.GOAL_W : C.W - C.GOAL_W - b.x;
+  const away = CHANCE.left ? b.vx > 60 : b.vx < -60;
+  if ((away && dx > 50) || dx > 200 || M.t - CHANCE.t > 1.6) {
+    CHANCE = null;
+    if (M.t >= CHANCE_QUIET) { playEvent('nearMiss'); CHANCE_QUIET = M.t + 3; }
+  }
+}
 function drainEvents() {
   for (const e of M.events) {
     EVENT_LOG.push({ ...e, t: +M.t.toFixed(2) });
     if (EVENT_LOG.length > 200) EVENT_LOG.shift();
     // The sim's event names ARE the sound names, so a new event gets audio for free and a
     // missing one is silently ignored rather than throwing mid-frame.
-    playEvent(e.type === 'strike' ? (e.head ? 'head' : 'kick') : e.type, e);
+    // a goal cheers or groans by WHO scored: yours "GOAAAL", theirs "awww"
+    const you = ONLINE ? NET.you : 0;
+    playEvent(e.type === 'strike' ? (e.head ? 'head' : 'kick') : e.type === 'goal' && e.player !== you ? 'goalAgainst' : e.type, e);
+    if (e.type === 'goal') CHANCE = null;
+    else if (e.type === 'post') chanceNear(true);
     VFXR.onEvent(e);
     // NO WORDS FOR A POWER SHOT. Head Soccer puts no text on the press, the cut-in, the shot, a
     // block or a counter (docs/HS-POWER-SHOTS.md §2) — the picture says it (champ-vfx.js). The
@@ -1190,6 +1216,7 @@ function drainEvents() {
     else if (e.type === 'ballReset') playEvent('reset');
   }
   M.events.length = 0;
+  watchChance();
 }
 
 // A full-screen flash on a special. Two frames of white is most of what sells an impact in
