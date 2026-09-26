@@ -17,79 +17,200 @@ function rng(seed) {
 }
 const pick = (r, a) => a[Math.floor(r() * a.length)];
 
-const SKIN = ['#f3cba5', '#e8b48c', '#d49a6a', '#b07850', '#7e5236'];
-const HAIR = ['#1f1510', '#3b2616', '#5e3b1e', '#141414', '#9a5a26', '#d9b36a', '#6b6b6b'];
-const SHIRT = ['#e53935', '#1e88e5', '#fdd835', '#43a047', '#fb8c00', '#8e24aa', '#f5f5f5', '#00acc1', '#f06292', '#3949ab', '#c0ca33'];
+const SKIN = ['#f6d2b0', '#eebd96', '#dca577', '#c48a5c', '#a06a42', '#7a4c2c', '#5a3620'];
+const HAIR = ['#1f1510', '#3b2616', '#5e3b1e', '#141414', '#9a5a26', '#e0bd72', '#8a8a8a', '#b8432a'];
+const SHIRT = ['#e53935', '#1e88e5', '#fdd835', '#43a047', '#fb8c00', '#8e24aa', '#f5f5f5', '#00acc1', '#f06292', '#3949ab', '#c0ca33', '#222831'];
 const BANNER = ['#d7263d', '#f4c20d', '#1bb3a6', '#8a3ffc', '#2e86de', '#e84393'];
+const TAU = 6.2832;
 
 function sky(g, W, top, bot, night) {
   const gr = g.createLinearGradient(0, top, 0, bot);
-  if (night) { gr.addColorStop(0, '#070b24'); gr.addColorStop(1, '#1c2a5e'); }
-  else { gr.addColorStop(0, '#2f8fe0'); gr.addColorStop(0.7, '#7cc4f4'); gr.addColorStop(1, '#bfe3fb'); }
+  if (night) { gr.addColorStop(0, '#050820'); gr.addColorStop(0.6, '#111c48'); gr.addColorStop(1, '#23326a'); }
+  else { gr.addColorStop(0, '#1f7fd6'); gr.addColorStop(0.6, '#62b4ef'); gr.addColorStop(1, '#bfe3fb'); }
   g.fillStyle = gr; g.fillRect(0, top - 60, W, bot - top + 60);
-  if (night) return;
-  // soft clouds: overlapping white discs with a faint blue underside
   const r = rng(7);
+  if (night) {                                       // a few stars
+    for (let i = 0; i < 60; i++) { g.fillStyle = `rgba(255,255,255,${0.3 + r() * 0.6})`; g.fillRect(r() * W, top + r() * (bot - top) * 0.8, 1.2, 1.2); }
+    return;
+  }
+  // soft clouds: puffs lit from above, a faint blue-grey belly
   for (let i = 0; i < 7; i++) {
-    const cx = r() * W, cy = top + 12 + r() * (bot - top) * 0.55, s = 18 + r() * 22;
-    g.fillStyle = '#ffffffd9';
-    for (let k = 0; k < 5; k++) { g.beginPath(); g.arc(cx + (k - 2) * s * 0.8, cy + Math.abs(k - 2) * 3, s * (1 - Math.abs(k - 2) * 0.18), 0, 6.2832); g.fill(); }
+    const cx = r() * W, cy = top + 14 + r() * (bot - top) * 0.5, sz = 16 + r() * 22;
+    for (let k = 0; k < 6; k++) {
+      const px = cx + (k - 2.5) * sz * 0.72, py = cy + Math.abs(k - 2.5) * 3.2, pr = sz * (1 - Math.abs(k - 2.5) * 0.14);
+      const cg = g.createRadialGradient(px - pr * 0.2, py - pr * 0.45, pr * 0.1, px, py, pr);
+      cg.addColorStop(0, '#ffffff'); cg.addColorStop(0.75, '#f1f7fd'); cg.addColorStop(1, '#d6e6f5');
+      g.fillStyle = cg; g.beginPath(); g.arc(px, py, pr, 0, TAU); g.fill();
+    }
   }
 }
 
 function mast(g, x, top, bot, night) {
-  // lattice tower
-  g.strokeStyle = '#8b98a8'; g.lineWidth = 2.2;
-  g.beginPath(); g.moveTo(x - 6, bot); g.lineTo(x - 3, top + 18); g.moveTo(x + 6, bot); g.lineTo(x + 3, top + 18);
-  for (let y = bot; y > top + 22; y -= 12) { g.moveTo(x - 6 + (bot - y) * 0.03, y); g.lineTo(x + 5 - (bot - y) * 0.03, y - 12); }
+  // lattice tower, lit on one side
+  g.lineCap = 'round';
+  g.strokeStyle = night ? '#5b6678' : '#8b98a8'; g.lineWidth = 2.4;
+  g.beginPath(); g.moveTo(x - 6, bot); g.lineTo(x - 3, top + 20); g.moveTo(x + 6, bot); g.lineTo(x + 3, top + 20); g.stroke();
+  g.lineWidth = 1.2; g.beginPath();
+  for (let y = bot; y > top + 24; y -= 10) { g.moveTo(x - 6 + (bot - y) * 0.03, y); g.lineTo(x + 5 - (bot - y) * 0.03, y - 10); g.moveTo(x - 5 + (bot - y) * 0.03, y - 10); g.lineTo(x + 5 - (bot - y) * 0.03, y - 10); }
   g.stroke();
-  // the light bank
-  g.fillStyle = '#5d6878'; g.fillRect(x - 26, top, 52, 22);
+  // the light bank: a framed panel of lamps
+  const fr = g.createLinearGradient(0, top, 0, top + 24);
+  fr.addColorStop(0, '#77839a'); fr.addColorStop(1, '#434c5c');
+  g.fillStyle = fr; g.beginPath(); g.roundRect(x - 28, top, 56, 24, 3); g.fill();
+  g.fillStyle = '#2c3340'; g.fillRect(x - 25, top + 3, 50, 18);
   for (let i = 0; i < 4; i++) for (let j = 0; j < 2; j++) {
-    g.fillStyle = night ? '#fffbe0' : '#e9eef4';
-    g.beginPath(); g.arc(x - 18 + i * 12, top + 6 + j * 10, 4, 0, 6.2832); g.fill();
+    const lx = x - 18.5 + i * 12.3, ly = top + 7.5 + j * 9;
+    const lg = g.createRadialGradient(lx - 1, ly - 1, 0.5, lx, ly, 4);
+    lg.addColorStop(0, '#ffffff'); lg.addColorStop(0.6, night ? '#fff6c8' : '#e3ebf5'); lg.addColorStop(1, night ? '#e8c860' : '#9eabbd');
+    g.fillStyle = lg; g.beginPath(); g.arc(lx, ly, 4, 0, TAU); g.fill();
   }
   if (night) {
-    const gl = g.createRadialGradient(x, top + 11, 4, x, top + 11, 140);
-    gl.addColorStop(0, '#fff8d0cc'); gl.addColorStop(1, '#fff8d000');
-    g.fillStyle = gl; g.fillRect(x - 140, top - 130, 280, 280);
+    const gl = g.createRadialGradient(x, top + 12, 4, x, top + 12, 160);
+    gl.addColorStop(0, '#fff8d0dd'); gl.addColorStop(0.25, '#fff8d055'); gl.addColorStop(1, '#fff8d000');
+    g.fillStyle = gl; g.fillRect(x - 160, top - 150, 320, 320);
   }
 }
 
-// One tier of spectators: rows of little painted people, back to front, with stair aisles.
+// ONE SPECTATOR, a little cartoon fan in the style of the players: a round shaded head with a
+// keyline, eyes and a mouth, one of several haircuts or a hat, shoulders in a shaded shirt and,
+// for some, arms up or a scarf held overhead. (x, y) is the seat line; `s` the size for the row's
+// depth; `look` which way the eyes point.
+function fan(g, x, y, s, r, look, night) {
+  const skin = pick(r, SKIN), hair = pick(r, HAIR), shirt = pick(r, SHIRT);
+  const ol = night ? 'rgba(0,0,6,0.6)' : 'rgba(28,18,30,0.5)';
+  const hr = 5.2 * s, hx = x, hy = y - 10.8 * s;
+  const hs = r(), pose = r(), lw = 0.75 * s;
+  const style = hs < 0.3 ? 'short' : hs < 0.45 ? 'long' : hs < 0.55 ? 'curly' : hs < 0.65 ? 'bald' : hs < 0.8 ? 'cap' : hs < 0.9 ? 'beanie' : 'spiky';
+  const hat = pick(r, SHIRT);
+  g.lineJoin = 'round'; g.lineCap = 'round';
+  // arms up (behind the shoulders): cheering, or a scarf stretched overhead
+  const scarf = pose < 0.07, up = scarf || pose < 0.2 ? 2 : pose < 0.3 ? 1 : 0;
+  const side = r() < 0.5 ? -1 : 1;
+  for (let k = 0; k < up; k++) {
+    const d = up === 2 ? (k ? 1 : -1) : side;
+    const sx = hx + d * 5 * s, sy = y - 4 * s, ex = hx + d * (scarf ? 7.5 : 7) * s, ey = hy - (scarf ? 7.5 : 6.5) * s;
+    g.strokeStyle = ol; g.lineWidth = 3.4 * s; g.beginPath(); g.moveTo(sx, sy); g.lineTo(ex, ey); g.stroke();
+    g.strokeStyle = shirt; g.lineWidth = 2.4 * s; g.beginPath(); g.moveTo(sx, sy); g.lineTo(ex, ey); g.stroke();
+    g.fillStyle = skin; g.beginPath(); g.arc(ex, ey, 1.6 * s, 0, TAU); g.fill();
+  }
+  if (scarf) {
+    const c1 = pick(r, BANNER), sw = 7.5 * s, sy = hy - 8.5 * s;
+    for (let i = 0; i < 5; i++) { g.fillStyle = i % 2 ? '#ffffff' : c1; g.fillRect(hx - sw + (i * 2 * sw) / 5, sy, (2 * sw) / 5 + 0.3, 2.8 * s); }
+    g.strokeStyle = ol; g.lineWidth = 0.5 * s; g.strokeRect(hx - sw, sy, 2 * sw, 2.8 * s);
+  }
+  // long hair and curls sit behind the head
+  if (style === 'long') {
+    g.fillStyle = hair; g.beginPath(); g.roundRect(hx - hr * 1.12, hy - hr * 0.6, hr * 2.24, hr * 1.95, hr * 0.6); g.fill();
+  } else if (style === 'curly') {
+    g.fillStyle = hair; g.strokeStyle = ol; g.lineWidth = lw;
+    g.beginPath(); g.arc(hx, hy - hr * 0.2, hr * 1.3, 0, TAU); g.fill(); g.stroke();
+  }
+  // shoulders and chest
+  const t = 7 * s;
+  g.beginPath();
+  g.moveTo(hx - t, y + 6 * s); g.lineTo(hx - t, y - 0.5 * s);
+  g.quadraticCurveTo(hx - t, y - 5.8 * s, hx - 2.6 * s, y - 6.2 * s); g.lineTo(hx + 2.6 * s, y - 6.2 * s);
+  g.quadraticCurveTo(hx + t, y - 5.8 * s, hx + t, y - 0.5 * s); g.lineTo(hx + t, y + 6 * s); g.closePath();
+  g.fillStyle = shirt; g.fill();
+  const sg = g.createLinearGradient(hx - t, 0, hx + t, 0);
+  sg.addColorStop(0, 'rgba(255,255,255,0.22)'); sg.addColorStop(0.45, 'rgba(255,255,255,0)'); sg.addColorStop(1, 'rgba(0,0,0,0.25)');
+  g.fillStyle = sg; g.fill();
+  if (r() < 0.2) {                                   // a striped jersey
+    g.save(); g.clip(); g.fillStyle = shirt === '#f5f5f5' ? '#1e88e5' : 'rgba(255,255,255,0.75)';
+    for (let i = -2; i <= 2; i++) g.fillRect(hx + i * 3 * s - 0.7 * s, y - 7 * s, 1.4 * s, 14 * s);
+    g.restore();
+  }
+  g.strokeStyle = ol; g.lineWidth = lw; g.stroke();
+  // neck and V collar
+  g.fillStyle = skin; g.beginPath(); g.moveTo(hx - 2.2 * s, y - 6.3 * s); g.lineTo(hx + 2.2 * s, y - 6.3 * s); g.lineTo(hx, y - 3.2 * s); g.closePath(); g.fill();
+  // ears, then the head over them
+  g.fillStyle = skin; g.strokeStyle = ol; g.lineWidth = lw;
+  for (const d of [-1, 1]) { g.beginPath(); g.arc(hx + d * hr * 0.95, hy + 0.6 * s, 1.5 * s, 0, TAU); g.fill(); g.stroke(); }
+  g.beginPath(); g.arc(hx, hy, hr, 0, TAU); g.fillStyle = skin; g.fill();
+  const hg = g.createRadialGradient(hx - hr * 0.35, hy - hr * 0.45, hr * 0.1, hx, hy, hr * 1.05);
+  hg.addColorStop(0, 'rgba(255,255,255,0.3)'); hg.addColorStop(0.5, 'rgba(255,255,255,0)'); hg.addColorStop(1, 'rgba(60,20,10,0.22)');
+  g.fillStyle = hg; g.fill(); g.stroke();
+  // hair / hat on top
+  g.fillStyle = hair;
+  if (style === 'short' || style === 'long' || style === 'curly') {
+    g.beginPath(); g.arc(hx, hy, hr * 1.04, Math.PI * 1.0, Math.PI * 2.0);
+    g.quadraticCurveTo(hx + hr * 0.7, hy - hr * 0.55, hx + hr * 0.2 * side, hy - hr * 0.35);
+    g.quadraticCurveTo(hx - hr * 0.6, hy - hr * 0.55, hx - hr * 1.04, hy);
+    g.fill(); g.stroke();
+  } else if (style === 'spiky') {
+    g.beginPath(); g.moveTo(hx - hr * 1.02, hy - hr * 0.1);
+    for (let i = 0; i <= 5; i++) { const a = Math.PI * (1.05 + i * 0.18); g.lineTo(hx + Math.cos(a) * hr * 1.35, hy + Math.sin(a) * hr * 1.35); g.lineTo(hx + Math.cos(a + 0.28) * hr * 0.95, hy + Math.sin(a + 0.28) * hr * 0.95); }
+    g.lineTo(hx + hr * 1.02, hy - hr * 0.1); g.quadraticCurveTo(hx, hy - hr * 0.6, hx - hr * 1.02, hy - hr * 0.1); g.fill(); g.stroke();
+  } else if (style === 'cap') {
+    g.fillStyle = hat; g.beginPath(); g.arc(hx, hy - hr * 0.12, hr * 1.06, Math.PI, 0); g.closePath(); g.fill(); g.stroke();
+    g.beginPath(); g.ellipse(hx + look * hr * 0.9, hy - hr * 0.1, hr * 0.85, hr * 0.26, 0, 0, TAU); g.fill(); g.stroke();
+    g.fillStyle = 'rgba(255,255,255,0.35)'; g.beginPath(); g.arc(hx - hr * 0.35, hy - hr * 0.7, hr * 0.25, 0, TAU); g.fill();
+  } else if (style === 'beanie') {
+    g.fillStyle = hat; g.beginPath(); g.arc(hx, hy - hr * 0.1, hr * 1.06, Math.PI, 0); g.closePath(); g.fill(); g.stroke();
+    g.fillStyle = '#ffffff'; g.fillRect(hx - hr * 1.06, hy - hr * 0.32, hr * 2.12, hr * 0.32); g.strokeRect(hx - hr * 1.06, hy - hr * 0.32, hr * 2.12, hr * 0.32);
+    g.beginPath(); g.arc(hx, hy - hr * 1.18, hr * 0.32, 0, TAU); g.fill(); g.stroke();
+  } else {                                           // bald: a shine
+    g.fillStyle = 'rgba(255,255,255,0.4)'; g.beginPath(); g.ellipse(hx - hr * 0.3, hy - hr * 0.55, hr * 0.35, hr * 0.2, -0.4, 0, TAU); g.fill();
+  }
+  // the face: eyes towards the play, a mouth — open for the ones cheering
+  const ex = hx + look * 1.1 * s, ey = hy + 0.5 * s;
+  g.fillStyle = '#1b1320';
+  for (const d of [-1, 1]) { g.beginPath(); g.ellipse(ex + d * 1.9 * s, ey, 0.75 * s, 1 * s, 0, 0, TAU); g.fill(); }
+  if (up) { g.beginPath(); g.ellipse(ex, ey + 2.6 * s, 1.2 * s, 1 * s, 0, 0, TAU); g.fillStyle = '#6b1d22'; g.fill(); }
+  else { g.strokeStyle = '#6b2a24'; g.lineWidth = 0.6 * s; g.beginPath(); g.arc(ex, ey + 1.5 * s, 1.3 * s, 0.2 * Math.PI, 0.8 * Math.PI); g.stroke(); }
+}
+
+// One tier: stepped rows of blue seats with the crowd in them, back to front so every row sits
+// in front of the one behind; the back rows a little smaller and hazier, so the stand recedes.
 function tier(g, W, top, bot, seed, aisles, night) {
-  // the concrete behind them
   const gr = g.createLinearGradient(0, top, 0, bot);
-  gr.addColorStop(0, night ? '#2a2f3c' : '#6f7684'); gr.addColorStop(1, night ? '#3a4150' : '#9aa1ad');
+  gr.addColorStop(0, night ? '#20242f' : '#5d6472'); gr.addColorStop(1, night ? '#343b4a' : '#8e96a3');
   g.fillStyle = gr; g.fillRect(0, top, W, bot - top);
   const r = rng(seed);
-  const rowH = 15, colW = 13;
-  for (let y = top + 10; y < bot - 2; y += rowH) {
-    // the step's lip
-    g.fillStyle = night ? '#454c5c' : '#b7bcc6'; g.fillRect(0, y + 8, W, 2);
-    for (let x = 4 + ((y / rowH) % 2) * 6; x < W; x += colW) {
-      if (aisles.some((a) => Math.abs(x - a) < 20)) continue;
-      if (r() < 0.06) continue;                                    // the odd empty seat
-      const jx = x + (r() - 0.5) * 3, jy = y + (r() - 0.5) * 2;
-      // shirt
-      g.fillStyle = pick(r, SHIRT);
-      g.beginPath(); g.ellipse(jx, jy + 7, 6, 5, 0, Math.PI, 0); g.fill();
-      g.fillRect(jx - 6, jy + 6, 12, 4);
-      // head and hair
-      g.fillStyle = pick(r, SKIN);
-      g.beginPath(); g.arc(jx, jy, 4.6, 0, 6.2832); g.fill();
-      g.fillStyle = pick(r, HAIR);
-      g.beginPath(); g.arc(jx, jy - 1.2, 4.6, Math.PI * 1.05, Math.PI * 1.95); g.fill();
+  const rows = [];
+  for (let y = top + 13; y < bot + 4; y += 16.5) rows.push(y);
+  rows.forEach((y, ri) => {
+    const depth = rows.length > 1 ? ri / (rows.length - 1) : 1;
+    const s = 0.86 + 0.16 * depth, colW = 15.5 * s;
+    // the step: a lit riser and the row of seat backs
+    g.fillStyle = night ? '#3c4352' : '#aeb4be'; g.fillRect(0, y + 3, W, 1.6);
+    g.fillStyle = night ? '#16305e' : '#2560b0'; g.fillRect(0, y - 1, W, 4);
+    g.fillStyle = night ? '#2a4a86' : '#4a86d6'; g.fillRect(0, y - 1, W, 1.2);
+    for (let x = 6 + (ri % 2) * colW * 0.5; x < W; x += colW) {
+      if (aisles.some((a) => Math.abs(x - a) < 22)) continue;
+      if (r() < 0.05) continue;                                    // the odd empty seat
+      const look = Math.max(-1, Math.min(1, (W / 2 - x) / (W * 0.35))) * 0.7 + (r() - 0.5) * 0.6;
+      fan(g, x + (r() - 0.5) * 3, y + (r() - 0.5) * 1.5, s * (0.94 + r() * 0.12), r, look, night);
+    }
+    // the haze of distance over the back rows
+    if (depth < 1) { g.fillStyle = night ? `rgba(8,12,34,${0.28 * (1 - depth)})` : `rgba(170,190,215,${0.22 * (1 - depth)})`; g.fillRect(0, y - 20, W, 24); }
+  });
+  // the aisles: concrete stairs with yellow step edges and a handrail
+  for (const a of aisles) {
+    const ag = g.createLinearGradient(a - 18, 0, a + 18, 0);
+    ag.addColorStop(0, night ? '#2e3442' : '#aeb3bc'); ag.addColorStop(0.5, night ? '#434a5a' : '#d3d7de'); ag.addColorStop(1, night ? '#2e3442' : '#aeb3bc');
+    g.fillStyle = ag; g.fillRect(a - 18, top, 36, bot - top);
+    for (let y = top + 5; y < bot; y += 8.25) {
+      g.fillStyle = night ? '#222733' : '#9197a2'; g.fillRect(a - 18, y + 1.6, 36, 2.2);
+      g.fillStyle = night ? '#8a7a30' : '#f2c230'; g.fillRect(a - 18, y, 36, 1.2);
+    }
+    g.fillStyle = '#00000030'; g.fillRect(a - 0.5, top, 3, bot - top);
+    g.fillStyle = '#eef1f5'; g.fillRect(a - 1.2, top, 2, bot - top);
+  }
+  // the shade at the top of the tier, under whatever overhangs it
+  const sh = g.createLinearGradient(0, top, 0, top + 26);
+  sh.addColorStop(0, 'rgba(0,0,10,0.45)'); sh.addColorStop(1, 'rgba(0,0,10,0)');
+  g.fillStyle = sh; g.fillRect(0, top, W, 26);
+  if (night) {
+    g.fillStyle = '#0a0f2a38'; g.fillRect(0, top, W, bot - top);
+    for (let i = 0; i < W / 30; i++) {                             // phone lights
+      const px = r() * W, py = top + 8 + r() * (bot - top - 12);
+      if (aisles.some((a) => Math.abs(px - a) < 22)) continue;
+      const pg = g.createRadialGradient(px, py, 0, px, py, 4);
+      pg.addColorStop(0, '#ffffff'); pg.addColorStop(1, '#ffffff00');
+      g.fillStyle = pg; g.fillRect(px - 4, py - 4, 8, 8);
     }
   }
-  // the aisles: grey stairs
-  for (const a of aisles) {
-    g.fillStyle = night ? '#3b4252' : '#c9cdd4'; g.fillRect(a - 16, top, 32, bot - top);
-    g.fillStyle = night ? '#2c3240' : '#a5abb5';
-    for (let y = top + 6; y < bot; y += 8) g.fillRect(a - 16, y, 32, 2);
-    g.fillStyle = '#e9edf2'; g.fillRect(a - 1, top, 2, bot - top);   // the handrail
-  }
-  if (night) { g.fillStyle = '#0a0f2a40'; g.fillRect(0, top, W, bot - top); }
 }
 
 function stadium(night, seed) {
@@ -102,17 +223,29 @@ function stadium(night, seed) {
     mast(g, W * 0.1, 8, roofTop + 4, night);
     mast(g, W * 0.9, 8, roofTop + 4, night);
     // the roof edge
-    g.fillStyle = night ? '#1b2030' : '#dfe4ea'; g.fillRect(0, roofTop, W, roofBot - roofTop);
-    g.fillStyle = night ? '#0e121c' : '#8d96a3'; g.fillRect(0, roofBot - 4, W, 4);
+    const rf = g.createLinearGradient(0, roofTop, 0, roofBot);
+    rf.addColorStop(0, night ? '#2a3044' : '#f4f7fa'); rf.addColorStop(0.55, night ? '#1b2030' : '#d6dce4'); rf.addColorStop(1, night ? '#11151f' : '#9aa4b1');
+    g.fillStyle = rf; g.fillRect(0, roofTop, W, roofBot - roofTop);
+    g.fillStyle = night ? '#1f4a8a' : '#2466b8'; g.fillRect(0, roofTop + 5, W, 3);
+    g.fillStyle = night ? '#0b0e16' : '#6e7886'; g.fillRect(0, roofBot - 2, W, 2);
     const aisles = [W * 0.08, W * 0.5, W * 0.92];
     tier(g, W, roofBot, midA, seed, aisles, night);
     // the tunnel mouth at the top of the middle aisle (HS: a dark doorway with a white frame)
-    g.fillStyle = '#f1f3f6'; g.fillRect(W * 0.5 - 30, roofBot, 60, 30);
-    g.fillStyle = '#20252f'; g.fillRect(W * 0.5 - 24, roofBot + 4, 48, 26);
+    const tf = g.createLinearGradient(0, roofBot, 0, roofBot + 30);
+    tf.addColorStop(0, '#ffffff'); tf.addColorStop(1, '#c9ced6');
+    g.fillStyle = tf; g.fillRect(W * 0.5 - 30, roofBot, 60, 30);
+    const ti = g.createLinearGradient(0, roofBot + 4, 0, roofBot + 30);
+    ti.addColorStop(0, '#0c0f16'); ti.addColorStop(1, '#2c3342');
+    g.fillStyle = ti; g.fillRect(W * 0.5 - 24, roofBot + 4, 48, 26);
     // the banner strip between the tiers
     for (let i = 0; i < 6; i++) {
-      g.fillStyle = BANNER[(i + seed) % BANNER.length];
-      g.fillRect(i * W / 6 + 3, midA, W / 6 - 6, midB - midA);
+      const bx = i * W / 6 + 3, bw = W / 6 - 6, c = BANNER[(i + seed) % BANNER.length];
+      g.fillStyle = c; g.fillRect(bx, midA, bw, midB - midA);
+      const bg = g.createLinearGradient(0, midA, 0, midB);
+      bg.addColorStop(0, 'rgba(255,255,255,0.35)'); bg.addColorStop(0.45, 'rgba(255,255,255,0.05)'); bg.addColorStop(1, 'rgba(0,0,0,0.25)');
+      g.fillStyle = bg; g.fillRect(bx, midA, bw, midB - midA);
+      g.fillStyle = 'rgba(255,255,255,0.18)';
+      for (let k = bx + 8; k < bx + bw - 6; k += 14) { g.beginPath(); g.moveTo(k, midB); g.lineTo(k + 6, midA); g.lineTo(k + 10, midA); g.lineTo(k + 4, midB); g.fill(); }
     }
     g.fillStyle = '#00000033'; g.fillRect(0, midB - 3, W, 3);
     tier(g, W, midB, bot, seed + 11, aisles, night);
