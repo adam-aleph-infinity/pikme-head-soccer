@@ -1573,11 +1573,13 @@ body.editing .pad .btn .grip {
 .pad .btn svg { width: 100%; height: 100%; display: block; overflow: visible; }
 /* HS's glass is ONE amber everywhere — it camouflages because it is see-through: the floor shows
    through (~40%), so the same buttons read olive on grass, honey on wood, orange on pink */
-.hs-glass, .hs-line { fill: url(#hsGlass); stroke: #573006; stroke-width: 4.2; stroke-linejoin: round; }
-.hs-shaft { fill: url(#hsSheen); stroke: none; }
-.hs-head { fill: url(#hsGlass); stroke: none; }
-.hs-line { fill: none; }
-.pad .pad-l .btn.on .hs-shaft, .pad .pad-l .btn.on .hs-head, .pad .pad-l .btn:active .hs-shaft, .pad .pad-l .btn:active .hs-head { fill: url(#hsLit); }
+.hs-fill { fill: url(#hsGlass); stroke: none; }
+/* the amber: a band hugging the inside of the keyline (stroked, clipped to the shape so only the
+   inner half shows) over a wider soft glow, so the middle stays clear glass */
+.hs-glow { fill: none; stroke: #c08a22; stroke-opacity: .28; stroke-width: 34; stroke-linejoin: round; }
+.hs-rim { fill: none; stroke: #b27a18; stroke-opacity: .8; stroke-width: 15; stroke-linejoin: round; }
+.hs-line { fill: none; stroke: #573006; stroke-width: 4.2; stroke-linejoin: round; }
+.pad .pad-l .btn.on .hs-fill, .pad .pad-l .btn:active .hs-fill { fill: url(#hsLit); }
 .pad .btn svg text {
   font: italic 900 42px "Arial Black", "Helvetica Neue", Arial, sans-serif; font-variant: small-caps;
   fill: #4a2508; stroke: #f3e2a4; stroke-width: 1.4; paint-order: stroke; text-anchor: middle;

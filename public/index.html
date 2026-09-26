@@ -228,30 +228,24 @@
       <linearGradient id="barGrad" x1="0" y1="0" x2="1" y2="0" gradientUnits="objectBoundingBox">
         <stop offset="0" stop-color="#e8321a"/><stop offset=".22" stop-color="#ea5a00"/><stop offset=".42" stop-color="#ef8a00"/>
         <stop offset=".6" stop-color="#ffc805"/><stop offset=".8" stop-color="#eefa04"/><stop offset="1" stop-color="#8ef808"/></linearGradient>
-      <!-- HS's button glass, solved per row from the same plaque over two floors (M4: wood + pink): clear
-           with a white sheen in the top third, then amber from ~38% down — the floor always shows through
-           at ~40%, which is why the buttons take each stadium's colour -->
+      <!-- HS's button glass: clear (the floor shows through, so the buttons take each stadium's colour)
+           with a white sheen at the top; the amber lives in an inner rim just inside the keyline -->
       <linearGradient id="hsGlass" x1="0" y1="0" x2="0" y2="1">
-        <stop offset="0" stop-color="#fff" stop-opacity=".42"/><stop offset=".1" stop-color="#fff" stop-opacity=".25"/>
-        <stop offset=".34" stop-color="#fff" stop-opacity=".15"/><stop offset=".38" stop-color="#c09a23" stop-opacity=".6"/>
-        <stop offset=".55" stop-color="#ad7117" stop-opacity=".6"/><stop offset="1" stop-color="#a0660e" stop-opacity=".58"/></linearGradient>
-      <!-- an arrow's shaft is near-clear (the floor shows through untouched); only its head carries the amber -->
-      <linearGradient id="hsSheen" x1="0" y1="0" x2="0" y2="1">
-        <stop offset="0" stop-color="#fff" stop-opacity=".42"/><stop offset=".3" stop-color="#fff" stop-opacity=".18"/>
-        <stop offset="1" stop-color="#fff" stop-opacity=".05"/></linearGradient>
+        <stop offset="0" stop-color="#fff" stop-opacity=".45"/><stop offset=".3" stop-color="#fff" stop-opacity=".2"/>
+        <stop offset=".55" stop-color="#fff" stop-opacity=".08"/><stop offset="1" stop-color="#fff" stop-opacity=".04"/></linearGradient>
       <!-- a held arrow lights up solid yellow (M3/M4: 255,227,0) -->
       <linearGradient id="hsLit" x1="0" y1="0" x2="0" y2="1">
         <stop offset="0" stop-color="#fff6a0"/><stop offset=".35" stop-color="#ffe300"/><stop offset="1" stop-color="#f2c200"/></linearGradient></defs></svg>
     <div class="pad" id="pad">
       <div class="pad-l">
-        <button class="btn" data-k="left"><svg viewBox="0 0 300 100" aria-hidden="true"><path class="hs-shaft" d="M3 50 L140 3 L140 26 L297 26 L282 74 L140 74 L140 97 Z"/><path class="hs-head" d="M3 50 L140 3 L140 97 Z"/><path class="hs-line" d="M3 50 L140 3 L140 26 L297 26 L282 74 L140 74 L140 97 Z"/><text x="246" y="64">L</text></svg></button>
-        <button class="btn" data-k="right"><svg viewBox="0 0 300 100" aria-hidden="true"><path class="hs-shaft" d="M18 26 L159 26 L159 3 L297 50 L159 97 L159 74 L3 74 Z"/><path class="hs-head" d="M159 3 L297 50 L159 97 Z"/><path class="hs-line" d="M18 26 L159 26 L159 3 L297 50 L159 97 L159 74 L3 74 Z"/><text x="50" y="64">R</text></svg></button>
+        <button class="btn" data-k="left"><svg viewBox="0 0 300 100" aria-hidden="true"><clipPath id="hsCL"><path id="hsSL" d="M3 50 L140 3 L140 26 L297 26 L282 74 L140 74 L140 97 Z"/></clipPath><use href="#hsSL" class="hs-fill"/><use href="#hsSL" class="hs-glow" clip-path="url(#hsCL)"/><use href="#hsSL" class="hs-rim" clip-path="url(#hsCL)"/><use href="#hsSL" class="hs-line"/><text x="246" y="64">L</text></svg></button>
+        <button class="btn" data-k="right"><svg viewBox="0 0 300 100" aria-hidden="true"><clipPath id="hsCR"><path id="hsSR" d="M18 26 L159 26 L159 3 L297 50 L159 97 L159 74 L3 74 Z"/></clipPath><use href="#hsSR" class="hs-fill"/><use href="#hsSR" class="hs-glow" clip-path="url(#hsCR)"/><use href="#hsSR" class="hs-rim" clip-path="url(#hsCR)"/><use href="#hsSR" class="hs-line"/><text x="50" y="64">R</text></svg></button>
       </div>
       <div class="pad-r">
         <!-- HS's order, left to right: POWER, KICK, JUMP — JUMP in the corner -->
-        <button class="btn power" data-k="power" id="powerBtn"><svg viewBox="0 0 332 100" aria-hidden="true"><path class="hs-glass" d="M50 3 L331 3 L300 97 L50 97 A47 47 0 0 1 50 3 Z"/><text x="178" y="64">Power</text></svg></button>
-        <button class="btn kick" data-k="kick"><svg viewBox="0 0 305 100" aria-hidden="true"><path class="hs-glass" d="M32 3 L304 3 L273 97 L1 97 Z"/><text x="152" y="64">Kick</text></svg></button>
-        <button class="btn jump" data-k="jump"><svg viewBox="0 0 310 100" aria-hidden="true"><path class="hs-glass" d="M32 3 L262 3 A47 47 0 0 1 262 97 L1 97 Z"/><text x="150" y="64">Jump</text></svg></button>
+        <button class="btn power" data-k="power" id="powerBtn"><svg viewBox="0 0 332 100" aria-hidden="true"><clipPath id="hsCP"><path id="hsSP" d="M50 3 L331 3 L300 97 L50 97 A47 47 0 0 1 50 3 Z"/></clipPath><use href="#hsSP" class="hs-fill"/><use href="#hsSP" class="hs-glow" clip-path="url(#hsCP)"/><use href="#hsSP" class="hs-rim" clip-path="url(#hsCP)"/><use href="#hsSP" class="hs-line"/><text x="178" y="64">Power</text></svg></button>
+        <button class="btn kick" data-k="kick"><svg viewBox="0 0 305 100" aria-hidden="true"><clipPath id="hsCK"><path id="hsSK" d="M32 3 L304 3 L273 97 L1 97 Z"/></clipPath><use href="#hsSK" class="hs-fill"/><use href="#hsSK" class="hs-glow" clip-path="url(#hsCK)"/><use href="#hsSK" class="hs-rim" clip-path="url(#hsCK)"/><use href="#hsSK" class="hs-line"/><text x="152" y="64">Kick</text></svg></button>
+        <button class="btn jump" data-k="jump"><svg viewBox="0 0 310 100" aria-hidden="true"><clipPath id="hsCJ"><path id="hsSJ" d="M32 3 L262 3 A47 47 0 0 1 262 97 L1 97 Z"/></clipPath><use href="#hsSJ" class="hs-fill"/><use href="#hsSJ" class="hs-glow" clip-path="url(#hsCJ)"/><use href="#hsSJ" class="hs-rim" clip-path="url(#hsCJ)"/><use href="#hsSJ" class="hs-line"/><text x="150" y="64">Jump</text></svg></button>
       </div>
     </div>
 
