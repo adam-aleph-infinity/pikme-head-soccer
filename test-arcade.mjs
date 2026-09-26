@@ -486,9 +486,10 @@ function fireChampion(stage, i, gap = 460) {
   // `stand` (whose head holds this player up) with the contact bodies, and the HS power shots
   // added the ailment to each player (ail, ailT) and the Multi-Ball's extra balls (xb): every one
   // of them decides what a future tick does. `kicked` and `hurt` (the kick
-  // knockout's count and the bruise) joined with hs/kick-stun.
+  // knockout's count and the bruise) joined with hs/kick-stun. `kickHit` (the swing has struck the
+  // ball once: one strike event and one hit-stop a swing) joined with the physical boot.
   ok('the snapshot schema is the HS one', JSON.stringify(Object.keys(serialize(m))) === JSON.stringify(['t', 'clock', 'phase', 'freeze', 'hitStop', 'idle', 'cutin', 'cutinBy', 'banner', 'bannerT', 'ballWait', 'gaugeLead', 'afterGoal', 'afterGoalTo', 'score', 'golden', 'lastScorer', 'p', 'b', 'xb']) &&
-     serialize(m).p[0].length === 30);
+     serialize(m).p[0].length === 31);
   ok('an ordinary bot is still exactly its tier', createBot(3).d === DIFFICULTIES[3]);
 }
 

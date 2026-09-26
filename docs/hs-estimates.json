@@ -1136,5 +1136,69 @@
     "source": "M4: the CPU scored 0 (3–0 at 91 s) and 5 (2–5 at 183 s)",
     "how": "Scoreboard.",
     "note": "Match 2's goals: 117.85, 124.44, 146.75, 152.18, 164.22, ~174.9, ~179.6 s (the 174.72 and 179.48 s banners are goals too). All five M1–M4 matches: 8, 11, 7, 3, 7 goals."
+  },
+  {
+    "id": "m5.dash.air",
+    "value": 0,
+    "unit": "dashes",
+    "n": 14,
+    "clips": [
+      "M5"
+    ],
+    "source": "M5 21.39–24.05, 69.86–77.45 s: 14 double taps with the player in the air (26–39 px up)",
+    "note": "None dashed (peak speed ≤ 540 px/s, the walk). HS has no air dash — sim.js dashes on the ground only."
+  },
+  {
+    "id": "m5.dash.speed",
+    "value": 1880,
+    "unit": "px/s",
+    "sd": 130,
+    "n": 21,
+    "clips": [
+      "M5"
+    ],
+    "source": "M5 29–67 s, 21 ground dashes",
+    "note": "Peak of a 3-frame face-x fit (1559–2223, median ~1900); M4's 1790 (DASH_V) is inside it. Min spacing between two dashes 0.42 s = DASH_COOLDOWN."
+  },
+  {
+    "id": "m5.dash.window",
+    "value": 0.24,
+    "unit": "s",
+    "clips": [
+      "M5"
+    ],
+    "source": "M5, 47 ground double taps",
+    "note": "Dashes came at 0.15–0.217 s press-to-press (one at 0.315); clean misses at 0.232–0.283 and ≥0.40. Consistent with DASH_WINDOW 0.24; not tighter than that."
+  },
+  {
+    "id": "m5.dash.touch",
+    "value": 2240,
+    "unit": "px/s",
+    "n": 4,
+    "clips": [
+      "M5"
+    ],
+    "source": "M5 29.09–29.36 s (and 42.09, 65.30, 69.89 s): a dash into the ball on the grass",
+    "note": "~2240 px/s flat along the grass while the dash pushes it (1.25 x the dash: DASH_BALL_CAP), then 1970 the frame the dash ends, held (drag only) for 15+ frames — BALL_MAX_SPEED."
+  },
+  {
+    "id": "m5.kick.boot",
+    "clips": [
+      "M5"
+    ],
+    "source": "M5 80.59–80.71 s, frames 4844–4851, 5x zoom",
+    "note": "Boot centre per frame (head radii from the feet, fwd/up): rest 0.62/0.25, 0.85/0.48, 1.53/0.76, 1.75/1.10, 1.86/1.27, 1.92/1.84, 1.98/2.18, 1.98/2.29 held — shared/kick.js."
+  },
+  {
+    "id": "m5.jump.airSpeed",
+    "value": 241,
+    "unit": "px/s",
+    "sd": 7,
+    "n": 8,
+    "clips": [
+      "M5"
+    ],
+    "source": "M5 6.46–15.81 s",
+    "note": "See hs-reference jump.airSpeed."
   }
 ]

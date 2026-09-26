@@ -5,6 +5,7 @@ import * as C from '../shared/constants.js';
 import { createMatch, step, headY, headR, NO_FX } from '../shared/sim.js';
 import { createBot, botInput, DIFFICULTIES } from '../shared/bot.js';
 import { shotFor } from '../shared/hs-powers.js';
+import { kickPose } from '../shared/kick.js';
 import { goalBox, goalAt, depthPoint, INSIDE_Z } from '../shared/goalbox.js';
 import { createEditor, applyLayout, applyOpacity, loadOpacity } from './padlayout.js';
 import { walkPick, resolveWalk } from './walkpad.js';
@@ -2340,30 +2341,8 @@ function bodyArt() {
 }
 
 
-// THE KICK, as HS animates it (M4 29.68–31.96 s, every frame): no leg ever shows. The front boot
-// leaves the body and rides up in front of the face — low and forward on the first frame, at
-// face height by the fourth, then HELD high, toe up, for the rest of the swing, and snapped back
-// in a frame. Keyframes are [progress through KICK_TIME, forward, up, toe-up angle], in head
-// radii off the feet. HS's first frame is 0.95 R forward; this starts at 1.2 so the toe reaches
-// the edge of the sim's kick circle (KICK_REACH − KICK_R) — the boot must look able to touch
-// the ball it touches.
-const KICK_KEYS = [
-  [0.00, 1.20, 0.30, -0.25],
-  [0.07, 1.42, 0.70, 0.30],
-  [0.13, 1.60, 1.10, 0.65],
-  [0.20, 1.70, 1.45, 0.95],
-  [0.32, 1.76, 1.95, 1.20],
-  [0.55, 1.76, 2.10, 1.30],
-  [0.92, 1.72, 2.05, 1.30],
-  [1.00, 1.00, 0.60, 0.40],
-];
-function kickPose(k) {
-  let i = 0;
-  while (i < KICK_KEYS.length - 2 && k > KICK_KEYS[i + 1][0]) i++;
-  const a = KICK_KEYS[i], b = KICK_KEYS[i + 1];
-  const u = Math.max(0, Math.min(1, (k - a[0]) / (b[0] - a[0])));
-  return [a[1] + (b[1] - a[1]) * u, a[2] + (b[2] - a[2]) * u, a[3] + (b[3] - a[3]) * u];
-}
+// THE KICK: the boot's path (and its measurements) live in shared/kick.js, which the sim collides
+// against — the boot drawn here is the boot the ball bounces off.
 
 // The ground shadow — HS draws a soft dark ellipse ~2.6 R wide under every player (M4 29.98:
 // 143 x 28 full-res px), and leaves it on the grass when they jump, a little smaller and
@@ -3002,7 +2981,7 @@ const RANGES = {
   // ranges sit round Head Soccer's measured numbers (PLAYER_SPEED 228, JUMP_V 240, DASH_V 1790).
   PLAYER_SPEED: [80, 600], SLIP_ACCEL: [200, 5000],
   PLAYER_GRAV: [200, 2000], JUMP_V: [120, 600], JUMP_REJUMP: [0, .3], DASH_V: [300, 3000], DASH_TIME: [.016, .3],
-  KICK_POWER: [200, 1600], KICK_LIFT: [0, 1400], KICK_REACH: [20, 130], KICK_R: [10, 60],
+  BOOT_R: [4, 20], BOOT_BOUNCE: [0, 1], BOOT_GRIP: [0, 1], KICK_REACH: [20, 130], KICK_R: [10, 60],
   KICK_TIME: [.05, .6],
   BALL_GRAV: [200, 2000], BALL_BOUNCE: [.2, 1], BALL_AIR: [.97, 1], BALL_GROUND_FRICTION: [.9, 1],
   BAR_BOUNCE: [0, 1], CEIL_BOUNCE: [0, 1], CEIL_KEEP_X: [0, 1],

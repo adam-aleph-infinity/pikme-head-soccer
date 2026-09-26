@@ -94,7 +94,19 @@ export let BAR_BOUNCE = 0.67;
 // exactly like a scuffed one. The headroom is what makes meeting the ball worth doing.
 // It is still the budget a shot SPENDS: a lofted kick puts most of it into climbing, which is
 // why the flat drive off the toe is the fastest shot in the game.
-export let BALL_MAX_SPEED = 1100;   // HS M4: ordinary touches (no power) reach 1001–1091 px/s (was 816)
+// HS M5 29.09–29.36 s: a dash into a slowly rolling ball sent it along the grass at ~1970 px/s,
+// and it KEPT that speed — 1980 → 1950 over the next 15 frames, which is the air drag and
+// nothing else. So HS has no cap anywhere near the 1100 that sat here (M4's fastest ordinary
+// touches, 1001–1091, were only the fastest seen, not a ceiling): a dash-fired ball was clipped
+// back to 1100 the tick the dash ended. The dash-fired ball is the fastest ordinary ball HS
+// shows, so the ceiling sits exactly on it: a body dashed into the ball can hand it no more
+// than this, and a shot met cleanly off the boot (~1050) is nowhere near it.
+export let BALL_MAX_SPEED = 1970;
+// …and while a dash is pushing it, the ball may run ahead of the dasher by this factor: HS M5
+// 29.12–29.16 s, the dash-touched ball's first three frames at ~2240 px/s = 1.25 x the 1790 dash,
+// then 1970 the frame the dash ended. The same ~2250 off every other dash touch in M5 (42.09,
+// 65.30, 69.89 s). A ball held just ahead of the body is pushed, not pumped.
+export let DASH_BALL_CAP = 1.25;
 export const BALL_SPIN_DECAY = 0.985;
 
 // ---- Player ----------------------------------------------------------------
@@ -127,11 +139,16 @@ export let BODY_GRIP = 0.5;
 export let PLAYER_GRAV = 595;
 // HS M4 32.3–33.9 s and 85.4–88.4 s: 228 px/s flat out.
 export let PLAYER_SPEED = 228;
+// IN THE AIR, 241. HS M5 6.46–15.81 s, Idan's jump tests: 8 airborne runs with an arrow held,
+// 229–252 px/s (median 241), against 224–228 on the grass in the same takes (9 runs) and M4's
+// 228. The steering is still instant — let go of the arrow at the top and the body stops dead
+// mid-air, press the other and it reverses that frame. Box2D would do exactly this: the stick
+// sets the velocity, and the grass's friction takes a few percent back off it every step.
+export let PLAYER_AIR_SPEED = 241;
 // AND THERE IS NO ACCELERATION. HS M4: full speed within 3 frames of the arrow lighting, stopped
 // within 3 frames of it going dark, and a reversal at full speed turns in the same 3 — so the
-// body takes the stick's velocity on the tick it is pressed. The air is ASSUMED to be the same:
-// no clip isolates air control yet (jump.airSpeed, C4, is unmeasured), and nothing in M4 shows a
-// jumping body keeping speed the stick has let go of.
+// body takes the stick's velocity on the tick it is pressed. The air is the same (HS M5's jump
+// tests, 6.46–15.81 s): no momentum kept once the arrow is let go, only the speed is higher.
 //
 // Two things still slide. A SHOVE (a tackle) owns the body for TACKLE_SHOVE and bleeds off at
 // PLAYER_FRICTION a tick on the grass. And the arcade's grip powers (ice, mud) take the instant
@@ -178,44 +195,36 @@ export let KICK_TIME = 0.26;
 // the next can start. (Only the timing is HS's so far: what the boot does to the ball is the
 // kick contact model, a later pass.)
 export const KICK_COOLDOWN = 0.349;
-// From body centre. The drawn boot is three times longer than it was on request, and the
-// reach follows it: a foot that looks like it can touch the ball and cannot is the reason the
-// kick "did not kick so good". FOOT_LEN is the drawn length; the two are kept in step by
-// deriving the reach from it.
-// Was 3, which put a 33px boot on an 8px leg — longer than the body is wide, and the reason
-// the foot read as a plank rather than as a shoe. A real boot is a bit under three times the
-// ankle's width; 2.1 lands it at 23px, and the toe still arrives inside the kick circle the
-// sim strikes from, so nothing about the reach is being lied about.
-export let FOOT_LEN = 2.1;           // multiples of the original 3px boot plate
-export let KICK_REACH = 62;
-export let KICK_R = 22;              // kick hitbox radius (HS's boot is ~20 x 25 px)
-// THE SWING. HS M4 29.64 s frame by frame: the boot is down at the ball for ~2 frames, then held
-// up ~51 px ahead of the body's centre and ~52 px above the grass (mid-head) for the rest of the
-// swing. KICK_REACH / BALL_R is the low boot, these are the raised one.
-export const KICK_LOW_TICKS = 2;
-export let KICK_REACH_HI = 51;
-export let KICK_HI_Y = 52;
-export let KICK_HI_DRIVE = 0.42;   // of a kick's drive, met at head height or above (kick.head.*)
-export let KICK_HI_LIFT = 0.92;    // …and of its lift
-export let KICK_AIR_LIFT = 1.55;   // lift of a kick taken in the air (HS jump kick ~340 px apex; 1 sample)
-export let KICK_POWER = 367;         // 540 at the old PACE 0.68 — the kick contact model is a later
-                                      // pass, so the boot is carried over at its live value.
-                                      // Ball-only slowdown (Adam, 2026-08-21: "make ball slower").
-                                      // 640 put a kicked ball at 1.49x the player, crossing the pitch
-                                      // in 1.67s against the player's 2.48s — you could not get there.
-                                      // 520 makes it 1.21x, which is a chase you can actually win.
-// The upward component of an ORDINARY kick. It was 620 against a drive of 520 — a 50° launch
-// before the bow and the contact point had even been read, which is why every clearance went
-// up and almost nothing went at the goal. 400 against a drive of 540 is ~36° before the
-// contact point flattens it, and the median strike over 30 bot matches falls from 23° to 15°
-// with a fifth fewer balloons above 45°. Going UP is now something you ask for — get under it,
-// or hold jump — rather than what the boot does by default.
+// THE BOOT IS A BODY (HS: Box2D). The swing's path is shared/kick.js — the drawing and the sim
+// read the same keyframes — and the ball bounces off the boot like off any other surface:
+// relative to the boot's own motion, along the contact normal, with these two numbers.
 //
-// Measured, because flattening the shot does cost goals: 3.3 a match against the 4.9 the
-// 50° kick scored (`_kickprobe` in the 2026-09-22 session; re-measure before moving this).
-// Most of the gap is flat shots hitting a defender's body instead of sailing over it, which
-// is the trade the flat shot is supposed to make.
-export let KICK_LIFT = 272;          // 400 x the old PACE 0.68
+// M5 80.59–80.71 s, the one clean kick filmed frame by frame: the ball, rising off a bounce
+// (~260 px/s by the time they met), sat right on top of the boot as it climbed at ~730 px/s, and
+// left straight up at ~1050 px/s (horizontal ~0). v_out = v_boot + e·(v_boot − v_in) →
+// e = (1050 − 730) / (730 − 260) = 0.68. Re-staged in this sim (ball 48 px ahead, rising
+// through the boot's climb) it leaves at 1050 px/s, 87°. 0.68 also sits with every other HS
+// surface (head 0.70–0.79, goal top 0.67, grass 0.65): Box2D mixes restitution as the larger of
+// the pair, so everything the ball touches reads alike.
+// The boot is drawn 24 x 13.5 px; its collision is a disc of the boot's mean half-size.
+export let BOOT_R = 9;
+export let BOOT_BOUNCE = 0.68;
+// Grip across the contact (Box2D friction): how much of the ball's sliding speed across the
+// boot's face the strike takes with it, as a fraction of the normal impulse, Coulomb-capped.
+// Small: the M5 kick left with no sideways speed although the boot was still inching forward.
+export let BOOT_GRIP = 0.1;
+// The kick stat (1–10, arcade only) swings the boot faster, not further: HS "the higher the
+// Kick, the further the ball travels and the faster it goes" (wiki, Stats).
+//
+// The REACH numbers below are not the boot. They are the summary of where it can be that
+// the CPU (shared/bot.js), the early power-shot block and the tests use to stand things in
+// range: KICK_REACH ahead of the body, a ball on the grass that the boot strikes on the very
+// first frame of the swing (f1 sits 0.9 R out; a ball centre up to ~48 px out still touches
+// it), KICK_REACH_HI / KICK_HI_Y the held boot, KICK_R the slack around both.
+export let KICK_REACH = 45;
+export let KICK_R = 22;
+export let KICK_REACH_HI = 50;
+export let KICK_HI_Y = 58;
 // A HEAD IS SPRINGY (HS M4). The passive touch — no KICK — is a restitution bounce off the
 // head, measured RELATIVE to the head: the ball leaves along the normal at HEAD_BOUNCE times
 // the speed it closed at, plus the head's own speed. So a standing head sends a 466px/s drop
@@ -245,69 +254,7 @@ export let DEADEN_ZONE = 0.35;
 // ball simply hung on the player instead of rolling off. Same shape of cutoff as the ones
 // on the grass bounce (60) and the crossbar (90), and the same reason.
 export let CONTACT_IMPACT_V = 60;
-// ── THE BOOT, AIMED ──────────────────────────────────────────────────────────
-// A kick used to fire dead flat along the way you were facing, which meant the only way to
-// put the ball in the net was to be standing in exactly the right place. Now it BOWS toward
-// the far goal: the horizontal keeps the facing, and the loft is chosen so the arc comes
-// down around the goal mouth rather than flying over it.
-export let KICK_AIM = 0.55;          // 0 = dead flat as before, 1 = fully aimed at the goal
-// Was 1.35, which nearly doubled the loft of any strike from range — on top of a base lift
-// that was already sending the ball up. The bow is meant to stop a long shot falling short,
-// not to turn it into a punt, so it now adds at most a third: 0.55 of aim x 0.6 is 1.33x.
-export let KICK_BOW = 0.6;           // how much extra loft the aimed kick gets
-export let KICK_BOW_MIN = 260;       // px — below this range to the goal, do not loft at all,
-                                     // or a tap from the six-yard box sails over the bar
 
-// ── WHERE ON THE BOOT ────────────────────────────────────────────────────────
-// A kick used to be ONE shot: the same speed and the same loft wherever on the foot the ball
-// happened to land, so the only choice in it was the lob button. Now the CONTACT POINT is the
-// shot. Two axes, both read off the ball's position inside the kick circle at the moment it
-// connects:
-//
-//   along the boot   toe cap → a poke. Flat, fast, no air under it, because the tip of the
-//                    foot meets the ball square and there is no instep beneath it to lift.
-//                    Ankle end, the whole foot → the boot gets UNDER the ball and scoops it.
-//   under the ball   the same story on the other axis. The kick circle sits at the height of a
-//                    ball rolling on the grass, so this is ~0 for the ordinary ground kick and
-//                    only grows for a ball dropping onto the boot — which is chipped.
-//
-// WHERE THE ORDINARY KICK SITS ON THAT AXIS. This used to be the middle of the boot, and that
-// was the bug behind "it kicks straight up": a ball you are DRIBBLING is pinned against your
-// body by the torso collision — half a body plus a ball, about 28px out — and the kick circle
-// reaches from 28px to 96px, so the ordinary running kick lands at the very ankle end of it
-// every single time. The ankle end is the scoop. Every dribble-and-shoot was a scoop.
-//
-// So the neutral point is where the ball ACTUALLY is on a normal kick, not the geometric
-// middle of the circle. Both loft and drive are measured from here: at the neutral you get the
-// plain 1.0 shot, past it toward the toe the ball goes flatter and harder, behind it toward
-// the ankle the boot gets under it and scoops.
-export let KICK_TOE_NEUTRAL = 0.25;  // 0 = ankle/heel end, 1 = toe cap
-// Big enough that the very tip of the boot takes the loft all the way to zero — the dead flat
-// shot has to stay REACHABLE, which is (1 - KICK_TOE_NEUTRAL) x this >= 1.
-export let KICK_TOE_LOFT = 1.35;     // how far the toe/instep axis swings the loft
-export let KICK_UNDER_LOFT = 0.4;    // and how much a boot under the ball adds
-export let KICK_TOE_DRIVE = 0.7;     // what does not go up goes forward: the toe-poke's punch
-// A ball DROPPING onto the boot brought its whole fall back out as lift, which made every
-// volley a balloon. A boot swung forward into a falling ball sends it forward: most of that
-// pace joins the drive and only a little of it the loft.
-export let KICK_DROP_DRIVE = 0.35;
-export let KICK_DROP_LOFT = 0.4;
-// The bottom of the range is a DEAD FLAT shot — parallel to the grass, straight at the goal,
-// and it has to be reachable or "kick it straight" is not a thing the player can choose. Meet
-// the ball on the very tip of the boot and KICK_TOE_LOFT takes the loft to zero: no arc, no
-// bow (the aim multiplies the loft, so nothing times nothing is still nothing), and the whole
-// of the strike's energy going forward instead of upward. That last part is why the flat shot
-// is also the FAST one — see BALL_MAX_SPEED, which a lofted kick spends most of on climbing.
-export let KICK_LOFT_MIN = 0;
-export let KICK_LOFT_MAX = 1.6;
-
-// ── MEETING THE BALL ─────────────────────────────────────────────────────────
-// A strike used to SET the ball's velocity: the same shot off a ball flying at you as off one
-// asleep on the grass. It is a COLLISION, so the pace the ball carries INTO the boot or the
-// forehead comes back out of it, and a cleanly met ball is the hardest thing on the pitch that
-// is not an ultimate. Only the part coming AT the striker counts — a ball running away is
-// caught up with, not smashed.
-export let KICK_MEET = 0.55;         // of the ball's incoming pace, returned by a boot
 
 // ---- Jump feel -------------------------------------------------------------
 // Two forgiveness windows, both cut to 3 frames. HS shows no input lag at all — a jump press
@@ -573,27 +520,17 @@ const SETTERS = {
   HEAD_R: (v) => { HEAD_R = v; },
   PLAYER_GRAV: (v) => { PLAYER_GRAV = v; },
   PLAYER_SPEED: (v) => { PLAYER_SPEED = v; },
+  PLAYER_AIR_SPEED: (v) => { PLAYER_AIR_SPEED = v; },
   SLIP_ACCEL: (v) => { SLIP_ACCEL = v; },
   JUMP_V: (v) => { JUMP_V = v; },
   DASH_V: (v) => { DASH_V = v; },
   DASH_TIME: (v) => { DASH_TIME = v; },
   KICK_TIME: (v) => { KICK_TIME = v; },
   KICK_REACH: (v) => { KICK_REACH = v; },
-  FOOT_LEN: (v) => { FOOT_LEN = v; },
   KICK_R: (v) => { KICK_R = v; },
-  KICK_POWER: (v) => { KICK_POWER = v; },
-  KICK_LIFT: (v) => { KICK_LIFT = v; },
-  KICK_AIM: (v) => { KICK_AIM = v; },
-  KICK_BOW: (v) => { KICK_BOW = v; },
-  KICK_TOE_NEUTRAL: (v) => { KICK_TOE_NEUTRAL = v; },
-  KICK_TOE_LOFT: (v) => { KICK_TOE_LOFT = v; },
-  KICK_UNDER_LOFT: (v) => { KICK_UNDER_LOFT = v; },
-  KICK_TOE_DRIVE: (v) => { KICK_TOE_DRIVE = v; },
-  KICK_DROP_DRIVE: (v) => { KICK_DROP_DRIVE = v; },
-  KICK_DROP_LOFT: (v) => { KICK_DROP_LOFT = v; },
-  KICK_LOFT_MIN: (v) => { KICK_LOFT_MIN = v; },
-  KICK_LOFT_MAX: (v) => { KICK_LOFT_MAX = v; },
-  KICK_MEET: (v) => { KICK_MEET = v; },
+  BOOT_R: (v) => { BOOT_R = v; },
+  BOOT_BOUNCE: (v) => { BOOT_BOUNCE = v; },
+  BOOT_GRIP: (v) => { BOOT_GRIP = v; },
   GAUGE_PASSIVE: (v) => { GAUGE_PASSIVE = v; },
   GAUGE_CONCEDE: (v) => { GAUGE_CONCEDE = v; },
   GAUGE_LEAD: (v) => { GAUGE_LEAD = v; },
@@ -659,8 +596,9 @@ export function snapshot() {
     KICK_TIME,
     KICK_REACH,
     KICK_R,
-    KICK_POWER,
-    KICK_LIFT,
+    BOOT_R,
+    BOOT_BOUNCE,
+    BOOT_GRIP,
     POWER_SHOT_LIFE,
     POWER_BLOCK_REBOUND,
     POWER_SHOT_SPEED,

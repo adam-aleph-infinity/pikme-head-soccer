@@ -10,8 +10,11 @@
 // powerHold). The whole ladder is monotonic: every tier beats every lower tier on average.
 
 import * as C from './constants.js';
+import { bootReach } from './kick.js';
 import { headY } from './sim.js';
 import { stepPower, launch as launchPower, FAMILIES } from './hs-powers.js';
+// Where the boot passes on its swing, [ahead, up] from the feet (the CPU's reach test).
+const BOOT_POINTS = bootReach();
 
 // `aggression` is flat across the tiers: it is how often a bot chases a ball the other player is
 // nearer to, and it was measured three times over (on the old physics) to be the one dial that
@@ -543,17 +546,17 @@ function openPlay(bot, m, p, foe, b, out, d, dt) {
   out.jump = jump && !bot.lastJump;           // an edge: HOLDING jump re-jumps on every landing
   bot.lastJump = out.jump;
 
-  // THE BOOT. HS's swing: down at the ball for the first couple of ticks, then raised to
-  // KICK_REACH_HI ahead and KICK_HI_Y up for the rest of KICK_TIME (0.26 s) — so a swing pressed
-  // a few ticks before the ball arrives still catches it, low or at head height.
-  const boots = [[C.KICK_REACH, C.BALL_R], [C.KICK_REACH_HI, C.KICK_HI_Y]];
+  // THE BOOT. The same swing the sim collides against (shared/kick.js): out of the rest pose low
+  // in front, up to face height in six frames, held there for the rest of KICK_TIME (0.26 s) —
+  // so a swing pressed a few ticks before the ball arrives still meets it, low or at head height.
+  const boots = BOOT_POINTS;
   let onBoot = false;
   for (const q of near) {
     if (q.t > 0.12) break;
     const dy = p.onGround ? 0 : p.vy * q.t;
     for (const [reach, up] of boots) {
       const px = p.x + side * reach + vxNow * speed * q.t, py = p.y - up + dy;
-      if (Math.hypot(q.x - px, q.y - py) < C.KICK_R + C.BALL_R - 3) { onBoot = true; break; }
+      if (Math.hypot(q.x - px, q.y - py) < C.BOOT_R + C.BALL_R + 6) { onBoot = true; break; }
     }
     if (onBoot) break;
   }

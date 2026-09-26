@@ -107,7 +107,9 @@ export const SCENARIOS = {
     setup: (m) => { openPlay(m); const p = m.players[0]; place(m.ball, p.x + p.facing * 50, C.GROUND_Y - 30); },
     input: (i) => (i === 1 ? { kick: true } : {}) },
   kickHead: { clip: 'C7', ticks: 120, kickTag: 'strike', kickNote: 'head',
-    setup: (m) => { openPlay(m); const p = m.players[0]; place(m.ball, p.x + p.facing * 40, headY(p)); },
+    // M5 80.59 s re-staged: the ball 48 px ahead at head height, rising 310 px/s off a bounce, and
+    // KICK pressed so the climbing boot meets it underneath (docs/hs-reference.json kick.head.*).
+    setup: (m) => { openPlay(m); const p = m.players[0]; place(m.ball, p.x + p.facing * 48, C.GROUND_Y - 45, 0, -310); },
     input: (i) => (i === 1 ? { kick: true } : {}) },
   kickJump: { clip: 'C7', ticks: 120, kickTag: 'strike', kickNote: 'jump', setup: (m) => { openPlay(m); parkBall(m); },
     during: (m, i) => { if (i === 12) { const p = m.players[0]; place(m.ball, p.x + p.facing * 50, p.y - C.BODY_H * 0.45); } },
@@ -174,7 +176,9 @@ export const SCENARIOS = {
     setup: (m) => { openPlay(m); place(m.ball, C.GOAL_W - 2, BAR_Y() - 160); }, input: () => ({}) },
   goalTopBounce: { clip: 'C9', ticks: 240, surface: 'top', attempt: 'goaltop',
     setup: (m) => { openPlay(m); place(m.ball, C.GOAL_W * 0.5, BAR_Y() - 160); }, input: () => ({}) },
-  ceilingBounce: { clip: 'C9', ticks: 120, setup: (m) => { openPlay(m); place(m.ball, C.W / 2 - 60, 380, 150, -2000); }, input: () => ({}) },
+  // 82, -1097: what the old 150, -2000 launch became under the 1100 cap it was written against
+  // (BALL_MAX_SPEED is 1970 since M5), so the ball meets the ceiling as it always did.
+  ceilingBounce: { clip: 'C9', ticks: 120, setup: (m) => { openPlay(m); place(m.ball, C.W / 2 - 60, 380, 82, -1097); }, input: () => ({}) },
 
   // C10 — drop player 0 onto player 1's head, then player 1 walks away under it.
   headStand: { clip: 'C10', ticks: 150, attempt: 'headstand',

@@ -863,18 +863,19 @@ const dropAt = (sx, fromY) => {
        keepOutOfGoal(C.GOAL_W + 50, barY() - 50, 20, barY() - 50, r) === 20);
   }
   for (const left of [true, false]) {
-    // The same header, with the whistle on. It is still a goal — the shot tryHeader just set
+    // A strike from right on the line, with the whistle on. It is still a goal — the boot
     // carries the ball over the line under its own steam — so the fix must not have cost the
-    // goal, only the teleport.
+    // goal, only the teleport. (This was a header off the old aimed-header button; HS has no
+    // such button, and the boot is a body now, so it is the ball at the feet: shared/kick.js.)
     const m = fresh();
     const d = m.players[SCORER(left)];
     pin(m.players[CONCEDER(left)], C.W / 2);
-    pin(d, LINE(left) + OUT(left) * 25);
+    pin(d, LINE(left) + OUT(left) * 50);
     d.prev = {};
     const b = m.ball;
-    b.x = d.x - OUT(left) * 20; b.y = headY(d); b.vx = 0; b.vy = 0;
+    b.x = d.x - OUT(left) * 45; b.y = C.GROUND_Y - b.r; b.vx = 0; b.vy = 0;   // 5 px out, on the line
     run(m, 30, (i) => { const inp = [{}, {}]; if (i === 0) inp[d.index] = { kick: true }; return inp; });
-    ok(`${side(left)}: a header from on top of the line still scores`,
+    ok(`${side(left)}: a kick from on top of the line still scores`,
        m.score[SCORER(left)] === 1, `score ${m.score}`);
   }
 

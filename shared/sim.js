@@ -3,6 +3,7 @@
 // football-mock's shared/sim.js, so wiring this to a server later is a lift-and-shift.
 
 import * as C from './constants.js';
+import { kickPose, bootAt } from './kick.js';
 import { walkBounds, barY, barCeiling, goalBox, ballInGoal, keepOutOfGoal } from './goalbox.js';
 import { championFor } from './champions.js';
 import {
@@ -49,7 +50,7 @@ function makePlayer(index, char) {
     vx: 0, vy: 0,
     onGround: true, facing: side,
     jumps: C.MAX_JUMPS,
-    kickT: 0, kickCd: 0, kickDir: 0,
+    kickT: 0, kickCd: 0, kickDir: 0, kickHit: false,
     dashT: 0, dashCd: 0, dashDir: 0,
     tapDir: 0, tapT: 0,
     // Whose body is holding this one up — standing on its head, or pinned against it by a
@@ -552,7 +553,8 @@ function stepPlayer(m, p, input, dt, fx) {
     // With instant steering below, anything less and the knockback would last one tick.
     if (p.onGround) p.vx *= C.PLAYER_FRICTION;
   } else {
-    const target = dir * C.PLAYER_SPEED * p.stats.speed * (md ? md.speed : 1);
+    // In the air a little faster than on the grass (HS M5: 241 against 224–228; see PLAYER_AIR_SPEED).
+    const target = dir * (p.onGround ? C.PLAYER_SPEED : C.PLAYER_AIR_SPEED) * p.stats.speed * (md ? md.speed : 1);
     if (md && (md.accel < 1 || md.friction)) {
       // The arcade's grip powers (ice, mud) are the one place a body still has to get going
       // and slide to a stop — that is what they ARE. SLIP_ACCEL is the old ground grip.
@@ -561,8 +563,8 @@ function stepPlayer(m, p, input, dt, fx) {
       else if (p.onGround) p.vx *= md.friction || C.PLAYER_FRICTION;
     } else {
       // HS M4: full speed, a dead stop and a reversal each inside 3 frames — the body simply
-      // takes the stick's velocity. Ground and air alike (the air is an assumption: see
-      // PLAYER_SPEED).
+      // takes the stick's velocity. Ground and air alike: HS M5's jumps stop dead in the air the
+      // frame the arrow is let go and reverse the frame the other one is pressed (6.46–15.25 s).
       p.vx = target;
     }
   }
@@ -603,6 +605,7 @@ function stepPlayer(m, p, input, dt, fx) {
     // K1) and launched at 811 px/s against HS's 626 (K2), so it is gone.
     p.kickT = C.KICK_TIME;
     p.kickCd = C.KICK_COOLDOWN;
+    p.kickHit = false;
     // AND THE DIRECTION, WHICH IS NOT THE FACING ANY MORE.
     //
     // This was `p.facing`, latched at the swing so that turning mid-kick could not steal the
@@ -928,11 +931,11 @@ function stepBall(m, dt, fx, a0 = 0, aSpan = 1) {
   // nothing to run away, and clamping them here silently pinned POWER_SHOT_SPEED to
   // BALL_MAX_SPEED — the power shot's speed knob did nothing for as long as it existed.
   const sp = Math.hypot(b.vx, b.vy);
-  // Never slower than the fastest body on the pitch, though: a dash (1790 px/s) outruns the cap,
-  // and a capped ball it kept catching was bounced again every tick — pumped to 2300–3600 px/s
-  // off a body that sprang back. Just ahead of the dash it is pushed, not fired, and the cap is
-  // the ordinary 1100 again the moment the dash ends.
-  const cap = Math.max(C.BALL_MAX_SPEED, 1.1 * Math.max(Math.abs(m.players[0].vx), Math.abs(m.players[1].vx)));
+  // While a dash is on, the cap is the dash's own speed x DASH_BALL_CAP (HS M5: a dashed ball runs
+  // at ~2240 for as long as the dash pushes it, then 1970) — so a capped ball the dasher keeps
+  // catching is pushed, not pumped to 2300–3600 px/s off a body that springs back. The ordinary
+  // BALL_MAX_SPEED again the moment the dash ends.
+  const cap = Math.max(C.BALL_MAX_SPEED, C.DASH_BALL_CAP * Math.max(Math.abs(m.players[0].vx), Math.abs(m.players[1].vx)));
   if (!powered && sp > cap) { b.vx *= cap / sp; b.vy *= cap / sp; }
 
   // Sub-step the ball so it can never skip past a body in one tick. Discrete stepping
@@ -1217,13 +1220,12 @@ function tryTackle(m, p, fx) {
   const foe = m.players[1 - p.index];
   if (foe.tackleImmune > 0) return false;
 
-  // Where the boot IS, which is now always out in front of the attacking side — the same
-  // place the swing is drawn and the same place the ball can be struck from. A tackle box on
-  // `facing` would be a hit landed by a leg that is not there.
-  // IN THE AIR TOO: the swing's boot rises from the hip to KICK_HI_Y (resolveBallPlayers), so
-  // it is tested low and raised — a jumping opponent above the hip used to be missed entirely.
-  return [[C.KICK_REACH, C.BODY_H * 0.5], [C.KICK_REACH_HI, C.KICK_HI_Y]]
-    .some(([reach, up]) => tackleAt(m, p, foe, fx, p.x + p.side * reach, p.y - up));
+  // Where the boot IS: the same swing the ball bounces off (shared/kick.js), tested at this
+  // tick's pose. Over the swing that sweeps from the knee to the face, so a jumping opponent
+  // above the hip is met on the way up, as in HS.
+  const k = (C.KICK_TIME - p.kickT) / C.KICK_TIME;
+  const bt = bootAt(p.x, p.y, p.kickDir || p.side, k);
+  return tackleAt(m, p, foe, fx, bt.x, bt.y);
 }
 
 function tackleAt(m, p, foe, fx, kx, ky) {
@@ -1236,10 +1238,10 @@ function tackleAt(m, p, foe, fx, kx, ky) {
   // leg that is actually attached to you would.
   const legX = clamp(foe.x, Math.min(p.x, kx), Math.max(p.x, kx));
   // Their whole silhouette counts: head circle or body box.
-  const hitHead = Math.hypot(legX - foe.x, ky - headY(foe)) < C.KICK_R + headR(m, foe);
+  const hitHead = Math.hypot(legX - foe.x, ky - headY(foe)) < C.BOOT_R + headR(m, foe);
   const nx = clamp(legX, foe.x - C.BODY_W / 2, foe.x + C.BODY_W / 2);
   const ny = clamp(ky, bodyTop(foe), foe.y);
-  const hitBody = Math.hypot(legX - nx, ky - ny) < C.KICK_R;
+  const hitBody = Math.hypot(legX - nx, ky - ny) < C.BOOT_R;
   if (!hitHead && !hitBody) return false;
 
   // Which way the boot came from — only used to tell a hit in the back from one in the face.
@@ -1351,98 +1353,54 @@ function resolveBallPlayers(m, fx, alpha = 1) {
     const py = p.y0 === undefined ? p.y : p.y0 + (p.y - p.y0) * alpha;
     const hy = headYAt(py);
 
-    // ---- kick hitbox (only while the leg is out) ----
-    // The boot fires the ultimate too. It used not to (the circle hangs KICK_REACH px out, so
-    // a boot touch was called "firing at a distance"), but Head Soccer fires the armed shot on
-    // the next touch of ANY kind — kick, header or body (headsoccer.wiki.gg/wiki/Controls; Idan's
-    // M3/M4 footage) — and an armed player whose kicks did nothing read as "the power is broken".
+    // ---- the boot (only while it is out) ----
+    // A BODY, NOT A HITBOX (HS is Box2D; shared/kick.js has the path and the measurements). The
+    // boot follows the drawn swing, and the ball bounces off it relative to the boot's own motion
+    // — so where and when they meet IS the shot: met while the boot is still climbing, the ball
+    // is flung up hard; resting on it once it is held up, it only drops off; and a running or
+    // dashing body adds its speed to the boot's, which is HS's "kick after a dash and the ball
+    // goes up diagonally, fast". No aim, no loft rule, no lift bonus in the air — none of those
+    // exist in HS.
+    //
+    // The boot fires the ultimate too: HS fires the armed shot on the next touch of ANY kind —
+    // kick, header or body (headsoccer.wiki.gg/wiki/Controls; Idan's M3/M4 footage).
     if (p.kickT > 0) {
-      const dir = p.kickDir || p.side;              // the aim, as latched at the swing
-      // THE SWING (HS M4 29.64 s, frame by frame): the boot is at the height of a ball resting
-      // on the grass for the first KICK_LOW_TICKS, then up at KICK_REACH_HI ahead and KICK_HI_Y
-      // above the ground — about the middle of the head — for the rest of the swing. A ball
-      // at chest or face height in front is the boot's, as it is in HS.
-      const low = C.KICK_TIME - p.kickT < C.KICK_LOW_TICKS * C.TICK - 1e-9;
-      const kx = px + dir * (low ? C.KICK_REACH : C.KICK_REACH_HI);
-      const ky = py - (low ? C.BALL_R : C.KICK_HI_Y);
-      if (Math.hypot(b.x - kx, b.y - ky) < C.KICK_R + b.r) {
+      const dir = p.kickDir || p.side;              // the swing, as latched at the press
+      const R = C.HEAD_R, dk = C.TICK / C.KICK_TIME;
+      const k = (C.KICK_TIME - p.kickT) / C.KICK_TIME - dk * (1 - alpha);
+      const now = kickPose(k), was = kickPose(k - dk);
+      const bx = px + dir * now[0] * R, by = py - now[1] * R;
+      const dx = b.x - bx, dy = b.y - by, d = Math.hypot(dx, dy), min = C.BOOT_R + b.r;
+      if (d < min && d > 1e-6) {
         // ARMED BEATS INCOMING off the boot too: HS's counter is any touch by an armed player
         // (§4), so a swing that meets their shot fires yours, just as the head and body do.
         if (b.power && b.power.owner !== p.index && p.armed > 0 && fireUltimateOnContact(m, p, b, fx)) { p.kickT = 0; return; }
         if (!b.power) {
-          // ARMED: this touch is the one that spends it (see the note above the hitbox).
+          // ARMED: this touch is the one that spends it (see the note above the boot).
           if (p.armed > 0 && fireUltimateOnContact(m, p, b, fx)) { p.kickT = 0; return; }
-          // The higher up the swing the ball is met, the less of the drive is left and the more
-          // it goes up: HS M4's still balls met at head height leave at 391 px/s, 66° up
-          // (kick.head.speed / .angle, ball.kickApex.head), against a ground kick's ~480 and
-          // ~35°. `high` is 0 for a ball on the grass, 1 for one at head height or above.
-          const high = clamp((py - b.y - C.BALL_R) / (py - hy - C.BALL_R), 0, 1);
-          const mult = p.stats.kick;
-          const drive = 1 - high * (1 - C.KICK_HI_DRIVE);
-          // A kick taken in the air goes up more: HS's jumping kick tops out ~340 px (M4 167.9 s,
-          // one clean sample), where the same swing off the grass stays under 130.
-          const lift = (1 - high * (1 - C.KICK_HI_LIFT)) * (p.onGround ? 1 : C.KICK_AIR_LIFT);
-          // THE BOW. A kick used to fly dead flat along your facing, so scoring meant already
-          // standing in exactly the right place. It now arcs toward the FAR goal, and by how
-          // far away that goal is: from deep it is lofted, from the six-yard box it stays
-          // low, because a lofted tap from close in sails over the bar. Aiming the LOFT and
-          // not the direction is deliberate — turning the ball toward the goal for you would
-          // take the aiming out of the player's hands, and facing is the aiming this game has.
-          const goalX = p.side > 0 ? C.W : 0;
-          const range = Math.abs(goalX - b.x);
-          const towardsGoal = (goalX - b.x) * dir > 0;
-          const bow = towardsGoal
-            ? Math.max(0, Math.min(1, (range - C.KICK_BOW_MIN) / (C.W - C.KICK_BOW_MIN))) * C.KICK_AIM
-            : 0;
-          // WHICH PART OF THE BOOT GOT THERE. Until now the kick circle was a switch: touch it
-          // anywhere and you got the one shot. The ball's position INSIDE the circle is the
-          // whole of the aiming that a kick has, so read it — see KICK_TOE_LOFT for the shape.
-          //
-          //   along  -1 at the ankle end … +1 at the toe cap
-          //   under   how far the boot is beneath the ball's centre. About 0 for a ball rolling
-          //           on the grass (the circle sits at that height), positive for one dropping
-          //           onto the foot, which is the chip.
-          //
-          // Normalised by the CONTACT radius, not by KICK_R: the circle the ball is tested
-          // against is KICK_R + b.r across, so dividing by KICK_R alone pinned everything in
-          // the outer third of the boot to a flat -1 or +1 and threw away the end of the range
-          // at both ends.
-          const along = clamp(((b.x - kx) * dir) / (C.KICK_R + b.r), -1, 1);
-          const toe = (along + 1) / 2;                     // 0 = the whole foot, 1 = the toe cap
-          const under = clamp((ky - b.y) / (C.KICK_R + b.r), -1, 1);
-          // Measured from where the ball sits on an ORDINARY kick rather than from the middle
-          // of the circle — see KICK_TOE_NEUTRAL. A dribbled ball is pinned against the body,
-          // which is the ankle end, so a neutral at 0.5 made the everyday running shot a scoop
-          // and that is why the ball kept going up instead of at the goal.
-          const t = toe - C.KICK_TOE_NEUTRAL;
-          let loft = clamp(1 - t * C.KICK_TOE_LOFT + under * C.KICK_UNDER_LOFT,
-                           C.KICK_LOFT_MIN, C.KICK_LOFT_MAX);
-          // Energy is not created here: the loft a toe-poke gives up comes back as pace, so the
-          // flat shot is the hard one and the scoop is the soft one. And the flat one is faster
-          // again for a reason that is not in this line at all — BALL_MAX_SPEED is a budget on
-          // the whole velocity, and a shot that climbs spends most of it climbing.
-          const punch = 1 + t * C.KICK_TOE_DRIVE;
-
-          // MEETING IT. The pace the ball brings INTO the boot comes back out of it: that is
-          // the difference between a volley and a tap, and it used to not exist — the strike
-          // assigned a velocity and the ball's own was simply discarded. Only what is coming AT
-          // the swing counts (a ball running away is caught up with, not struck), and the
-          // vertical half rides the LOFT, so a ball dropped onto a toe-poke still goes flat
-          // rather than being launched by its own fall.
-          const meet = Math.max(0, -b.vx * dir);
-          const drop = Math.max(0, b.vy);
-
-          b.vx = dir * (C.KICK_POWER * mult * drive * punch + meet * C.KICK_MEET
-                        + drop * C.KICK_DROP_DRIVE) + p.vx * 0.4;
-          b.vy = -(C.KICK_LIFT * mult * lift * loft * (1 + C.KICK_BOW * bow)
-                   + drop * C.KICK_MEET * loft * C.KICK_DROP_LOFT) + p.vy * 0.3;
-          b.spin = dir * 14;
-          p.kickT = 0;
-          m.hitStop = Math.max(m.hitStop, C.HIT_STOP_KICK);
-          m.idle = 0;
-          m.events.push({ type: 'strike', player: p.index, x: b.x, y: b.y, power: false });
-          fx.hit(b.x, b.y, '#ffffff', 1);
-          return;
+          const nx = dx / d, ny = dy / d;
+          b.x = bx + nx * min; b.y = by + ny * min;
+          // The boot's velocity: its path over the last tick, faster by the kick stat, plus the body's.
+          const drive = p.stats.kick / C.TICK;
+          const vbx = dir * (now[0] - was[0]) * R * drive + p.vx;
+          const vby = -(now[1] - was[1]) * R * drive + p.vy;
+          const rvx = b.vx - vbx, rvy = b.vy - vby;
+          const vn = rvx * nx + rvy * ny;
+          if (vn < 0) {
+            const j = -(1 + C.BOOT_BOUNCE) * vn;
+            b.vx += j * nx; b.vy += j * ny;
+            // grip across the face, Coulomb-capped by the push
+            const tx = rvx - vn * nx, ty = rvy - vn * ny, vt = Math.hypot(tx, ty);
+            if (vt > 1e-6) { const f = Math.min(vt, C.BOOT_GRIP * j) / vt; b.vx -= tx * f; b.vy -= ty * f; }
+            b.spin = dir * Math.min(14, j / 60);
+            if (j > C.CONTACT_IMPACT_V * 2 && !p.kickHit) {
+              p.kickHit = true;
+              m.hitStop = Math.max(m.hitStop, C.HIT_STOP_KICK);
+              m.idle = 0;
+              m.events.push({ type: 'strike', player: p.index, x: b.x, y: b.y, power: false });
+              fx.hit(b.x, b.y, '#ffffff', 1);
+            }
+          }
         }
       }
     }
@@ -1739,7 +1697,7 @@ export { resetPositions };
 const PREV_KEYS = ['left', 'right', 'jump', 'kick', 'power'];
 const P_FIELDS = [
   'x', 'y', 'vx', 'vy', 'onGround', 'facing', 'jumps',
-  'kickT', 'kickCd', 'dashT', 'dashCd', 'dashDir', 'tapDir', 'tapT',
+  'kickT', 'kickCd', 'kickHit', 'dashT', 'dashCd', 'dashDir', 'tapDir', 'tapT',
   // `armed` is the ultimate AND the glow, so a client that restores without it either glows
   // at nothing or misses the touch that should have fired.
   'gauge', 'armed', 'shoved', 'koSlide', 'kickDir',

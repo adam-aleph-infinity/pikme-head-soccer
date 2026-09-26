@@ -323,16 +323,19 @@
   },
   {
     "id": "jump.airSpeed",
-    "value": null,
+    "value": 241,
     "unit": "px/s",
     "clips": [
-      "C4"
+      "M5"
     ],
-    "n": 0,
-    "sd": null,
-    "tol": null,
+    "n": 8,
+    "sd": 7,
+    "tol": 14,
     "scenario": "runJump",
-    "status": "unmeasured"
+    "status": "estimated",
+    "source": "M5 6.46–15.81 s: Idan's jump tests, 8 airborne runs with an arrow held (238, 229, 240, 252, 241, 246, 241, 230 px/s)",
+    "how": "Face-centroid x (_hs-m5.mjs), a straight-line fit over each run of ≥10 frames more than 8 px off the grass while L or R is lit.",
+    "note": "Against 224–228 on the grass in the same takes (9 runs; M4: 228). Steering in the air is instant: the arrow let go at the top stops the body dead, the other arrow reverses it the same frame."
   },
   {
     "id": "dash.speed",
@@ -481,33 +484,34 @@
   },
   {
     "id": "kick.head.speed",
-    "value": 391,
+    "value": 1050,
     "unit": "px/s",
     "clips": [
-      "M4"
+      "M5"
     ],
-    "n": 4,
-    "sd": 135,
-    "tol": 135,
+    "n": 1,
+    "sd": 60,
+    "tol": 150,
     "scenario": "kickHead",
     "status": "estimated",
-    "source": "M4 a ball met almost still at head height (ball in < 150 px/s): 48.41, 88.81, 155.99, 161.86 s",
-    "note": "379, 356, 647, 402 — the median; HS shows no separate header button, so these are head-height touches of a still ball, which our kickHead (KICK with the ball at the head) re-enacts."
+    "source": "M5 80.59–80.71 s (frames 4844–4855): Idan stands still mashing KICK; the ball, rising ~260 px/s off a bounce 48 px ahead at head height, is met by the climbing boot",
+    "note": "Supersedes M4 48.41/88.81/155.99/161.86 s (379, 356, 647, 402 px/s): at M4's resolution it could not be told whether those touches met the boot on its climb, the held boot or the head, and their speed, angle and apex disagree with each other. The M5 kick is read frame by frame, boot and ball both.",
+    "how": "Ball centre tracked per frame (_hs-m5.mjs); launch from the 6 frames after contact: 16–18 px up per frame, ~0 across."
   },
   {
     "id": "kick.head.angle",
-    "value": 66,
+    "value": 90,
     "unit": "deg",
     "clips": [
-      "M4"
+      "M5"
     ],
-    "n": 4,
-    "sd": 22,
-    "tol": 25,
+    "n": 1,
+    "sd": 5,
+    "tol": 15,
     "scenario": "kickHead",
     "status": "estimated",
-    "source": "M4 a ball met almost still at head height (ball in < 150 px/s): 48.41, 88.81, 155.99, 161.86 s",
-    "note": "51, 88, 80, 44°."
+    "source": "M5 80.59–80.71 s (as kick.head.speed)",
+    "note": "Straight up (horizontal ~0 ± 60 px/s). Supersedes M4's 51/88/80/44°."
   },
   {
     "id": "kick.jump.speed",
@@ -704,9 +708,9 @@
     "sd": 139,
     "tol": 140,
     "scenario": "kickHead",
-    "status": "estimated",
+    "status": "superseded",
     "source": "M4 a ball met almost still at head height (ball in < 150 px/s): 48.41, 88.81, 155.99, 161.86 s",
-    "note": "187, 324, 508, 248."
+    "note": "187, 324, 508, 248. Superseded: the M5 kick (kick.head.speed) went to the ceiling, so its apex is the ceiling, not a number to fit; the M4 samples behind 286 are the ambiguous ones."
   },
   {
     "id": "ball.wallRestitution",

@@ -242,9 +242,9 @@ const scoreOn = (m, left, y = C.GROUND_Y - 60, speed = 600) => {
   m.ball.x = p.x + C.KICK_REACH; m.ball.y = p.y - C.BODY_H * 0.45;
   m.ball.vx = 0; m.ball.vy = 0;
   step(m, [{ kick: true }, {}]);
-  // Relative to KICK_POWER, not a literal: PACE rescales every speed, so an absolute
-  // threshold here just breaks the day someone slows the game down.
-  ok('kick launches the ball forward', m.ball.vx > C.KICK_POWER * 0.6, `vx=${m.ball.vx.toFixed(0)} of ${C.KICK_POWER.toFixed(0)}`);
+  // The boot leaves the rest pose on the press tick and meets a ball at the feet on the way
+  // out: a real forward strike (shared/kick.js), not a nudge.
+  ok('kick launches the ball forward', m.ball.vx > 400, `vx=${m.ball.vx.toFixed(0)}`);
   ok('kick lifts the ball', m.ball.vy < 0);
 }
 {
@@ -417,7 +417,7 @@ function kickInto(m, i, reach = 130, ticks = 90) {
   m.hitStop = 0;
   firePower(m, 0);
   ok('a touch on the ball is what fires it', !!m.ball.power);
-  ok('and it flies flat and fast', Math.abs(m.ball.vx) > C.KICK_POWER * 1.5 && Math.abs(m.ball.vy) < 60,
+  ok('and it flies flat and fast', Math.abs(m.ball.vx) > 550 && Math.abs(m.ball.vy) < 60,
      `v=(${m.ball.vx.toFixed(0)}, ${m.ball.vy.toFixed(0)})`);
   ok('firing spends the arm', p.armed === 0);
   // …and does NOT touch the meter: the press emptied it and the refill has run since.
@@ -1034,10 +1034,10 @@ const jumpArc = (input) => {
      `front=${front.behind} back=${back.behind}`);
 }
 
-// ── THE BOOT IS AIMED, AND THE HEAD IS A TOOL ─────────────────────────────────
+// ── THE BOOT HAS NO AIM ───────────────────────────────────────────────────────
 {
-  // A kick from deep used to fly dead flat along your facing, so the only way to score was to
-  // already be standing in the right place. It now bows toward the far goal.
+  // HS has no aim assist: the boot is a body on a fixed swing, so the same strike is the same
+  // shot wherever on the pitch it is taken. (It used to bow toward the far goal — KICK_AIM.)
   const kickFrom = (x) => {
     const m = fresh();
     const p = m.players[0];
@@ -1048,21 +1048,11 @@ const jumpArc = (input) => {
     for (let i = 0; i < 2; i++) { m.hitStop = 0; step(m, [{ kick: true }, {}]); m.events.length = 0; }
     return { vx: m.ball.vx, vy: m.ball.vy };
   };
-  const far = kickFrom(120);                          // a long way from the far goal
-  const near = kickFrom(C.W - 260);                   // right on top of it
-
-  // Against the SAME kick taken from close in, not against KICK_LIFT. KICK_LIFT is the loft of
-  // a dead-centre contact and the middle of the boot is no longer the neutral shot — the ball
-  // you are dribbling sits at the ankle end of the circle, so that is where the neutral went
-  // (see KICK_TOE_NEUTRAL). What this test is actually about is the BOW, and the bow is the
-  // only thing that differs between these two kicks.
-  ok('a kick from deep is lofted toward the goal',
-     far.vy < 0 && Math.abs(far.vy) > Math.abs(near.vy) * 1.2,
-     `vy ${far.vy.toFixed(0)} vs ${near.vy.toFixed(0)} from close in`);
-  ok('and it still goes forward', far.vx > 0, `vx ${far.vx.toFixed(0)}`);
-  // From close in, lofting it would put the ball over the bar — so it does not.
-  ok('a kick from close in stays low', Math.abs(near.vy) <= Math.abs(far.vy),
-     `near ${near.vy.toFixed(0)} vs far ${far.vy.toFixed(0)}`);
+  const far = kickFrom(120), near = kickFrom(C.W - 260);
+  ok('a kick from deep is the same shot as one from close in',
+     Math.abs(far.vx - near.vx) < 1 && Math.abs(far.vy - near.vy) < 1,
+     `deep (${far.vx.toFixed(0)}, ${far.vy.toFixed(0)}) vs close (${near.vx.toFixed(0)}, ${near.vy.toFixed(0)})`);
+  ok('and it goes forward', far.vx > 0, `vx ${far.vx.toFixed(0)}`);
 }
 {
   // A passive head touch is NOT a header: it cushions. That is the whole point of dropping
@@ -1203,54 +1193,30 @@ const jumpArc = (input) => {
 // sent the ball backwards. This is the same bug football shipped as "shoots wrong direction",
 // and the fix is the same: latch the aim to the fire edge.
 {
-  const m = fresh();
-  const p = m.players[0];
-  p.x = 500; p.facing = 1; p.kickCd = 0; p.prev = {};
-  m.players[1].x = 900;
-  // The ball starts OUT of reach and rolls in, so contact lands a few ticks into the swing —
-  // which is the only way to exercise the latch. Placed inside the hitbox it connects on the
-  // press tick, before any turn, and the test proves nothing.
-  m.ball.x = p.x + C.KICK_REACH + 34 + C.BALL_R; m.ball.y = p.y - C.BALL_R;
-  // Rolling in FASTER than a player runs: steering is instant now (PLAYER_SPEED), so the body
-  // turned left walks away from the ball at full speed on the very next tick, and a 260 px/s
-  // ball never caught it inside the swing.
-  m.ball.vx = -700; m.ball.vy = 0;
-  m.hitStop = 0;
-
-  // Swing facing RIGHT, then hold left before the ball is struck.
-  step(m, [{ kick: true }, {}]);
-  m.events.length = 0;
-  let struck = false;
-  for (let i = 0; i < 10 && !struck; i++) {
+  // THE SWING IS LATCHED AT THE PRESS (kickDir). Turn round mid-swing and the boot stays where it
+  // swung: a ball rolling into the held boot from the front is knocked back the way it swung.
+  const turned = (who) => {
+    const m = fresh();
+    const p = m.players[who], o = m.players[1 - who];
+    const dir = p.side;
+    p.x = 500; p.facing = dir; p.kickCd = 0; p.prev = {};
+    o.x = who ? 100 : 900;
+    m.ball.x = 60 + (who ? 900 : 0); m.ball.y = 100;
     m.hitStop = 0;
-    step(m, [{ left: true }, {}]);
-    struck = m.events.some((e) => e.type === 'strike');
+    const inp = (x) => (who ? [{}, x] : [x, {}]);
+    step(m, inp({ kick: true }));
+    for (let i = 0; i < 6; i++) { m.hitStop = 0; step(m, inp({ [dir > 0 ? 'left' : 'right']: true })); }
+    // the held boot is out on the attacking side, whatever the body is doing now
+    m.ball.x = p.x + dir * (1.88 * C.HEAD_R + C.BOOT_R + C.BALL_R - 2); m.ball.y = p.y - 2.2 * C.HEAD_R;
+    m.ball.vx = -dir * 300; m.ball.vy = 0;
     m.events.length = 0;
-  }
-  ok('(the ball was struck during the swing)', struck);
-  ok('a kick aimed right goes right even if you turn during it', m.ball.vx > 0,
-     `vx ${m.ball.vx.toFixed(0)} (turned left mid-swing)`);
-
-  // And the mirror, so this is about the rule and not about a sign: player two attacks LEFT,
-  // so player two's boot goes left, under exactly the same provocation.
-  const m2 = fresh();
-  const q = m2.players[1];
-  q.x = 500; q.facing = 1; q.kickCd = 0; q.prev = {};
-  m2.players[0].x = 100;
-  m2.ball.x = q.x - C.KICK_REACH - 46; m2.ball.y = q.y - C.BODY_H * 0.45;
-  m2.ball.vx = 700; m2.ball.vy = 0;
-  m2.hitStop = 0;
-  step(m2, [{}, { kick: true }]);
-  let struck2 = m2.events.some((e) => e.type === 'strike');   // it can meet on the press tick
-  m2.events.length = 0;
-  for (let i = 0; i < 10 && !struck2; i++) {
-    m2.hitStop = 0;
-    step(m2, [{}, { right: true }]);
-    struck2 = m2.events.some((e) => e.type === 'strike');
-    m2.events.length = 0;
-  }
-  ok('and player two\'s boot goes the other way for the same reason',
-     struck2 && m2.ball.vx < 0, `vx ${m2.ball.vx.toFixed(0)}`);
+    m.hitStop = 0; step(m, inp({}));                 // standing still for the touch itself
+    return { vx: m.ball.vx, dir, facing: p.facing };
+  };
+  const one = turned(0), two = turned(1);
+  ok('(he really did turn round mid-swing)', one.facing === -1 && two.facing === 1, `facing ${one.facing} / ${two.facing}`);
+  ok('a kick aimed right stays right even if you turn during it', one.vx > 0, `vx ${one.vx.toFixed(0)}`);
+  ok('and player two\'s boot goes the other way for the same reason', two.vx < 0, `vx ${two.vx.toFixed(0)}`);
 }
 
 // ── THE BOOT ONLY SWINGS FORWARD ──────────────────────────────────────────────
@@ -1263,10 +1229,11 @@ const jumpArc = (input) => {
     const p = m.players[0];
     p.x = 500; p.kickCd = 0; p.prev = {};
     m.players[1].x = 900;
-    m.ball.x = p.x + C.KICK_REACH; m.ball.y = p.y - C.BODY_H * 0.45;
-    m.ball.vx = 0; m.ball.vy = 0;
+    m.ball.x = 60; m.ball.y = 100;                  // out of the way while he walks
     // Walk first, so the facing has really turned before the kick is pressed.
     for (let i = 0; i < 6; i++) { m.hitStop = 0; step(m, [{ [dirKey]: true }, {}]); m.events.length = 0; }
+    m.ball.x = p.x + C.KICK_REACH; m.ball.y = p.y - C.BODY_H * 0.45;
+    m.ball.vx = 0; m.ball.vy = 0;
     m.hitStop = 0;
     step(m, [{ [dirKey]: true, kick: true }, {}]);
     return { vx: m.ball.vx, facing: p.facing };
@@ -1275,113 +1242,81 @@ const jumpArc = (input) => {
   const fwd = kickWhileWalking('right');
   ok('(walking left really does turn the body)', back.facing === -1, `facing ${back.facing}`);
   ok('a kick while walking backwards still goes forward', back.vx > 0, `vx ${back.vx.toFixed(0)}`);
-  ok('and it is the same kick you get walking forward',
-     Math.abs(back.vx - fwd.vx) < Math.abs(fwd.vx) * 0.5,
+  // The body's own speed rides on the boot (it is a body, as in HS's Box2D), so walking away
+  // from the shot takes some pace off it and walking into it adds some — the same swing either way.
+  ok('and walking into the kick hits it harder than walking away from it', fwd.vx > back.vx,
      `back ${back.vx.toFixed(0)} vs forward ${fwd.vx.toFixed(0)}`);
 }
 
-// ── WHERE ON THE BOOT ─────────────────────────────────────────────────────────
-// The contact point is the shot: the toe cap pokes it flat and fast, the whole foot gets under
-// it and lifts it. The neutral — the plain 1.0 kick — sits at KICK_TOE_NEUTRAL, near the ankle
-// end, because that is where a dribbled ball actually meets the boot.
+// ── THE BOOT IS A BODY ────────────────────────────────────────────────────────
+// Where and when the ball meets the swing is the shot (shared/kick.js): met by the climbing
+// boot it is flung up hard, resting on the held boot it only drops off, and a dashing body
+// adds its own speed to the boot's.
 {
-  // Struck at a chosen offset along the boot, from the ankle end (-1) to the toe cap (+1).
-  const kickAt = (along) => {
+  const setup = () => {
     const m = fresh();
     const p = m.players[0];
     p.x = 400; p.kickCd = 0; p.prev = {};
     m.players[1].x = C.W - 60;
-    // Against the CONTACT radius, which is what the sim divides the contact point by — the
-    // ball's centre reaches KICK_R + its own radius out and still touches the circle. Half a
-    // pixel inside it, because the sim's test is a strict `<` and dead on the rim is a miss.
-    m.ball.x = p.x + C.KICK_REACH + along * (C.KICK_R + m.ball.r - 0.5);
-    m.ball.y = p.y - C.BODY_H * 0.45;
-    m.ball.vx = 0; m.ball.vy = 0;
     m.hitStop = 0;
-    step(m, [{ kick: true }, {}]);
-    return { vx: m.ball.vx, vy: m.ball.vy };
+    return { m, p };
   };
-  // The ankle END of the circle is not sampled: it reaches far enough back to be inside the
-  // HEADER's slack around the head, and the header is resolved first, so a ball there is
-  // nodded rather than booted. -0.5 is the deepest a boot contact actually goes.
-  const toe = kickAt(0.95), mid = kickAt(0), foot = kickAt(-0.5);
-  ok('the toe cap drives it flat', Math.abs(toe.vy) < Math.abs(mid.vy) * 0.75,
-     `toe vy ${toe.vy.toFixed(0)} vs mid ${mid.vy.toFixed(0)}`);
-  ok('and the whole foot lifts it', Math.abs(foot.vy) > Math.abs(mid.vy) * 1.2,
-     `foot vy ${foot.vy.toFixed(0)} vs mid ${mid.vy.toFixed(0)}`);
-  ok('a toe-poke is the faster shot of the two', toe.vx > foot.vx,
-     `toe vx ${toe.vx.toFixed(0)} vs foot ${foot.vx.toFixed(0)}`);
-  ok('every one of them still goes forward', toe.vx > 0 && mid.vx > 0 && foot.vx > 0);
-  // THE FLAT SHOT IS REACHABLE, which is the whole point of the toe end: on the very tip the
-  // loft reaches zero and the ball leaves PARALLEL TO THE GRASS, straight at the goal. A shot
-  // that always climbed a little was not a flat shot, it was a slightly worse lofted one.
-  const tip = kickAt(1);
-  ok('the very tip of the boot hits it dead flat', Math.abs(tip.vy) < 1,
-     `vy ${tip.vy.toFixed(1)}`);
-  ok('and dead flat is the fastest thing the boot does, forward',
-     tip.vx > mid.vx * 1.25, `tip vx ${tip.vx.toFixed(0)} vs mid ${mid.vx.toFixed(0)}`);
-  // The aim adds LOFT, so it multiplies a flat shot by nothing: kick it straight and it stays
-  // straight however far out you are. Without this the bow quietly re-arced the driven shot.
-  const tipDeep = (() => {
-    const m = fresh();
-    const p = m.players[0];
-    p.x = 150; p.kickCd = 0; p.prev = {};            // as deep as the pitch gets
-    m.players[1].x = C.W - 60;
-    m.ball.x = p.x + C.KICK_REACH + C.KICK_R + m.ball.r - 0.5;   // the very tip; see kickAt
-    m.ball.y = p.y - C.BODY_H * 0.45;
-    m.ball.vx = 0; m.ball.vy = 0;
-    m.hitStop = 0;
-    step(m, [{ kick: true }, {}]);
-    return m.ball.vy;
+  // HS M5 80.59 s re-staged: the ball 48 px out at head height, rising off a bounce, met from
+  // underneath by the climbing boot — HS sends it straight up at ~1050 px/s.
+  const rise = (() => {
+    const { m, p } = setup();
+    m.ball.x = p.x + 48; m.ball.y = C.GROUND_Y - 45; m.ball.vx = 0; m.ball.vy = -310;
+    for (let i = 0; i < 8; i++) { m.hitStop = 0; step(m, [{ kick: i === 0 }, {}]); m.events.length = 0; }
+    return m.ball;
   })();
-  ok('a flat kick from deep is still flat — the bow cannot arc it', Math.abs(tipDeep) < 1,
-     `vy ${tipDeep.toFixed(1)}`);
-
-  // A ball DROPPING onto the boot is chipped: the foot is under it, which is the other axis.
-  const chip = (() => {
-    const m = fresh();
-    const p = m.players[0];
-    p.x = 400; p.kickCd = 0; p.prev = {};
-    m.players[1].x = C.W - 60;
-    m.ball.x = p.x + C.KICK_REACH; m.ball.y = p.y - C.BODY_H * 0.45 - C.KICK_R;
-    m.ball.vx = 0; m.ball.vy = 0;
-    m.hitStop = 0;
-    step(m, [{ kick: true }, {}]);
-    return m.ball.vy;
+  ok('the climbing boot flings a ball above it straight up, hard (HS M5: ~1050 up)',
+     rise.vy < -900 && Math.abs(rise.vx) < 200, `v (${rise.vx.toFixed(0)}, ${rise.vy.toFixed(0)})`);
+  // The held boot is still: a ball dropped onto it bounces off it like off any surface.
+  const held = (() => {
+    const { m, p } = setup();
+    m.ball.x = 60; m.ball.y = 100;                   // parked out of the way for the swing
+    for (let i = 0; i < 9; i++) { m.hitStop = 0; step(m, [{ kick: i === 0 }, {}]); m.events.length = 0; }
+    m.ball.x = p.x + 1.88 * C.HEAD_R; m.ball.y = p.y - 2.2 * C.HEAD_R - C.BOOT_R - C.BALL_R + 2;
+    m.ball.vx = 0; m.ball.vy = 150;
+    m.hitStop = 0; step(m, [{}, {}]);
+    return m.ball;
   })();
-  ok('a ball above the boot is chipped', Math.abs(chip) > Math.abs(mid.vy),
-     `chip ${chip.toFixed(0)} vs flat ${mid.vy.toFixed(0)}`);
+  ok('a ball dropped on the held boot only bounces off it',
+     held.vy < 0 && Math.hypot(held.vx, held.vy) < 200, `v (${held.vx.toFixed(0)}, ${held.vy.toFixed(0)})`);
+  // A dash under the ball at the feet: the body's 1790 px/s rides on the boot.
+  const kickRunning = (dash) => {
+    const { m, p } = setup();
+    if (dash) { p.dashT = C.DASH_TIME; p.dashDir = 1; }
+    m.ball.x = p.x + C.KICK_REACH + (dash ? 30 : 0); m.ball.y = C.GROUND_Y - m.ball.r; m.ball.vx = 0; m.ball.vy = 0;
+    step(m, [{ kick: true }, {}]);
+    return m.ball;
+  };
+  const still = kickRunning(false), dashed = kickRunning(true);
+  ok('a kick out of a dash goes far faster than one from a standstill',
+     Math.hypot(dashed.vx, dashed.vy) > Math.hypot(still.vx, still.vy) * 1.3,
+     `dash ${Math.hypot(dashed.vx, dashed.vy).toFixed(0)} vs still ${Math.hypot(still.vx, still.vy).toFixed(0)}`);
 }
 
 // ── MEETING THE BALL ──────────────────────────────────────────────────────────
-// A strike is a COLLISION. It used to be an assignment: the ball's own pace was thrown away
-// and a volley off a driven ball left at exactly the speed of a tap off a ball asleep on the
-// grass. Now what the ball brings into the boot comes back out of it.
+// A strike is a COLLISION (the boot is a body): what the ball brings into the boot comes back
+// out of it at BOOT_BOUNCE, on top of the boot's own swing.
 {
-  // Same contact point, same swing — the only difference is what the ball was doing.
   const strike = (ballVx) => {
     const m = fresh();
     const p = m.players[0];
     p.x = 400; p.kickCd = 0; p.prev = {};
     m.players[1].x = C.W - 60;
-    m.ball.x = p.x + C.KICK_REACH + C.KICK_R + m.ball.r - 0.5;   // the very tip; see kickAt
-    m.ball.y = p.y - C.BODY_H * 0.45;
+    m.ball.x = 60; m.ball.y = 100;
+    for (let i = 0; i < 9; i++) { m.hitStop = 0; step(m, [{ kick: i === 0 }, {}]); }
+    // straight into the front of the held boot
+    m.ball.x = p.x + 1.88 * C.HEAD_R + C.BOOT_R + C.BALL_R + 4; m.ball.y = p.y - 2.2 * C.HEAD_R;
     m.ball.vx = ballVx; m.ball.vy = 0;
-    m.hitStop = 0;
-    step(m, [{ kick: true }, {}]);
+    for (let i = 0; i < 2; i++) { m.hitStop = 0; step(m, [{}, {}]); }
     return m.ball.vx;
   };
-  const still = strike(0), met = strike(-600), fleeing = strike(600);
-  ok('volleying a ball driven at you hits it far harder', met > still * 1.4,
-     `met ${met.toFixed(0)} vs still ${still.toFixed(0)}`);
-  // Only the pace coming AT the boot counts. A ball already running away is caught up with and
-  // struck, not smashed — otherwise chasing a loose ball would be the best shot in the game.
-  // Not exactly equal: a ball running away gets a little further out before the boot catches
-  // it, so it is met a little nearer the toe, and the toe hits harder. That is a real few per
-  // cent and not the meet term leaking in — what this asserts is that it is nothing like the
-  // gain a ball driven AT the boot earns.
-  ok('and a ball running away is not', fleeing < still + (met - still) * 0.15,
-     `fleeing ${fleeing.toFixed(0)} vs still ${still.toFixed(0)}, met ${met.toFixed(0)}`);
+  const met = strike(-600);
+  ok('a ball driven into the held boot comes back off it at the boot\'s bounce',
+     met > 600 * C.BOOT_BOUNCE * 0.85 && met < 600, `back at ${met.toFixed(0)} off 600`);
 }
 {
   // THE ULTIMATE LEAVES FROM WHERE THE BODY MET THE BALL, and it never fetches the ball. An
@@ -2353,9 +2288,10 @@ const jumpArc = (input) => {
     w.x = a.x + C.KICK_REACH; w.y = C.GROUND_Y - 20; w.vy = 0; w.onGround = false;
     a.kickCd = 0; a.prev = {}; a.facing = 1; w.facing = -1;
     const s0 = w.x;
+    // The boot meets him on its way up (shared/kick.js), a tick or two into the swing.
     step(n, [{ kick: true }, {}]);
-    const lift = w.vy < 0;
-    run(n, 60);
+    let lift = w.vy < 0;
+    for (let i = 0; i < 60; i++) { step(n, NONE); if (i < 6 && w.vy < 0) lift = true; }
     ok('an airborne victim is lifted and carried off (> 90 px)', lift && (w.x - s0) * -w.side > 90, `vy<0=${lift}, ${((w.x - s0) * -w.side).toFixed(0)} px`);
   }
   {
