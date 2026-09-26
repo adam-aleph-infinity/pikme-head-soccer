@@ -475,22 +475,52 @@ body.safedemo { --safe-l: 44px; --safe-r: 44px; --safe-b: 21px; --safe-t: 12px; 
   .rotate b { font-size: 64px; color: #ffd23c; animation: rot 1.6s ease-in-out infinite; }
 }
 @keyframes rot { 0%, 30% { transform: rotate(0); } 70%, 100% { transform: rotate(90deg); } }
-/* THE VS INTRO: a red streak band across the middle, the heads sliding in from each side */
+/* THE VS INTRO ("face off"): a red band across the middle with a gold trim, speed streaks and a
+   light sweep; both heads centred IN it, sliding in from each side; the Saltiz badge between
+   them with a gold VS across it. */
 .vs {
-  position: absolute; inset: 0; z-index: 45; pointer-events: none; direction: ltr;
-  display: flex; align-items: center; justify-content: center; gap: 6vw;
-  background: linear-gradient(172deg, #0000 34%, #7a0008 34.5%, #d0101c 40%, #ff3a2a 50%, #d0101c 60%, #7a0008 65.5%, #0000 66%);
-  animation: vsBand 1.5s ease-out both;
+  position: absolute; inset: 0; z-index: 45; pointer-events: none; direction: ltr; overflow: hidden;
+  display: flex; align-items: center; justify-content: center; gap: 3vw;
+  background: radial-gradient(ellipse at 50% 50%, #0000 40%, #000a 100%);
+  animation: vsFade 1.5s ease-out both;
 }
-.vs-face { display: block; width: 30vh; height: 30vh; border-radius: 50%; background: no-repeat; }
-.vs-face.char-face { width: 38vh; height: 38vh; }
-#vsFace0 { animation: vsInL .35s ease-out both; }
-#vsFace1 { animation: vsInR .35s ease-out both; }
-.vs-txt { font-size: 22vh; animation: vsPop .3s .25s cubic-bezier(.2, 1.5, .5, 1) both; }
-@keyframes vsBand { 0% { opacity: 0; } 12% { opacity: 1; } 85% { opacity: 1; } 100% { opacity: 0; } }
-@keyframes vsInL { from { transform: translateX(-60vw); } }
-@keyframes vsInR { from { transform: translateX(60vw); } }
-@keyframes vsPop { from { transform: scale(2.4); opacity: 0; } }
+.vs-band {
+  position: absolute; left: -6%; right: -6%; top: 50%; height: 54vh; overflow: hidden;
+  transform: translateY(-50%) skewY(-4deg);
+  background: linear-gradient(180deg, #4a0005 0%, #a80c16 14%, #e3222b 50%, #a80c16 86%, #4a0005 100%);
+  box-shadow: 0 -0.7vh 0 #ffd23c, 0 0.7vh 0 #ffd23c, 0 -1.4vh 0 #5a2a00, 0 1.4vh 0 #5a2a00, 0 2vh 6vh #000c;
+  animation: vsBandIn .32s cubic-bezier(.2, .9, .3, 1) both;
+}
+.vs-band::before {                       /* speed streaks racing across */
+  content: ''; position: absolute; inset: 0;
+  background: repeating-linear-gradient(100deg, #0000 0 5vh, #ffffff12 5vh 5.6vh, #0000 5.6vh 9vh, #00000022 9vh 9.4vh);
+  animation: vsStreak .6s linear infinite;
+}
+.vs-band::after {                        /* one bright sweep of light */
+  content: ''; position: absolute; top: 0; bottom: 0; width: 30%; left: -35%;
+  background: linear-gradient(100deg, #fff0 0%, #fff6 50%, #fff0 100%);
+  animation: vsSweep 1s .3s ease-in-out both;
+}
+.vs-face { position: relative; display: block; width: 36vh; height: 36vh; border-radius: 50%; background: no-repeat; filter: drop-shadow(0 1vh 1.5vh #0009); }
+.vs-face.char-face { width: 44vh; height: 44vh; }
+#vsFace0 { animation: vsInL .38s .08s cubic-bezier(.2, 1.2, .4, 1) both; }
+#vsFace1 { animation: vsInR .38s .08s cubic-bezier(.2, 1.2, .4, 1) both; }
+.vs-mid { position: relative; width: 30vh; height: 30vh; display: grid; place-items: center; }
+.vs-badge {
+  position: absolute; inset: 0; border-radius: 50%; overflow: hidden; background: #000;
+  box-shadow: 0 0 0 1vh #ffd23c, 0 0 0 1.7vh #5a2a00, 0 0 4vh 1vh #ffb80099;
+  animation: vsBadge .45s .2s cubic-bezier(.2, 1.4, .4, 1) both;
+}
+.vs-badge img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.vs-txt { position: relative; font-size: 17vh; margin-top: 22vh; animation: vsPop .3s .45s cubic-bezier(.2, 1.5, .5, 1) both; }
+@keyframes vsFade { 0% { opacity: 0; } 10% { opacity: 1; } 86% { opacity: 1; } 100% { opacity: 0; } }
+@keyframes vsBandIn { from { transform: translateY(-50%) skewY(-4deg) scaleY(0); } }
+@keyframes vsStreak { to { background-position: 18vh 0; } }
+@keyframes vsSweep { to { left: 110%; } }
+@keyframes vsInL { from { transform: translateX(-70vw); } }
+@keyframes vsInR { from { transform: translateX(70vw); } }
+@keyframes vsBadge { from { transform: scale(0) rotate(-200deg); } }
+@keyframes vsPop { from { transform: scale(2.6); opacity: 0; } }
 .over-btns { display: flex; gap: 10px; justify-content: center; margin-top: 12px; }
 .over-btns button {
   padding: 12px 22px; border-radius: 12px; font-weight: 800;
