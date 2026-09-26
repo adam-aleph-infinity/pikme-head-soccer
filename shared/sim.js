@@ -3,7 +3,7 @@
 // football-mock's shared/sim.js, so wiring this to a server later is a lift-and-shift.
 
 import * as C from './constants.js';
-import { kickPose, bootAt } from './kick.js';
+import { bootPose, kickPose } from './kick.js';
 import { walkBounds, barY, barCeiling, goalBox, ballInGoal, keepOutOfGoal } from './goalbox.js';
 import { championFor } from './champions.js';
 import {
@@ -1220,12 +1220,13 @@ function tryTackle(m, p, fx) {
   const foe = m.players[1 - p.index];
   if (foe.tackleImmune > 0) return false;
 
-  // Where the boot IS: the same swing the ball bounces off (shared/kick.js), tested at this
-  // tick's pose. Over the swing that sweeps from the knee to the face, so a jumping opponent
+  // Where the boot IS (shared/kick.js), tested at this tick's pose. Over the swing that sweeps from the knee to the face, so a jumping opponent
   // above the hip is met on the way up, as in HS.
+  // The DRAWN swing (kickPose), which the HS knockback measurements were taken against; the
+  // ball's own contact path (bootPose) differs only in its first three frames along the grass.
   const k = (C.KICK_TIME - p.kickT) / C.KICK_TIME;
-  const bt = bootAt(p.x, p.y, p.kickDir || p.side, k);
-  return tackleAt(m, p, foe, fx, bt.x, bt.y);
+  const [f, u] = kickPose(k), dir = p.kickDir || p.side;
+  return tackleAt(m, p, foe, fx, p.x + dir * f * C.HEAD_R, p.y - u * C.HEAD_R);
 }
 
 function tackleAt(m, p, foe, fx, kx, ky) {
@@ -1368,7 +1369,7 @@ function resolveBallPlayers(m, fx, alpha = 1) {
       const dir = p.kickDir || p.side;              // the swing, as latched at the press
       const R = C.HEAD_R, dk = C.TICK / C.KICK_TIME;
       const k = (C.KICK_TIME - p.kickT) / C.KICK_TIME - dk * (1 - alpha);
-      const now = kickPose(k), was = kickPose(k - dk);
+      const now = bootPose(k), was = bootPose(k - dk);
       const bx = px + dir * now[0] * R, by = py - now[1] * R;
       const dx = b.x - bx, dy = b.y - by, d = Math.hypot(dx, dy), min = C.BOOT_R + b.r;
       // Only a ball IN FRONT of the body is the boot's. The boot leaves its rest pose inside the
@@ -1382,7 +1383,11 @@ function resolveBallPlayers(m, fx, alpha = 1) {
         if (!b.power) {
           // ARMED: this touch is the one that spends it (see the note above the boot).
           if (p.armed > 0 && fireUltimateOnContact(m, p, b, fx)) { p.kickT = 0; return; }
-          const nx = dx / d, ny = dy / d;
+          // Always out the FRONT of the boot: a dashing body carries the boot 30 px in a tick, and
+          // a boot that got past the ball's centre inside one step would bounce it backwards
+          // through the player.
+          const fdx = dir * Math.abs(dx), fd = Math.hypot(fdx, dy);
+          const nx = fdx / fd, ny = dy / fd;
           b.x = bx + nx * min; b.y = by + ny * min;
           // The boot's velocity: its path over the last tick, faster by the kick stat, plus the body's.
           const drive = p.stats.kick / C.TICK;

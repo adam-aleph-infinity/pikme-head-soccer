@@ -17,7 +17,7 @@ import { stepPower, launch as launchPower, FAMILIES } from './hs-powers.js';
 const BOOT_POINTS = bootReach();
 // CPU habits fitted to HS (test-hs-parity cpu.* rows, _cpu probe): per 0.25 s roll while it has
 // somewhere to be, and the chance a close ball in front gets the boot mashed at it.
-const DASH_BASE = 0.03, DASH_SKILL = 0.55, HOP = 0.075, MASH_SKILL = 0.12, LAZY = 0.15, KICK_GO = 0.2;
+const DASH_BASE = 0.03, DASH_SKILL = 0.55, HOP = 0.075, MASH_SKILL = 0.12, LAZY = 0.15, KICK_GO = 0.2, PRESS_BASE = 0.44, PRESS_SKILL = 0.1;
 
 // `aggression` is flat across the tiers: it is how often a bot chases a ball the other player is
 // nearer to, and it was measured three times over (on the old physics) to be the one dial that
@@ -455,7 +455,7 @@ function openPlay(bot, m, p, foe, b, out, d, dt) {
     const behind = (meet.x - p.x) * side < -20 && toMyGoal;
     if (behind) target = meet.x - side * 20;
     // Never further forward than the tier will go: its pressing depth.
-    const cap = myGoalX + side * C.W * (0.5 + 0.15 * s);
+    const cap = myGoalX + side * C.W * (PRESS_BASE + PRESS_SKILL * s);
     target = side > 0 ? Math.min(target, cap) : Math.max(target, cap);
     // ARMED: the power goes off on ANY touch of the ball (kick, head or body — shared/sim.js
     // fireUltimateOnContact), so an armed bot simply runs into the ball. Generic on purpose:

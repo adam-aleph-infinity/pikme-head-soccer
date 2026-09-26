@@ -1232,7 +1232,9 @@ const jumpArc = (input) => {
     m.ball.x = 60; m.ball.y = 100;                  // out of the way while he walks
     // Walk first, so the facing has really turned before the kick is pressed.
     for (let i = 0; i < 6; i++) { m.hitStop = 0; step(m, [{ [dirKey]: true }, {}]); m.events.length = 0; }
-    m.ball.x = p.x + C.KICK_REACH; m.ball.y = p.y - C.BODY_H * 0.45;
+    // at the feet: the boot's first frames go slowly along the grass (shared/kick.js BOOT_PATH),
+    // and a body walking away from the ball takes its speed off them
+    m.ball.x = p.x + 34; m.ball.y = C.GROUND_Y - m.ball.r;
     m.ball.vx = 0; m.ball.vy = 0;
     m.hitStop = 0;
     step(m, [{ [dirKey]: true, kick: true }, {}]);

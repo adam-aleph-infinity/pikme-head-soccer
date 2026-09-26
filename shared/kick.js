@@ -48,16 +48,49 @@ export function kickPose(k) {
   return [a[1] + (b[1] - a[1]) * u, a[2] + (b[2] - a[2]) * u, a[3] + (b[3] - a[3]) * u];
 }
 
-// The boot's centre in the world for a player whose feet are at (x, y), attacking `dir`, with
-// the swing at progress k. Offsets scale with the head (the whole character does).
+// WHAT THE BALL FEELS IS NOT QUITE WHAT IS DRAWN. HS's drawn boot flicks forward and up in one
+// frame, but a ball on the grass in front of it is not flicked: M1 60.21 s (Idan standing in his
+// own goal, the ball rolling in 40 px ahead, KICK and nothing else) — the ball starts moving the
+// frame after the press and rolls away FLAT at ~450 px/s, while the drawn boot is already up at
+// head height. And a ball above the boot while it climbs goes straight up hard (M5 80.59 s, ~1050
+// px/s). So the boot's collision runs its own path for the first three frames — level at a ball's
+// height on the grass and slow along it (0.17 R a frame, ~270 px/s, which a 0.68 bounce turns
+// into HS's 465, flat — M1 3612–3624, 7.75 px a frame on the grass) — and from the fourth frame on it IS the drawn climb (KICK_KEYS), the same
+// held pose and snap-back. [progress, forward, up] in head radii off the feet.
+export const BOOT_PATH = [
+  [0.000, 0.79, 0.66],
+  [0.064, 0.96, 0.66],
+  [0.128, 1.13, 0.66],
+  [0.192, 1.78, 1.34],
+  [0.256, 1.85, 1.80],
+  [0.320, 1.88, 2.10],
+  [0.550, 1.88, 2.20],
+  [0.920, 1.84, 2.15],
+  [1.000, 1.00, 0.60],
+];
+export function bootPose(k) {
+  if (k < 0) {
+    const u = Math.max(0, 1 + k / (C.TICK / C.KICK_TIME));
+    const a = BOOT_REST, b = BOOT_PATH[0];
+    return [a[0] + (b[1] - a[0]) * u, a[1] + (b[2] - a[1]) * u];
+  }
+  let i = 0;
+  while (i < BOOT_PATH.length - 2 && k > BOOT_PATH[i + 1][0]) i++;
+  const a = BOOT_PATH[i], b = BOOT_PATH[i + 1];
+  const u = Math.max(0, Math.min(1, (k - a[0]) / (b[0] - a[0])));
+  return [a[1] + (b[1] - a[1]) * u, a[2] + (b[2] - a[2]) * u];
+}
+
+// The boot's centre, as the ball feels it, for a player whose feet are at (x, y), attacking
+// `dir`, with the swing at progress k. Offsets scale with the head (the whole character does).
 export function bootAt(x, y, dir, k, R = C.HEAD_R) {
-  const [f, u] = kickPose(k);
+  const [f, u] = bootPose(k);
   return { x: x + dir * f * R, y: y - u * R };
 }
 
 // The places the boot passes through, for anything that has to guess its reach ahead of time
 // (the CPU deciding when to press, the early block): [forward, up] in world px from the feet.
 export function bootReach(R = C.HEAD_R) {
-  return [[BOOT_REST[0], BOOT_REST[1]], ...KICK_KEYS.slice(0, 7).map((k) => [k[1], k[2]])]
+  return [[BOOT_REST[0], BOOT_REST[1]], ...BOOT_PATH.slice(0, 8).map((k) => [k[1], k[2]])]
     .map(([f, u]) => [f * R, u * R]);
 }
