@@ -1371,7 +1371,11 @@ function resolveBallPlayers(m, fx, alpha = 1) {
       const now = kickPose(k), was = kickPose(k - dk);
       const bx = px + dir * now[0] * R, by = py - now[1] * R;
       const dx = b.x - bx, dy = b.y - by, d = Math.hypot(dx, dy), min = C.BOOT_R + b.r;
-      if (d < min && d > 1e-6) {
+      // Only a ball IN FRONT of the body is the boot's. The boot leaves its rest pose inside the
+      // front of the body, and a ball already against the chest (a dash running onto it) would be
+      // shoved backwards through the player by it — that ball is the body's, whose push fires it
+      // on at the dash cap (HS M5 65.28 s: dash + kick onto a ball at the feet, 2270 px/s flat).
+      if (d < min && d > 1e-6 && dir * (b.x - px) > C.BODY_W / 2) {
         // ARMED BEATS INCOMING off the boot too: HS's counter is any touch by an armed player
         // (§4), so a swing that meets their shot fires yours, just as the head and body do.
         if (b.power && b.power.owner !== p.index && p.armed > 0 && fireUltimateOnContact(m, p, b, fx)) { p.kickT = 0; return; }

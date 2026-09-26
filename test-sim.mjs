@@ -1297,6 +1297,20 @@ const jumpArc = (input) => {
      `dash ${Math.hypot(dashed.vx, dashed.vy).toFixed(0)} vs still ${Math.hypot(still.vx, still.vy).toFixed(0)}`);
 }
 
+// ── A DASH ONTO THE BALL WITH THE BOOT OUT ────────────────────────────────────
+// The boot leaves its rest pose inside the front of the body; it used to shove a ball already
+// against the chest backwards THROUGH a dashing player. HS M5 65.28 s: dash + kick onto a ball at
+// the feet sends it on, flat, at the dash cap (~2270 px/s).
+{
+  const m = fresh();
+  const p = m.players[0]; p.x = 200; p.prev = {};
+  m.players[1].x = 1000;
+  m.ball.x = 270; m.ball.y = C.GROUND_Y - m.ball.r; m.ball.vx = 0; m.ball.vy = 0;
+  for (let i = 0; i < 10; i++) { m.hitStop = 0; step(m, [{ right: i === 1 || i === 3 || i > 3, kick: i === 4 }, {}]); m.events.length = 0; }
+  ok('a dash with the boot out never runs through the ball', m.ball.x > p.x && m.ball.vx > 1500,
+     `ball ${(m.ball.x - p.x).toFixed(0)} px ahead at ${m.ball.vx.toFixed(0)} px/s`);
+}
+
 // ── MEETING THE BALL ──────────────────────────────────────────────────────────
 // A strike is a COLLISION (the boot is a body): what the ball brings into the boot comes back
 // out of it at BOOT_BOUNCE, on top of the boot's own swing.

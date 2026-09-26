@@ -334,7 +334,7 @@
     "scenario": "runJump",
     "status": "estimated",
     "source": "M5 6.46–15.81 s: Idan's jump tests, 8 airborne runs with an arrow held (238, 229, 240, 252, 241, 246, 241, 230 px/s)",
-    "how": "Face-centroid x (_hs-m5.mjs), a straight-line fit over each run of ≥10 frames more than 8 px off the grass while L or R is lit.",
+    "how": "Face-centroid x (_hs-track-match.mjs), a straight-line fit over each run of ≥10 frames more than 8 px off the grass while L or R is lit.",
     "note": "Against 224–228 on the grass in the same takes (9 runs; M4: 228). Steering in the air is instant: the arrow let go at the top stops the body dead, the other arrow reverses it the same frame."
   },
   {
@@ -496,7 +496,7 @@
     "status": "estimated",
     "source": "M5 80.59–80.71 s (frames 4844–4855): Idan stands still mashing KICK; the ball, rising ~260 px/s off a bounce 48 px ahead at head height, is met by the climbing boot",
     "note": "Supersedes M4 48.41/88.81/155.99/161.86 s (379, 356, 647, 402 px/s): at M4's resolution it could not be told whether those touches met the boot on its climb, the held boot or the head, and their speed, angle and apex disagree with each other. The M5 kick is read frame by frame, boot and ball both.",
-    "how": "Ball centre tracked per frame (_hs-m5.mjs); launch from the 6 frames after contact: 16–18 px up per frame, ~0 across."
+    "how": "Ball centre tracked per frame (_hs-track-match.mjs); launch from the 6 frames after contact: 16–18 px up per frame, ~0 across."
   },
   {
     "id": "kick.head.angle",
