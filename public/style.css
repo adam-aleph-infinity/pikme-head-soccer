@@ -1557,7 +1557,8 @@ body.editing .pad .btn .grip {
 .pad .pad-r .btn + .btn { margin-left: calc(var(--hb) * (.1 - .31)); }
 .pad .pad-l .btn, .pad .pad-r .btn {
   opacity: 1; background: none; border: 0; box-shadow: none; backdrop-filter: none; padding: 0; margin: 0;
-  height: calc(var(--hb) * var(--s)); min-width: 0; flex: none; border-radius: 0; position: relative; animation: none;
+  height: calc(var(--hb) * var(--s)); min-width: 0; flex: none;
+  filter: none;                       /* the old arrows' drop shadow showed THROUGH the glass and darkened them */ border-radius: 0; position: relative; animation: none;
 }
 .pad .pad-l .btn::before, .pad .pad-l .btn::after, .pad .pad-r .btn::before, .pad .pad-r .btn::after { display: none; }
 .pad .pad-l .btn { width: calc(var(--hb) * var(--s) * 3.0); height: calc(var(--hb) * var(--s) * 1.03); }
