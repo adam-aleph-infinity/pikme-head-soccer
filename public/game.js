@@ -1784,6 +1784,30 @@ function drawHeadNet() {
       ctxNet.restore();
     }
   }
+  // THE NEAR FRAME OVER A PLAYER IN THE NET. The front post, the wall post and the rails between
+  // them stand on the near plane, so a player whose centre is past the goal line is BEHIND them —
+  // but the body and the head are layers above the pitch canvas that draws the frame, and they
+  // used to wipe the post out whenever someone walked in. So those members are stroked again up
+  // here, over everything. (Not the crossbar: it recedes into the screen — see drawGoalFrontRaw.)
+  for (const left of [true, false]) {
+    const box = goalBox(left);
+    if (M.players.some((p) => (left ? p.x < box.lineX : p.x > box.lineX))) drawNearFrame(ctxNet, left);
+  }
+}
+function drawNearFrame(g, left) {
+  const { bar, nFT, nFB, nBT, nBB } = goalCorners(left);
+  g.save();
+  g.lineCap = 'round'; g.lineJoin = 'round';
+  g.strokeStyle = '#ffffff';
+  g.lineWidth = bar * 0.8;
+  line(g, nBT, nBB);                      // near post, at the wall
+  line(g, nBB, nFB);                      // near ground rail
+  g.lineWidth = bar;
+  line(g, nFT, nBT);                      // the near top rail
+  line(g, nFT, nFB);                      // the front post, on the goal line
+  g.fillStyle = '#ffffff';
+  g.beginPath(); g.arc(nFT[0], nFT[1], bar * 0.6, 0, 6.2832); g.fill();
+  g.restore();
 }
 
 // THE NEAR NET OVER A BODY IN THE GOAL. The bodies are on #cvbody, above the pitch canvas that
