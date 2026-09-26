@@ -1359,7 +1359,12 @@ function resize() {
   // HS: the players' feet at 82% of the screen's height, the buttons on the floor below them
   // (hs-video/M1, M4). The band under the ground line is that 18%.
   const band = vh * 0.18 + safeInset('b');
-  const scale = Math.min(vw / C.W, (vh - band) / C.VIEW_ABOVE_GROUND);
+  // HS FILLS THE WIDTH: the goals stand at the screen's edges, never black bars beside the pitch
+  // (Idan). On a phone wider than HS's own screen that crops a strip of sky off the top instead.
+  const scale = vw / C.W;
+  // …and if the screen is taller than that (a squarer one), the canvas carries more sky, so no
+  // black strip shows above it either.
+  SKY_TOP = Math.max(SKY_TOP, 2 * Math.ceil(((vh - band) / scale - C.GROUND_Y) / 2) + 2);
   const w = C.W * scale, h = (SKY_TOP + C.H + BLEED) * scale;
 
   // The stage is the whole viewport, so the HUD and the pad — which are positioned against

@@ -94,11 +94,13 @@ function tier(g, W, top, bot, seed, aisles, night) {
 
 function stadium(night, seed) {
   return (g, s) => {
-    const W = s.W, roofTop = s.gy * 0.215, roofBot = roofTop + 16;
-    const midA = s.gy * 0.49, midB = midA + 17, bot = s.crowdBot + 8;
+    // placed off HS's screen (M4 30.2 s): the roof ~22% down it, the banner strip ~40%, with the
+    // pitch filling the phone's width (game.js resize) — which crops the world above y ≈ 33
+    const W = s.W, roofTop = s.gy * 0.33, roofBot = roofTop + 14;
+    const midA = s.gy * 0.555, midB = midA + 15, bot = s.crowdBot + 8;
     sky(g, W, 0, roofTop, night);
-    mast(g, W * 0.1, 8, roofTop + 4, night);
-    mast(g, W * 0.9, 8, roofTop + 4, night);
+    mast(g, W * 0.1, roofTop - 88, roofTop + 4, night);
+    mast(g, W * 0.9, roofTop - 88, roofTop + 4, night);
     // the roof edge
     g.fillStyle = night ? '#1b2030' : '#dfe4ea'; g.fillRect(0, roofTop, W, roofBot - roofTop);
     g.fillStyle = night ? '#0e121c' : '#8d96a3'; g.fillRect(0, roofBot - 4, W, 4);
