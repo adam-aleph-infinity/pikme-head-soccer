@@ -161,14 +161,14 @@ function makeShot(family, o = {}) {
 }
 
 // ── stats ───────────────────────────────────────────────────────────────────────
-// HS's 1–10 stat levels → multipliers (estimated spread: level 1 runs and kicks ~20% under an
+// HS's 1–10 stat levels → multipliers (estimated spread: level 1 runs 25% and kicks 40% under an
 // average body and jumps ~14% under, level 10 as far over). Only an arcade champion has levels;
 // everyone else is EQUAL.
 export const EQUAL_STATS = Object.freeze({ speed: 1, jump: 1, kick: 1 });
 const lvl = (L, lo, hi) => lo + (hi - lo) * (Math.max(1, Math.min(10, L || 5.5)) - 1) / 9;
 export function statsFor(levels) {
   if (!levels) return EQUAL_STATS;
-  return { speed: lvl(levels.speed, 0.8, 1.2), jump: lvl(levels.jump, 0.86, 1.14), kick: lvl(levels.kick, 0.8, 1.2) };
+  return { speed: lvl(levels.speed, 0.75, 1.25), jump: lvl(levels.jump, 0.86, 1.14), kick: lvl(levels.kick, 0.6, 1.4) };
 }
 // The POWER stat is how fast the gauge fills: level 5–6 is the starter's 15s, 10 is 25% faster.
 export const meterRateFor = (L) => (L ? 0.8 + (Math.max(1, Math.min(10, L)) - 1) * 0.05 : 1);

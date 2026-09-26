@@ -208,11 +208,15 @@ export const KICK_COOLDOWN = 0.349;
 // the pair, so everything the ball touches reads alike.
 // The boot is drawn 24 x 13.5 px; its collision is a disc of the boot's mean half-size.
 export let BOOT_R = 9;
-export let BOOT_BOUNCE = 0.68;
+export let BOOT_BOUNCE = 0.5;
 // Grip across the contact (Box2D friction): how much of the ball's sliding speed across the
 // boot's face the strike takes with it, as a fraction of the normal impulse, Coulomb-capped.
 // Small: the M5 kick left with no sideways speed although the boot was still inching forward.
 export let BOOT_GRIP = 0.1;
+// How much of the boot's path speed the ball feels (fitted: see below).
+export let BOOT_DRIVE = 1;
+// …and how much of the BODY's speed rides on the boot (fitted: see below).
+export let BOOT_BODY = 0;
 // The kick stat (1–10, arcade only) swings the boot faster, not further: HS "the higher the
 // Kick, the further the ball travels and the faster it goes" (wiki, Stats).
 //

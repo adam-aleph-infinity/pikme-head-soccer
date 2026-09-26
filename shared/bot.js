@@ -17,7 +17,7 @@ import { stepPower, launch as launchPower, FAMILIES } from './hs-powers.js';
 const BOOT_POINTS = bootReach();
 // CPU habits fitted to HS (test-hs-parity cpu.* rows, _cpu probe): per 0.25 s roll while it has
 // somewhere to be, and the chance a close ball in front gets the boot mashed at it.
-const DASH_BASE = 0.03, DASH_SKILL = 0.55, HOP = 0.075, MASH_SKILL = 0.12, LAZY = 0.15, KICK_GO = 0.2, PRESS_BASE = 0.44, PRESS_SKILL = 0.1;
+const DASH_BASE = 0.03, DASH_SKILL = 0.55, HOP = 0.075, MASH_SKILL = 0.3, LAZY = 0.15, KICK_GO = 0.2, PRESS_BASE = 0.44, PRESS_SKILL = 0.1;
 
 // `aggression` is flat across the tiers: it is how often a bot chases a ball the other player is
 // nearer to, and it was measured three times over (on the old physics) to be the one dial that

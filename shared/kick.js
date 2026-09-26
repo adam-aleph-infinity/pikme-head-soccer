@@ -58,12 +58,12 @@ export function kickPose(k) {
 // into HS's 465, flat — M1 3612–3624, 7.75 px a frame on the grass) — and from the fourth frame on it IS the drawn climb (KICK_KEYS), the same
 // held pose and snap-back. [progress, forward, up] in head radii off the feet.
 export const BOOT_PATH = [
-  [0.000, 0.79, 0.66],
-  [0.064, 0.96, 0.66],
-  [0.128, 1.13, 0.66],
-  [0.192, 1.78, 1.34],
-  [0.256, 1.85, 1.80],
-  [0.320, 1.88, 2.10],
+  [0.000, 0.83, 0.66],
+  [0.064, 1.04, 0.66],
+  [0.128, 1.25, 0.66],
+  [0.192, 1.60, 1.00],
+  [0.256, 1.82, 1.58],
+  [0.320, 1.88, 2.14],
   [0.550, 1.88, 2.20],
   [0.920, 1.84, 2.15],
   [1.000, 1.00, 0.60],

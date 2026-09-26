@@ -1365,7 +1365,10 @@ function resolveBallPlayers(m, fx, alpha = 1) {
     //
     // The boot fires the ultimate too: HS fires the armed shot on the next touch of ANY kind —
     // kick, header or body (headsoccer.wiki.gg/wiki/Controls; Idan's M3/M4 footage).
-    if (p.kickT > 0) {
+    // …and not once the hold is over: the snap back to the feet (the last 8% of the swing) is
+    // drawn, not swung — met by it, a ball was being fired down-and-back at ~860 px/s, a strike
+    // HS never shows.
+    if (p.kickT > C.KICK_TIME * 0.08) {
       const dir = p.kickDir || p.side;              // the swing, as latched at the press
       const R = C.HEAD_R, dk = C.TICK / C.KICK_TIME;
       const k = (C.KICK_TIME - p.kickT) / C.KICK_TIME - dk * (1 - alpha);
@@ -1390,9 +1393,13 @@ function resolveBallPlayers(m, fx, alpha = 1) {
           const nx = fdx / fd, ny = dy / fd;
           b.x = bx + nx * min; b.y = by + ny * min;
           // The boot's velocity: its path over the last tick, faster by the kick stat, plus the body's.
-          const drive = p.stats.kick / C.TICK;
-          const vbx = dir * (now[0] - was[0]) * R * drive + p.vx;
-          const vby = -(now[1] - was[1]) * R * drive + p.vy;
+          const drive = C.BOOT_DRIVE * p.stats.kick / C.TICK;
+          // The body's own motion: all of a dash (HS M5 65.28 s, dash + kick: the ball leaves at the
+          // dash cap, 2270 flat), none of a walk (HS's kicks at the feet leave at ~450 walking or
+          // standing — the typical HS boot kick across M1–M5 is 445 px/s, n = 20).
+          const body = p.dashT > 0 ? 1 : C.BOOT_BODY;
+          const vbx = dir * (now[0] - was[0]) * R * drive + p.vx * body;
+          const vby = -(now[1] - was[1]) * R * drive + p.vy * body;
           const rvx = b.vx - vbx, rvy = b.vy - vby;
           const vn = rvx * nx + rvy * ny;
           if (vn < 0) {

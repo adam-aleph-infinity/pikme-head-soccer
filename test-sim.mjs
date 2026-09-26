@@ -1244,9 +1244,10 @@ const jumpArc = (input) => {
   const fwd = kickWhileWalking('right');
   ok('(walking left really does turn the body)', back.facing === -1, `facing ${back.facing}`);
   ok('a kick while walking backwards still goes forward', back.vx > 0, `vx ${back.vx.toFixed(0)}`);
-  // The body's own speed rides on the boot (it is a body, as in HS's Box2D), so walking away
-  // from the shot takes some pace off it and walking into it adds some — the same swing either way.
-  ok('and walking into the kick hits it harder than walking away from it', fwd.vx > back.vx,
+  // A walk does not ride on the boot (HS's kicks at the feet leave at ~450 walking or standing;
+  // only a dash does — sim.js BOOT_BODY), so it is about the same kick either way.
+  ok('and walking into the kick or away from it is about the same kick',
+     Math.abs(fwd.vx - back.vx) < 0.35 * Math.max(fwd.vx, back.vx),
      `back ${back.vx.toFixed(0)} vs forward ${fwd.vx.toFixed(0)}`);
 }
 
