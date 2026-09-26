@@ -207,9 +207,13 @@ export function keepOutOfGoal(fromX, fromY, toX, toY, r) {
 // is the wall — you can stand in your own goal, which is what a goalkeeper is for. Level with
 // the frame or above it the goal is solid: you cannot arrive through the roof, and the goal
 // line is the wall again.
+//
+// Inside the net the player walks on until their CENTRE is at the back of the pitch, so half
+// the body is past the edge, hidden in the black bars. Stopped a body-width short, a keeper
+// standing in the net filled the whole mouth and nothing could get past them to score.
 export function walkBounds(w, underBar) {
-  const edge = underBar ? C.POST_R : C.GOAL_W;
-  return { lo: edge + w / 2, hi: C.W - edge - w / 2 };
+  if (underBar) return { lo: 0, hi: C.W };
+  return { lo: C.GOAL_W + w / 2, hi: C.W - C.GOAL_W - w / 2 };
 }
 
 // THE CROSSBAR, AS THE THING THAT STOPS A HEAD.

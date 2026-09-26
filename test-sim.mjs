@@ -212,9 +212,9 @@ const scoreOn = (m, left, y = C.GROUND_Y - 60, speed = 600) => {
   // that used to say the opposite and has to keep saying the new thing.
   const m = fresh();
   run(m, 400, [{ left: true }, { right: true }]);
-  ok('player 0 stops at the back of its net', m.players[0].x >= C.POST_R + C.BODY_W / 2 - 0.01, `x=${m.players[0].x}`);
+  ok('player 0 stops at the back of its net', m.players[0].x >= -0.01, `x=${m.players[0].x}`);
   ok('player 0 got past the goal line', m.players[0].x < C.GOAL_W, `x=${m.players[0].x}`);
-  ok('player 1 stops at the back of its net', m.players[1].x <= C.W - C.POST_R - C.BODY_W / 2 + 0.01);
+  ok('player 1 stops at the back of its net', m.players[1].x <= C.W + 0.01);
   ok('player 1 got past the goal line', m.players[1].x > C.W - C.GOAL_W, `x=${m.players[1].x}`);
 }
 {
