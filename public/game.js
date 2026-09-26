@@ -1342,7 +1342,9 @@ function resize() {
   // about 83% of the screen instead of 100%, with sky-coloured bars at the sides. That is the
   // trade, and it is the right way round — a bar at the edge costs you nothing, a thumb over
   // the six-yard box costs you the goal.
-  const band = padUnit(vw, vh) * 1.17 + safeInset('b');     // button + its edge margin
+  // HS: the players' feet at 82% of the screen's height, the buttons on the floor below them
+  // (hs-video/M1, M4). The band under the ground line is that 18%.
+  const band = vh * 0.18 + safeInset('b');
   const scale = Math.min(vw / C.W, (vh - band) / C.VIEW_ABOVE_GROUND);
   const w = C.W * scale, h = (SKY_TOP + C.H + BLEED) * scale;
 
@@ -1421,6 +1423,11 @@ function sizePad(w, h, vw, vh) {
   const barX = (vw - w) / 2, barY = (vh - h) / 2;
   const px = (n) => Math.max(0, Math.round(n)) + 'px';
   padEl.style.setProperty('--u', u.toFixed(1) + 'px');
+  // HS's buttons, measured off M4 55.5 s (2556 x 1180): 11.4% of the screen's height tall, 1.8%
+  // off the bottom, ~4% in from each side (style.css, 'HS BUTTONS').
+  padEl.style.setProperty('--hb', (h * 0.114).toFixed(1) + 'px');
+  padEl.style.setProperty('--hbm', (h * 0.018).toFixed(1) + 'px');
+  padEl.style.setProperty('--hbx', (h * 0.042).toFixed(1) + 'px');
   padEl.style.setProperty('--pl', px(safeInset('l') - barX));
   padEl.style.setProperty('--pr', px(safeInset('r') - barX));
   padEl.style.setProperty('--pb', px(safeInset('b') - barY));

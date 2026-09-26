@@ -223,16 +223,20 @@
     <!-- The controls. Left = walk, right = act. The middle used to hold a hand of three
          cards; that system is archived (see archive/README.md) and the row is gone with it,
          markup included — a hidden row is still a row the layout editor can drag about. -->
+    <svg width="0" height="0" style="position:absolute" aria-hidden="true"><defs>
+      <linearGradient id="hsGlass" x1="0" y1="0" x2="0" y2="1">
+        <stop offset="0" stop-color="#fff3c4" stop-opacity=".62"/><stop offset=".45" stop-color="#e2bd6a" stop-opacity=".42"/>
+        <stop offset="1" stop-color="#8a6420" stop-opacity=".55"/></linearGradient></defs></svg>
     <div class="pad" id="pad">
       <div class="pad-l">
-        <button class="btn" data-k="left"><b>L</b></button>
-        <button class="btn" data-k="right"><b>R</b></button>
+        <button class="btn" data-k="left"><svg viewBox="0 0 250 100" aria-hidden="true"><path class="hs-glass" d="M5 50 L74 4 L81 27 L246 27 L234 73 L69 73 L76 96 Z"/><text x="196" y="66">L</text></svg></button>
+        <button class="btn" data-k="right"><svg viewBox="0 0 250 100" aria-hidden="true"><path class="hs-glass" d="M245 50 L176 96 L169 73 L4 73 L16 27 L181 27 L174 4 Z"/><text x="50" y="66">R</text></svg></button>
       </div>
       <div class="pad-r">
         <!-- HS's order, left to right: POWER, KICK, JUMP — JUMP in the corner -->
-        <button class="btn power" data-k="power" id="powerBtn">POWER</button>
-        <button class="btn kick" data-k="kick">KICK</button>
-        <button class="btn jump" data-k="jump">JUMP</button>
+        <button class="btn power" data-k="power" id="powerBtn"><span>Power</span></button>
+        <button class="btn kick" data-k="kick"><span>Kick</span></button>
+        <button class="btn jump" data-k="jump"><span>Jump</span></button>
       </div>
     </div>
 

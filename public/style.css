@@ -1531,3 +1531,46 @@ body.editing .pad .btn .grip {
 
 /* A landscape phone: the reel IS the way through the 45, so the strip gives it the height. */
 @media (max-height: 520px) and (min-aspect-ratio: 1/1) { .arc-grid { display: none; } .arc-logo { width: 48px; height: 48px; } }
+
+
+/* ─── HS BUTTONS ─────────────────────────────────────────────────────────────
+   One for one with Head Soccer (hs-video/M4 55.5 s, M1/M2 40 s): the two arrows (L, R) and the
+   POWER / KICK / JUMP plaques are TRANSLUCENT gold glass with a thin dark-brown keyline, so the
+   pitch shows through — on grass they read green-gold, camouflaged into the field. All five are
+   the same colour, always (Idan): no orange POWER, no colour on a press — a press only squashes.
+   Sizes from the frame: 11.4% of the screen's height tall (--hb), 1.8% off the bottom (--hbm);
+   a plaque ~2.8:1 and slanted like italic type, an arrow ~2.5:1; the plaques touching. */
+.pad .pad-l, .pad .pad-r { bottom: calc(var(--hbm) + var(--pb)); gap: calc(var(--hb) * 0.05); align-items: flex-end; }
+.pad .pad-l { left: calc(var(--hbx) + var(--pl)); }
+.pad .pad-r { right: calc(var(--hbx) + var(--pr)); gap: calc(var(--hb) * 0.02); }
+.pad .pad-l .btn, .pad .pad-r .btn {
+  opacity: 1; background: none; border: 0; box-shadow: none; backdrop-filter: none; padding: 0; margin: 0;
+  height: calc(var(--hb) * var(--s)); border-radius: 0; position: relative; color: #3a2208; text-shadow: none;
+  animation: none; visibility: visible;
+}
+.pad .pad-l .btn { width: calc(var(--hb) * var(--s) * 2.5); min-width: 0; }
+.pad .pad-l .btn::before, .pad .pad-l .btn::after { display: none; }
+.pad .pad-l .btn svg { width: 100%; height: 100%; display: block; overflow: visible; }
+.hs-glass { fill: url(#hsGlass); stroke: #4a2e0c; stroke-width: 4.5; stroke-linejoin: round; }
+.pad .pad-l .btn text {
+  font: italic 900 46px "Arial Black", "Helvetica Neue", Arial, sans-serif; fill: #3a2208;
+  stroke: #f6e3a8; stroke-width: 2; paint-order: stroke; text-anchor: middle;
+}
+.pad .pad-r .btn { min-width: calc(var(--hb) * var(--s) * 2.8); }
+.pad .pad-r .btn::before {                      /* the glass plaque, slanted; the label stays upright */
+  content: ''; position: absolute; inset: 0; transform: skewX(-12deg); border-radius: calc(var(--hb) * .42);
+  background: linear-gradient(180deg, #fff3c49e 0%, #e2bd6a6b 45%, #8a64208c 100%);
+  border: calc(var(--hb) * .045) solid #4a2e0c;
+  box-shadow: inset 0 calc(var(--hb) * .06) 0 #fff8dc80;
+}
+.pad .pad-r .btn span {
+  position: relative; display: block; font: italic 900 calc(var(--hb) * var(--s) * .42)/1 "Arial Black", "Helvetica Neue", Arial, sans-serif;
+  font-variant: small-caps; letter-spacing: .01em; color: #3a2208;
+  -webkit-text-stroke: calc(var(--hb) * .02) #f6e3a8; paint-order: stroke fill;
+}
+/* POWER stands only while the bar is full (HS), in the same glass as the rest */
+.pad .pad-r .power { visibility: hidden; pointer-events: none; }
+.pad .pad-r .power.ready, .pad .pad-r .power.fired { visibility: visible; pointer-events: auto; }
+.pad .pad-r .power.fired.fade { opacity: 0; transition: opacity .15s linear; }
+/* the press: a squash, never a colour */
+.pad .pad-l .btn:active, .pad .pad-l .btn.on, .pad .pad-r .btn:active, .pad .pad-r .btn.on { background: none; opacity: 1; transform: var(--xf, none) scale(.93); }
