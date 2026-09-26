@@ -1619,7 +1619,9 @@ function draw() {
     VFXR.drawOverlay(ctxNet);
     VFXR.drawCutin(ctxNet);
   }
-  if (M.banner && M.bannerT > 0 && M.phase !== 'over') drawReady(g);
+  // every frame: drawReady also CLEARS the HD lettering once a banner is over (a GOAL!'s last
+  // letter used to stay stuck on screen through play and the pause menu)
+  drawReady(g);
 }
 
 // THE BALL ABOVE THE PICTURE. The camera keeps Head Soccer's 487px of sky, but the ceiling is
@@ -2518,13 +2520,14 @@ function hsbSet(txt) {
   return el;
 }
 function drawReady(g) {
+  if (M.phase === 'over' || !(M.banner === 'goal' && M.bannerT > 0) && M.phase !== 'kickoff') { hsbSet(''); return; }
   if (M.banner === 'goal') {
     const el = hsbSet('GOAL!');
     const t = C.GOAL_BANNER - M.bannerT;                  // seconds since the goal
     const spans = el.children, n = spans.length;
     for (let i = 0; i < n; i++) {
       const tin = (t - i * 0.07) / 0.28;                  // each letter flies in from the right…
-      const tout = (t - (C.GOAL_BANNER - 0.5) - i * 0.06) / 0.3;   // …and drops out in turn
+      const tout = (t - (C.GOAL_BANNER - 0.6) - i * 0.06) / 0.3;   // …and drops out in turn, all gone by the end
       const x = tin < 1 ? (1 - easeOut(Math.max(0, tin))) * 70 : 0;
       const y = tout > 0 ? easeOut(Math.min(1, tout)) * 60 : 0;
       const sweep = -Math.min(t, C.GOAL_BANNER) * 1.5;      // the word drifts left as it holds
