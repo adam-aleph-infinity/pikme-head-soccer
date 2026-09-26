@@ -273,7 +273,15 @@ export function step(m, inputs, dt = C.TICK, fx = NO_FX) {
     m.hitStop -= dt;
     const cut = m.cutin > 0;
     if (cut) { m.cutin -= dt; if (m.cutin <= 0) { m.cutin = 0; m.cutinBy = -1; } }
+    // Only the SHOOTER holds under a cut-in (Idan: the other player must not be stuck while a
+    // power goes off) — the other one keeps running, jumping and kicking as normal play.
+    const free = cut && m.cutinBy >= 0 ? m.players[1 - m.cutinBy] : null;
     latchReleases(m, inputs);
+    if (free) {
+      free.x0 = free.x; free.y0 = free.y;
+      stepPlayer(m, free, inputs[free.index] || {}, dt, fx);
+      resolvePlayers(m);
+    }
     // The stun is the one timer that keeps running through a pause. Everything else here is
     // frozen on purpose — that is what hit-stop is — but a player's 1.75 seconds on the floor
     // has to be 1.75 seconds of the match clock, not 1.75 seconds plus however many heavy
@@ -285,7 +293,7 @@ export function step(m, inputs, dt = C.TICK, fx = NO_FX) {
     if (!cut) for (const p of m.players) { tickStun(m, p, dt); tickAilment(m, p, dt); }
     // The gauge runs through a cut-in (HS M4 40.44 s and 41.97 s: the bar climbs at the same
     // rate under both). It is the goal restart that stops it — see chargeGauge.
-    for (const p of m.players) chargeGauge(m, p, dt);
+    for (const p of m.players) if (p !== free) chargeGauge(m, p, dt);
     // …and so does the match clock (HS M4: the timer ticks on through the 40.44 s and 60.19 s
     // cut-ins). It stops just short of 0 — the whistle is blown in play, below.
     if (cut && m.phase === 'play' && !m.afterGoal && !(m.ballWait > 0)) m.clock = Math.max(1e-6, m.clock - dt);

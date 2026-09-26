@@ -911,11 +911,11 @@ const jumpArc = (input) => {
   const snap = serialize(m);
   const ticks = Math.round(HOLD / C.TICK) - 2;
   run(m, ticks, [{ right: true, jump: true }, { left: true }]);
-  ok('the whole match holds for the first 0.97s — both bodies and the ball',
-     JSON.stringify([m.ball.x, m.ball.y, a.x, a.y, b.x, b.y]) === JSON.stringify(JSON.parse(before).slice(0, 6)));
+  ok('the shooter and the ball hold for the first 0.97s',
+     JSON.stringify([m.ball.x, m.ball.y, a.x, a.y]) === JSON.stringify(JSON.parse(before).slice(0, 4)));
+  ok('but the other player is free: the daze runs out and they move', b.stunned <= 0 && b.x < JSON.parse(before)[4], `stunned=${b.stunned} x=${b.x}`);
   ok('but the clock runs on under it (HS M4 40.44 s / 60.19 s)', Math.abs(JSON.parse(before)[6] - m.clock - ticks * C.TICK) < 1e-6,
      `${JSON.parse(before)[6]} → ${m.clock}`);
-  ok('and a daze is not run down under the hold', b.stunned === 0.4, `stunned=${b.stunned}`);
   run(m, 4, NONE);
   ok('then the shot flies while it is still dark', m.cutin > 0 && m.hitStop <= 0 && !!m.ball.power && m.ball.x !== JSON.parse(before)[0], `cutin=${m.cutin}`);
   run(m, Math.round(C.POWER_RELEASE / C.TICK), NONE);
