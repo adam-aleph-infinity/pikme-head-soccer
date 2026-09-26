@@ -1986,6 +1986,9 @@ function hsBoardsAndFloor(g, standBot, ledTop, ledBot, gy) {
     g.fillStyle = '#ffffff30'; g.fillRect(x + 1, ledTop, bw - 2, h * 0.18);        // the gloss along the top
     g.fillStyle = b.fg; g.fillText(b.txt, x + bw / 2, ledTop + h * 0.54);
   }
+  // HS's hoardings are muted (M1: saturation 0.37, against 0.60 for ours at full colour): a warm
+  // grey veil over the whole run takes ours to HS's.
+  g.fillStyle = 'rgba(150,138,118,0.3)'; g.fillRect(C.GOAL_W, ledTop, n * bw, h);
   // under the goals the boards carry on plain
   R2(g, 0, ledTop, C.GOAL_W, h, '#2a2f38'); R2(g, C.W - C.GOAL_W, ledTop, C.GOAL_W, h, '#2a2f38');
   g.restore();
@@ -1994,9 +1997,10 @@ function hsBoardsAndFloor(g, standBot, ledTop, ledBot, gy) {
   const top = ledBot, bot = C.H + BLEED, fh = bot - top;
   if (STAGE.floor === 'wood') {
     const gr = g.createLinearGradient(0, top, 0, bot);
-    gr.addColorStop(0, '#c98a45'); gr.addColorStop(1, '#e0a45e');
+    // HS M4's court: a deep orange wood, (209, 148, 66) at saturation 0.68, with barely a plank line
+    gr.addColorStop(0, '#c8883a'); gr.addColorStop(1, '#dea04e');
     g.fillStyle = gr; g.fillRect(0, top, C.W, fh);
-    g.fillStyle = '#9a6030'; for (let y = top + 6, k = 0; y < bot; y += 7 + k * 0.6, k++) g.fillRect(0, y, C.W, 1);
+    g.fillStyle = '#9a603040'; for (let y = top + 6, k = 0; y < bot; y += 11 + k * 0.9, k++) g.fillRect(0, y, C.W, 1);
   } else {
     g.fillStyle = STAGE.grass[0]; g.fillRect(0, top, C.W, fh);
     // mown stripes, fanned for perspective: narrow at the back, wide at the front

@@ -26,7 +26,8 @@ const TAU = 6.2832;
 function sky(g, W, top, bot, night) {
   const gr = g.createLinearGradient(0, top, 0, bot);
   if (night) { gr.addColorStop(0, '#050820'); gr.addColorStop(0.6, '#111c48'); gr.addColorStop(1, '#23326a'); }
-  else { gr.addColorStop(0, '#1f7fd6'); gr.addColorStop(0.6, '#62b4ef'); gr.addColorStop(1, '#bfe3fb'); }
+  // HS M4 (arena, day): a bright CYAN sky — (44, 211, 250) between the clouds — not a soft blue
+  else { gr.addColorStop(0, '#12a6ec'); gr.addColorStop(0.6, '#2cd0fa'); gr.addColorStop(1, '#9fe8ff'); }
   g.fillStyle = gr; g.fillRect(0, top - 60, W, bot - top + 60);
   const r = rng(7);
   if (night) {                                       // a few stars
@@ -162,28 +163,37 @@ function fan(g, x, y, s, r, look, night) {
 
 // One tier: stepped rows of blue seats with the crowd in them, back to front so every row sits
 // in front of the one behind; the back rows a little smaller and hazier, so the stand recedes.
+// HS's crowd (M4 20 s, side by side with ours): about four rows a tier of BIG fans packed
+// shoulder to shoulder, warm and a little dark (mean 119, 99, 84; brightness 0.53) and soft — the
+// whole stand is out of focus behind the play (edge detail 13 against the 50 ours had with ~7
+// rows of small, sharp fans). CROWD is the fan's size against the old one.
+const CROWD = 1.9;
 function tier(g, W, top, bot, seed, aisles, night) {
   const gr = g.createLinearGradient(0, top, 0, bot);
-  gr.addColorStop(0, night ? '#20242f' : '#5d6472'); gr.addColorStop(1, night ? '#343b4a' : '#8e96a3');
+  // HS M5's night stands are floodlit: light grey concrete under the dark sky, not navy
+  gr.addColorStop(0, night ? '#6c6e76' : '#6a625b'); gr.addColorStop(1, night ? '#8a8c93' : '#8a8178');
   g.fillStyle = gr; g.fillRect(0, top, W, bot - top);
   const r = rng(seed);
   const rows = [];
-  for (let y = top + 13; y < bot + 4; y += 16.5) rows.push(y);
+  for (let y = top + 13 * CROWD; y < bot + 4 * CROWD; y += 16.5 * CROWD) rows.push(y);
   rows.forEach((y, ri) => {
     const depth = rows.length > 1 ? ri / (rows.length - 1) : 1;
-    const s = 0.86 + 0.16 * depth, colW = 15.5 * s;
+    const s = (0.86 + 0.16 * depth) * CROWD, colW = 13.5 * s;
     // the step: a lit riser and the row of seat backs
-    g.fillStyle = night ? '#3c4352' : '#aeb4be'; g.fillRect(0, y + 3, W, 1.6);
-    g.fillStyle = night ? '#16305e' : '#2560b0'; g.fillRect(0, y - 1, W, 4);
-    g.fillStyle = night ? '#2a4a86' : '#4a86d6'; g.fillRect(0, y - 1, W, 1.2);
+    g.fillStyle = night ? '#a4a6ad' : '#aeb4be'; g.fillRect(0, y + 3, W, 1.6);
+    // the benches: HS's are grey concrete, not blue seats
+    g.fillStyle = night ? '#9a9ca4' : '#8a857e'; g.fillRect(0, y - 1, W, 4);
+    g.fillStyle = night ? '#b6b8bf' : '#aaa59d'; g.fillRect(0, y - 1, W, 1.2);
     for (let x = 6 + (ri % 2) * colW * 0.5; x < W; x += colW) {
       if (aisles.some((a) => Math.abs(x - a) < 22)) continue;
-      if (r() < 0.05) continue;                                    // the odd empty seat
+      // HS's stands are not full: ~a quarter of the day crowd's seats are empty (M1, M4), most of
+      // the night stadium's (M5)
+      if (r() < (night ? 0.6 : 0.22)) continue;
       const look = Math.max(-1, Math.min(1, (W / 2 - x) / (W * 0.35))) * 0.7 + (r() - 0.5) * 0.6;
       fan(g, x + (r() - 0.5) * 3, y + (r() - 0.5) * 1.5, s * (0.94 + r() * 0.12), r, look, night);
     }
     // the haze of distance over the back rows
-    if (depth < 1) { g.fillStyle = night ? `rgba(8,12,34,${0.28 * (1 - depth)})` : `rgba(170,190,215,${0.22 * (1 - depth)})`; g.fillRect(0, y - 20, W, 24); }
+    if (depth < 1) { g.fillStyle = night ? `rgba(30,32,44,${0.14 * (1 - depth)})` : `rgba(40,26,18,${0.18 * (1 - depth)})`; g.fillRect(0, y - 20 * CROWD, W, 24 * CROWD); }
   });
   // the aisles: concrete stairs with yellow step edges and a handrail
   for (const a of aisles) {
@@ -201,16 +211,7 @@ function tier(g, W, top, bot, seed, aisles, night) {
   const sh = g.createLinearGradient(0, top, 0, top + 26);
   sh.addColorStop(0, 'rgba(0,0,10,0.45)'); sh.addColorStop(1, 'rgba(0,0,10,0)');
   g.fillStyle = sh; g.fillRect(0, top, W, 26);
-  if (night) {
-    g.fillStyle = '#0a0f2a38'; g.fillRect(0, top, W, bot - top);
-    for (let i = 0; i < W / 30; i++) {                             // phone lights
-      const px = r() * W, py = top + 8 + r() * (bot - top - 12);
-      if (aisles.some((a) => Math.abs(px - a) < 22)) continue;
-      const pg = g.createRadialGradient(px, py, 0, px, py, 4);
-      pg.addColorStop(0, '#ffffff'); pg.addColorStop(1, '#ffffff00');
-      g.fillStyle = pg; g.fillRect(px - 4, py - 4, 8, 8);
-    }
-  }
+
 }
 
 function stadium(night, seed) {
@@ -229,14 +230,19 @@ function stadium(night, seed) {
     g.fillStyle = night ? '#1f4a8a' : '#2466b8'; g.fillRect(0, roofTop + 5, W, 3);
     g.fillStyle = night ? '#0b0e16' : '#6e7886'; g.fillRect(0, roofBot - 2, W, 2);
     const aisles = [W * 0.08, W * 0.5, W * 0.92];
-    tier(g, W, roofBot, midA, seed, aisles, night);
-    // the tunnel mouth at the top of the middle aisle (HS: a dark doorway with a white frame)
-    const tf = g.createLinearGradient(0, roofBot, 0, roofBot + 30);
-    tf.addColorStop(0, '#ffffff'); tf.addColorStop(1, '#c9ced6');
-    g.fillStyle = tf; g.fillRect(W * 0.5 - 30, roofBot, 60, 30);
-    const ti = g.createLinearGradient(0, roofBot + 4, 0, roofBot + 30);
-    ti.addColorStop(0, '#0c0f16'); ti.addColorStop(1, '#2c3342');
-    g.fillStyle = ti; g.fillRect(W * 0.5 - 24, roofBot + 4, 48, 26);
+    // OUT OF FOCUS, as HS's stands are: both tiers are painted at half resolution and scaled up
+    // smoothly, then warmed and darkened a touch (HS's crowd: brightness 0.53, warm 119/99/84).
+    // (A canvas `filter: blur()` did the same on desktop and blanked the stands in headless
+    // Chrome, so it is not trusted.)
+    const H2 = bot + 10, soft = document.createElement('canvas');
+    soft.width = Math.ceil(W / 2); soft.height = Math.ceil(H2 / 2);
+    const h = soft.getContext('2d');
+    h.scale(0.5, 0.5);
+    tier(h, W, roofBot, midA, seed, aisles, night);
+    tier(h, W, midB, bot, seed + 11, aisles, night);
+    if (!night) { h.fillStyle = 'rgba(52,30,16,0.16)'; h.fillRect(0, roofBot, W, bot - roofBot); }
+    g.imageSmoothingEnabled = true; g.imageSmoothingQuality = 'high';
+    g.drawImage(soft, 0, roofBot / 2, soft.width, soft.height - roofBot / 2, 0, roofBot, W, H2 - roofBot);
     // the banner strip between the tiers
     for (let i = 0; i < 6; i++) {
       const bx = i * W / 6 + 3, bw = W / 6 - 6, c = BANNER[(i + seed) % BANNER.length];
@@ -248,16 +254,22 @@ function stadium(night, seed) {
       for (let k = bx + 8; k < bx + bw - 6; k += 14) { g.beginPath(); g.moveTo(k, midB); g.lineTo(k + 6, midA); g.lineTo(k + 10, midA); g.lineTo(k + 4, midB); g.fill(); }
     }
     g.fillStyle = '#00000033'; g.fillRect(0, midB - 3, W, 3);
-    tier(g, W, midB, bot, seed + 11, aisles, night);
+    // the tunnel mouth at the top of the middle aisle (HS: a dark doorway with a white frame)
+    const tf = g.createLinearGradient(0, roofBot, 0, roofBot + 30);
+    tf.addColorStop(0, '#ffffff'); tf.addColorStop(1, '#c9ced6');
+    g.fillStyle = tf; g.fillRect(W * 0.5 - 30, roofBot, 60, 30);
+    const ti = g.createLinearGradient(0, roofBot + 4, 0, roofBot + 30);
+    ti.addColorStop(0, '#0c0f16'); ti.addColorStop(1, '#2c3342');
+    g.fillStyle = ti; g.fillRect(W * 0.5 - 24, roofBot + 4, 48, 26);
   };
 }
 
 // The rotation. `floor` picks game.js's floor painter; `boards` the hoarding set.
 export const HS_STAGES = [
   { id: 'hs-day', name: 'אצטדיון', hs: true, static: true, floor: 'grass', sky: '#2f8fe0',
-    grass: ['#3f9a2a', '#4aab31'], wall: '#27313f', draw: stadium(false, 3) },
+    grass: ['#8db060', '#9dbb6b'], wall: '#27313f', draw: stadium(false, 3) },   // HS M1's day pitch: a pale olive green (141–159, 176–186, 96–107)
   { id: 'hs-night', name: 'אצטדיון בלילה', hs: true, static: true, floor: 'grass', sky: '#070b24',
-    grass: ['#2f7e22', '#389029'], wall: '#161b26', draw: stadium(true, 5) },
+    grass: ['#30b27d', '#3abd87'], wall: '#161b26', draw: stadium(true, 5) },   // HS M5's night pitch: teal (48–70, 178–188, 125–137)
   { id: 'hs-arena', name: 'אולם', hs: true, static: true, floor: 'wood', sky: '#2f8fe0',
     grass: ['#d59a55', '#c98c48'], wall: '#27313f', draw: stadium(false, 9) },
 ];
