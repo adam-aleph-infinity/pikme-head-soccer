@@ -451,7 +451,8 @@ function fireChampion(stage, i, gap = 460) {
   // balls; Downward rises at 15°; beheaded takes the controls for a moment. All HS-parity changes.
   // AND for the M5 pass (hs/mechanics-m5): the boot is a body (shared/kick.js), the HS M5 speed caps
   // and air speed, knockback fitted, the CPU's dash/hop/mash habits fitted to the cpu.* rows.
-  const GOLDEN = '49d22e18c5c9d88b16cf455367239c3caf76547e4f35c0558c44251d3155e663';   // re-recorded: M5 mechanics pass (+ kick strength fitted to HS's kick spread)ntact path fitted to M1/M5)
+  // AND the defender is free under a cut-in, and a skied ball keeps its sideways speed off the ceiling.
+  const GOLDEN = 'c2bb3a9a85864bb4c726d298e8c0dffa0a07c5e4ce71c2dd24827f182716aad0';   // re-recorded: M5 mechanics pass (+ kick strength fitted to HS's kick spread)ntact path fitted to M1/M5)
   const h = createHash('sha256');
   const cases = [
     [{ rarity: 'legendary', number: 3 }, { rarity: 'legendary', number: 2 }, 3, 3, 11],

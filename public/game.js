@@ -979,8 +979,9 @@ function startArcadeStage(n) {
   const cfg = stageConfig(n);
   ARCADE = { stage: n };
   ARC_SEL = n;
-  // Each champion has a home ground, drawn from the four original backdrops in turn.
-  STAGE = PIN_STAGE || DIRECTIONS[cfg.champ.arena % DIRECTIONS.length];
+  // Each champion has a home ground, drawn from HS's stadiums in turn — the same ones a free
+  // match rolls (Idan: the arcade was on the old backdrops).
+  STAGE = PIN_STAGE || HS_STAGES[cfg.champ.arena % HS_STAGES.length];
   beginLocal(pick.me, cfg.champ.card, cfg.matchOpts, createBot(0, Math.random, cfg.bot));
   return true;
 }
