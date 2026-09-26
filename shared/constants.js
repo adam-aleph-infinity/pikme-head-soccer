@@ -31,11 +31,11 @@ export let GROUND_Y = 435;           // 82% down. Was 445; the extra 10px is gra
 // picture, which is why every high ball here rattled along an invisible roof.
 export const CEIL_Y = -130 - 16.5;    // -146.5: the ball centre turns at -130 (BALL_R 16.5)
 // HS M4, 3 ceiling bounces: the ceiling is DEAD. It keeps 0.41 of the climb (0.27–0.55, low
-// confidence — the contact itself is off-screen) and none of the sideways speed: the ball comes
-// back down almost vertically, so a skied clearance falls where it went up rather than
-// carrying on down the pitch.
+// confidence — the contact itself is off-screen) and ALL of the sideways speed: in HS a ball that
+// leaves the top keeps travelling the way it was going and comes back down further along, not
+// straight down from where it vanished (Idan).
 export let CEIL_BOUNCE = 0.41;
-export let CEIL_KEEP_X = 0;
+export let CEIL_KEEP_X = 1;
 // The top of the SKY as drawn — where effects lay out a ceiling, rain from, hang a banner. It
 // was the same number as the ball's ceiling until the ceiling moved off-screen; the effects
 // are pictures and stay inside the picture.
