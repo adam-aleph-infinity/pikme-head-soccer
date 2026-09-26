@@ -204,8 +204,10 @@ export function createVfx({ now = () => performance.now() / 1000, drawBall: pain
     if (!(p.stunned > 0)) return false;
     const pw = M.ball.power;
     if (pw && pw.ph === 'grind' && pw.tgt === p.index) return false;
-    const r = headR(M, p), c = depthPoint(p.x, headY(p) - r * 1.12);
-    drawStars(g, c.x, c.y, r, now());
+    // over the crown of the knocked-out head (tipped back 0.65 rad, game.js reelTilt): HS keeps
+    // the ring nearly level above it, leaning only a little with the head
+    const r = headR(M, p), h = depthPoint(p.x, headY(p)), lean = -p.side * 0.65, up = r * 1.25;
+    drawStars(g, h.x + Math.sin(lean * 0.45) * up, h.y - Math.cos(lean * 0.45) * up, r, now(), 1, lean * 0.25);
     return true;
   }
   function overlays(g) {

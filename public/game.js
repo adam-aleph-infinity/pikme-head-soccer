@@ -821,6 +821,11 @@ function stepParts(dt) {
     const p = parts[i];
     p.t += dt;
     if (p.t >= p.life) { parts.splice(i, 1); continue; }
+    if (p.k === 'c' && p.stain && p.vy > 0 && p.y >= C.GROUND_Y) {
+      // a drop that reaches the grass becomes a flat red spot for what is left of its second
+      Object.assign(p, { k: 's', y: C.GROUND_Y + Math.random() * 10, t: 0, life: Math.max(0.15, p.life - p.t), vx: 0, vy: 0 });
+      continue;
+    }
     if (p.k === 'p' || p.k === 'c') {
       p.x += p.vx * dt; p.y += p.vy * dt;
       p.vy += (p.k === 'c' ? 900 : 260) * dt;
@@ -1200,14 +1205,16 @@ function drainEvents() {
     // A TACKLE shows nothing but the knock itself: HS puts no ring and no word on a boot to the
     // shins (HS-GAP-AUDIT U12). The HURT below is its only picture.
     // HURT (the knockout's every-fifth kick, kickDamage in sim.js): HS throws a spray of red
-    // drops up off the head (M4 116.9 s, 119.3 s) and the face bruises a tier (drawHeads).
-    if (e.type === 'hurt') {
-      const p = M.players[e.player];
+    // drops up off the head (M4 116.9 s, 119.3 s) and the face bruises a tier (drawHeads). They
+    // land as red spots on the grass and are all gone within a second of the hit (M4 119.6–120.4 s).
+    // A kick on a player already knocked out (e.ko, the slide) throws them too.
+    if (e.type === 'hurt' || (e.type === 'tackle' && e.ko)) {
+      const p = M.players[e.type === 'hurt' ? e.player : e.on];
       if (p) {
         const hy = headY(p) - headR(M, p) * 0.5;
-        for (let i = 0; i < 7; i++) {
-          parts.push({ k: 'c', x: p.x, y: hy, vx: (Math.random() - 0.5) * 260 - p.side * 70,
-            vy: -220 - Math.random() * 200, life: 0.75, t: 0, r: 2.5 + Math.random() * 3, color: '#e0202a' });
+        for (let i = 0; i < 9; i++) {
+          parts.push({ k: 'c', x: p.x, y: hy, vx: (Math.random() - 0.5) * 300 - p.side * 90,
+            vy: -220 - Math.random() * 220, life: 0.9, t: 0, r: 2.5 + Math.random() * 3, color: '#e0202a', stain: true });
         }
       }
     }
@@ -1746,7 +1753,7 @@ function charNetMask(p, i, h, left) {
   g.save();
   // the same placement as the DOM head: its tilt about the box centre, the art offset by
   // CHAR_BOX, player two mirrored about the art's own centre (paintPitchChar, drawHeads)
-  const tilt = p.ail === 'twister' && !p.onGround ? (performance.now() / 1000) * 14 * p.side : reeling(p) ? -p.side * 0.45 : 0;
+  const tilt = p.ail === 'twister' && !p.onGround ? (performance.now() / 1000) * 14 * p.side : reeling(p) ? -p.side * reelTilt(p) : 0;
   g.translate(h.x, h.y); g.rotate(tilt);
   const ax = -wW / 2 - CHAR_BOX.x * u, ay = -wH / 2 - CHAR_BOX.y * u, aw = CHAR_BOX.w * u, ah = CHAR_BOX.h * u;
   if (i === 1) { g.translate(ax + aw / 2, 0); g.scale(-1, 1); g.translate(-(ax + aw / 2), 0); }
@@ -2402,7 +2409,7 @@ function drawBody(g, p, ghost = false) {
   if (reeling(p)) {
     const ny = -(C.BODY_H + R - C.NECK);                    // the head's centre: head and body turn as one
     g.translate(0, ny);
-    g.rotate(-face * 0.45);
+    g.rotate(-face * reelTilt(p));
     g.translate(0, -ny);
   }
   const air = !p.onGround;
@@ -2596,6 +2603,13 @@ function drawParts(g, front) {
         g.quadraticCurveTo(d.x + Math.cos(a) * 70, d.y + 20, d.x + Math.cos(a) * 34, d.y - 40 + Math.sin(a) * 20);
         g.stroke();
       }
+      g.restore();
+    } else if (p.k === 's') {
+      if (front) continue;
+      g.save();
+      g.globalAlpha = Math.min(1, (p.life - p.t) / 0.3) * 0.9;
+      g.fillStyle = '#c8141e';
+      g.beginPath(); g.ellipse(d.x, d.y, p.r * 1.35, p.r * 0.5, 0, 0, 6.2832); g.fill();
       g.restore();
     } else if (front === (p.k === 'c')) {
       g.save();
@@ -2799,7 +2813,7 @@ function drawHeads() {
     // UPRIGHT. An HS head does not lean into a run — it rides level on the feet paddling under
     // it — and only tips back, with the body (drawBody), when a hit knocks the player back.
     // (caught in Nigeria's tornado he spins as he flies — hs-powers `twister`)
-    const tilt = p.ail === 'twister' && !p.onGround ? (performance.now() / 1000) * 14 * p.side : reeling(p) ? -p.side * 0.45 : 0;
+    const tilt = p.ail === 'twister' && !p.onGround ? (performance.now() / 1000) * 14 * p.side : reeling(p) ? -p.side * reelTilt(p) : 0;
     el.style.transform = `translate(${x - w / 2}px, ${y - h / 2}px) rotate(${tilt}rad)`;
     drawHeadGhosts(i, el, w, h);
     // ARMED: THE PLAYER GLOWS LIKE A FULL POWER BAR.
@@ -2826,6 +2840,9 @@ function drawHeads() {
 }
 // Rocked back: the knockback of a kick that landed (`shoved`), or down under the stars.
 const reeling = (p) => p.stunned > 0 || p.shoved > 0;
+// HS tips a knocked-out head back further than a kick rocks it (M4 119.5–121 s: ~37° under the
+// stars against ~25° for a boot).
+const reelTilt = (p) => (p.stunned > 0 ? 0.65 : 0.45);
 
 // The head half of a dash afterimage: see-through copies of the head node, placed where the
 // body ghosts were drawn (GHOSTS, filled by draw). Cloned once per card and hidden the rest of

@@ -408,15 +408,53 @@ export function orbitTex() {
     o[0] = 255; o[1] = mix(214, 250, Math.exp(-d * d)); o[2] = mix(60, 190, Math.exp(-d * d)); o[3] = a;
   }));
 }
-export function drawStars(g, cx, cy, r, t, a = 1) {
-  const rx = r * 1.08, ry = r * 0.3;
-  blit(g, orbitTex(), cx, cy, rx * 2.2, ry * 2 * 1.4, 0, 0.75 * a, true);
-  const st = starTex();
-  const order = [0, 1, 2].map((k) => { const an = t * 7 + k * TAU / 3; return { an, z: (Math.sin(an) + 1) / 2 }; }).sort((p, q) => p.z - q.z);
-  for (const s of order) {
-    const S = r * (0.78 + 0.34 * s.z);
-    blit(g, st, cx + Math.cos(s.an) * rx, cy + Math.sin(s.an) * ry, S, S, Math.sin(t * 5 + s.an) * 0.25, a * (0.75 + 0.25 * s.z), false);
+// THE KNOCKOUT STARS, as HS draws them (M4 119.3–121 s, M3 82.6 s): a thick solid yellow ring
+// round the crown, tipped with the head (`tilt`), and three big flat gold stars — each about
+// half a head across — riding it, the near one bigger and the far half of the ring fainter.
+function starPath(g, x, y, R, rot) {
+  g.beginPath();
+  for (let i = 0; i < 10; i++) {
+    const an = rot - Math.PI / 2 + (i * Math.PI) / 5, rr = i % 2 ? R * 0.5 : R;
+    g.lineTo(x + Math.cos(an) * rr, y + Math.sin(an) * rr);
   }
+  g.closePath();
+}
+function drawStar(g, x, y, R, rot, a) {
+  g.save();
+  g.globalAlpha = a;
+  g.lineJoin = 'round';
+  starPath(g, x, y, R, rot);
+  g.lineWidth = R * 0.2; g.strokeStyle = '#d98200'; g.stroke();
+  const lg = g.createLinearGradient(x, y - R, x, y + R);
+  lg.addColorStop(0, '#fff47c'); lg.addColorStop(0.45, '#ffd81c'); lg.addColorStop(1, '#f2a100');
+  g.fillStyle = lg; g.fill();
+  starPath(g, x - R * 0.06, y - R * 0.1, R * 0.5, rot);
+  g.fillStyle = 'rgba(255,250,190,0.55)'; g.fill();
+  g.fillStyle = 'rgba(255,255,255,0.9)';
+  g.beginPath(); g.ellipse(x - R * 0.3, y - R * 0.34, R * 0.13, R * 0.08, -0.6, 0, TAU); g.fill();
+  g.restore();
+}
+export function drawStars(g, cx, cy, r, t, a = 1, tilt = 0) {
+  const rx = r * 1.4, ry = r * 0.3;
+  const ring = (from, to, alpha) => {
+    g.save();
+    g.globalAlpha = a * alpha;
+    g.translate(cx, cy); g.rotate(tilt);
+    g.lineCap = 'round';
+    g.beginPath(); g.ellipse(0, 0, rx, ry, 0, from, to);
+    g.lineWidth = r * 0.2; g.strokeStyle = '#e8b400'; g.stroke();
+    g.lineWidth = r * 0.1; g.strokeStyle = '#ffe94a'; g.stroke();
+    g.restore();
+  };
+  const c = Math.cos(tilt), sn = Math.sin(tilt);
+  const stars = [0, 1, 2].map((k) => {
+    const an = t * 4.2 + (k * TAU) / 3, lx = Math.cos(an) * rx, ly = Math.sin(an) * ry;
+    return { x: cx + lx * c - ly * sn, y: cy + lx * sn + ly * c, z: (Math.sin(an) + 1) / 2, rot: tilt + Math.sin(t * 3 + k) * 0.15 };
+  }).sort((p, q) => p.z - q.z);
+  ring(Math.PI, TAU, 0.8);                                   // the far half, behind the stars
+  for (const s of stars) if (s.z < 0.5) drawStar(g, s.x, s.y, r * (0.56 + 0.2 * s.z), s.rot, a);
+  ring(0, Math.PI, 1);                                       // the near half, over them
+  for (const s of stars) if (s.z >= 0.5) drawStar(g, s.x, s.y, r * (0.56 + 0.2 * s.z), s.rot, a);
 }
 
 // ── BEAM: the filmed comet's anatomy as a parametrized painted streak ──────────────────

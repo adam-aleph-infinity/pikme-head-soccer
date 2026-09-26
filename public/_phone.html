@@ -1,0 +1,36 @@
+<!doctype html>
+<!-- Dev only: the game inside an iPhone 15 frame, landscape (844x390 screen). Open
+     http://localhost:3020/_phone.html (add ?device=se or ?device=max) -->
+<html><head><meta charset="utf-8"><title>Phone Frame</title>
+<style>
+  :root { --bg: #1b1d22; }
+  html, body { margin: 0; height: 100%; background: var(--bg); display: grid; place-items: center; overflow: hidden; }
+  .phone { position: relative; padding: 14px; border-radius: 68px; background: #0a0a0c;
+    box-shadow: 0 0 0 2px #3a3c42, 0 0 0 5px #17181b, 0 30px 80px #000c; }
+  .phone::before { /* side buttons */ content: ""; position: absolute; top: -7px; left: 150px; width: 70px; height: 5px;
+    border-radius: 3px 3px 0 0; background: #2c2e33; box-shadow: 100px 0 0 #2c2e33; }
+  .phone::after { /* the power key */ content: ""; position: absolute; bottom: -7px; left: 190px; width: 100px; height: 5px;
+    border-radius: 0 0 3px 3px; background: #2c2e33; }
+  .screen { position: relative; border-radius: 54px; overflow: hidden; background: #000; }
+  iframe { display: block; border: 0; }
+  .island { position: absolute; left: 10px; top: 50%; width: 36px; height: 124px; transform: translateY(-50%);
+    border-radius: 18px; background: #000; z-index: 2; pointer-events: none; }
+  .home { position: absolute; bottom: 7px; left: 50%; width: 140px; height: 5px; transform: translateX(-50%);
+    border-radius: 3px; background: #fff9; z-index: 2; pointer-events: none; }
+</style></head><body>
+<div class="phone"><div class="screen"><div class="island"></div><div class="home"></div><iframe id="f" allow="autoplay; fullscreen"></iframe></div></div>
+<script>
+  const q = new URLSearchParams(location.search);
+  const D = { '14': [844, 390, 54], se: [667, 375, 0], max: [932, 430, 58] };
+  const [w, h, r] = D[q.get('device')] || D['14'];
+  const f = document.getElementById('f');
+  f.width = w; f.height = h;
+  document.querySelector('.screen').style.borderRadius = r + 'px';
+  if (!r) document.querySelector('.island').remove(), document.querySelector('.home').remove();
+  q.delete('device');
+  f.src = '/' + (q.toString() ? '?' + q : '');
+  // fit the whole phone in the window
+  const fit = () => { const p = document.querySelector('.phone'); const s = Math.min(1, (innerWidth - 40) / (w + 28), (innerHeight - 40) / (h + 28)); p.style.transform = `scale(${s})`; };
+  addEventListener('resize', fit); fit();
+</script>
+</body></html>

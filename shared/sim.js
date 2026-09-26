@@ -63,7 +63,7 @@ function makePlayer(index, char) {
     // empties the gauge in the same statement (the refill starts there, as in HS), the touch
     // clears `armed`, and clearUltimate() below zeroes both. See clearUltimate.
     gauge: 0, armed: 0,
-    shoved: 0,
+    shoved: 0, koSlide: 0,
     coyote: 0, jumpBuf: 0,          // jump forgiveness (see COYOTE_TIME / JUMP_BUFFER)
     // Seconds since the feet last touched down — what makes a HELD jump re-jump JUMP_REJUMP
     // after landing (HS M4). Starts long past it: a player standing at kickoff has been down
@@ -226,7 +226,7 @@ function resetPositions(m, towards) {
     p.x = C.SPAWN_X[p.index]; p.y = C.GROUND_Y;
     p.vx = 0; p.vy = 0; p.onGround = true; p.facing = p.side; p.stand = -1;
     p.kickT = 0; p.kickCd = 0; p.dashT = 0; p.dashCd = 0;
-    p.shoved = 0;
+    p.shoved = 0; p.koSlide = 0;
     p.tackleImmune = 0; p.coyote = 0; p.jumpBuf = 0; p.landT = 1;
     p.jumps = C.MAX_JUMPS;
     // The STUN clears, because a kickoff nobody can move for is a bug whoever caused it.
@@ -513,7 +513,9 @@ function stepPlayer(m, p, input, dt, fx) {
   // stun-lock to walk into.
   if (p.stunned > 0) {
     tickStun(m, p, dt);
-    p.vx *= 0.86;
+    // a knocked-out player kicked (tryTackle) slides a long way on the grass; otherwise he slumps
+    if (p.koSlide > 0) { p.koSlide -= dt; if (p.onGround) p.vx *= C.KO_SLIDE_FRICTION; }
+    else p.vx *= 0.86;
     // Dazed AND frozen by an arcade power (a strike's paralysis, landing on the same block as
     // the HS daze): frozen means no sliding either, whichever timer took the controls.
     if (md && md.frozen && p.onGround) p.vx *= 0.5;
@@ -615,8 +617,10 @@ function stepPlayer(m, p, input, dt, fx) {
     p.kickDir = p.side;
     m.events.push({ type: 'kick', player: p.index });
     tryCounter(m, p, fx);
-    tryTackle(m, p, fx);
   }
+  // THE TACKLE RUNS THE WHOLE SWING, not just the press: an opponent who jumps into the boot
+  // after it went out is kicked too (one hit per swing — a connect spends kickT).
+  if (p.kickT > 0) tryTackle(m, p, fx);
 
   // ---- THE ULTIMATE: THE BUTTON ONLY ARMS ----
   //
@@ -1211,15 +1215,18 @@ function tryCounter(m, p, fx) {
 // Resolved on the kick's rising edge, not per-frame, so one press is one tackle.
 function tryTackle(m, p, fx) {
   const foe = m.players[1 - p.index];
-  // Nothing to tackle: they are already down. Without this each boot's hit-stop would stretch
-  // the time a stunned player spends on the floor.
-  if (foe.tackleImmune > 0 || foe.stunned > 0) return false;
+  if (foe.tackleImmune > 0) return false;
 
   // Where the boot IS, which is now always out in front of the attacking side — the same
   // place the swing is drawn and the same place the ball can be struck from. A tackle box on
   // `facing` would be a hit landed by a leg that is not there.
-  const kx = p.x + p.side * C.KICK_REACH;
-  const ky = p.y - C.BODY_H * 0.5;                 // the kick circle's height (resolveBallPlayers)
+  // IN THE AIR TOO: the swing's boot rises from the hip to KICK_HI_Y (resolveBallPlayers), so
+  // it is tested low and raised — a jumping opponent above the hip used to be missed entirely.
+  return [[C.KICK_REACH, C.BODY_H * 0.5], [C.KICK_REACH_HI, C.KICK_HI_Y]]
+    .some(([reach, up]) => tackleAt(m, p, foe, fx, p.x + p.side * reach, p.y - up));
+}
+
+function tackleAt(m, p, foe, fx, kx, ky) {
   // THE WHOLE LEG, NOT JUST THE TOE. This used to test one circle sitting at the tip of the
   // reach, which is exactly wrong for an opponent standing RIGHT ON TOP of you — closer than
   // the tip, so the circle at the tip missed them entirely and the swing reached past their
@@ -1249,6 +1256,19 @@ function tryTackle(m, p, fx) {
   // The front/back distinction survives on the shove alone: a hit you never saw shoves you
   // TACKLE_PUSH_BACK as far. The HS knockout — stars after enough of these — is kickDamage.
   const dir = -foe.side;
+  // KICKED WHILE KNOCKED OUT (Idan): out on his feet he cannot brace, so the boot sends him
+  // sliding fast back toward his own goal under the stars. It does not count toward another
+  // knockout (kickDamage) and does not lengthen the stars; the hit-stop is skipped so the stun
+  // clock is not stretched either.
+  if (foe.stunned > 0) {
+    foe.vx = dir * C.KO_KICK_SLIDE;
+    foe.koSlide = C.KO_SLIDE_TIME;
+    foe.tackleImmune = C.TACKLE_IMMUNE;
+    p.kickT = 0;
+    m.events.push({ type: 'tackle', by: p.index, on: foe.index, x: kx, y: ky, powered: false, behind: false, shot: null, ko: true });
+    fx.hit(kx, ky, '#ffd166', 2);
+    return true;
+  }
   const behind = foe.facing === from;
   const k = behind ? C.TACKLE_PUSH_BACK : 1;
   // AIRBORNE OR STANDING (HS M4 102–121 s). Kicked on your feet you stay on them: rocked back
@@ -1722,7 +1742,7 @@ const P_FIELDS = [
   'kickT', 'kickCd', 'dashT', 'dashCd', 'dashDir', 'tapDir', 'tapT',
   // `armed` is the ultimate AND the glow, so a client that restores without it either glows
   // at nothing or misses the touch that should have fired.
-  'gauge', 'armed', 'shoved', 'kickDir',
+  'gauge', 'armed', 'shoved', 'koSlide', 'kickDir',
   // Added with the tackle + jump-feel pass. Anything that can change a future step has to
   // travel, or a reconciling client re-runs the last 30 ticks with the wrong state.
   'tackleImmune', 'coyote', 'jumpBuf',

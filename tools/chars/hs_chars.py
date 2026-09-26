@@ -159,6 +159,64 @@ def worm(cl, w, eye_side=-1, back=False):
     return [body, tip, glow, mouth]
 
 
+_SNAKE = {'base': '#4f9e2c', 'shade': '#2a5e17', 'hi': '#8fd24a', 'hi2': '#d8f59c', 'line': '#0c2005'}
+
+
+def snake(cl, w, ang, s=None):
+    """A Medusa snake rearing straight up out of her hair: a thick green scaled body from the base
+    (the FIRST point, hidden behind her head) up to the neck (the last point), then a wedge-shaped
+    viper head pointing along `ang` (degrees, screen space) with its jaws thrown wide open — two
+    white fangs, a forked red tongue, a burning yellow slit eye under an angry brow ridge."""
+    s = s or w * 1.15
+    a = math.radians(ang)
+    dx, dy = math.cos(a), math.sin(a)
+    nx, ny = -dy, dx
+    if ny < 0:                       # keep the jaw on the underside whichever way it faces
+        nx, ny = -nx, -ny
+    hx, hy = cl[-1][0] + dx * s * 0.75, cl[-1][1] + dy * s * 0.75
+
+    def L(u, v, c=True):
+        q = (hx + (u * dx + v * nx) * s, hy + (u * dy + v * ny) * s)
+        return q + (('c',) if c else ())
+
+    body = {'cl': R(list(reversed(cl + [L(-0.35, -0.02, False)]))), 'w': (U(w), U(w * 1.25)), 'tones': _SNAKE, 'lw': 1.6,
+            'bulge': 0.1, 'rings': max(5, int(len(cl) * 1.6)), 'ring0': 0.08, 'ring1': 0.95, 'ringC': '#1f4a12', 'ringHi': '#a6e062',
+            'layer': 'back'}
+    tongue = {'cl': R([L(0.7, 0.22, False), L(1.2, 0.3, False), L(1.45, 0.2, False)]), 'w': (U(s * 0.09), U(s * 0.05)),
+              'tones': {'base': '#e0243a', 'line': '#4a0610'}, 'lw': 0.8, 'layer': 'back'}
+    forks = [{'cl': R([L(1.42, 0.21, False), L(1.62, v, False)]), 'w': (U(s * 0.05), U(s * 0.01)),
+              'tones': {'base': '#e0243a', 'line': '#4a0610'}, 'lw': 0.7, 'layer': 'back'} for v in (0.06, 0.36)]
+    # the gaping mouth: a dark red throat between the jaws
+    mouth = {'pts': R([L(-0.3, 0.1), L(0.95, -0.12), L(1.0, 0.1, False), L(0.82, 0.62), L(0.1, 0.5, False)]),
+             'tones': {'base': '#5a0a14', 'hi': '#b01e30', 'line': '#1a0404'}, 'lw': 1.0, 'layer': 'back',
+             'hi': [R([L(-0.1, 0.18), L(0.7, 0.05), L(0.62, 0.42), L(0.1, 0.36, False)])]}
+    # the upper jaw and skull: a flat wedge, wide at the back, a blunt snout
+    skull = {'pts': R([L(-0.7, 0.2), L(-0.8, -0.2, False), L(-0.45, -0.55, False), L(0.3, -0.52, False), L(1.02, -0.3, False),
+                       L(1.12, -0.08), L(0.95, 0.02, False), L(-0.1, 0.08, False)]),
+             'tones': _SNAKE, 'lw': 1.4, 'layer': 'back',
+             'shade': [R([L(-0.7, 0.2), L(-0.1, 0.08, False), L(0.95, 0.02, False), L(1.1, -0.06), L(0.5, -0.12, False), L(-0.6, -0.02, False)])],
+             'hi': [R([L(-0.4, -0.45), L(0.4, -0.44, False), L(0.95, -0.28), L(0.3, -0.36, False), L(-0.3, -0.34, False)])],
+             'lines': [R([L(-0.15, -0.58, False), L(0.25, -0.34, False), L(0.6, -0.3, False)])], 'lineW': 1.3,
+             'dots': [(*P1(L(1.0, -0.2, False)), U(s * 0.03), U(s * 0.03), '#0c2005')]}
+    # the lower jaw, dropped open
+    jaw = {'pts': R([L(-0.55, 0.28), L(-0.05, 0.62, False), L(0.84, 0.66), L(0.82, 0.54, False), L(0.1, 0.44, False), L(-0.3, 0.18, False)]),
+           'tones': {**_SNAKE, 'base': '#b8cf5a', 'line': '#0c2005'}, 'lw': 1.2, 'layer': 'back',
+           'shade': [R([L(-0.4, 0.3), L(0.0, 0.6, False), L(0.8, 0.64), L(0.1, 0.52, False)])]}
+    fangs = [{'pts': R([L(u - 0.07, 0.0), L(u + 0.07, -0.02), L(u + 0.02, 0.34)]), 'tones': {'base': '#fbfbf2', 'line': '#2a2a20'},
+              'lw': 0.6, 'layer': 'back'} for u in (0.72, 0.3)]
+    low = [{'pts': R([L(0.62, 0.52), L(0.74, 0.54), L(0.66, 0.34)]), 'tones': {'base': '#fbfbf2', 'line': '#2a2a20'},
+            'lw': 0.5, 'layer': 'back'}]
+    ex, ey = P1(L(0.05, -0.3, False))
+    eye = {'pts': R([L(-0.2, -0.3), L(0.05, -0.47, False), L(0.3, -0.33), L(0.05, -0.16, False)]),
+           'tones': {'base': '#ffd21a', 'hi': '#fff27a', 'line': '#1a0e02'}, 'lw': 0.8, 'layer': 'back',
+           'dots': [(ex, ey, U(s * 0.035), U(s * 0.13), '#120800'), (ex - U(s * 0.06), ey - U(s * 0.06), U(s * 0.025), U(s * 0.025), '#ffffff')]}
+    brow = {'pts': R([L(-0.35, -0.44), L(0.0, -0.6, False), L(0.42, -0.4), L(0.36, -0.32), L(0.0, -0.46, False), L(-0.3, -0.36)]),
+            'tones': {'base': '#1c3e0e', 'line': '#0c2005'}, 'lw': 0.6, 'layer': 'back'}
+    glow = {'pts': R(_oval(*L(0.05, -0.31, False), s * 0.3, s * 0.22, a)), 'tones': {'base': '#ffe23a'}, 'a': 60,
+            'line': False, 'hdOnly': True, 'layer': 'back'}
+    return [body, tongue] + forks + [mouth] + fangs + low + [jaw, skull, glow, eye, brow]
+
+
 _GOLD = {'base': '#ffc92e', 'shade': '#d48a0c', 'hi': '#fff0a0', 'hi2': '#ffffff', 'line': '#6e3e04'}
 
 
@@ -262,13 +320,14 @@ ORI = char(
         {'cl': R([(358, 72), (430, 98), (484, 146), (516, 220), (534, 290)]), 'w': (U(40), 1), 'tone': 'hi', 'hi': -0.25, 'hiW': 0.2, 'lw': 0.45},
         {'cl': R([(426, 50), (494, 76), (544, 128), (570, 210), (576, 280)]), 'w': (U(36), 1), 'tone': 'mid', 'hi': -0.25, 'hiW': 0.2, 'lw': 0.45},
     ],
-    # the card's worms, standing up: two rearing straight up beside her like cobras, their heads
-    # bent toward her, and a small one standing up behind her head
-    # the card's worms coming OUT of her: one out of each ear (the far one just past her cheek,
-    # where it would be), rearing up beside her head, and one rising out of the top of her head
-    extras=worm([(62, 318), (30, 296), (28, 240), (40, 176), (70, 124), (104, 92)], 58, eye_side=-1)
-           + worm([(552, 318), (596, 296), (612, 240), (600, 176), (572, 124), (538, 94)], 56, eye_side=1)
-           + worm([(338, 82), (326, 46), (340, 20), (370, 8)], 46, eye_side=-1),
+    # Medusa's snakes: five green vipers rearing STRAIGHT UP out of her hair from behind her head,
+    # jaws wide open and fangs out — two tall ones up her sides, two over her temples, one on top
+    extras=snake([(150, 330), (70, 300), (30, 240), (56, 170), (28, 110), (44, 60)], 48, -128)
+           + snake([(220, 160), (170, 110), (180, 56), (152, 14)], 40, -160)
+           + snake([(330, 120), (316, 70), (340, 30), (324, 0)], 36, -40)
+           + snake([(440, 160), (486, 110), (474, 56), (496, 14)], 40, -20)
+           + snake([(510, 330), (576, 300), (604, 240), (580, 170), (600, 110), (576, 60)], 48, -52),
+    scale=0.8,                                   # the rearing snakes stand tall: a touch smaller keeps them in frame
     nose={
         'tip': P1((430, 344)),
         'shade': [R([(420, 296, 'c'), (436, 318), (440, 338, 'c'), (426, 334)])],

@@ -22,7 +22,7 @@ export const EXPRESSIONS = ['normal', 'kick', 'hurt', 'happy', 'sad'];
 // their element. Both written here by paint_hs.py.
 export const CHARACTERS = {
   'legendary:1': { dir: 'legendary-1', name: 'Shoval', nose: [0.68, 0.577], fit: [12.9, 4.8, 137.2, 118.2] },
-  'legendary:2': { dir: 'legendary-2', name: 'Ori', nose: [0.678, 0.58], fit: [11.3, 3.1, 141.8, 133.8] },
+  'legendary:2': { dir: 'legendary-2', name: 'Ori', nose: [0.663, 0.6], fit: [5.9, 3.8, 140.8, 132.4] },
   'legendary:3': { dir: 'legendary-3', name: 'Naveh', nose: [0.68, 0.577], fit: [12.9, 2.2, 142.8, 118.2] },
   'legendary:4': { dir: 'legendary-4', name: 'Naveh', nose: [0.676, 0.582], fit: [14.2, 1.9, 134.3, 118.2] },
   'legendary:5': { dir: 'legendary-5', name: 'Paz', nose: [0.682, 0.574], fit: [10.2, 8.3, 140.9, 118.2] },

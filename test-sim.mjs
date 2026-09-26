@@ -2284,10 +2284,12 @@ const jumpArc = (input) => {
     const kicker = m.players[0];
     ok('the kicker is untouched by any of it', kicker.kicked === 0 && kicker.hurt === 0 && kicker.stunned === 0);
 
-    // Down: no tackle lands, nothing counts.
+    // Down: a kick sends him sliding fast toward his own goal (Idan), and nothing counts.
     const onDowned = land(m);
-    ok('a knocked-out player cannot be kicked again', !onDowned.some((e) => e.type === 'tackle') && v.kicked === 0,
-       onDowned.map((e) => e.type).join(','));
+    ok('a knocked-out player kicked slides fast toward his own goal', onDowned.some((e) => e.type === 'tackle' && e.ko)
+       && Math.sign(v.vx) === -v.side && Math.abs(v.vx) > 800 && v.koSlide > 0, `vx=${v.vx.toFixed(0)} ${onDowned.map((e) => e.type).join(',')}`);
+    ok('…without counting toward another knockout', v.kicked === 0 && !onDowned.some((e) => e.type === 'hurt' || e.type === 'knockout'));
+    v.vx = 0; v.koSlide = 0;
     // …and cannot act: every button held for the rest of it.
     const x0 = v.x;
     let acted = false, t = 0;

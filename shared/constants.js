@@ -366,6 +366,11 @@ export let TACKLE_IMMUNE = 0.3;      // s before the same player can be tackled 
 export let KICK_HURT_EVERY = 5;
 export let KICK_HURTS_TO_KO = 3;
 export let KICK_KO_TIME = 2.0;
+// A kick on a player already knocked out (Idan): he slides back fast toward his own goal —
+// KO_KICK_SLIDE px/s bled off by KO_SLIDE_FRICTION a tick on the grass, ~470 px in ~1 s.
+export let KO_KICK_SLIDE = 1500;
+export let KO_SLIDE_FRICTION = 0.95;
+export let KO_SLIDE_TIME = 1.0;
 
 // ---- REMOVED: hidden health ------------------------------------------------
 // There used to be an invisible health bar here (HP_*, KICK_DAMAGE, POWER_DAMAGE): every boot

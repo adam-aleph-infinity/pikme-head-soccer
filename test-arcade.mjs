@@ -488,7 +488,7 @@ function fireChampion(stage, i, gap = 460) {
   // of them decides what a future tick does. `kicked` and `hurt` (the kick
   // knockout's count and the bruise) joined with hs/kick-stun.
   ok('the snapshot schema is the HS one', JSON.stringify(Object.keys(serialize(m))) === JSON.stringify(['t', 'clock', 'phase', 'freeze', 'hitStop', 'idle', 'cutin', 'cutinBy', 'banner', 'bannerT', 'ballWait', 'gaugeLead', 'afterGoal', 'afterGoalTo', 'score', 'golden', 'lastScorer', 'p', 'b', 'xb']) &&
-     serialize(m).p[0].length === 29);
+     serialize(m).p[0].length === 30);
   ok('an ordinary bot is still exactly its tier', createBot(3).d === DIFFICULTIES[3]);
 }
 
