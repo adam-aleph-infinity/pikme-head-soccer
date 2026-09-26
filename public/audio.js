@@ -1,4 +1,5 @@
-// Match SFX, synthesised — no audio files anywhere.
+// Match SFX, synthesised — except the crowd's voice, which is real recordings (public/audio/crowd,
+// credits in its CREDITS.md): a synthesised crowd shouting words always sounded like robots.
 //
 // Voiced after Head Soccer's (Idan, 2026-09-26: "do everything like HS"): natural sounds — a
 // round thump off the boot, a springy knock off the head, a referee's trilled whistle, a crowd
@@ -209,6 +210,44 @@ function fanWhistle(t = 0) {
   o.connect(g); pan(g, (Math.random() - 0.5) * 1.6).connect(crowdBus()); o.start(t0); o.stop(t0 + 0.65);
 }
 
+// ── THE REAL CROWD ─────────────────────────────────────────────────────────────────
+// Recorded crowds, several takes per moment, so no two goals sound alike: a take is picked at
+// random (never the one just played), pitched and levelled a touch differently each time, and a
+// goal sometimes gets a layer of applause on top at its own random offset. Fetched on the first
+// sound and decoded once; until a take has arrived the synthesised voice above stands in.
+const TAKES = {
+  goal: ['goal1', 'goal2', 'goal3', 'goal4', 'goal5'],
+  nearMiss: ['miss1', 'miss2', 'miss3'],
+  goalAgainst: ['sad1', 'sad2', 'sad3'],
+  applause: ['applause'],
+};
+const BUF = new Map(), LAST = {};
+let loading = false;
+function loadTakes() {
+  if (loading || typeof fetch !== 'function') return;
+  loading = true;
+  const a = ctx();
+  for (const name of Object.values(TAKES).flat()) {
+    fetch(`audio/crowd/${name}.mp3`).then((r) => (r.ok ? r.arrayBuffer() : Promise.reject(r.status)))
+      .then((ab) => new Promise((ok, no) => a.decodeAudioData(ab, ok, no)))
+      .then((b) => BUF.set(name, b)).catch(() => { /* the synth stands in */ });
+  }
+}
+function take(kind, { gain = 1, t = 0, offset = 0, rate = [0.94, 1.06] } = {}) {
+  const ready = TAKES[kind].filter((n) => BUF.has(n));
+  if (!ready.length) return false;
+  const pool = ready.length > 1 ? ready.filter((n) => n !== LAST[kind]) : ready;
+  const name = pool[Math.floor(Math.random() * pool.length)];
+  LAST[kind] = name;
+  const a = ctx(), src = a.createBufferSource(), g = a.createGain();
+  src.buffer = BUF.get(name);
+  src.playbackRate.value = rate[0] + Math.random() * (rate[1] - rate[0]);
+  g.gain.value = gain * (0.85 + Math.random() * 0.3);
+  src.connect(g); g.connect(master);
+  src.start(now() + t, offset);
+  return true;
+}
+
 // ---------------------------------------------------------------------------
 // The kit. One entry per sim event, so game.js just forwards event types here.
 // A referee's whistle: a pea whistle's ~2.9 kHz tone, trilled by the pea (fast wobble).
@@ -253,6 +292,12 @@ export const SFX = {
 
   // YOUR goal: the whole ground shouts "GOAAAAL!", roaring, clapping, a few fans whistling.
   goal()      {
+    loadTakes();
+    if (take('goal', { gain: 0.8 })) {
+      if (Math.random() < 0.6) take('applause', { gain: 0.3 + Math.random() * 0.25, t: 0.4 + Math.random() * 1.2, offset: Math.random() * 3 });
+      if (Math.random() < 0.5) for (let i = 0, n = 1 + Math.floor(Math.random() * 3); i < n; i++) fanWhistle(0.3 + Math.random() * 2);
+      return;
+    }
     roar({ dur: 3.4, peak: 0.55, lo: 600, hi: 1600 });
     chant({ n: 26, dur: 2.3, peak: 0.95, t: 0.05,
       shape: [[0, 'g'], [0.06, 'o'], [0.22, 'a'], [0.85, 'a'], [1, 'l']],
@@ -263,6 +308,8 @@ export const SFX = {
   },
   // The OPPONENT'S goal: a long, falling "awwww" and a low grumble, nobody clapping.
   goalAgainst() {
+    loadTakes();
+    if (take('goalAgainst', { gain: 0.75, rate: [0.92, 1.04] })) return;
     roar({ dur: 2.4, peak: 0.25, lo: 300, hi: 650 });
     chant({ n: 22, dur: 1.9, peak: 0.7,
       shape: [[0, 'aw'], [0.6, 'aw'], [1, 'o']],
@@ -271,6 +318,8 @@ export const SFX = {
   },
   // CLOSE, BUT NO: "ohhhhh" rising on the shot and sinking as it misses.
   nearMiss()  {
+    loadTakes();
+    if (take('nearMiss', { gain: 0.75, rate: [0.93, 1.07] })) return;
     roar({ dur: 1.6, peak: 0.25, lo: 450, hi: 900 });
     chant({ n: 20, dur: 1.4, peak: 0.7,
       shape: [[0, 'o'], [1, 'o']],
@@ -358,6 +407,7 @@ function bedTick() {
   }
 }
 export function startBed() {
+  loadTakes();
   if (bed || !enabled) return;
   const a = ctx();
   // the crowd: a looped murmur, band-limited so it sits under everything else
