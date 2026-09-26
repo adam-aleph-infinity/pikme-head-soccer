@@ -114,7 +114,7 @@ body.safedemo { --safe-l: 44px; --safe-r: 44px; --safe-b: 21px; --safe-t: 12px; 
 #stage { position: relative; overflow: hidden; background: #0b1526; }
 /* the match is a size container: its lettering, intro and result screens are sized off the MATCH
    box (cqw/cqh), which on a computer is a phone-shaped box in the window (resize()) */
-#match { container-type: size; }
+#match { container-type: size; box-shadow: 0 0 0 100vmax #000; }   /* HS's black bars round its 1.805:1 game */
 /* HS's banner lettering (drawReady): gold chrome, heavy italic, dark outline, no dimming. */
 .hsb {
   position: absolute; left: 0; right: 0; top: 24%; z-index: 40; pointer-events: none;
@@ -1391,9 +1391,13 @@ body.editing .pad .btn .grip {
   background: #0a0f1cbb; border: 1px solid #ffffff1f; font-size: 15px;
 }
 .gear { left: 8px; }   /* ?dev=1 only */
-/* HS's pause: a gold plaque with a dark II, top right */
+/* HS's pause: a round gold button with a dark II and a dark ring, in the top-right corner of the
+   game (M4: ~9% of the height, ~2% in from the side, ~2% from the top). HS has no sound button on
+   the pitch — ours is in the pause menu. */
+.sndBtn { display: none; }
 .pauseBtn {
-  position: absolute; top: 44px; right: 8px; width: 34px; height: 34px; border-radius: 9px;
+  position: absolute; top: 2cqh; right: 2cqw; width: 9cqh; height: 9cqh; border-radius: 50%; padding: 0;
+  font-size: 4.2cqh !important;
   background: linear-gradient(#ffe27a, #f2b01e 55%, #c9820c); border: 2px solid #7a4a00;
   color: #3a2200; font: 900 15px/1 Arial, sans-serif; letter-spacing: -1px;
   box-shadow: 0 2px 0 #5a3500, 0 3px 8px #0008;

@@ -1101,6 +1101,8 @@ function setPaused(on) {
 }
 $('#pauseBtn').onclick = () => { if (running) setPaused(true); };
 $('#resume').onclick = () => setPaused(false);
+// the sound toggle lives in the pause menu (HS keeps its pitch clear of it)
+$('#pSnd').onclick = () => { $('#sndBtn').onclick(); $('#pSnd').textContent = audioEnabled() ? '🔊 צליל' : '🔇 צליל'; };
 $('#retry').onclick = () => { setPaused(false); $('#again').onclick(); };
 addEventListener('keydown', (e) => { if (e.key === 'Escape' && running) setPaused(!paused); });
 // A phone that takes a call or leaves the app comes back to the pause menu, not a lost match.
@@ -1329,16 +1331,14 @@ let SKY_TOP = skyTop();              // re-read on resize: GROUND_Y is live-tuna
 // where the sim says it ends, and the green simply keeps going behind the buttons.
 const BLEED = 170;
 
-// ON A COMPUTER THE MATCH IS A PHONE. The game is laid out for a phone held sideways (~2.16:1);
-// a desktop window is far taller for its width, which squeezed the pitch and made the buttons the
-// wrong size for everything else. So off a touch screen the whole match screen is a phone-shaped
-// box centred in the window (black round it), and everything is laid out inside that box.
-const PHONE_RATIO = 844 / 390;
+// THE MATCH IS HS'S SHAPE, ON EVERY SCREEN. HS draws its game at 1.805:1 (M4: a 2130 x 1180 game
+// area on a 2556 x 1180 iPhone recording) and puts BLACK BARS beside it on anything wider — it never
+// stretches. Idan: "copy HS exactly". So the whole match screen (pitch, HUD, pad) is a 1.805:1 box
+// centred in the window, black round it; a narrower screen gets its bars above and below instead.
+const HS_RATIO = 2130 / 1180;
 function matchBox() {
   let vw = innerWidth, vh = innerHeight;
-  if (!matchMedia('(pointer: coarse)').matches) {
-    if (vw / vh > PHONE_RATIO) vw = Math.round(vh * PHONE_RATIO); else vh = Math.round(vw / PHONE_RATIO);
-  }
+  if (vw / vh > HS_RATIO) vw = Math.round(vh * HS_RATIO); else vh = Math.round(vw / HS_RATIO);
   const m = $('#match');
   Object.assign(m.style, { width: vw + 'px', height: vh + 'px', left: ((innerWidth - vw) / 2) + 'px', top: ((innerHeight - vh) / 2) + 'px', right: 'auto', bottom: 'auto' });
   return [vw, vh];
@@ -1359,8 +1359,7 @@ function resize() {
   // HS: the players' feet at 82% of the screen's height, the buttons on the floor below them
   // (hs-video/M1, M4). The band under the ground line is that 18%.
   const band = vh * 0.18 + safeInset('b');
-  // HS FILLS THE WIDTH: the goals stand at the screen's edges, never black bars beside the pitch
-  // (Idan). On a phone wider than HS's own screen that crops a strip of sky off the top instead.
+  // The pitch fills HS's box edge to edge: the goals stand at its sides, as in HS.
   const scale = vw / C.W;
   // …and if the screen is taller than that (a squarer one), the canvas carries more sky, so no
   // black strip shows above it either.
@@ -1385,7 +1384,7 @@ function resize() {
     el.style.width = w + 'px';
     el.style.height = h + 'px';
   }
-  sizePad(sw, sh, vw, vh);
+  sizePad(sw, sh, innerWidth, innerHeight);   // the window: the black bars already clear a notch
   // The scoreboard portraits are sized by CSS (--face, off the smaller viewport axis), so
   // this is the one place that asks how big the CSS made them and hands that to the crop.
   const faceW = Math.round($('#face0').getBoundingClientRect().width);
