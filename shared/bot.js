@@ -15,6 +15,9 @@ import { headY } from './sim.js';
 import { stepPower, launch as launchPower, FAMILIES } from './hs-powers.js';
 // Where the boot passes on its swing, [ahead, up] from the feet (the CPU's reach test).
 const BOOT_POINTS = bootReach();
+// CPU habits fitted to HS (test-hs-parity cpu.* rows, _cpu probe): per 0.25 s roll while it has
+// somewhere to be, and the chance a close ball in front gets the boot mashed at it.
+const DASH_BASE = 0.03, DASH_SKILL = 0.55, HOP = 0.075, MASH_SKILL = 0.12, LAZY = 0.15, KICK_GO = 0.2;
 
 // `aggression` is flat across the tiers: it is how often a bot chases a ball the other player is
 // nearer to, and it was measured three times over (on the old physics) to be the one dial that
@@ -441,7 +444,7 @@ function openPlay(bot, m, p, foe, b, out, d, dt) {
     if (bot.modeT <= 0) { bot.press = bot.rng() < d.aggression + 0.3 * s; bot.modeT = 0.6 + bot.rng() * 0.8; }
     // …and a weak tier sometimes simply does not go for a ball it could reach (re-rolled per
     // approach): HS's weak CPUs play 49% of the balls that come within reach, the five-star 86%.
-    if (bot.goFor !== bot.approach) { bot.goFor = bot.approach; bot.lazy = bot.rng() < 0.15 * (1 - s); }
+    if (bot.goFor !== bot.approach) { bot.goFor = bot.approach; bot.lazy = bot.rng() < LAZY * (1 - s); }
     const engage = !bot.lazy && (ballDepth < C.W * 0.55 || !foeFirst || bot.press);
     // Home: where it waits when it is not going. Stronger tiers wait further out (HS: the
     // five-star CPU averages 425px out from its wall, the weak ones 320).
@@ -467,7 +470,7 @@ function openPlay(bot, m, p, foe, b, out, d, dt) {
     bot.dashRoll = (bot.dashRoll ?? 0) - d.react;
     if (bot.dashRoll <= 0) {
       bot.dashRoll = 0.25;
-      bot.wantDash = far > 110 && urgent && dashReady && bot.rng() < 0.01 + 0.3 * s * s;
+      bot.wantDash = far > 70 && (urgent || engage) && dashReady && bot.rng() < DASH_BASE + DASH_SKILL * s * s;
     }
     // Tackle: the boot shoves an opponent standing in it, off the ball. An able bot takes it
     // when nothing is coming at its goal.
@@ -534,7 +537,7 @@ function openPlay(bot, m, p, foe, b, out, d, dt) {
         bot.rng() < 0.08 + 0.2 * s) jump = true;
     // THE HOP: the HS CPU is in the air every 1.6–2.3 s, and not only for a header it has
     // lined up — a ball dropping in over it, close in front, gets a jump to meet it early.
-    if (!jump && b.y < hy - C.HEAD_R && Math.abs(dxb) < 150 && bot.rng() < 0.04) jump = true;
+    if (!jump && b.y < hy - C.HEAD_R && Math.abs(dxb) < 150 && bot.rng() < HOP) jump = true;
     // SOLID BODIES: the other player is between me and where I am going, on the grass. Jump:
     // a jump does not clear a head, it lands ON it (HS: standing on heads), and from there the
     // walk carries on over the top.
@@ -560,12 +563,12 @@ function openPlay(bot, m, p, foe, b, out, d, dt) {
     }
     if (onBoot) break;
   }
-  if (onBoot && !bot.kickSeen) { bot.kickSeen = true; bot.kickGo = bot.rng() < 0.45 + 0.55 * s; }
+  if (onBoot && !bot.kickSeen) { bot.kickSeen = true; bot.kickGo = bot.rng() < KICK_GO + (1 - KICK_GO) * s; }
   if (!onBoot) bot.kickSeen = false;
   // MASHING: the HS CPU keeps the boot going whenever the ball is close in front, or the other
   // player is (the tackle) — 23–45 swings a minute overall, near the cooldown's cap up close.
   const close = ahead > -10 && Math.abs(dxb) < 110 && b.y > hy - 70;
-  const mash = close && bot.rng() < 0.02 + 0.2 * s;
+  const mash = close && bot.rng() < 0.02 + MASH_SKILL * s;
   const want = (bot.kickSeen && bot.kickGo) || mash || bot.wantTackle || (p.armed > 0 && Math.abs(dxb) < 90);
   out.kick = want && p.kickCd <= 0 && !bot.lastKick;
   bot.lastKick = out.kick;

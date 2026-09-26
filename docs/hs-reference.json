@@ -1659,19 +1659,20 @@
   },
   {
     "id": "cpu.goals.weak",
-    "value": 2.5,
+    "value": 2.667,
     "unit": "goals",
     "clips": [
-      "M4"
+      "M4",
+      "M5"
     ],
-    "n": 2,
-    "sd": 1.1,
+    "n": 3,
+    "sd": 2.52,
     "tol": 2.5,
     "metric": "cpu.goals",
     "scenario": "cpuWeak",
     "status": "estimated",
-    "source": "M4: the CPU scored 0 (3–0 at 91 s) and 5 (2–5 at 183 s)",
+    "source": "M4: the CPU scored 0 (3–0 at 91 s) and 5 (2–5 at 183 s) M5 (Korea v the first, weakest CPU): the CPU scored 3 (final 6–3 at 85.1 s).",
     "how": "Scoreboard.",
-    "note": "Match 2's goals: 117.85, 124.44, 146.75, 152.18, 164.22, ~174.9, ~179.6 s (the 174.72 and 179.48 s banners are goals too). All five M1–M4 matches: 8, 11, 7, 3, 7 goals."
+    "note": "Match 2's goals: 117.85, 124.44, 146.75, 152.18, 164.22, ~174.9, ~179.6 s (the 174.72 and 179.48 s banners are goals too). All five M1–M4 matches: 8, 11, 7, 3, 7 goals. Mean of 0, 5 and 3."
   }
 ]

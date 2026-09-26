@@ -449,7 +449,9 @@ function fireChampion(stage, i, gap = 460) {
   // on a hit or a goal and the ball leaves 1.14 s in (POWER_RELEASE 0.2, measured against the dark);
   // the Grab drags the defender back to the shooter and flings him; Multi-Ball is always three
   // balls; Downward rises at 15°; beheaded takes the controls for a moment. All HS-parity changes.
-  const GOLDEN = 'b95a158bfecd96301bef8e5d3f9117c2b559201ca96594af9fca326bae50d2db';   // re-recorded: HS-GAP-AUDIT stages 1, 3, 6, 8 (the body bounces)
+  // AND for the M5 pass (hs/mechanics-m5): the boot is a body (shared/kick.js), the HS M5 speed caps
+  // and air speed, knockback fitted, the CPU's dash/hop/mash habits fitted to the cpu.* rows.
+  const GOLDEN = '575951a832702b0842fec096c9fab12660a061358fc4488e050443f85eb2b4c0';   // re-recorded: M5 mechanics pass
   const h = createHash('sha256');
   const cases = [
     [{ rarity: 'legendary', number: 3 }, { rarity: 'legendary', number: 2 }, 3, 3, 11],
