@@ -1550,7 +1550,8 @@ body.editing .pad .btn .grip {
    the right — every slanted edge parallel (~18°), thin gaps between them.
    Proportions in button heights (--hb = 11.4% of the screen's height, from HS M4): POWER 3.32,
    KICK 3.05, JUMP 3.1, arrows 3.0 each; gaps 0.1 (plaques) and 0.14 (arrows); 0.23 in from the
-   left, 0.14 from the right, 1.8% of the height off the bottom. A press squashes, never recolours. */
+   left, 0.14 from the right, 1.8% of the height off the bottom. A press squashes; a held arrow also
+   lights solid yellow (HS). */
 .pad .pad-l, .pad .pad-r { bottom: calc(var(--hbm) + var(--pb)); align-items: flex-end; }
 /* the slanted edges overlap each box by ~0.31 (plaques) / 0.19 (arrows) of a height, so each
    piece after the first pulls back that far (a gap cannot be negative): what is left between two
@@ -1570,7 +1571,13 @@ body.editing .pad .btn .grip {
 .pad .pad-r .kick { width: calc(var(--hb) * var(--s) * 3.05); }
 .pad .pad-r .jump { width: calc(var(--hb) * var(--s) * 3.1); }
 .pad .btn svg { width: 100%; height: 100%; display: block; overflow: visible; }
-.hs-glass { fill: url(#hsGlass); stroke: #7a4614; stroke-width: 4.2; stroke-linejoin: round; }
+/* HS's glass is ONE amber everywhere — it camouflages because it is see-through: the floor shows
+   through (~40%), so the same buttons read olive on grass, honey on wood, orange on pink */
+.hs-glass, .hs-line { fill: url(#hsGlass); stroke: #573006; stroke-width: 4.2; stroke-linejoin: round; }
+.hs-shaft { fill: url(#hsSheen); stroke: none; }
+.hs-head { fill: url(#hsGlass); stroke: none; }
+.hs-line { fill: none; }
+.pad .pad-l .btn.on .hs-shaft, .pad .pad-l .btn.on .hs-head, .pad .pad-l .btn:active .hs-shaft, .pad .pad-l .btn:active .hs-head { fill: url(#hsLit); }
 .pad .btn svg text {
   font: italic 900 42px "Arial Black", "Helvetica Neue", Arial, sans-serif; font-variant: small-caps;
   fill: #4a2508; stroke: #f3e2a4; stroke-width: 1.4; paint-order: stroke; text-anchor: middle;

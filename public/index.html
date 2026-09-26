@@ -228,12 +228,24 @@
       <linearGradient id="barGrad" x1="0" y1="0" x2="1" y2="0" gradientUnits="objectBoundingBox">
         <stop offset="0" stop-color="#e8321a"/><stop offset=".22" stop-color="#ea5a00"/><stop offset=".42" stop-color="#ef8a00"/>
         <stop offset=".6" stop-color="#ffc805"/><stop offset=".8" stop-color="#eefa04"/><stop offset="1" stop-color="#8ef808"/></linearGradient>
+      <!-- HS's button glass, solved per row from the same plaque over two floors (M4: wood + pink): clear
+           with a white sheen in the top third, then amber from ~38% down — the floor always shows through
+           at ~40%, which is why the buttons take each stadium's colour -->
       <linearGradient id="hsGlass" x1="0" y1="0" x2="0" y2="1">
-        <stop offset="0" stop-color="#f8eaa8" stop-opacity=".40"/><stop offset="1" stop-color="#f8eaa8" stop-opacity=".40"/></linearGradient></defs></svg>
+        <stop offset="0" stop-color="#fff" stop-opacity=".42"/><stop offset=".1" stop-color="#fff" stop-opacity=".25"/>
+        <stop offset=".34" stop-color="#fff" stop-opacity=".15"/><stop offset=".38" stop-color="#c09a23" stop-opacity=".6"/>
+        <stop offset=".55" stop-color="#ad7117" stop-opacity=".6"/><stop offset="1" stop-color="#a0660e" stop-opacity=".58"/></linearGradient>
+      <!-- an arrow's shaft is near-clear (the floor shows through untouched); only its head carries the amber -->
+      <linearGradient id="hsSheen" x1="0" y1="0" x2="0" y2="1">
+        <stop offset="0" stop-color="#fff" stop-opacity=".42"/><stop offset=".3" stop-color="#fff" stop-opacity=".18"/>
+        <stop offset="1" stop-color="#fff" stop-opacity=".05"/></linearGradient>
+      <!-- a held arrow lights up solid yellow (M3/M4: 255,227,0) -->
+      <linearGradient id="hsLit" x1="0" y1="0" x2="0" y2="1">
+        <stop offset="0" stop-color="#fff6a0"/><stop offset=".35" stop-color="#ffe300"/><stop offset="1" stop-color="#f2c200"/></linearGradient></defs></svg>
     <div class="pad" id="pad">
       <div class="pad-l">
-        <button class="btn" data-k="left"><svg viewBox="0 0 300 100" aria-hidden="true"><path class="hs-glass" d="M3 50 L140 3 L140 26 L297 26 L282 74 L140 74 L140 97 Z"/><text x="246" y="64">L</text></svg></button>
-        <button class="btn" data-k="right"><svg viewBox="0 0 300 100" aria-hidden="true"><path class="hs-glass" d="M18 26 L159 26 L159 3 L297 50 L159 97 L159 74 L3 74 Z"/><text x="50" y="64">R</text></svg></button>
+        <button class="btn" data-k="left"><svg viewBox="0 0 300 100" aria-hidden="true"><path class="hs-shaft" d="M3 50 L140 3 L140 26 L297 26 L282 74 L140 74 L140 97 Z"/><path class="hs-head" d="M3 50 L140 3 L140 97 Z"/><path class="hs-line" d="M3 50 L140 3 L140 26 L297 26 L282 74 L140 74 L140 97 Z"/><text x="246" y="64">L</text></svg></button>
+        <button class="btn" data-k="right"><svg viewBox="0 0 300 100" aria-hidden="true"><path class="hs-shaft" d="M18 26 L159 26 L159 3 L297 50 L159 97 L159 74 L3 74 Z"/><path class="hs-head" d="M159 3 L297 50 L159 97 Z"/><path class="hs-line" d="M18 26 L159 26 L159 3 L297 50 L159 97 L159 74 L3 74 Z"/><text x="50" y="64">R</text></svg></button>
       </div>
       <div class="pad-r">
         <!-- HS's order, left to right: POWER, KICK, JUMP — JUMP in the corner -->
