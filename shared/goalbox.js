@@ -208,11 +208,15 @@ export function keepOutOfGoal(fromX, fromY, toX, toY, r) {
 // the frame or above it the goal is solid: you cannot arrive through the roof, and the goal
 // line is the wall again.
 //
-// Inside the net the player walks on until their CENTRE is at the back of the pitch, so half
-// the body is past the edge, hidden in the black bars. Stopped a body-width short, a keeper
-// standing in the net filled the whole mouth and nothing could get past them to score.
+// Inside the net the player walks on PAST the back of the pitch, until about half the head is
+// hidden in the black bars. Stopped a body-width short, a keeper standing in the net filled the
+// whole mouth and nothing could get past them to score. With the centre only at the wall, the
+// hair on the pitch side still reached the goal-line post (the head is drawn on the net's
+// mid-depth plane, 11px forward, and the hair overhangs the hitbox); 12px deeper keeps all of
+// what shows inside the frame.
+export const NET_DEEP = 12;
 export function walkBounds(w, underBar) {
-  if (underBar) return { lo: 0, hi: C.W };
+  if (underBar) return { lo: -NET_DEEP, hi: C.W + NET_DEEP };
   return { lo: C.GOAL_W + w / 2, hi: C.W - C.GOAL_W - w / 2 };
 }
 

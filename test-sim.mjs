@@ -1,7 +1,7 @@
 // Physics + rules tests. Run: node test-sim.mjs
 import * as C from './shared/constants.js';
 import { createMatch, step, headY, headR, stun, serialize, restore, playerContact } from './shared/sim.js';
-import { walkBounds, barY } from './shared/goalbox.js';
+import { walkBounds, barY, NET_DEEP } from './shared/goalbox.js';
 import { shotFor, shotById, FAMILY_ORDER } from './shared/hs-powers.js';
 import { CHAMPIONS } from './shared/champions.js';
 
@@ -212,9 +212,9 @@ const scoreOn = (m, left, y = C.GROUND_Y - 60, speed = 600) => {
   // that used to say the opposite and has to keep saying the new thing.
   const m = fresh();
   run(m, 400, [{ left: true }, { right: true }]);
-  ok('player 0 stops at the back of its net', m.players[0].x >= -0.01, `x=${m.players[0].x}`);
+  ok('player 0 stops at the back of its net', m.players[0].x >= -NET_DEEP - 0.01, `x=${m.players[0].x}`);
   ok('player 0 got past the goal line', m.players[0].x < C.GOAL_W, `x=${m.players[0].x}`);
-  ok('player 1 stops at the back of its net', m.players[1].x <= C.W + 0.01);
+  ok('player 1 stops at the back of its net', m.players[1].x <= C.W + NET_DEEP + 0.01);
   ok('player 1 got past the goal line', m.players[1].x > C.W - C.GOAL_W, `x=${m.players[1].x}`);
 }
 {
