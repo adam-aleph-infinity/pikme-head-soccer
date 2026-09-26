@@ -168,6 +168,9 @@ function fan(g, x, y, s, r, look, night) {
 // whole stand is out of focus behind the play (edge detail 13 against the 50 ours had with ~7
 // rows of small, sharp fans). CROWD is the fan's size against the old one.
 const CROWD = 1.9;
+// The stands are painted at this fraction of full resolution and scaled up: HS's crowd is soft,
+// out of focus behind the play (Idan: "the audience are way too clear").
+const SOFT = 0.33;
 function tier(g, W, top, bot, seed, aisles, night) {
   const gr = g.createLinearGradient(0, top, 0, bot);
   // HS M5's night stands are floodlit: light grey concrete under the dark sky, not navy
@@ -230,19 +233,19 @@ function stadium(night, seed) {
     g.fillStyle = night ? '#1f4a8a' : '#2466b8'; g.fillRect(0, roofTop + 5, W, 3);
     g.fillStyle = night ? '#0b0e16' : '#6e7886'; g.fillRect(0, roofBot - 2, W, 2);
     const aisles = [W * 0.08, W * 0.5, W * 0.92];
-    // OUT OF FOCUS, as HS's stands are: both tiers are painted at half resolution and scaled up
+    // OUT OF FOCUS, as HS's stands are: both tiers are painted at a third of the resolution (SOFT) and scaled up
     // smoothly, then warmed and darkened a touch (HS's crowd: brightness 0.53, warm 119/99/84).
     // (A canvas `filter: blur()` did the same on desktop and blanked the stands in headless
     // Chrome, so it is not trusted.)
     const H2 = bot + 10, soft = document.createElement('canvas');
-    soft.width = Math.ceil(W / 2); soft.height = Math.ceil(H2 / 2);
+    soft.width = Math.ceil(W * SOFT); soft.height = Math.ceil(H2 * SOFT);
     const h = soft.getContext('2d');
-    h.scale(0.5, 0.5);
+    h.scale(SOFT, SOFT);
     tier(h, W, roofBot, midA, seed, aisles, night);
     tier(h, W, midB, bot, seed + 11, aisles, night);
     if (!night) { h.fillStyle = 'rgba(52,30,16,0.16)'; h.fillRect(0, roofBot, W, bot - roofBot); }
     g.imageSmoothingEnabled = true; g.imageSmoothingQuality = 'high';
-    g.drawImage(soft, 0, roofBot / 2, soft.width, soft.height - roofBot / 2, 0, roofBot, W, H2 - roofBot);
+    g.drawImage(soft, 0, roofBot * SOFT, soft.width, soft.height - roofBot * SOFT, 0, roofBot, W, H2 - roofBot);
     // the banner strip between the tiers
     for (let i = 0; i < 6; i++) {
       const bx = i * W / 6 + 3, bw = W / 6 - 6, c = BANNER[(i + seed) % BANNER.length];
