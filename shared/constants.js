@@ -277,7 +277,7 @@ export let JUMP_BUFFER = 0.05;
 // Kicking someone in the back is the one hit they could not see coming, and it shoves LESS —
 // kept from the old model because nothing in HS contradicts it yet; measured values replace it.
 export let TACKLE_PUSH_BACK = 0.45;  // the shove, scaled down when it lands from behind
-export let TACKLE_PUSH = 292;        // knockback from the front — a real shove (430 x old PACE)
+export let TACKLE_PUSH = 343;        // knockback from the front: 292 carried an airborne victim 102 px, 343 the measured 120
 export let TACKLE_LIFT = 136;        // (200 x old PACE)
 // How long the shove OWNS the body. Movement is instant now (PLAYER_SPEED), so without this the
 // victim's own stick — or letting go of it — would cancel the knockback on the very next tick.
@@ -290,7 +290,7 @@ export let TACKLE_SHOVE = 0.35;
 // kicked mid-jump is carried off, ~110–140 px and up (6299/6345). So the push/lift above is the
 // airborne shove, and a grounded one is this slide — TACKLE_GROUND_PUSH px/s bled off by
 // PLAYER_FRICTION every tick, which comes to ~40 px — with no lift at all.
-export let TACKLE_GROUND_PUSH = 820;
+export let TACKLE_GROUND_PUSH = 644;   // 820 slid 51 px in this sim; 644 slides the measured 40
 export let KICK_REEL = 0.2;          // s a grounded victim is rocked back (HS: 8–12 frames a kick)
 // HS lands boots on the same player 0.17–0.6 s apart (M4 6201/6211/6221, 7121/7131/7148), so
 // the old 1.1 s of immunity swallowed most of the kicks Head Soccer counts. It is now only the
