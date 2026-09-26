@@ -1548,7 +1548,7 @@ body.editing .pad .btn .grip {
    on the slant, the letter there); and the plaques as one row of puzzle pieces — POWER round at
    the left and slanted at the right, KICK a parallelogram, JUMP slanted at the left and round at
    the right — every slanted edge parallel (~18°), thin gaps between them.
-   Proportions in button heights (--hb = 11.4% of the screen's height, from HS M4): POWER 3.32,
+   Proportions in button heights (--hb = 11.4% of the screen's height, from HS M4): POWER 3.1 (the same as JUMP),
    KICK 3.05, JUMP 3.1, arrows 3.0 each; gaps 0.1 (plaques) and 0.14 (arrows); 0.23 in from the
    left, 0.14 from the right, 1.8% of the height off the bottom. A press squashes; a held arrow also
    lights solid yellow (HS). */
@@ -1567,7 +1567,7 @@ body.editing .pad .btn .grip {
 }
 .pad .pad-l .btn::before, .pad .pad-l .btn::after, .pad .pad-r .btn::before, .pad .pad-r .btn::after { display: none; }
 .pad .pad-l .btn { width: calc(var(--hb) * var(--s) * 3.0); height: calc(var(--hb) * var(--s) * 1.03); }
-.pad .pad-r .power { width: calc(var(--hb) * var(--s) * 3.32); }
+.pad .pad-r .power { width: calc(var(--hb) * var(--s) * 3.1); }
 .pad .pad-r .kick { width: calc(var(--hb) * var(--s) * 3.05); }
 .pad .pad-r .jump { width: calc(var(--hb) * var(--s) * 3.1); }
 .pad .btn svg { width: 100%; height: 100%; display: block; overflow: visible; }
