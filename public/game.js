@@ -73,10 +73,12 @@ function paintHead(el, r, n, sizePx, opts) {
 // THE REAL-FACE CHARACTERS. Every expression of a character is fetched the first time it shows
 // anywhere, so the first goal or stun does not blink while its face loads.
 const CHAR_WARM = new Set();
+// …and kept, by url: drawHeadNet stamps the face's own pixels to lay the net over the hair too.
+const CHAR_IMG = new Map();
 function warmCharacter(ch) {
   if (CHAR_WARM.has(ch.dir)) return;
   CHAR_WARM.add(ch.dir);
-  for (const e of CHAR_EXPRESSIONS) { const im = new Image(); im.src = charUrl(ch, e); }
+  for (const e of CHAR_EXPRESSIONS) { const im = new Image(); im.src = charUrl(ch, e); CHAR_IMG.set(im.src, im); }
 }
 // A portrait (pick slot, arcade hexagons, scoreboard): the whole head, hair included, fitted
 // into the box with the drawn head box `fill` of its width, a touch above centre so the hair
@@ -1695,9 +1697,43 @@ function drawBallMarker(g, b) {
 // out half netted — exactly as the body below it does — instead of flipping all at once the
 // frame the player's middle crosses the line. The bounding test below skips the work when the
 // head is nowhere near a goal and can change nothing, so it cannot pop either.
+// A real-face character's HAIR reaches well past the head outline, so clipped to HEAD_SHAPE the
+// strands overhanging it stayed un-netted and read as poking out through the side net. Those
+// heads are masked by the art itself instead: the face is stamped on a scratch layer and the
+// net laid on its pixels only (source-in), so every strand sits behind the net and nothing
+// transparent around it is netted twice.
+let netMask = null, netMaskCtx = null;
+function charNetMask(p, i, h, left) {
+  const ch = characterFor(p.char.rarity, p.char.number);
+  const im = ch && CHAR_IMG.get(new URL(charUrl(ch, HUD.head[i].dataset.expr || ''), location.href).href);
+  if (!im || !im.complete || !im.naturalWidth) return false;
+  if (!netMask || netMask.width !== cvNet.width || netMask.height !== cvNet.height) {
+    netMask = document.createElement('canvas');
+    netMask.width = cvNet.width; netMask.height = cvNet.height;
+    netMaskCtx = netMask.getContext('2d');
+  }
+  const g = netMaskCtx, wW = headR(M, p) * 2 * HEAD_W, wH = headR(M, p) * 2 * HEAD_H, u = wW / CHAR_BOX.boxW;
+  g.setTransform(1, 0, 0, 1, 0, 0);
+  g.clearRect(0, 0, netMask.width, netMask.height);
+  g.setTransform(ctxNet.getTransform());
+  g.save();
+  // the same placement as the DOM head: its tilt about the box centre, the art offset by
+  // CHAR_BOX, player two mirrored about the art's own centre (paintPitchChar, drawHeads)
+  const tilt = p.ail === 'twister' && !p.onGround ? (performance.now() / 1000) * 14 * p.side : reeling(p) ? -p.side * 0.45 : 0;
+  g.translate(h.x, h.y); g.rotate(tilt);
+  const ax = -wW / 2 - CHAR_BOX.x * u, ay = -wH / 2 - CHAR_BOX.y * u, aw = CHAR_BOX.w * u, ah = CHAR_BOX.h * u;
+  if (i === 1) { g.translate(ax + aw / 2, 0); g.scale(-1, 1); g.translate(-(ax + aw / 2), 0); }
+  g.drawImage(im, ax, ay, aw, ah);
+  g.restore();
+  g.globalCompositeOperation = 'source-in';
+  drawGoalFront(g, left, true);
+  g.globalCompositeOperation = 'source-over';
+  ctxNet.save(); ctxNet.setTransform(1, 0, 0, 1, 0, 0); ctxNet.drawImage(netMask, 0, 0); ctxNet.restore();
+  return true;
+}
 function drawHeadNet() {
   ctxNet.clearRect(0, -SKY_TOP, C.W, SKY_TOP + C.H + BLEED);
-  for (const p of M.players) {
+  for (const [i, p] of M.players.entries()) {
     const h = depthPoint(p.x, headY(p));
     // Exactly the head's own shape. Wider and the wash would land on pixels the main canvas
     // has already washed, and a second 10% would ring the head in a darker halo.
@@ -1707,6 +1743,10 @@ function drawHeadNet() {
       // The whole box, all four uprights: the near pair sit at wallX/lineX and the far pair
       // one width-step inward, and which of those is leftmost flips between the two goals.
       const xs = [box.wallX, box.wallX + box.wx, box.lineX, box.lineX + box.wx];
+      // (the bounds test with room for the hair, which reaches ~0.45 of a box beyond the head)
+      const rr = r * 1.45;
+      if (h.x + rr < Math.min(...xs) || h.x - rr > Math.max(...xs) || h.y + rr < box.top + box.wy) continue;
+      if (p.ail === 'beheaded' || charNetMask(p, i, h, left)) continue;
       if (h.x + r < Math.min(...xs) || h.x - r > Math.max(...xs) || h.y + r < box.top + box.wy) continue;
       ctxNet.save();
       ctxNet.beginPath();
