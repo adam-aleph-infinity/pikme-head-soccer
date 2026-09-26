@@ -211,7 +211,7 @@ function openModes(multi = false) {
   $('#modeMulti').classList.toggle('on', multi);
   $('#modeArcadeSub').textContent = ARC.campaignComplete(PROG)
     ? '45 אלופים · הושלם ✓'
-    : `45 אלופים · שלב ${ARC.currentStage(PROG)}`;
+    : `אלופים · שלב ${ARC.currentStage(PROG)}/45`;
 }
 $('#playBtn').onclick = () => openModes();
 $('#modeBack').onclick = () => show('pick');
