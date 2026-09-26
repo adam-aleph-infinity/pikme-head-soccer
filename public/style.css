@@ -112,6 +112,9 @@ body.safedemo { --safe-l: 44px; --safe-r: 44px; --safe-b: 21px; --safe-t: 12px; 
 /* ─── MATCH ────────────────────────────────────────────────────────────── */
 #match { align-items: center; justify-content: center; background: #05070d; }
 #stage { position: relative; overflow: hidden; background: #0b1526; }
+/* the match is a size container: its lettering, intro and result screens are sized off the MATCH
+   box (cqw/cqh), which on a computer is a phone-shaped box in the window (resize()) */
+#match { container-type: size; }
 /* HS's banner lettering (drawReady): gold chrome, heavy italic, dark outline, no dimming. */
 .hsb {
   position: absolute; left: 0; right: 0; top: 24%; z-index: 40; pointer-events: none;
@@ -119,7 +122,7 @@ body.safedemo { --safe-l: 44px; --safe-r: 44px; --safe-b: 21px; --safe-t: 12px; 
 }
 .hsb span {
   display: inline-block; will-change: transform;
-  font: italic 900 clamp(40px, 13vh, 120px)/1 "Arial Black", "Helvetica Neue", Impact, sans-serif;
+  font: italic 900 clamp(40px, 13cqh, 120px)/1 "Arial Black", "Helvetica Neue", Impact, sans-serif;
   letter-spacing: .02em;
   background: linear-gradient(180deg, #fffbe0 0%, #ffe066 30%, #f4b01c 50%, #b36b00 52%, #ffd75a 78%, #fff3b0 100%);
   -webkit-background-clip: text; background-clip: text; color: transparent;
@@ -238,7 +241,7 @@ body.safedemo { --safe-l: 44px; --safe-r: 44px; --safe-b: 21px; --safe-t: 12px; 
   grid-template-areas: "f0 clock f1"
                        "s0 clock s1";
   row-gap: 2px;
-  width: clamp(180px, 34vw, 320px);
+  width: clamp(180px, 34cqw, 320px);
   font-variant-numeric: tabular-nums;
 }
 /* The one piece of lettering shared by the clock and both scores: a keyline thick enough to
@@ -321,7 +324,7 @@ body.safedemo { --safe-l: 44px; --safe-r: 44px; --safe-b: 21px; --safe-t: 12px; 
 /* A LANDSCAPE PHONE IS 390px TALL and a portrait one is 390px WIDE, so the board is sized
    off whichever of the two is scarcer. Everything else on it — the clock, both scores, the
    gap the clock is pulled up by — is a multiple of this one number. */
-#stage { --face: clamp(34px, min(6.4vw, 7.6vh), 52px); }
+#stage { --face: clamp(34px, min(6.4cqw, 7.6cqh), 52px); }
 
 /* ── THE POWER METER ──────────────────────────────────────────────────────────
    Was a plain rectangle that only grew. It is the one number a player watches all match,
@@ -436,12 +439,12 @@ body.safedemo { --safe-l: 44px; --safe-r: 44px; --safe-b: 21px; --safe-t: 12px; 
   -webkit-text-stroke: .045em #4a2700; direction: ltr;
   filter: drop-shadow(0 .05em 0 #2a1600) drop-shadow(0 .1em .12em #0009);
 }
-.ov-res { font-size: clamp(30px, 9vh, 56px); }
-.ov-spell { font-size: clamp(26px, 8vh, 50px); min-height: 1em; white-space: nowrap; background: none; -webkit-text-stroke: 0; filter: none;
+.ov-res { font-size: clamp(30px, 9cqh, 56px); }
+.ov-spell { font-size: clamp(26px, 8cqh, 50px); min-height: 1em; white-space: nowrap; background: none; -webkit-text-stroke: 0; filter: none;
   display: flex; flex-direction: column; align-items: center; line-height: 1; direction: ltr; }
 .ov-spell span { font-size: inherit; }
 .ov-spell small {
-  font: italic 900 clamp(10px, 3vh, 16px)/1 "Arial Black", Arial, sans-serif; color: #fff; letter-spacing: .08em;
+  font: italic 900 clamp(10px, 3cqh, 16px)/1 "Arial Black", Arial, sans-serif; color: #fff; letter-spacing: .08em;
   background: #0b1020d9; padding: .15em .7em; border-radius: 99px; margin-bottom: -.1em; position: relative; z-index: 1;
 }
 .ov-spell em { font-style: normal; }
@@ -457,13 +460,13 @@ body.safedemo { --safe-l: 44px; --safe-r: 44px; --safe-b: 21px; --safe-t: 12px; 
   box-shadow: 0 6px 18px #0009;
 }
 #overScore { display: flex; align-items: center; gap: 12px; }
-#overScore .gold { font-size: clamp(26px, 8vh, 46px); }
-#overScore .ov-vs { font-size: clamp(20px, 6vh, 34px); }
+#overScore .gold { font-size: clamp(26px, 8cqh, 46px); }
+#overScore .ov-vs { font-size: clamp(20px, 6cqh, 34px); }
 .ov-spell span { display: inline-block; animation: spellIn .22s cubic-bezier(.2, 1.4, .5, 1) both; }
 @keyframes spellIn { from { transform: translateY(-50%) scale(1.8); opacity: 0; } }
 /* the result panel slides in from the right (HS), the pause menu just appears */
 #over:not(.hidden) > * { animation: panelIn .32s ease-out both; }
-@keyframes panelIn { from { transform: translateX(70vw); opacity: 0; } }
+@keyframes panelIn { from { transform: translateX(70cqw); opacity: 0; } }
 /* PORTRAIT: HS only plays landscape, so an upright phone gets a "turn it" card over the match */
 .rotate { display: none; }
 @media (orientation: portrait) and (pointer: coarse) {
@@ -480,20 +483,20 @@ body.safedemo { --safe-l: 44px; --safe-r: 44px; --safe-b: 21px; --safe-t: 12px; 
    them with a gold VS across it. */
 .vs {
   position: absolute; inset: 0; z-index: 45; pointer-events: none; direction: ltr; overflow: hidden;
-  display: flex; align-items: center; justify-content: center; gap: 3vw;
+  display: flex; align-items: center; justify-content: center; gap: 3cqw;
   background: radial-gradient(ellipse at 50% 50%, #0000 40%, #000a 100%);
   animation: vsFade 1.5s ease-out both;
 }
 .vs-band {
-  position: absolute; left: -6%; right: -6%; top: 50%; height: 54vh; overflow: hidden;
+  position: absolute; left: -6%; right: -6%; top: 50%; height: 54cqh; overflow: hidden;
   transform: translateY(-50%) skewY(-4deg);
   background: linear-gradient(180deg, #4a0005 0%, #a80c16 14%, #e3222b 50%, #a80c16 86%, #4a0005 100%);
-  box-shadow: 0 -0.7vh 0 #ffd23c, 0 0.7vh 0 #ffd23c, 0 -1.4vh 0 #5a2a00, 0 1.4vh 0 #5a2a00, 0 2vh 6vh #000c;
+  box-shadow: 0 -0.7cqh 0 #ffd23c, 0 0.7cqh 0 #ffd23c, 0 -1.4cqh 0 #5a2a00, 0 1.4cqh 0 #5a2a00, 0 2cqh 6cqh #000c;
   animation: vsBandIn .32s cubic-bezier(.2, .9, .3, 1) both;
 }
 .vs-band::before {                       /* speed streaks racing across */
   content: ''; position: absolute; inset: 0;
-  background: repeating-linear-gradient(100deg, #0000 0 5vh, #ffffff12 5vh 5.6vh, #0000 5.6vh 9vh, #00000022 9vh 9.4vh);
+  background: repeating-linear-gradient(100deg, #0000 0 5cqh, #ffffff12 5cqh 5.6cqh, #0000 5.6cqh 9cqh, #00000022 9cqh 9.4cqh);
   animation: vsStreak .6s linear infinite;
 }
 .vs-band::after {                        /* one bright sweep of light */
@@ -501,24 +504,24 @@ body.safedemo { --safe-l: 44px; --safe-r: 44px; --safe-b: 21px; --safe-t: 12px; 
   background: linear-gradient(100deg, #fff0 0%, #fff6 50%, #fff0 100%);
   animation: vsSweep 1s .3s ease-in-out both;
 }
-.vs-face { position: relative; display: block; width: 36vh; height: 36vh; border-radius: 50%; background: no-repeat; filter: drop-shadow(0 1vh 1.5vh #0009); }
-.vs-face.char-face { width: 44vh; height: 44vh; }
+.vs-face { position: relative; display: block; width: 36cqh; height: 36cqh; border-radius: 50%; background: no-repeat; filter: drop-shadow(0 1cqh 1.5cqh #0009); }
+.vs-face.char-face { width: 44cqh; height: 44cqh; }
 #vsFace0 { animation: vsInL .38s .08s cubic-bezier(.2, 1.2, .4, 1) both; }
 #vsFace1 { animation: vsInR .38s .08s cubic-bezier(.2, 1.2, .4, 1) both; }
-.vs-mid { position: relative; width: 30vh; height: 30vh; display: grid; place-items: center; }
+.vs-mid { position: relative; width: 30cqh; height: 30cqh; display: grid; place-items: center; }
 .vs-badge {
   position: absolute; inset: 0; border-radius: 50%; overflow: hidden; background: #000;
-  box-shadow: 0 0 0 1vh #ffd23c, 0 0 0 1.7vh #5a2a00, 0 0 4vh 1vh #ffb80099;
+  box-shadow: 0 0 0 1cqh #ffd23c, 0 0 0 1.7cqh #5a2a00, 0 0 4cqh 1cqh #ffb80099;
   animation: vsBadge .45s .2s cubic-bezier(.2, 1.4, .4, 1) both;
 }
 .vs-badge img { width: 100%; height: 100%; object-fit: cover; display: block; }
-.vs-txt { position: relative; font-size: 17vh; margin-top: 22vh; animation: vsPop .3s .45s cubic-bezier(.2, 1.5, .5, 1) both; }
+.vs-txt { position: relative; font-size: 17cqh; margin-top: 22cqh; animation: vsPop .3s .45s cubic-bezier(.2, 1.5, .5, 1) both; }
 @keyframes vsFade { 0% { opacity: 0; } 10% { opacity: 1; } 86% { opacity: 1; } 100% { opacity: 0; } }
 @keyframes vsBandIn { from { transform: translateY(-50%) skewY(-4deg) scaleY(0); } }
-@keyframes vsStreak { to { background-position: 18vh 0; } }
+@keyframes vsStreak { to { background-position: 18cqh 0; } }
 @keyframes vsSweep { to { left: 110%; } }
-@keyframes vsInL { from { transform: translateX(-70vw); } }
-@keyframes vsInR { from { transform: translateX(70vw); } }
+@keyframes vsInL { from { transform: translateX(-70cqw); } }
+@keyframes vsInR { from { transform: translateX(70cqw); } }
 @keyframes vsBadge { from { transform: scale(0) rotate(-200deg); } }
 @keyframes vsPop { from { transform: scale(2.6); opacity: 0; } }
 .over-btns { display: flex; gap: 10px; justify-content: center; margin-top: 12px; }
@@ -1364,7 +1367,7 @@ body.editing .pad .btn .grip {
 .editbar {
   position: absolute; left: 50%; top: 46px; transform: translateX(-50%);
   display: flex; align-items: center; gap: 10px; z-index: 12;
-  max-width: 94vw; white-space: nowrap;
+  max-width: 94cqw; white-space: nowrap;
   background: #0a0f1ce8; border: 1px solid #ffffff24; border-radius: 12px;
   padding: 8px 12px; font-size: 13px; color: #dfe7ff; direction: rtl;
 }

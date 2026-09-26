@@ -1329,8 +1329,22 @@ let SKY_TOP = skyTop();              // re-read on resize: GROUND_Y is live-tuna
 // where the sim says it ends, and the green simply keeps going behind the buttons.
 const BLEED = 170;
 
+// ON A COMPUTER THE MATCH IS A PHONE. The game is laid out for a phone held sideways (~2.16:1);
+// a desktop window is far taller for its width, which squeezed the pitch and made the buttons the
+// wrong size for everything else. So off a touch screen the whole match screen is a phone-shaped
+// box centred in the window (black round it), and everything is laid out inside that box.
+const PHONE_RATIO = 844 / 390;
+function matchBox() {
+  let vw = innerWidth, vh = innerHeight;
+  if (!matchMedia('(pointer: coarse)').matches) {
+    if (vw / vh > PHONE_RATIO) vw = Math.round(vh * PHONE_RATIO); else vh = Math.round(vw / PHONE_RATIO);
+  }
+  const m = $('#match');
+  Object.assign(m.style, { width: vw + 'px', height: vh + 'px', left: ((innerWidth - vw) / 2) + 'px', top: ((innerHeight - vh) / 2) + 'px', right: 'auto', bottom: 'auto' });
+  return [vw, vh];
+}
 function resize() {
-  const vw = innerWidth, vh = innerHeight;
+  const [vw, vh] = matchBox();
   SKY_TOP = skyTop();
   const ratio = C.W / C.H;
 
