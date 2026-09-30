@@ -2399,6 +2399,7 @@ function drawShadow(g, p) {
   g.restore();
 }
 
+const CUT_SWING = [-1, -1];            // per player: the kickCd latched at his cut-in (drawBody)
 function drawBody(g, p, ghost = false) {
   const art = bodyArt();
   const own = p.char && kitFor(p.char.rarity, p.char.number);
@@ -2430,7 +2431,17 @@ function drawBody(g, p, ghost = false) {
   // 16 frames out every time (HS-CHARACTER-LOOK). The sim spends kickT on a hit, so the picture
   // runs off the press clock (kickCd) instead.
   const kickK = p.kickT > 0 ? 1 - p.kickT / C.KICK_TIME : (C.KICK_COOLDOWN - (p.kickCd || 0)) / C.KICK_TIME;
-  const kicking = p.kickT > 0 || (p.kickCd > 0 && kickK < 1);
+  // A POWER FIRED OFF THE BOOT (his own, or a counter kicked into the other's) freezes him
+  // mid-swing for the cut-in: the boot hung in the air through the whole wind-up and finished its
+  // swing after the release (Idan: "the boots fly"). HS shows the shooter standing in his wind-up.
+  // So the swing that fired it is dropped: from the cut-in until his next press (a new press
+  // restarts kickCd above the value latched here).
+  if (!ghost) {
+    if (M.cutin > 0 && M.cutinBy === p.index) CUT_SWING[p.index] = p.kickCd || 0;
+    else if ((p.kickCd || 0) > CUT_SWING[p.index] + 1e-6 || !(p.kickCd > 0)) CUT_SWING[p.index] = -1;
+  }
+  const dropSwing = CUT_SWING[p.index] >= 0;
+  const kicking = !dropSwing && (p.kickT > 0 || (p.kickCd > 0 && kickK < 1));
   // THE RUN: a flipbook of RUN_FRAMES paddle poses (body-art.js), stepped at HS's cadence —
   // a pair of feet shuffling under a head that does not bob or lean.
   const running = !air && Math.abs(p.vx) > 20;
