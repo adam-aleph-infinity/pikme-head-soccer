@@ -54,6 +54,6 @@ assert.equal(charUrl(CHARACTERS['legendary:1'], 'kick', true), 'img/chars/legend
 
 const p = (o = {}) => ({ index: 0, stunned: 0, kickT: 0, ...o });
 assert.equal(expressionFor({}, p()), 'normal');
-// No expressions at all: kicking, stunned, after a goal — always the normal face.
-for (const st of [{ kickT: 0.1 }, { stunned: 0.5 }, { hurt: 2 }]) assert.equal(expressionFor({ banner: 'goal', lastScorer: 0 }, p(st)), 'normal');
+// No expressions at all: kicking, stunned, rocked, after a goal — always the normal face.
+for (const st of [{ kickT: 0.1 }, { stunned: 0.5 }, { shoved: 0.2 }, { hurt: 2 }]) assert.equal(expressionFor({ banner: 'goal', lastScorer: 0 }, p(st)), 'normal');
 console.log(`characters: ${Object.keys(CHARACTERS).length} characters, ${n} faces OK`);

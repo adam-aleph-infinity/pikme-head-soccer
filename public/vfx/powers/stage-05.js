@@ -11,7 +11,7 @@
 // stood; then, one every 0.13 s, STREAKS OF BLUE LIGHT — the comet's anatomy (fx-kit beam), slim,
 // white-hot nosed, streaky — shoot down at the goal at those five heights; the one that carries
 // the ball is green, the ball at its nose.
-// Armed: Head Soccer's own yellow flame licks (fx-kit drawArmedGlow) — the same for everyone.
+// Armed: Head Soccer's own yellow glow and wisps (fx-kit drawArmedGlow) — the same for everyone.
 
 import { beam, glow, smoke, blit, tex, pix, noise2, fbm, sstep, mix, clamp01, TAU } from '../fx-kit.js';
 import { ball } from './common.js';

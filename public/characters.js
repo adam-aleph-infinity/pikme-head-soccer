@@ -17,15 +17,16 @@ export const CHAR_BOX = { x: 22, y: 26, w: 144, h: 142, boxW: 100, boxH: 91.5 };
 
 export const EXPRESSIONS = ['normal', 'kick', 'hurt', 'happy', 'sad'];
 
-// nose: where the nose tip sits in the frame (fractions of its width/height), for the red-nose
-// bruise (.hurt1..3, style.css); fit: the drawn head's box in frame units, which portraits fit to
+// nose: where the nose tip sits in the frame (fractions of its width/height), for the red nose
+// (the hit marks, style.css); eyes: the back and front eye's centres, for the blue and the black
+// eye (read off the art on a 10% grid; all five sit within a point of these); fit: the drawn head's box in frame units, which portraits fit to
 // their element. Both written here by paint_hs.py.
 export const CHARACTERS = {
-  'legendary:1': { dir: 'legendary-1', name: 'Shoval', nose: [0.68, 0.577], fit: [12.9, 4.8, 137.2, 118.2] },
-  'legendary:2': { dir: 'legendary-2', name: 'Ori', nose: [0.663, 0.6], fit: [5.9, 3.8, 140.8, 132.4] },
-  'legendary:3': { dir: 'legendary-3', name: 'Naveh', nose: [0.68, 0.577], fit: [12.9, 2.2, 142.8, 118.2] },
-  'legendary:4': { dir: 'legendary-4', name: 'Naveh', nose: [0.676, 0.582], fit: [14.2, 1.9, 134.3, 118.2] },
-  'legendary:5': { dir: 'legendary-5', name: 'Paz', nose: [0.682, 0.574], fit: [10.2, 8.3, 140.9, 118.2] },
+  'legendary:1': { dir: 'legendary-1', name: 'Shoval', nose: [0.68, 0.577], eyes: [[0.475, 0.5], [0.75, 0.5]], fit: [12.9, 4.8, 137.2, 118.2] },
+  'legendary:2': { dir: 'legendary-2', name: 'Ori', nose: [0.663, 0.6], eyes: [[0.475, 0.5], [0.75, 0.5]], fit: [5.9, 3.8, 140.8, 132.4] },
+  'legendary:3': { dir: 'legendary-3', name: 'Naveh', nose: [0.68, 0.577], eyes: [[0.475, 0.5], [0.75, 0.5]], fit: [12.9, 2.2, 142.8, 118.2] },
+  'legendary:4': { dir: 'legendary-4', name: 'Naveh', nose: [0.676, 0.582], eyes: [[0.475, 0.5], [0.75, 0.5]], fit: [14.2, 1.9, 134.3, 118.2] },
+  'legendary:5': { dir: 'legendary-5', name: 'Paz', nose: [0.682, 0.574], eyes: [[0.475, 0.5], [0.75, 0.5]], fit: [10.2, 8.3, 140.9, 118.2] },
 };
 
 export const characterFor = (rarity, number) => CHARACTERS[`${rarity}:${number}`] || null;
@@ -49,8 +50,9 @@ export const CHAR_PX = { w: 40, h: 48 };
 export const charUrl = (ch, expr = 'normal', px = false) =>
   `img/chars/${ch.dir}/${px ? 'px-' : ''}${EXPRESSIONS.includes(expr) ? expr : 'normal'}.webp`;
 
-// The face a player shows: always the one face — the characters make no expressions. (The
-// knockout's stars and the red-nose bruise, .hurt1..3, still show over it.)
+// The face a player shows: always the one face — the characters make no expressions (Idan,
+// 2026-09-27, again after trying HS's eyes-shut hit face). The knockout's stars and the hit
+// marks (.hurt1..3) still show over it.
 export function expressionFor() {
   return 'normal';
 }

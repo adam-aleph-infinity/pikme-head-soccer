@@ -16,12 +16,16 @@ our own canvas drawing.
 ## 1. The press: arming aura (M4 36.49 s, also 39.95–40.20 s, 122.4 s, 150.1 s)
 
 - **Instant.** The frame after POWER is pressed the player is outlined; no build-up, no burst, no ring.
-- **Look** (re-studied every frame at full resolution, M4 36.45–36.85 s): a diffuse bright yellow glow
-  hugging the silhouette, strongest down the sides, lighting the edge of the hair; and 3–4 FAT flowing
-  flame licks — S- and C-curves with white-hot cores, saturated lemon-yellow bodies and a wide soft
-  bloom, some ending in a hot blob — rising up the sides of the head and body and curling off the upper
-  head, reaching about a head above the crown. Each lick holds ≈ 3 frames before another replaces it, so
-  it crackles rather than pulses. (Ours: fx-kit.js drawArmedGlow, painted flipbook sprites.)
+- **Look** (re-studied every frame at full resolution, M4 36.45–36.85, 39.55–40.2 and 122.0–122.4 s,
+  M3 71.0–71.6 s on a second, square-headed character): the WHOLE character, head and body down to the
+  boots, sits in a yellow glow that hugs its silhouette, white-hot on the edge, saturated lemon-yellow
+  ≈ 0.15 head radii out, gone by ≈ 0.5; strongest down the sides and round the body, weaker over the
+  crown. It is BEHIND the sprite: the face and the black suit are never washed. Over it crackle THIN
+  electric wisps (≈ 0.1 head radii across, white core, lemon body, wide bloom):
+  MEASURED with tools/hs-glow-measure.mjs (M4 37.85–39.3 s, 87 frames at 60 fps, the player standing still; each frame's flame light cut out of the stadium — the window's own dim end as the background, since the LED boards change — and mapped round the head in head radii; ours measured the same way from the game, `node _powers-hq.mjs glow`). The fire is THIN CURLING LINES (≈ 0.31 head radii across with their glow — the median of the flame's row runs, 0.5 where they swell; white-hot core, a wide soft bloom) sweeping up the outside of the head over a soft haze that flares at the lower cheek, one side mirrored on the other. HS vs ours (right side): flame area 1.15 ± 0.49 vs 1.02 ± 0.24 head radii²; top −1.93 vs −1.90 (head radii from the head centre); reach out 1.68 vs 1.77; separate pieces 3.1 vs 2.5; the flame still in place 1/2/3/4/8/16 frames later .79/.62/.47/.40/.22/.22 vs .75/.50/.41/.33/.23/.20. Ours: fx-kit sideFlame — the EDGE of two rising noise-torn flames (a lower one from the feet to eye level, an upper one from the head's corner to ≈ 2.1 up) drawn as a line, joining and parting on a 2 s cycle. No flame over the middle, no thin streaks. It follows each
+  character's own outline (M3's square head gets a square aura). (Ours: fx-kit.js drawArmedGlow: the
+  silhouette glow on the layer under the heads, a 16-frame flipbook of the side wisps over them, the two side flames as one mirrored flipbook (sideFlame), the
+  DOM head's soft yellow rim on its real hair line. Compare with `node _powers-hq.mjs armed`.)
 - **Stays until the shot fires.** M4 36.49 → 41.9 s the glow held for 5.4 s with no touch; the arm never
   expires (`power.armHold` in `hs-estimates.json`).
 - The aura does not touch the other player in M4 (the starter character's aura is `none`). Characters
@@ -166,7 +170,7 @@ Idan's rule: nothing is drawn that the footage does not show. Every visual eleme
 | our element | HS evidence |
 |---|---|
 | armed: a diffuse yellow glow hugging the head's own outline (strongest down the sides) and the body (painted, fx-kit) | M4 36.49–36.60 s (§1) |
-| armed: 3–4 fat lemon-yellow flame licks with white-hot cores and bloom, up the sides and curling off the upper head, ≈ a head above the crown, each held ≈ 3 frames (20 Hz flipbook) | M4 36.55–36.90 s, every frame |
+| armed: a lemon-yellow glow hugging the whole silhouette behind it, thin white-cored wisps curling up off the head's upper corners (≈ a head tall), a thin crescent down each side to the boots, a flare at the lower cheek; a new set every ≈ 3 frames (20 Hz flipbook) | M4 36.45–36.85, 39.55–40.2, 122.0–122.4 s; M3 71.0–71.6 s; every frame |
 | cut-in: 1.34 s of dark from the touch, fading in over 0.2 s and out over 0.2 s after it; the backdrop to ≈ 22 % black-over (keeps ≈ 32 %), no pool of light beyond the disc | 7 luma traces (§2 review), M4 60.8 s stands luma 106 → 36 |
 | cut-in: solid white disc ≈ 1.7 head radii with a soft gold falloff, under the shooter's head and body; a golden halo ring of fine radial striations with sparkle spikes at ≈ 3.2 radii; the backdrop blurred under the dark | M4 40.36–40.66 s full-res, every frame |
 | cut-in: 8 hot gold rays with white cores (≈ 240 px) + 8 wide soft streaky cream rays (≈ 200 px, ≈ 50 px across at the end), irregular, turning slowly, flickering length | M4 40.6, 40.75, 41.2 s, M3 73.75 s |
@@ -174,6 +178,7 @@ Idan's rule: nothing is drawn that the footage does not show. Every visual eleme
 | cut-in: rays + disc gone 0.1 s after the ball leaves, dark stays to 1.34 s | M4 41.50 → 41.57 s |
 | ball leaves 1.14 s after the touch (1.04 s after half-dark) and flies under the last of the dark | M4 40.40 → 41.41, 60.17 → 61.27, 122.87 → 123.97 s (§2 review) |
 | the dark never lifts early (no lift on impact or goal) | M3 38.25 hit / 38.49 lift, M4 151.85 goal / 151.93 lift |
+| the shot ends the moment it scores or meets the frame (post, bar, roof, back of the net, wall): from there a plain ball, no tail or glow, bouncing like any ball | M4 124.1–125.2 s: a plain white ball bounces straight back out of the net |
 | the comet, the block's burst, the Grab's fist, the lances and the droplets are painted OVER the dark | M4 43.07 s, 61.5 s |
 | comet: the plain ball at the nose; white-hot core ≈ 70 px tall, soft-edged, with a green-yellow seam; cyan body fanning OUT to ≈ 130 px tall ≈ 130 px behind the ball, thinning to streaks ≈ 330 px back; nose only ≈ 30 px ahead of the ball | M4 43.07 s full-res (re-measured) |
 | comet: full while dark, faint streak 0.1 s after | M4 43.24 s |

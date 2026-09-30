@@ -27,6 +27,8 @@ export const CLIPS = {
   M3: { src: 'hs-video/M3-airdrop-full.mp4', W: 1280, H: 590, x0: 107, x1: 1172, ground: 489, scale: true },
   M4: { src: 'hs-video/M4-gaps.mp4', W: 1280, H: 590, x0: 107, x1: 1172, ground: 489, scale: true },
   M5: { src: 'hs-video/M5-kor-kor-weak.mp4', W: 848, H: 384, x0: 70, x1: 781, ground: 322.5 },
+  // M6 (2026-09-29): Korea vs Cameroon, a full match in the day stadium; WhatsApp like M1/M2/M5.
+  M6: { src: 'hs-video/M6-headers.mp4', W: 848, H: 384, x0: 70, x1: 781, ground: 322.5, darkSkin: true },
 };
 
 async function track(name) {
@@ -61,12 +63,21 @@ async function track(name) {
     return [Math.round(r / n), Math.round(g / n), Math.round(bl / n)];
   };
   // Skin: a warm peach (Korea, and the UK CPU in M2). Grass is green, the ball white.
-  const isSkin = (r, g, b) => r > 170 && g > 110 && b > 70 && r > g + 18 && g > b + 8 && r - b < 150;
+  const peach = (r, g, b) => r > 170 && g > 110 && b > 70 && r > g + 18 && g > b + 8 && r - b < 150;
+  // …and a brown one for M6's Cameroon CPU (read off M6 20 s: 143/115/98 down to 67/38/28).
+  const brown = (r, g, b) => r >= 60 && r <= 170 && r > g + 18 && g > b + 4 && r - b > 35 && r - b < 110;
+  const isSkin = cfg.darkSkin ? (r, g, b) => peach(r, g, b) || brown(r, g, b) : peach;
   const FY0 = Math.round(GY - 132 * k), FY1 = Math.round(GY + 12.5 * k);
-  function skinBlobs(px) {
+  function skinBlobs(px, gray) {
     const mask = new Uint8Array(W * H);
     for (let y = FY0; y < FY1; y++) for (let x = GX0; x < GX1; x++) {
-      const o = (y * W + x) * 4; if (isSkin(px[o], px[o + 1], px[o + 2])) mask[y * W + x] = 1;
+      const o = (y * W + x) * 4; if (!isSkin(px[o], px[o + 1], px[o + 2])) continue;
+      // M6's day stadium: the crowd is skin-coloured and sits in the band a jumping head uses. It
+      // does not move, so up there a face pixel must also stand off the median background. Only
+      // above the ad boards (y < GY − 60 k): the CPU keeper stands in his goal so long that the
+      // median background has his face in it.
+      if (cfg.darkSkin && y < GY - 60 * k && Math.abs(gray.data[y * W + x] - bg.data[y * W + x]) < 22) continue;
+      mask[y * W + x] = 1;
     }
     const seen = new Uint8Array(W * H), blobs = [], st = [];
     for (let s = 0; s < mask.length; s++) {
@@ -148,7 +159,7 @@ async function track(name) {
     // FACES: identity is continuity alone — predicted from the last two positions, the pair
     // assigned jointly; overlapping heads record neither until they part; a face lost for a while
     // comes back as the one blob the other player is not.
-    const blobs = skinBlobs(px).filter((b) => b.n < 2500 * k * k && b.maxX - b.minX < 60 * k).sort((a, b) => b.n - a.n).slice(0, 5);
+    const blobs = skinBlobs(px, gray).filter((b) => b.n < 2500 * k * k && b.maxX - b.minX < 60 * k).sort((a, b) => b.n - a.n).slice(0, 5);
     const next = [null, null];
     if (!faces[0] || !faces[1]) {
       const two = blobs.slice(0, 2).sort((a, b) => a.x - b.x);

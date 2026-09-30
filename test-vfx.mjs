@@ -158,7 +158,8 @@ for (const n of BUILT_STAGES) {
     ok(`${tag}: fired`, r.events.some((e) => e.type === 'powershot' && e.cp === d.id));
     ok(`${tag}: its own renderer drew the shot`, r.vfx.stats.balls > 3, `${r.vfx.stats.balls} frames`);
     ok(`${tag}: the cut-in was drawn`, r.cutOps > 20);
-    ok(`${tag}: the armed look drew on the press`, armedCalls > 0 && r.armOps > 14, `${armedCalls} calls, ${r.armOps} ops`);
+    // the press is two blits (fx-kit drawArmedGlow: the silhouette glow and a frame of the wisps)
+    ok(`${tag}: the armed look drew on the press`, armedCalls > 0 && r.armOps > 6, `${armedCalls} calls, ${r.armOps} ops`);
     ok(`${tag}: no NaN reached the canvas`, r.main.log.bad === 0 && r.over.log.bad === 0, `${r.main.log.bad + r.over.log.bad}`);
     ok(`${tag}: no shadowBlur`, r.main.log.blur === 0 && r.over.log.blur === 0);
     ok(`${tag}: an iPhone-cheap frame (< 900 canvas calls)`, r.maxOps < 900, `${r.maxOps}`);

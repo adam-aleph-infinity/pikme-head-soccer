@@ -9,7 +9,6 @@
 // draw(g, p, s): s = { t, hx, hy (head centre on screen), r (head radius), fy (feet line) }.
 
 import { drawStars, headPath, blit, auraTex, bolts, boltBlit, rng } from './fx-kit.js';
-import { drawFunnel } from './powers/stage-03.js';
 
 const TAU = Math.PI * 2;
 
@@ -46,15 +45,11 @@ export const AILMENT_VFX = {
       g.restore();
     },
   },
-  // Caught in Nigeria's tornado (wiki: "they fly and spin in the air"): a small sandy whirlwind
-  // spinning round him for the flight (game.js spins his head); the stars take over on landing.
+  // Caught in Nigeria's tornado (wiki: "they fly and spin in the air"; Nigeria.gif): he tumbles
+  // (game.js spins him) with the gold stars round his head from the catch, in the air and on the
+  // grass after — HS's own daze, not a whirlwind of his own.
   twister: {
-    // The tornado's own painted funnel (powers/stage-03.js), sized to him: foot under his boots,
-    // top over his crown, spinning fast.
-    draw(g, p, s) {
-      const top = s.hy - s.r * 1.9, bot = s.fy + 10, h = bot - top;
-      drawFunnel(g, s.hx, bot, h, Math.sin(s.t * 7) * 6, s.t * 1.5, 0.9, h * 1.15);
-    },
+    draw(g, p, s) { drawStars(g, s.hx, s.hy - s.r * 1.12, s.r, s.t); },
   },
   // Frozen in Russia's block of ice (wiki: "frozen in a block of ice"): a translucent blue cube
   // round the head and body, the head showing through it, a bevel, glints, a crack, frost at the foot.

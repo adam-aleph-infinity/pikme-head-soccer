@@ -671,7 +671,9 @@ function track(m, s, inputs = NONE) {
 
 // ═══ 12. THE SHOT MEETS THE DEFENDER: BLOCK, HIT, COUNTER ═════════════════════
 // docs/HS-POWER-SHOTS.md §4 — three outcomes, from what the defender is doing when it arrives.
-function atDefender(fam, o = {}, { kick = false, armed = false, gap = 320 } = {}) {
+// atY: the height the shot flies at once it leaves (a shot always leaves at the shooter's head
+// height, constants.js POWER_RELEASE_UP — this puts it where a test needs it to meet him)
+function atDefender(fam, o = {}, { kick = false, armed = false, gap = 320, atY = null } = {}) {
   const m = fresh();
   const a = m.players[0], z = m.players[1];
   a.shot = shotById(fam, o); z.shot = shotById('updown');
@@ -685,6 +687,7 @@ function atDefender(fam, o = {}, { kick = false, armed = false, gap = 320 } = {}
   let pressed = false;
   for (let i = 0; i < 240 && m.phase === 'play'; i++) {
     const b = m.ball;
+    if (atY != null && b.power && m.hitStop <= 0 && !b.power.atY) { b.y = atY; b.power.y0 = atY; b.power.atY = 1; }
     const near = kick && !pressed && b.power && b.power.owner === 0 && Math.abs(b.x - z.x) < 140 && m.hitStop <= 0;
     if (near) pressed = true;
     step(m, [{}, { kick: near }]);
@@ -701,8 +704,10 @@ function atDefender(fam, o = {}, { kick = false, armed = false, gap = 320 } = {}
   ok('…grinding, the blocker pushed back a few px', m.ball.power && m.ball.power.ph === 'grind' && z.x * z.side < x0 * z.side + 1 && Math.abs(z.x - x0) < 25);
   track(m, 0.62);
   ok('…then dead at his feet', m.ball.power && m.ball.power.ph === 'rest' && m.ball.y === C.GROUND_Y - C.BALL_R);
-  track(m, 0.4);
-  ok('…then back out as HIS power shot, at the shooter\'s goal', m.ball.power && m.ball.power.owner === 1 && m.ball.power.rb === 1 && m.ball.vx * z.side > 0);
+  // (as the power it blocked — the shooter's, now his: Idan, 2026-09-30; tick by tick to the moment
+  // it goes back out, since from his head height it is on the shooter fast)
+  for (let i = 0; i < TICK_S(0.5) && !(m.ball.power && m.ball.power.owner === 1); i++) { step(m, NONE); m.events.length = 0; }
+  ok('…then back out as the shot he blocked, now HIS, at the shooter\'s goal', m.ball.power && m.ball.power.owner === 1 && m.ball.power.src === 0 && m.ball.power.fam === 'straight' && m.ball.vx * z.side > 0);
 }
 {
   const { m, z, log } = atDefender('straight');
@@ -715,7 +720,7 @@ function atDefender(fam, o = {}, { kick = false, armed = false, gap = 320 } = {}
 {
   // Square on, it comes straight back (M3 38.25 s); grazing the crown, it carries on past him
   // (M4 43.30 s) — the bounce is off the head's own circle.
-  const sq = atDefender('straight');
+  const sq = atDefender('straight', {}, { atY: C.GROUND_Y - C.BODY_H - C.HEAD_R + C.NECK });   // his head's centre
   ok('square on, the hit ball comes back toward the shooter', sq.m.ball.vx < -C.POWER_SHOT_SPEED * 0.5, `vx ${sq.m.ball.vx.toFixed(0)}`);
   const m = fresh();
   const [a, z] = m.players;
@@ -1069,7 +1074,7 @@ const first = (log, type, f = () => true) => log.find((e) => e.type === type && 
     const r = fireCp(2, seat, { gap: 600, s: 0.2 });
     const p = r.path.filter((q) => q.cp === 'thunderbolt');
     const vx = (p[p.length - 1].x - p[0].x) / ((p.length - 1) * C.TICK);
-    ok(`CAMEROON (seat ${seat}): straight and flat at 0.95 × 2150 px/s`, p.length > 5 && Math.abs(Math.abs(vx) - 2150 * 0.95) < 40 && p.every((q) => Math.abs(q.y - p[0].y) < 0.5), `${vx.toFixed(0)} px/s`);
+    ok(`CAMEROON (seat ${seat}): straight and flat at Korea's 2150 px/s`, p.length > 5 && Math.abs(Math.abs(vx) - 2150) < 40 && p.every((q) => Math.abs(q.y - p[0].y) < 0.5), `${vx.toFixed(0)} px/s`);
     const h = fireCp(2, seat, { s: 0.3 });
     ok(`CAMEROON (seat ${seat}): a hit shocks the defender for 1.8 s`, first(h.log, 'powerHit') && first(h.log, 'ailment', (e) => e.ail === 'shock' && Math.abs(e.time - 1.8) < 1e-9) && h.z.ail === 'shock');
     const k = fireCp(2, seat, { kick: true });
@@ -1094,7 +1099,8 @@ const first = (log, type, f = () => true) => log.find((e) => e.type === type && 
     const j = fireCp(3, seat, { jump: true, s: 1.0 });
     ok(`NIGERIA (seat ${seat}): jumping over it is no escape — the funnel catches him in the air`, !!first(j.log, 'powerHit', (e) => e.how === 'twister'));
     const k = fireCp(3, seat, { kick: true });
-    ok(`NIGERIA (seat ${seat}): a kick into it blocks it`, !!first(k.log, 'blocked', (e) => e.player === 1 - seat) && !first(k.log, 'powerHit', (e) => e.how === 'twister'));
+    ok(`NIGERIA (seat ${seat}): a kick into it blocks it`, !!first(k.log, 'blocked', (e) => e.player === 1 - seat) && !first(k.log, 'powerHit', (e) => e.how === 'twister' && e.player === 1 - seat));
+    ok(`NIGERIA (seat ${seat}): …and fires the Tornado back as the blocker's — it catches Nigeria`, !!first(k.log, 'powershot', (e) => e.rebound && e.cp === 'tornado' && e.player === 1 - seat));
   }
 }
 
@@ -1104,7 +1110,7 @@ const first = (log, type, f = () => true) => log.find((e) => e.type === type && 
   for (const seat of [0, 1]) {
     const r = fireCp(4, seat, { gap: 700, s: 0.7 });
     const p = r.path.filter((q) => q.cp === 'illusion');
-    ok(`USA (seat ${seat}): slightly downward, then it bounces off the grass`, p.length > 10 && p[3].vy > 0 && Math.abs(p[3].vy / p[3].vx) < 0.1 && !!first(r.log, 'illusionBounce'));
+    ok(`USA (seat ${seat}): slightly downward, then it bounces off the grass`, p.length > 10 && p[3].vy > 0 && Math.abs(p[3].vy / p[3].vx) < 0.2 && !!first(r.log, 'illusionBounce'));
     // (it reaches the far goal in ≈ 0.4 s, so: invisible from ≈ 0.12 s on, for as long as it flies)
     const i0 = p.findIndex((q) => q.inv);
     ok(`USA (seat ${seat}): invisible from ≈ 0.12 s, after the fakes, for the rest of the flight`, i0 > 0 && Math.abs(i0 * C.TICK - 0.12) < 0.04 && p.slice(i0).every((q, i) => q.inv || (i0 + i) * C.TICK > 0.66), `from ${(i0 * C.TICK).toFixed(2)} s`);
@@ -1174,6 +1180,63 @@ const first = (log, type, f = () => true) => log.find((e) => e.type === type && 
   }
   ok('an armed touch in the free play after a goal fires nothing', shots === 0 && !m.ball.power, `${shots} shots`);
   ok('and the arm waits for the restart', p.armed > 0);
+}
+
+{
+  // THE COUNTER UNDER THE HOLD (Idan): while a shot hangs by its shooter's head, the other player
+  // moves — and jumping into it ARMED counters it on the spot. He holds there, in the air, until
+  // his own shot leaves him; then he is free again.
+  const m = fresh();
+  const [z, a] = m.players;
+  a.shot = shotById('straight'); z.shot = shotById('updown');
+  // (the held ball sits POWER_RELEASE_AT head radii in front of its shooter — 66 px toward him)
+  a.x = 700; z.x = 560 - C.POWER_RELEASE_AT * C.HEAD_R; m.gaugeLead = 0; m.banner = null; m.bannerT = 0;
+  arm(m, 0); arm(m, 1);
+  m.ball.x = a.x - 8; m.ball.y = headY(a) - C.HEAD_R - C.BALL_R + 6; m.ball.vx = 0; m.ball.vy = 0;
+  step(m, NONE);
+  ok('(setup) his shot is held under its cut-in', m.cutinBy === 1 && m.hitStop > 0);
+  let c = null, pos = null, ball = null, moved = false, left = false;
+  for (let t = 0; t < 200; t++) {
+    step(m, [{ right: t < 50, jump: t === 12 }, {}]);
+    const e = m.events.find((x) => x.type === 'powershot' && x.player === 0); m.events.length = 0;
+    if (e && !c) { c = e; pos = [z.x, z.y]; ball = [m.ball.x, m.ball.y]; continue; }
+    if (c && !left) {
+      if (Math.hypot(m.ball.x - ball[0], m.ball.y - ball[1]) > 0.5) left = true;
+      else if (z.x !== pos[0] || z.y !== pos[1]) moved = true;
+    }
+  }
+  ok('armed, jumping into the held shot COUNTERS it', c && c.countered && m.cutinBy !== 1);
+  ok('…up in the air', pos && pos[1] < C.GROUND_Y - 20, pos && `y ${pos[1].toFixed(0)}`);
+  ok('…and he holds there until his shot leaves him', left && !moved);
+  ok('…then he is free again (back on the grass)', z.y === C.GROUND_Y);
+}
+
+{
+  // THE BLOCK IN THE AIR (Idan): jump and kick into their shot and he hangs where the boot met it
+  // while it grinds, then it goes straight back out off the boot — and only then does he fall.
+  const m = fresh();
+  const [a, z] = m.players;
+  a.shot = shotById('straight'); z.shot = shotById('updown');
+  a.x = 260; z.x = 700; m.gaugeLead = 0; m.banner = null; m.bannerT = 0;
+  arm(m, 0);
+  m.ball.x = a.x; m.ball.y = headY(a); m.ball.vx = 0; m.ball.vy = 0;
+  step(m, NONE); m.events.length = 0;
+  let bt = -1, y0 = 0, air = false, moved = false, reb = null, held = 0;
+  for (let t = 0; t < 260 && !reb; t++) {
+    // (jump 20 ticks before the shot leaves the cut-in's hold, kick as it leaves)
+    const HOLD = Math.round((C.POWER_CUTIN - C.POWER_RELEASE) / C.TICK);
+    step(m, [{}, { jump: t === HOLD - 20, kick: t === HOLD }]);
+    const ev = m.events.splice(0);
+    if (bt < 0) { if (ev.some((e) => e.type === 'blocked' && e.player === 1)) { bt = t; y0 = z.y; air = !z.onGround; } continue; }
+    reb = ev.find((e) => e.type === 'rebound');
+    if (!reb) { held++; if (Math.abs(z.y - y0) > 0.01) moved = true; }
+  }
+  ok('(setup) kicked into it in the air: a block', bt >= 0 && air, `y ${y0.toFixed(0)}`);
+  ok('…he hangs there while it grinds', !moved && held >= Math.round(0.8 / C.TICK) - 1, `${held} ticks`);
+  ok('…it goes back out off his boot, up where he is, as his shot', reb && reb.y < C.GROUND_Y - C.BALL_R - 20 && m.ball.power && m.ball.power.owner === 1 && m.ball.vx < 0);
+  const yr = z.y;
+  run(m, 10);
+  ok('…and then he falls', z.y > yr + 3, `${yr.toFixed(0)} → ${z.y.toFixed(0)}`);
 }
 
 console.log(`test-ultimate: ${pass} passed, ${fail} failed`);

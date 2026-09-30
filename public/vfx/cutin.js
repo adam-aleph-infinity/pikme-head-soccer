@@ -1,18 +1,9 @@
-// THE CUT-IN'S LIGHT — the white disc behind the shooter's head, its golden halo ring and the
-// sixteen rays, as painted textures (public/vfx/fx-kit.js).
-//
-// Measured frame by frame off M4 40.36–40.66 s and 41.2 s at full resolution (2 frame px a world
-// px; docs/HS-POWER-SHOTS.md §2):
-//   • the DISC: solid white to ≈ 45 px (1.7 head radii) round the head, a soft gold falloff to
-//     ≈ 60 px — the head and body sit on it;
-//   • the HALO: a golden ring ≈ 82 px out (3.1 r), ≈ 14 px thick, made of fine radial striations,
-//     brightest on its inner edge, with thin white-gold sparkle spikes crossing it;
-//   • EIGHT GOLD RAYS: narrow and hot at the disc (≈ 4 px), widening to ≈ 22 px, a white core
-//     line down the middle, still bright at ≈ 230 px;
-//   • EIGHT SOFT RAYS between them: wide (≈ 50 px at the end), pale cream, translucent and
-//     streaky like radial motion blur, ≈ 190 px;
-//   • all of it turning slowly (≈ 0.5 rad/s), the rays flickering in length, additive.
+// THE CUT-IN'S LIGHT — the white disc behind the shooter's head, the ring that expands off it and
+// the three layers of rays, as painted textures (public/vfx/fx-kit.js), played on HS's own fixed
+// timeline (THE CUT-IN AS HS PLAYS IT, below; docs/HS-POWER-VFX-RESEARCH.md §5).
 import { tex, pix, bloom, surface, blit, rng, noise1, sstep, mix, clamp01, TAU } from './fx-kit.js';
+// (goldRay / softRay are the textures of the earlier 16-ray wheel; the cut-in now draws rayA /
+// rayB below — see THE CUT-IN AS HS PLAYS IT.)
 
 export const CUT = { DISC: 45, DISC_TEX: 0.52, HALO: 84, HALO_TEX: 0.66, GOLD_L: 240, GOLD_W: 58, SOFT_L: 200, SOFT_W: 104, R0: 34 };
 
@@ -76,31 +67,104 @@ export function halo(i = 0) {
   });
 }
 
-// jitter per ray, fixed (HS's rays are not a perfect clock face)
-const JIT = (() => { const r = rng(1234); return Array.from({ length: 16 }, () => [(r() - 0.5) * 0.22, 0.72 + r() * 0.55, r() * TAU, 0.7 + r() * 0.6]); })();
+// ── THE CUT-IN AS HS PLAYS IT ────────────────────────────────────────────────────────────────
+// One FIXED animation, the same to a frame every time and not mirrored for a shooter on the left
+// (docs/HS-POWER-VFX-RESEARCH.md §5: M4 40.20, 59.97, 122.67, 150.38 and 41.78 s at 60 fps, the
+// rays' angles found by unrolling the frames round the head and fitting each ray's turn). All times
+// are frames at 60 fps from the TOUCH (f0); angles are maths angles (0° right, 90° up); sizes are
+// head radii. Three layers of light, all additive, over a white disc and an expanding ring.
+const ease = (t) => t * t * (3 - 2 * t);
+// piecewise-linear keyframes [[frame, value], …]
+function keys(K, f) {
+  if (f <= K[0][0]) return K[0][1];
+  for (let i = 1; i < K.length; i++) if (f <= K[i][0]) { const [f0, v0] = K[i - 1], [f1, v1] = K[i]; return v0 + (v1 - v0) * (f - f0) / (f1 - f0); }
+  return K[K.length - 1][1];
+}
+// A — three thin lemon rays with white cores, ≈ 6.8 r. Still until their start frame, then each
+// turns clockwise at its own rate (fitted per ray, two cut-ins agree to ±0.1°/frame).
+export const RAYS_A = [
+  { a: 91, v: -1.51, s: 11, on: 1.5 },
+  { a: 205, v: -1.51, s: 15, on: 3 },
+  { a: 335, v: -1.97, s: 17.5, on: 3 },
+];
+// B — a five-point star of wide streaky cream rays, the longest (≈ 8 r), clockwise 164°/s;
+// C — a short soft X (≈ 5.3 r), counter-clockwise 104°/s. Angles as they are at f24.
+export const RAYS_B = { at24: [71, 137, 216, 282, 358], v: -2.73, on: [7, 15] };
+export const RAYS_C = { at24: [56, 146, 234, 323], v: 1.74, on: [9, 16] };
+export const CUT_LEN = { A: 7.6, B: 8.6, C: 6.6, WA: 1.6, WB: 4.6, WC: 3.6 };
+// the white disc: how far out it reads pure white (r; HS luma ≥ 225, the median round the head),
+// its strength (going soft after f56 — by f70 HS's is only a glow), and the expanding ring
+const DISC_K = [[1.5, 0], [3, 1.0], [5, 1.8], [8, 1.9], [12, 2.2], [16, 2.15], [22, 2.0], [30, 1.85], [42, 1.75], [56, 1.55], [80, 1.5]];
+const DISC_A = [[56, 1], [68, 0.55], [80, 0.5]];
+// the texture reads white a little past its solid core (≈ 1.2×, measured on our capture)
+const DISC_WHITE = 1.2;
+const BLOOM_K = [[2, 0], [5, 0.5], [9, 1], [16, 1], [26, 0.35], [56, 0.15]];
+const RING_R = [[22, 2.8], [42, 3.8], [56, 4.8], [62, 5.1]];
+const RING_A = [[21, 0], [25, 1], [42, 0.6], [56, 0.25], [62, 0]];
 
-// The light at the head (hx, hy), radius r, `el` s into the cut-in; `glow` its strength (0–1),
-// `grow` how far the rays have grown in (0–1). The DISC is separate (drawDisc) so a caller can
-// put the shooter's body over it.
-export function drawRays(g, hx, hy, r, el, glow, grow) {
-  const k = r / 26.4;
-  const rot = el * 0.5;
-  // the halo ring (two frames, alternating ≈ 15 Hz, turning the other way a touch slower)
-  const H = CUT.HALO * 2 / CUT.HALO_TEX * k * (0.85 + 0.15 * grow);
-  blit(g, halo(Math.floor(el * 15) & 1), hx, hy, H, H, -el * 0.3, glow * 0.72, true);
-  const gr = goldRay(), sr = softRay();
-  for (let i = 0; i < 16; i++) {
-    const [ja, jl, jp, jw] = JIT[i];
-    const gold = i % 2 === 0, a = rot + (i / 16) * TAU + ja;
-    const fl = 0.88 + 0.12 * Math.sin(el * 9 + jp);
-    const L = (gold ? CUT.GOLD_L : CUT.SOFT_L) * k * jl * fl * grow, W = (gold ? CUT.GOLD_W : CUT.SOFT_W) * k * jw * (0.7 + 0.3 * grow);
-    const r0 = CUT.R0 * k;
-    // the texture's left edge is the ray's root at the disc; anchor it there
-    blit(g, gold ? gr : sr, hx + Math.cos(a) * r0, hy + Math.sin(a) * r0, L, W, a, glow * (gold ? 1 : 0.62), true, 0, 0.5);
+// Where the cut-in is at frame `f` (from the touch) with the ball leaving at frame `fr`.
+export function cutTimeline(f, fr) {
+  // the rays and the disc go with the ball: gone within 3 frames of the release (M4 f76 → f79)
+  const out = 1 - Math.min(1, Math.max(0, (f - fr) / 3));
+  return { f, out, disc: keys(DISC_K, f) / DISC_WHITE, discA: keys(DISC_A, f), bloom: keys(BLOOM_K, f), ringR: keys(RING_R, f), ringA: keys(RING_A, f) };
+}
+
+const rayA = () => tex('cutrayA', 256, 48, (g, w, h) => pix(g, w, h, (x, y, o) => {
+  const u = (x + 0.5) / w, v = ((y + 0.5) / h) * 2 - 1;
+  const hw = 0.18 + 0.82 * Math.pow(u, 0.7);
+  const core = Math.exp(-((v / (hw * 0.22 + 0.03)) ** 2)), body = Math.exp(-((v / (hw * 0.45)) ** 2)), glow = Math.exp(-((v / hw) ** 2) * 1.2);
+  const along = sstep(0, 0.04, u) * (1 - sstep(0.72, 1, u));
+  const wht = clamp01(core * (1.1 - u * 0.6));
+  o[0] = 255; o[1] = mix(246, 255, wht); o[2] = mix(96, 235, wht);
+  o[3] = clamp01(core + body * 0.75 + glow * 0.3) * along;
+}));
+// wide cream beams, streaky along their length like a radial blur (B and C share it)
+const rayB = () => {
+  const n = noise1(33, 256), n2 = noise1(71, 256);
+  return tex('cutrayB', 256, 96, (g, w, h) => pix(g, w, h, (x, y, o) => {
+    const u = (x + 0.5) / w, v = ((y + 0.5) / h) * 2 - 1;
+    const hw = 0.22 + 0.78 * u, q = v / hw;
+    const across = Math.exp(-(q * q) * 2.4);
+    const streak = 0.6 + 0.3 * n(q * 20 + 40) + 0.16 * n2(q * 50 + 9 + u * 3);
+    const along = sstep(0, 0.1, u) * (1 - sstep(0.6, 1, u));
+    const c = Math.exp(-q * q * 5);
+    o[0] = 255; o[1] = mix(240, 252, c); o[2] = mix(150, 205, c);
+    o[3] = clamp01(across * streak * along);
+  }));
+};
+// each B/C ray's own flicker (HS's wide rays fade in and out one by one)
+const flick = (i, el) => 0.62 + 0.38 * Math.sin(el * 10.7 + i * 2.1) * Math.sin(el * 4.1 + i * 1.3);
+const DEG = Math.PI / 180;
+function ray(g, t, hx, hy, r, deg, len, wid, alpha) {
+  const a = -deg * DEG, r0 = 0.6 * r;
+  blit(g, t, hx + Math.cos(a) * r0, hy + Math.sin(a) * r0, (len - 0.6) * r, wid * r, a, alpha, true, 0, 0.5);
+}
+
+// The light at the head (hx, hy), head radius r; `T` from cutTimeline; `el` seconds in (flicker).
+export function drawRays(g, hx, hy, r, T, el) {
+  const f = T.f;
+  if (T.out <= 0 || f < 2) return;
+  // the ring: an expanding, fading shockwave from f22
+  if (T.ringA > 0) {
+    const H = T.ringR * r * 2 / CUT.HALO_TEX;
+    blit(g, halo(Math.floor(el * 15) & 1), hx, hy, H, H, -el * 0.3, T.ringA * 0.5 * T.out, true);
+  }
+  const b = rayB();
+  const inB = ease(clamp01((f - RAYS_B.on[0]) / (RAYS_B.on[1] - RAYS_B.on[0])));
+  if (inB > 0) RAYS_B.at24.forEach((a0, i) => ray(g, b, hx, hy, r, a0 + RAYS_B.v * (f - 24), CUT_LEN.B * (0.55 + 0.45 * inB) * (0.93 + 0.07 * flick(i + 5, el)), CUT_LEN.WB, 0.95 * inB * flick(i, el) * T.out));
+  const inC = ease(clamp01((f - RAYS_C.on[0]) / (RAYS_C.on[1] - RAYS_C.on[0])));
+  if (inC > 0) RAYS_C.at24.forEach((a0, i) => ray(g, b, hx, hy, r, a0 + RAYS_C.v * (f - 24), CUT_LEN.C * (0.55 + 0.45 * inC), CUT_LEN.WC, 1.0 * inC * flick(i + 11, el) * T.out));
+  const a = rayA();
+  for (const R of RAYS_A) {
+    const g0 = ease(clamp01((f - R.on) / 4));
+    if (g0 <= 0) continue;
+    ray(g, a, hx, hy, r, R.a + R.v * Math.max(0, f - R.s), CUT_LEN.A * (0.3 + 0.7 * g0), CUT_LEN.WA * (0.6 + 0.4 * g0), g0 * T.out);
   }
 }
-export function drawDisc(g, hx, hy, r, glow, grow) {
-  const k = r / 26.4, D = CUT.DISC * 2 / CUT.DISC_TEX * k * (0.8 + 0.2 * grow);
-  blit(g, disc(), hx, hy, D, D, 0, glow, false);
-  blit(g, disc(), hx, hy, D * 1.15, D * 1.15, 0, glow * 0.35, true);
+// The white disc behind the head (and the hot bloom round it at the start).
+export function drawDisc(g, hx, hy, r, T) {
+  if (T.out <= 0 || T.disc <= 0) return;
+  const D = T.disc * r * 2 / CUT.DISC_TEX;
+  blit(g, disc(), hx, hy, D, D, 0, T.out * T.discA, false);
+  blit(g, disc(), hx, hy, D * (1.05 + 0.15 * T.bloom), D * (1.05 + 0.15 * T.bloom), 0, (0.1 + 0.15 * T.bloom) * T.out, true);
 }

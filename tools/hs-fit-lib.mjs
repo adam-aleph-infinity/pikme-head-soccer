@@ -643,6 +643,23 @@ function carrySpeed(doc) {
   return f ? { value: Math.abs(f.c[1]), sd: f.se[1], n: 1 } : NONE;
 }
 
+// Climbing onto a head: how fast p0's head rises while it goes up the other's shoulder, over the
+// span 50–66px above standing (past the top of a plain jump, ~45, and short of the crown, 70), so
+// the jump's own rise is not in it. The first such run only.
+function climbSpeed(doc) {
+  const s = p0(doc);
+  if (!s.length) return NONE;
+  const base = s[0].y, run = [];
+  for (const p of s) {
+    const up = base - p.y;
+    if (up >= 50 && up <= 66) run.push(p);
+    else if (run.length) break;
+  }
+  if (run.length < 4) return NONE;
+  const f = polyfit(run.map((p) => p.t), run.map((p) => p.y), 1);
+  return f ? { value: -f.c[1], sd: f.se[1], n: 1 } : NONE;
+}
+
 // Dash under an airborne opponent: how much HIGHER p1's second jump (the one dashed under)
 // peaks than its first (undisturbed) one. 0 = no launch.
 function dashUnderLaunch(doc) {
@@ -1046,6 +1063,7 @@ export const METRICS = [
   // C10 — bodies: standing on the opponent's head, and dashing under them in the air.
   { id: 'headStand.happens', unit: 'yes/no', clips: ['C10'], scenario: 'headStand', fit: yesNo('headstand', 'stand_on') },
   { id: 'headStand.carrySpeed', unit: 'px/s', clips: ['C10'], scenario: 'headStand', fit: carrySpeed },
+  { id: 'headStand.climbSpeed', unit: 'px/s', clips: ['C10'], scenario: 'headClimb', fit: climbSpeed },
   { id: 'dashUnder.launch', unit: 'px', clips: ['C10'], scenario: 'dashUnder', fit: dashUnderLaunch },
   { id: 'dashUnder.headLandTime', unit: 's', clips: ['C10'], scenario: 'dashUnder', timing: true,
     fit: (d) => (tagT(d, 'stand_on').length ? dur('stand_on', 'stand_off')(d) : attempted(d, 'dashunder') ? { value: 0, sd: 0, n: 1 } : NONE) },

@@ -394,7 +394,8 @@ function kickInto(m, i, reach = 130, ticks = 90) {
   for (let t = 0; t < 20; t++) { step(m, NONE); log.push(...m.events); m.events.length = 0; }
   ok('a standing defender is hit, not blocking', log.some((e) => e.type === 'powerHit' && e.player === 1) && !log.some((e) => e.type === 'blocked'));
   ok('he is thrown toward his own goal', b.vx * b.side < 0 || b.x > a.x + 300, `vx=${b.vx.toFixed(0)}`);
-  ok('dazed for POWER_BLOCK_STUN, with the stars', log.some((e) => e.type === 'stunned' && e.player === 1 && Math.abs(e.time - C.POWER_BLOCK_STUN) < 1e-9) && b.ail === 'stars');
+  ok('dazed for POWER_HIT_STUN, with the stars', log.some((e) => e.type === 'stunned' && e.player === 1 && Math.abs(e.time - C.POWER_HIT_STUN) < 1e-9) && b.ail === 'stars');
+  ok('…and it marks his face (a hurt, HS M4 62.85 s)', b.hurt === 1 && log.some((e) => e.type === 'hurt' && e.player === 1 && e.power));
   ok('and the ball bounces off him, no longer the shot', !m.ball.power, `vx=${m.ball.vx.toFixed(0)}`);
 }
 {
@@ -1234,7 +1235,8 @@ const jumpArc = (input) => {
     for (let i = 0; i < 6; i++) { m.hitStop = 0; step(m, [{ [dirKey]: true }, {}]); m.events.length = 0; }
     // at the feet: the boot's first frames go slowly along the grass (shared/kick.js BOOT_PATH),
     // and a body walking away from the ball takes its speed off them
-    m.ball.x = p.x + 34; m.ball.y = C.GROUND_Y - m.ball.r;
+    // 3.5 px clear of the torso, as it was for the round ball (the ball is 1.2x wider: HS_STRETCH)
+    m.ball.x = p.x + C.BODY_W / 2 + m.ball.r * C.HS_STRETCH + 3.5; m.ball.y = C.GROUND_Y - m.ball.r;
     m.ball.vx = 0; m.ball.vy = 0;
     m.hitStop = 0;
     step(m, [{ [dirKey]: true, kick: true }, {}]);
@@ -1614,7 +1616,10 @@ const jumpArc = (input) => {
       // budget below stays where it was for every configuration that is neither.
       const edge = m.ball.x + C.BALL_R, redge = m.ball.x - C.BALL_R;
       const heldByFrame = m.ball.y - C.BALL_R > C.GROUND_Y - C.GOAL_H
-        && (Math.abs(edge - C.GOAL_W) < 1 || Math.abs(redge - (C.W - C.GOAL_W)) < 1);
+        && (Math.abs(edge - C.GOAL_W) < 1 || Math.abs(redge - (C.W - C.GOAL_W)) < 1
+          // …or already INSIDE the goal box, behind the line (tick 1559 once the grass kick lifted:
+          // the ball at x = 39 in the net, a body landing on it) — the same frame-held case.
+          || edge < C.GOAL_W || redge > C.W - C.GOAL_W);
       if (heldByFrame) continue;
       for (const p of m.players) {
         if (p.stunned > 0) continue;
@@ -1630,7 +1635,9 @@ const jumpArc = (input) => {
         // the wall holds it on one side, the body on the other. Found when the body started
         // bouncing the ball as HS's does (tick 3381: the wall clamps the ball, the dashing body pushes it
         // 5 px back off it, 15 px into the head).
-        if ((b.x - C.BALL_R < 8 || b.x + C.BALL_R > C.W - 8) && Math.abs(b.x - p.x) < C.BODY_W / 2 + C.BALL_R + C.HEAD_R) continue;
+        // (≤ 8.5, not < 8: the wall clamps the ball's edge to exactly 8 — tick 1568 once the grass
+        // kick lifted, the ball held at x = 23 in the corner while a body walked onto it.)
+        if ((b.x - C.BALL_R <= 8.5 || b.x + C.BALL_R >= C.W - 8.5) && Math.abs(b.x - p.x) < C.BODY_W / 2 + C.BALL_R + C.HEAD_R) continue;
         const e = embed(m, p);
         if (e > deepest) { deepest = e; worst = { i, p: p.index }; }
       }
@@ -2148,6 +2155,53 @@ const jumpArc = (input) => {
     ok('jumping while pushing into somebody is not damped', y0 - top > 40, `rose ${(y0 - top).toFixed(1)}px`);
   }
   {
+    // Walk into somebody standing still and jump, holding the arrow: past the top of the jump
+    // the body climbs the curve of the head, ~64px/s, and stands on the crown once the arrow is
+    // let go (HS M4 51.76–52.55 s: shoulder to crown in 0.33 s, R released ~0.1 s later).
+    const climb = (bIn) => {
+      const m = fresh();
+      const [a, b] = m.players;
+      a.x = 440; b.x = 520; m.ball.x = 950;
+      let hold = true, from = -1, at = -1, top = C.GROUND_Y;
+      run(m, 130, (i, mm) => {
+        if (from < 0 && a.stand === 1) from = i;
+        if (at < 0 && a.stand === 1 && a.onGround) at = i;
+        if (hold && crownFeet(b) - a.y > -1) hold = false;
+        top = Math.min(top, a.y);
+        return [{ right: hold, jump: i === 20 }, bIn];
+      });
+      return { m, a, b, secs: (at - from) / 60, over: crownFeet(b) - top };
+    };
+    const up = climb({});
+    ok('walk into a player and jump: you climb onto his head (HS M4 52 s)',
+       // (within a pixel: he settles ~20 px off-centre, on the curve of the oval crown — HS's own
+       // measure, 70 px up, is good to about a pixel)
+       up.a.stand === 1 && up.a.onGround && Math.abs(up.a.y - crownFeet(up.b)) < 1,
+       `feet ${up.a.y.toFixed(1)} vs crown ${crownFeet(up.b).toFixed(1)}, stand ${up.a.stand}`);
+    ok('…shoulder to crown in about HS\'s 0.33 s', up.secs > 0.25 && up.secs < 0.42, `${up.secs.toFixed(2)} s`);
+    ok('…without being flung over the crown', up.over < 4, `${up.over.toFixed(1)}px over`);
+    {
+      // Hung on his torso you can jump again, and again off his shoulder, onto his head (Idan;
+      // HS M4 66.78 and 160.04 s: jumps off a shoulder hang).
+      const m = fresh();
+      const [a, b] = m.players;
+      a.x = 440; b.x = 520; m.ball.x = 950;
+      let hold = true, hung = 0, jumps = 0;
+      run(m, 150, (i, mm) => {
+        if (i === 88) hung = C.GROUND_Y - a.y;
+        if (i > 100 && crownFeet(b) - a.y > -1 && Math.abs(a.x - b.x) < 30) hold = false;
+        jumps += mm.events.filter((e) => e.type === 'jump' && e.player === 0).length;
+        return [{ right: hold, jump: i === 20 || i === 90 || i === 100 }, { right: i > 20 && i < 70 }];
+      });
+      ok('hung on his torso, jump off it, then off his shoulder, onto his head',
+         hung > 5 && hung < 25 && a.stand === 1 && a.onGround && Math.abs(a.y - crownFeet(b)) < 3,
+         `hung ${hung.toFixed(1)}px up, then feet ${a.y.toFixed(1)} vs crown ${crownFeet(b).toFixed(1)}, stand ${a.stand}`);
+    }
+    const back = climb({ left: true });
+    ok('…but pushed back, it only hangs on the shoulder (HS M4 159.2–160.0 s)', !back.a.onGround || back.a.y === C.GROUND_Y,
+       `feet ${(C.GROUND_Y - back.a.y).toFixed(1)}px up, stand ${back.a.stand}`);
+  }
+  {
     // STACKED UNDER THE CROSSBAR. A player standing in his own mouth, the other dropped on
     // him from above: two heads (139.6px) do not fit under a 128px bar, so the upper one must
     // end up out of the mouth, on the pitch — not wedged inside the lower one, not pushed into
@@ -2232,7 +2286,7 @@ const jumpArc = (input) => {
     ok(`the ${KO}th kick knocks out, and no earlier one`, JSON.stringify(koAt) === JSON.stringify([KO]) && Math.abs(v.stunned - C.KICK_KO_TIME) < C.TICK + 1e-9,
        `knockout on ${koAt}, stunned=${v.stunned.toFixed(3)}`);
     ok('the knockout zeroes the count', v.kicked === 0, `kicked=${v.kicked}`);
-    ok('…and the bruise is a tier per hurt, kept through it', v.hurt === Math.min(3, C.KICK_HURTS_TO_KO), `hurt=${v.hurt}`);
+    ok('…and a mark per hurt but the knockout\'s, kept through it', v.hurt === C.KICK_HURTS_TO_KO - 1, `hurt=${v.hurt}`);
     const kicker = m.players[0];
     ok('the kicker is untouched by any of it', kicker.kicked === 0 && kicker.hurt === 0 && kicker.stunned === 0);
 

@@ -29,7 +29,7 @@ export let GROUND_Y = 435;           // 82% down. Was 445; the extra 10px is gra
 // and comes back, turning at world y ≈ −130 (its CENTRE, extrapolated from the flights either
 // side, n = 3). So the surface is a ball's radius above that. It used to be at +30, inside the
 // picture, which is why every high ball here rattled along an invisible roof.
-export const CEIL_Y = -130 - 16.5;    // -146.5: the ball centre turns at -130 (BALL_R 16.5)
+export const CEIL_Y = -130 - 15;      // -145: the ball centre turns at -130 (BALL_R 15)
 // HS M4, 3 ceiling bounces: the ceiling is DEAD. It keeps 0.41 of the climb (0.27–0.55, low
 // confidence — the contact itself is off-screen) and ALL of the sideways speed: in HS a ball that
 // leaves the top keeps travelling the way it was going and comes back down further along, not
@@ -65,9 +65,17 @@ export let GOAL_H = 133;
 export const POST_R = 5;              // crossbar radius (ball bounces off it)
 
 // ---- Ball ------------------------------------------------------------------
-// HS M4 29.98 s, the ball at rest mid-pitch: 66 recording px across = 33 world px, against
-// Korea's 124 px head (1.9 : 1). It was 12, which made every head read 2.6 balls wide.
-export const BALL_R = 16.5;
+// HS M4 31.0 s, the ball at rest mid-pitch: 72 x 60 px = 35.9 x 29.9 world — an oval, because HS is
+// stretched 1.2x sideways (below). BALL_R is its VERTICAL (native) radius; sideways it is
+// BALL_R x HS_STRETCH = 18. (It was one round 16.5, and before that 12.)
+export const BALL_R = 15;
+// HS IS STRETCHED 1.2x SIDEWAYS. It draws a 3:2 (480x320) picture and widens it to its 1.8:1 box,
+// so on the phone every round thing is an oval: the ball 72 x 60 screen px (M4 31.0 s at rest,
+// M3 6.0 s falling — the same in both, so it is the screen, not the sprite), the pause ring
+// 116 x 95, the score coins alike. The sim solves every round contact in that native space
+// (shared/sim.js SX); the renderer draws the ball OVAL_X wider. Photo faces are not stretched.
+export const HS_STRETCH = 1.2;
+export const OVAL_X = HS_STRETCH, OVAL_Y = 1;
 // HS M4, 86 clean free flights across two matches: 583 px/s² (sd 15); M3's 8 falls straight after
 // a respawn read 561 (sd 10). 580 is inside both — 0.2 sd off the number to fit, and the one
 // value neither measurement rejects. Measured SEPARATELY from the player's 595 (PLAYER_GRAV) and
@@ -81,7 +89,14 @@ export let BALL_AIR = 0.998351;     // per tick = exp(-0.099 / 60)
 // HS M4 ground rolls decay at 0.11–0.21 /s in all (111.0 s: 6.6 s and 404 px, 82 → 40 px/s).
 // This plus BALL_AIR is ~0.15 /s. Was 0.73 /s in all: an 80 px/s ball stopped after 111 px.
 export let BALL_GROUND_FRICTION = 0.99915;   // per tick = exp(-0.051 / 60)
-export let BALL_BOUNCE = 0.65;      // HS M3, 5 ground bounces: 0.58–0.70 (low confidence)
+export let BALL_BOUNCE = 0.65;      // HS M3, 5 ground bounces: 0.58–0.70 (low confidence); M1–M6, 52 clean: 0.64
+// THE GRASS GRIPS. HS M1–M6, 52 clean bounces with nobody within 80 px: the ball keeps a median
+// 0.84 of its sideways speed through a bounce, and what it loses is 0.07 of the landing's impulse
+// (Δ|vx| / Δvy: 0.071 for soft landings, 0.058 medium, 0.085 hard, so one Coulomb friction, Box2D's).
+// A hard landing (vy 700+) keeps only ~0.4. Ours kept 0.99, which is why our ball skated across the
+// pitch where HS's lands, checks and hangs (sideways speed p25 HS 67 px/s, ours 129; _phys-compare.mjs).
+// The side walls show the same grip on the up-and-down speed (0.06–0.10, 3 bounces).
+export let BALL_GRIP = 0.07;
 // Unmeasured in HS, but every surface that is (grass 0.65, goal roof 0.67, head 0.70–0.79) sits
 // at 0.63–0.79 — one Box2D restitution. Was 0.86, livelier than everything else on the pitch.
 export const BALL_WALL_BOUNCE = 0.67;
@@ -133,6 +148,14 @@ export const NECK = 7;
 //              standing on a head stays put while the head walks away under it (M4
 //              53.00–53.40 s). Unmeasured as a number; 0.5 holds a walk-speed push.
 export let BODY_GRIP = 0.5;
+//   CLIMB_V    an airborne body whose boots are up past the other's head centre, and that is
+//              pushing into it, climbs the curve of that head at this speed instead of hanging
+//              on the shoulder — up until the crown is under its boots and it stands there.
+//              HS M4 51.76–52.45 s: the human jumped beside the CPU holding R; past the top of
+//              the jump (boots ~45px up, the CPU's head centre is 43) the head kept rising, a
+//              steady 60–66px/s (head top 370 → 348 over 52.10–52.43 s), until he stood on the
+//              crown 70px up. M4 160.0–160.1 s the same off the shoulder hang.
+export let CLIMB_V = 64;
 // HS M4 21.05–29.4 s, 10 standstill jumps: the head's path is ONE parabola, 595 px/s² on the
 // way up and the way down alike (fit rmse < 0.8px). There is no heavier fall — the FALL_MULT
 // 1.55 that sat here was a platformer's trick, and HS does not use it.
@@ -404,22 +427,40 @@ export let GAUGE_LEAD = 0;           // s of play after the kickoff before the g
 // never clearing the bar.)
 export const headReach = () => (JUMP_V * JUMP_V) / (2 * PLAYER_GRAV) + BODY_H + HEAD_R * 2 - NECK;
 
-// THE CUT-IN. HS M4, 7 cut-ins: when a power shot FIRES the screen darkens round the shooter and
-// the whole game stops for 1.34s (1.33–1.35) — both players, the ball, the clock. It is a sim
-// pause (m.hitStop, and m.cutin says whose), not a client effect, so an online match freezes on
-// the same tick on both phones; the renderer only draws the spotlight over it.
-export let POWER_CUTIN = 1.34;
-// …but only the first 1.14s of it is a freeze: the ball leaves then and play runs under the last
-// 0.2s of the dark — the defender at M4 61.45 s kicks and blocks before it lifts. Measured against
-// the dark itself (luma traces, docs/HS-POWER-SHOTS.md §2): the ball leaves 1.01–1.10 s after the
-// half-dark point and the dark is half-lifted 0.22–0.31 s after it leaves (M4 40.40 → 41.41 →
-// 41.72 s, 60.17 → 61.27 → 61.49 s, 122.87 → 123.97 → 124.24 s). The picture's dark is half-down
-// 0.1 s after the touch and half-up 0.1 s after the sim's cut-in ends (champ-vfx drawCutin), so
-// this puts the release 1.04 s after half-dark and the lift 0.3 s after the release.
-export const POWER_RELEASE = 0.2;
+// THE CUT-IN. HS M4: when a power shot FIRES the screen darkens round the shooter and the whole
+// game stops — both players, the ball, the clock. It is a sim pause (m.hitStop, and m.cutin says
+// whose), not a client effect, so an online match freezes on the same tick on both phones; the
+// renderer only draws the spotlight over it. Timed from THE TOUCH, frame by frame at 60 fps
+// (docs/HS-POWER-VFX-RESEARCH.md §5; M4 40.20, 59.97, 122.67, 150.38 s, identical to a frame):
+// the dark starts 3 frames after the touch, the ball leaves 1.27 s after it (f76) and the dark
+// is half-lifted 1.50 s after it (f90–91). POWER_CUTIN is touch → half-lifted.
+export let POWER_CUTIN = 1.5;
+// …but only the first 1.27 s of it is a freeze: the ball leaves then and play runs under the last
+// 0.23 s of the dark — the defender at M4 61.45 s kicks and blocks before it lifts.
+export const POWER_RELEASE = 0.23;
+// Where the ball leaves from: out in front of the shooter's head centre, in head radii (M4 40.20 s
+// f56–f75 and the left-side counter at 41.78 s — it drifts there during the cut-in).
+export const POWER_RELEASE_AT = 2.5;
+// …and its HEIGHT is always the shooter's HEAD, never the touch's: the cut-in lifts the ball up
+// over the head and the head whips it out in front like a header (docs/HS-POWER-VFX-RESEARCH.md §5),
+// so it leaves level with the top of the head — 30–45 px above the head's centre at every release
+// (M4 41.38, 61.25/61.30, 123.95 s), standing or in the air. It used to keep the touch's height, so a
+// power fired off the boot or the body flew along the grass (Idan). Head radii above the centre.
+export const POWER_RELEASE_UP = 1.35;
+// …but NEVER HIGHER THAN UNDER THE CROSSBAR. HS's ball leaves 99–111px above the grass at every
+// release we measured (M4 41.38, 61.30, 123.95 s), shooters up to 36px in the air — never over
+// ≈ 111, which is exactly where it still clears the bar (its underside is 128 up). So a shot fired
+// from the top of a full jump (its head would put it 125px up, into the bar) flies just under the
+// bar and goes in (Idan: "if I jump highest with the Korean power I will score"). Px of daylight
+// between the ball and the bar's underside.
+export const POWER_RELEASE_BAR_GAP = 3;
 // HS M4 43.33 s and 80.85 s: a power shot that hits a player who is NOT armed dazes them for
 // ~0.5s (three gold stars over the head).
 export let POWER_BLOCK_STUN = 0.5;
+// …and a power shot that HITS a player (not a block) puts him down for 0.9 s — HS M4 62.85 s: hit,
+// thrown into his goal, his first move of his own at ≈ 63.75 s. (M4 80.85 s's 0.5 s ended in a goal
+// and a restart, which cut it short.) Idan: "in HS he is stunned for much longer".
+export let POWER_HIT_STUN = 0.9;
 // THE COMET: HS M4 41.50–41.77 s and 43.07–43.33 s, 0.135 of the pitch per 1/15 s — 2.03 pitch
 // widths a second, dead flat (docs/HS-POWER-SHOTS.md §3). A power shot crosses the whole pitch in
 // half a second, 2.6x the hardest kick. Each family flies a multiple of it (shared/hs-powers.js).
@@ -468,7 +509,9 @@ export const GOLDEN_HOLD = 1.95;
 export const GOLDEN_GOAL = true;      // draw → sudden death (gauges stop charging)
 
 // ---- Spawns ----------------------------------------------------------------
-export const SPAWN_X = [250, W - 250];
+// HS M3 and M5, the KICK OFF freeze: both players stand 221px from their own wall (250 was the
+// first mock's guess, never measured).
+export const SPAWN_X = [221, W - 221];
 // HS M3, every respawn after a goal (n = 7): the ball appears 302px above the grass with no fall
 // speed, drifting 138 px/s sideways — toward whoever conceded, so a restart is not a coin flip.
 export const BALL_SPAWN = { x: W / 2, y: GROUND_Y - 302 };
@@ -492,6 +535,7 @@ const SETTERS = {
   CONTACT_IMPACT_V: (v) => { CONTACT_IMPACT_V = v; },
   HEAD_BOUNCE: (v) => { HEAD_BOUNCE = v; },
   BODY_GRIP: (v) => { BODY_GRIP = v; },
+  CLIMB_V: (v) => { CLIMB_V = v; },
   BALL_IDLE_RESET: (v) => { BALL_IDLE_RESET = v; },
   COYOTE_TIME: (v) => { COYOTE_TIME = v; },
   JUMP_BUFFER: (v) => { JUMP_BUFFER = v; },
@@ -515,6 +559,7 @@ const SETTERS = {
   BALL_AIR: (v) => { BALL_AIR = v; },
   BALL_GROUND_FRICTION: (v) => { BALL_GROUND_FRICTION = v; },
   BALL_BOUNCE: (v) => { BALL_BOUNCE = v; },
+  BALL_GRIP: (v) => { BALL_GRIP = v; },
   BAR_BOUNCE: (v) => { BAR_BOUNCE = v; },
   CEIL_BOUNCE: (v) => { CEIL_BOUNCE = v; },
   CEIL_KEEP_X: (v) => { CEIL_KEEP_X = v; },

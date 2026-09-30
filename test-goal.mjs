@@ -104,10 +104,9 @@ const BAR = barY();
     const x = box.lineX - box.inward * C.GOAL_W * 0.6;   // 60% of the way into the net
     const y = C.GROUND_Y - 60;
     const p = depthPoint(x, y);
-    const near = x, far = x + box.wx;                    // the two side nets at this depth
-    const lo = Math.min(near, far), hi = Math.max(near, far);
-    ok(`${side}: a ball in the net draws between the two side nets`, p.x > lo && p.x < hi,
-       `x=${p.x.toFixed(1)} nets ${lo.toFixed(1)}..${hi.toFixed(1)}`);
+    // HS: the play plane runs between the two side nets (PLAY_Z), so the ball is drawn where it is
+    ok(`${side}: a ball in the net draws where it is, on the play plane between the side nets`, p.x === x && p.y === y && p.z > NEAR_Z,
+       `x=${p.x.toFixed(1)} vs ${x.toFixed(1)}, z=${p.z}`);
     ok(`${side}: …and never beyond the back of the net`,
        (box.left ? p.x > box.wallX : p.x < box.wallX), `x=${p.x.toFixed(1)}`);
   }
@@ -142,8 +141,7 @@ const BAR = barY();
      `y=${rest.y.toFixed(1)} vs ${(C.GROUND_Y - C.BALL_R).toFixed(1)}`);
   // …while the top of the box does, exactly as much as the frame drawn there.
   const high = project(30, BAR, INSIDE_Z, LEFT);
-  ok('a ball at the bar rides the frame up', Math.abs(high.y - (BAR + LEFT.wy * INSIDE_Z)) < 1e-9,
-     `y=${high.y.toFixed(1)}`);
+  ok('a ball at the bar is drawn at the bar (HS: no lift inside the net)', high.y === BAR, `y=${high.y.toFixed(1)}`);
 }
 
 // ═══ 3. THE BALL GOES IN, AND STAYS IN ═════════════════════════════════════
@@ -220,10 +218,11 @@ const BAR = barY();
       m.events.length = 0;
       const depth = (box.lineX - b.x) * box.inward;                 // + is into the net
       deepest = Math.max(deepest, depth);
-      if (depth > C.GOAL_W - C.POST_R - C.BALL_R + 0.01) through++;  // behind the back rail
+      if (depth > C.GOAL_W - C.POST_R - C.BALL_R * C.HS_STRETCH + 0.01) through++;  // behind the back rail (the ball is 1.2x wide)
     }
     const side = left ? 'left' : 'right';
-    ok(`${side}: a ball fired at the back reaches it`, deepest > C.GOAL_W * 0.6, `${deepest.toFixed(1)}px in`);
+    // …all the way: its back edge against the back rail (sideways it is BALL_R x HS_STRETCH wide)
+    ok(`${side}: a ball fired at the back reaches it`, deepest > C.GOAL_W - C.POST_R - C.BALL_R * C.HS_STRETCH - 1, `${deepest.toFixed(1)}px in`);
     ok(`${side}: …and never gets through the back rail`, through === 0, `${through} ticks behind it`);
   }
 }
@@ -702,7 +701,7 @@ C.tune({ JUMP_V: SHIPPED_JUMP });
 // the fence moves if the projection ever does.
 const overhang = (left) => {
   const box = goalBox(left);
-  return { box, from: box.lineX, to: box.lineX + box.wx, topY: box.top + box.wy };
+  return { box, from: box.lineX - box.wx, to: box.lineX, topY: box.top + box.wy };   // HS: the drawn roof runs from the near post to the far one on the line
 };
 // Straight down from well above the roof. Something has to turn it back before it is clear
 // under the bar line — that "something" is the only thing being asserted.
@@ -848,13 +847,13 @@ const dropAt = (sx, fromY) => {
   }
   {
     // keepOutOfGoal itself, at the two ends and in the three cases it distinguishes.
-    const y = C.GROUND_Y - 40, r = C.BALL_R;
+    const y = C.GROUND_Y - 40, r = C.BALL_R, rx = r * C.HS_STRETCH;   // the line is met by its SIDEWAYS edge
     const stopL = keepOutOfGoal(C.GOAL_W + 50, y, C.GOAL_W - 50, y, r);
     const stopR = keepOutOfGoal(C.W - C.GOAL_W - 50, y, C.W - C.GOAL_W + 50, y, r);
     ok('a jump into the left net is stopped with the ball ON the line',
-       Math.abs((stopL + r) - C.GOAL_W) < 0.05 && !ballInGoal(stopL, y, r), `x=${stopL}`);
+       Math.abs((stopL + rx) - C.GOAL_W) < 0.05 && !ballInGoal(stopL, y, r), `x=${stopL}`);
     ok('a jump into the right net is stopped with the ball ON the line',
-       Math.abs((stopR - r) - (C.W - C.GOAL_W)) < 0.05 && !ballInGoal(stopR, y, r), `x=${stopR}`);
+       Math.abs((stopR - rx) - (C.W - C.GOAL_W)) < 0.05 && !ballInGoal(stopR, y, r), `x=${stopR}`);
     ok('a jump that stays on the pitch is left alone',
        keepOutOfGoal(400, y, 300, y, r) === 300);
     ok('and a contact INSIDE the net is left alone — a keeper may clear his own line',

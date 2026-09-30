@@ -27,7 +27,8 @@ const goalLineX = (dir) => (dir > 0 ? C.W - C.GOAL_W : C.GOAL_W);
 
 // Where streak `i` is aimed: the goal line, at its height.
 export function ninjaTarget(pw, i) {
-  return { x: goalLineX(pw.dir) + pw.dir * 20, y: C.GROUND_Y - Math.max(C.BALL_R + 3, C.GOAL_H * NINJA_HEIGHTS[i]) };
+  // (never so high that the ball's top meets the bar: it aims INTO the goal)
+  return { x: goalLineX(pw.dir) + pw.dir * 20, y: C.GROUND_Y - Math.max(C.BALL_R + 3, Math.min(C.GOAL_H * NINJA_HEIGHTS[i], C.GOAL_H - C.POST_R - C.BALL_R - 3)) };
 }
 
 export default Object.freeze({

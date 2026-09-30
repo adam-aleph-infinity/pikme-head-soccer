@@ -141,7 +141,8 @@ function fireChampion(stage, i, gap = 460) {
   m.phase = 'play'; m.freeze = 0; m.banner = null; m.bannerT = 0; m.gaugeLead = 0;
   const p = m.players[i], q = m.players[1 - i];
   const X = (x) => (i === 0 ? x : C.W - x);
-  p.x = X(300); q.x = X(300 + gap);
+  // (`gap` from where the ball leaves: POWER_RELEASE_AT head radii in front of the shooter)
+  p.x = X(300); q.x = X(300 + C.POWER_RELEASE_AT * C.HEAD_R + gap);
   const log = [];
   p.gauge = 1; p.prev = {};
   const press = [IDLE, IDLE]; press[i] = { power: true };
@@ -313,7 +314,9 @@ function fireChampion(stage, i, gap = 460) {
   const tier = (t) => { let g = 0; for (let n = t * 9 + 1; n <= t * 9 + 9; n++) g += vsRef(n, 20); return g / 9; };
   const t1 = tier(0), t5 = tier(4);
   console.log(`  (info) champion vs the tier-3 bot, goal difference a match: tier 1 ${t1.toFixed(2)}, tier 5 ${t5.toFixed(2)}`);
-  ok('the last tier of champions plays harder than the first', t5 > t1 + 1.5, `champion goal difference a match: tier 1 ${t1.toFixed(2)}, tier 5 ${t5.toFixed(2)}`);
+  // (+1.5 until the power shot always left at head height, which helped the early champions'
+  // straight shots most — +1.57 → +1.26; Idan kept that balance, 2026-09-30)
+  ok('the last tier of champions plays harder than the first', t5 > t1 + 1.0, `champion goal difference a match: tier 1 ${t1.toFixed(2)}, tier 5 ${t5.toFixed(2)}`);
   let hi = 0, lo = 0;
   for (let s = 0; s < 16; s++) {
     for (const flip of [false, true]) {
@@ -337,7 +340,9 @@ function fireChampion(stage, i, gap = 460) {
   // on HS movement. With the Phase E bot and every champion on its own family it is 174 : 50 over
   // these 32 matches, so the margin is back, and doubled.
   console.log(`  (info) stage 45 vs stage 1 head to head ${hi} : ${lo} over 32 matches`);
-  ok('stage 45\'s champion beats stage 1\'s head to head, by 2 to 1', hi > 2 * lo, `${hi} : ${lo} over 32 matches`);
+  // (2 to 1 until the head-height release: 185 : 82 → 175 : 102; Idan kept that balance, 2026-09-30;
+  // 1.4 since HS's power hit, which throws the victim into his goal: 164 : 114)
+  ok('stage 45\'s champion beats stage 1\'s head to head, by 7 to 5', hi > 1.4 * lo, `${hi} : ${lo} over 32 matches`);
 }
 
 // ═══ 7. PROGRESS ════════════════════════════════════════════════════════════
@@ -446,13 +451,15 @@ function fireChampion(stage, i, gap = 460) {
   // is what these three bot-vs-bot matches are made of. The sim itself did not change.
   // AND the conceder's bonus (+1/3 gauge on the ball drop after a goal, HS M4 43.5 s).
   // AND AGAIN for the power-shot review (hs/power-review): the cut-in's dark no longer lifts early
-  // on a hit or a goal and the ball leaves 1.14 s in (POWER_RELEASE 0.2, measured against the dark);
+  // on a hit or a goal and the ball leaves 1.27 s in (POWER_RELEASE 0.23, timed from the touch — docs/HS-POWER-VFX-RESEARCH.md §5);
   // the Grab drags the defender back to the shooter and flings him; Multi-Ball is always three
   // balls; Downward rises at 15°; beheaded takes the controls for a moment. All HS-parity changes.
   // AND for the M5 pass (hs/mechanics-m5): the boot is a body (shared/kick.js), the HS M5 speed caps
   // and air speed, knockback fitted, the CPU's dash/hop/mash habits fitted to the cpu.* rows.
   // AND the defender is free under a cut-in, and a skied ball keeps its sideways speed off the ceiling.
-  const GOLDEN = 'c2bb3a9a85864bb4c726d298e8c0dffa0a07c5e4ce71c2dd24827f182716aad0';   // re-recorded: M5 mechanics pass (+ kick strength fitted to HS's kick spread)ntact path fitted to M1/M5)
+  // AND the cut-in timed from the touch (1.27 s hold, 1.5 s dark), the ball fired from 2.5 head radii
+  // in front of the shooter (POWER_RELEASE_AT), a block's stop under the dark's tail freezing both.
+  const GOLDEN = '1acff290e7c05d92e1b2ba3be16b9241eaac12aec4f799da7da3f66d169d99b0';   // re-recorded: a kick-block fires back THE POWER IT BLOCKED, now the blocker's (hs-powers fireBack, pw.src; Idan); before that a power shot's HIT throws the victim flat into his goal (1000 px/s), 0.9 s down, a mark on his face (hs-powers HIT_KNOCK / POWER_HIT_STUN, HS M4 62.85 s); before that an armed bot keeps playing its own game and fires on its next touch, instead of dashing and booting at the ball to fire (bot.js ARMED; HS cpu.powerDelay, a friend's 1–9 at stage 1); before that HS's own goal height again, and a power shot never leaves higher than just under the crossbar, so one fired from the top of a full jump goes in (constants.js POWER_RELEASE_BAR_GAP, Idan); before that a power shot always leaves at the shooter's head height, whatever touched it (constants.js POWER_RELEASE_UP, Idan); before that a straight power shot met by a player in the air right where it leaves goes back off him over the shooter (the wiki's early header, HS.EARLY_HEADER), and a blocked shot fires back plain, without the shooter's ailment; before that the CPU dash-strikes a slow grass ball in front of it (bot.js THE DASH STRIKE) and waits DEAD_WAIT before pouncing on a dead ball; before that the grass and the side walls grip the ball (BALL_GRIP 0.07, HS M1–M6) and a bot takes a dead ball past its pressing depth; before that a grass ball kicked leaves with HS's small lift (the boot's ground path rises, shared/kick.js BOOT_PATH); before that HS's proportions — the 1.2x sideways stretch (oval ball and heads, solved in native space), HS's goal box (far post on the line), the 221 kickoff spot; before that the HS cut-in timing and release spot; before that the CPU arms the moment its gauge is full (Idan); before that hit marks (`hurt`) count every hurt but the knockout's, up to four (HS M4 95–187 s); before that a power shot ends when it scores or meets the frame
   const h = createHash('sha256');
   const cases = [
     [{ rarity: 'legendary', number: 3 }, { rarity: 'legendary', number: 2 }, 3, 3, 11],
@@ -491,7 +498,7 @@ function fireChampion(stage, i, gap = 460) {
   // of them decides what a future tick does. `kicked` and `hurt` (the kick
   // knockout's count and the bruise) joined with hs/kick-stun. `kickHit` (the swing has struck the
   // ball once: one strike event and one hit-stop a swing) joined with the physical boot.
-  ok('the snapshot schema is the HS one', JSON.stringify(Object.keys(serialize(m))) === JSON.stringify(['t', 'clock', 'phase', 'freeze', 'hitStop', 'idle', 'cutin', 'cutinBy', 'banner', 'bannerT', 'ballWait', 'gaugeLead', 'afterGoal', 'afterGoalTo', 'score', 'golden', 'lastScorer', 'p', 'b', 'xb']) &&
+  ok('the snapshot schema is the HS one', JSON.stringify(Object.keys(serialize(m))) === JSON.stringify(['t', 'clock', 'phase', 'freeze', 'hitStop', 'idle', 'cutin', 'cutinBy', 'ghost', 'banner', 'bannerT', 'ballWait', 'gaugeLead', 'afterGoal', 'afterGoalTo', 'score', 'golden', 'lastScorer', 'p', 'b', 'xb']) &&
      serialize(m).p[0].length === 31);
   ok('an ordinary bot is still exactly its tier', createBot(3).d === DIFFICULTIES[3]);
 }

@@ -105,7 +105,7 @@ ok('every card in the album has an anchor', ids.every((id) => !!heads[id]),
 
 // ── THE PITCH HEAD: A HEAD SOCCER SHAPE, CROPPED TIGHTER ──────────────────────
 {
-  // The heads on the pitch are wider than tall (HEAD_W 1.17 x HEAD_H 1.07 of the hitbox) and
+  // The heads on the pitch are wider than tall (HEAD_W 1.28 x HEAD_H 1.04 of the hitbox) and
   // cropped 1.3x closer, the window nudged down so the chin reaches the flat bottom — game.js
   // HEAD_CROP. The one guarantee still has to hold for that crop, on every card.
   const game = readFileSync(new URL('./public/game.js', import.meta.url), 'utf8');

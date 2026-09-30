@@ -53,13 +53,22 @@ export function kickPose(k) {
 // own goal, the ball rolling in 40 px ahead, KICK and nothing else) — the ball starts moving the
 // frame after the press and rolls away FLAT at ~450 px/s, while the drawn boot is already up at
 // head height. And a ball above the boot while it climbs goes straight up hard (M5 80.59 s, ~1050
-// px/s). So the boot's collision runs its own path for the first three frames — level at a ball's
-// height on the grass and slow along it (0.17 R a frame, ~270 px/s, which a 0.68 bounce turns
-// into HS's 465, flat — M1 3612–3624, 7.75 px a frame on the grass) — and from the fourth frame on it IS the drawn climb (KICK_KEYS), the same
-// held pose and snap-back. [progress, forward, up] in head radii off the feet.
+// px/s). So the boot's collision runs its own path for the first three frames — at a ball's
+// height on the grass and slow along it (0.17 R a frame, ~270 px/s, which the bounce turns into
+// HS's ~450 — M1 3612–3624, 7.75 px a frame on the grass) — and from the fourth frame on it IS the
+// drawn climb (KICK_KEYS), the same held pose and snap-back. [progress, forward, up] in head radii
+// off the feet.
+//
+// …AND RISING A LITTLE, NOT LEVEL. A grass ball struck in HS leaves anywhere from flat to a
+// small lift, by where in the swing the boot meets it: M1 60.21 s met on the press frame, 1°;
+// M3 84.23 s met 0.15 s into the swing, 9°; dash + kick M5 65.30 / 65.37 s, 3° and 10° (Idan:
+// "fast and with a bit of angle sometimes"). A dead-level path met every grass ball through its
+// centre and sent all of them out at 0°. Starting a hair under the ball's centre (0.625 R) and
+// climbing through it puts the spread back: _groundkick.mjs reads a standing kick at 2–25°
+// (median 8°), a dash + kick at 0–14° (median 8°), at the same ~500 px/s as before.
 export const BOOT_PATH = [
-  [0.000, 0.83, 0.66],
-  [0.064, 1.04, 0.66],
+  [0.000, 0.83, 0.60],
+  [0.064, 1.04, 0.62],
   [0.128, 1.25, 0.66],
   [0.192, 1.60, 1.00],
   [0.256, 1.82, 1.58],

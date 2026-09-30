@@ -52,7 +52,7 @@ export const FAMILY_ORDER = Object.freeze(Object.keys(FAMILIES));
 // dur is the base, in seconds, at intensity 0.5; it scales 0.6×–1.4× with intensity.
 export const AILMENTS = Object.freeze({
   reverse:  { id: 'reverse',  name: 'בלבול',  dur: 3.0, color: '#e04cff' },   // left is right (???)
-  shock:    { id: 'shock',    name: 'חשמל',   dur: 2.5, color: '#ffe23a' },   // half speed, no jump, no dash
+  shock:    { id: 'shock',    name: 'חשמל',   dur: 2.5, color: '#8fb4ff' },   // half speed, no jump, no dash; drawn blue ("turns blue")
   // an ice block: no control at all — for 2–3 s (headsoccer wiki Power_Button_Damage_Effects; was 1.5)
   freeze:   { id: 'freeze',   name: 'קפוא',   dur: 2.5, color: '#9fe8ff' },
   // no head: no header, the ball passes where it was — and (wiki Power_Shots, Honduras) "unable
@@ -67,9 +67,10 @@ export const AILMENTS = Object.freeze({
   // shot's own ailment — only the Grab's release sets it.
   thrown:   { id: 'thrown',   name: 'מושלך',  dur: 1.25, color: '#3b6bff' },
   // Caught in Nigeria's tornado (wiki: "they fly and spin in the air and they stay unconscious for
-  // 3 seconds"): up and spinning for the flight, then the stars. Only the tornado sets it
-  // (shared/champion-powers/stage-03.js).
-  twister:  { id: 'twister',  name: 'סחרור',  dur: 1.6,  color: '#c9b48a' },
+  // 3 seconds"; Nigeria.gif: flung out of the top of the screen, tumbling, gold stars round him
+  // from the catch to well after he lands): heavy (5× gravity) in the air like the Grab's throw,
+  // then out on the grass. Only the tornado sets it (shared/champion-powers/stage-03.js).
+  twister:  { id: 'twister',  name: 'סחרור',  dur: 3.0,  color: '#e8eef4' },
   // Frozen in Russia's block of ice (wiki: "frozen in a block of ice for a short period of time,
   // able to be kicked and dashed into the goal"): no control, and slippery — pushed, it slides on.
   // Only the Ice Shot sets it (shared/champion-powers/stage-06.js).
@@ -83,9 +84,14 @@ export const HS = Object.freeze({
   BLOCK_GRIND: 0.8,       // s the ball grinds on a kicking blocker (§4: M4 61.45–62.25, 79.55–80.25)
   BLOCK_PUSH: 6,          // px/s the grind pushes him back: ~5 px over the grind (§4: "a few pixels"; was 40 = 32 px)
   BLOCK_REST: 0.4,        // s it then sits dead at his feet before firing back (§4: 62.35–62.7)
-  HIT_KNOCK: 380,         // px/s the hit defender is thrown toward his own goal (§4 M4 43.33; estimated)
-  HIT_LIFT: 240,          // px/s up with it
-  SMASH_KNOCK: 520,       // Destructive / Critical: harder (estimated)
+  // THE HIT THROWS HIM (Idan: "he just gets stunned for 0.3 s"). HS M4 62.85 s, the rebound on
+  // the CPU: 818 → 1005 px in 0.2 s (≈ 1000 px/s) straight back into his own goal, the head only
+  // ≈ 10 px higher on the way — a flat throw, not a hop; M2 103.85 s the same, ≈ 370 px to his
+  // goal, tumbling with the stars. The wiki (South_Korea): "pushed back into his own goal".
+  HIT_KNOCK: 1000,        // px/s he is thrown toward his own goal (was 380, and a stunned body lost it in 0.1 s: 39 px)
+  HIT_LIFT: 110,          // px/s up with it (≈ 10 px up, ≈ 0.37 s in the air)
+  HIT_FLIGHT: 0.42,       // s the throw owns the body (sim.js koSlide): ballistic in the air, then it stops
+  SMASH_KNOCK: 1250,      // Destructive / Critical: harder (estimated, scaled with HIT_KNOCK)
   AERIAL_UP: 1600,        // px/s straight up out of the top of the screen (§3 M2 42.7)
   AERIAL_WAIT: 1.0,       // s off-screen, warning streaks (§3 M2 43.2–44.2)
   AERIAL_DIVE_DEG: 40,    // the dive's angle below horizontal (§3 "~30–40°"); TAN_DIVE is its tangent
@@ -95,6 +101,8 @@ export const HS = Object.freeze({
   GRAB_THROWN: 1.25,      // s in the air (5× gravity: 2·1850 / (5·595) ≈ 1.24)
   GRAB_DAZE: 0.45,        // s of stars on the ground after landing (M3 75.5–75.9)
   AURA_STUN: 0.8, AURA_PUSH: 460, AURA_REVERSE: 2.5, AURA_FREEZE: 2.0,   // freezes last 2–3 s (wiki)
+  EARLY_HEADER: 170,      // px from the release point a jumping head still sends a straight shot home (wiki; estimated)
+  EARLY_HEADER_V: 1150,   // px/s it goes back at, a plain ball, over the shooter (estimated)
 });
 
 const TAN_DIVE = 0.8391;   // tan 40°, as a literal (no Math.tan in sim code — see ROLLBACK RULES)
@@ -197,7 +205,8 @@ export const ailDur = (type, int = 0.5, fam = null) =>
 function freshPower(p, shot, o = {}) {
   return {
     id: shot.family, fam: shot.family, ail: shot.ailment || '', int: shot.intensity, gentle: shot.gentle ? 1 : 0,
-    owner: p.index, dir: p.side, t: 0, life: C.POWER_SHOT_LIFE, ph: 'fly', k: 0,
+    // `src`: whose power this IS — its shooter's, kept when a block fires it back (fireBack)
+    owner: p.index, src: p.index, dir: p.side, t: 0, life: C.POWER_SHOT_LIFE, ph: 'fly', k: 0,
     x0: 0, y0: 0, tx: 0, ty: 0, vx0: 0, vy0: 0, tgt: -1, pass: 0, extra: 0, rb: 0, hit: 0,
     // a champion's own power (champion-powers.js) — only then, so every other ball is unchanged
     ...(shot.cp ? { cp: shot.cp, spd: shot.speed || 0, ailS: shot.ailSec || 0, slot: 0, inv: 0 } : {}),
@@ -209,9 +218,19 @@ function freshPower(p, shot, o = {}) {
 // ── LAUNCH ──────────────────────────────────────────────────────────────────────
 // The armed touch. Turns the ball into this player's power ball and sets up its family's path.
 // A Multi-Ball also puts its extra balls on the pitch (m.xballs — real balls, sim.js steps them).
+// WHERE A FIRED SHOT LEAVES FROM: HS carries the ball out in front of the shooter's head during
+// the cut-in (C.POWER_RELEASE_AT head radii) and fires it from there, level with the top of his head.
+// The sim (fireUltimateOnContact) and the bot's read of a shot (foeShotPath) both put it here.
+export const releaseX = (p, r) => Math.min(C.W - r, Math.max(r, p.x + p.side * C.POWER_RELEASE_AT * C.HEAD_R));
+// …at the shooter's head height, whatever touched it (C.POWER_RELEASE_UP), but never above the
+// crossbar's underside (C.POWER_RELEASE_BAR_GAP): `hy` is his head centre.
+export const releaseY = (hy) => Math.max(hy - C.POWER_RELEASE_UP * C.HEAD_R,
+  C.GROUND_Y - C.GOAL_H + C.POST_R + C.BALL_R + C.POWER_RELEASE_BAR_GAP);
+
+// o.shot / o.src: fire SOMEONE ELSE'S power as p's — the block's fire-back (fireBack)
 export function launch(m, b, p, kit, fx, o = {}) {
-  const shot = p.shot;
-  const pw = freshPower(p, shot);
+  const shot = o.shot || p.shot;
+  const pw = freshPower(p, shot, o.src != null ? { src: o.src } : {});
   pw.x0 = b.x; pw.y0 = b.y;
   b.power = pw;
   b.spin = pw.dir * 26;
@@ -244,7 +263,7 @@ export function launch(m, b, p, kit, fx, o = {}) {
       m.xballs.push(x);
     }
   }
-  m.events.push({ type: 'powershot', player: p.index, shot: pw.fam, fam: pw.fam, ...(pw.cp ? { cp: pw.cp } : {}), ail: pw.ail, champ: p.champ ? p.champ.id : null, ultimate: true, countered: !!o.countered });
+  m.events.push({ type: 'powershot', player: p.index, shot: pw.fam, fam: pw.fam, ...(pw.cp ? { cp: pw.cp } : {}), ail: pw.ail, champ: p.champ ? p.champ.id : null, ultimate: true, countered: !!o.countered, ...(o.rebound ? { rebound: true } : {}) });
   return pw;
 }
 
@@ -264,9 +283,15 @@ export function stepPower(m, b, dt, kit, fx) {
     case 'grind': {
       const q = m.players[pw.tgt];
       pw.k += dt;
-      q.x += pw.dir * HS.BLOCK_PUSH * dt;
+      // Blocked in the AIR, he hangs where the boot met it for the whole grind, like a shooter
+      // under his cut-in (Idan: he dropped to the grass with the ball stuck to his boot).
+      if (pw.air) { q.x = pw.hx; q.y = pw.hy; q.vx = 0; q.vy = 0; q.onGround = false; }
+      else q.x += pw.dir * HS.BLOCK_PUSH * dt;
       kit.bounds(q);
       b.x = q.x + pw.x0; b.y = q.y + pw.y0; b.vx = 0; b.vy = 0;
+      // …and it goes straight back out off the boot: there is no grass under him to lie dead on.
+      // He falls from there, the tick the ball leaves him.
+      if (pw.air && pw.k >= HS.BLOCK_GRIND) { fireBack(m, b, pw, q, kit, fx); pw.air = 0; return true; }
       if (pw.k >= HS.BLOCK_GRIND) {
         pw.ph = 'rest'; pw.k = 0;
         b.x = kit.keepOutOfGoal(b.x, b.y, q.x - pw.dir * (C.BODY_W / 2 + b.r + 6), C.GROUND_Y - b.r, b.r);
@@ -276,13 +301,7 @@ export function stepPower(m, b, dt, kit, fx) {
     }
     case 'rest': {
       pw.k += dt; b.vx = 0; b.vy = 0;
-      if (pw.k >= HS.BLOCK_REST) {
-        const q = m.players[pw.tgt];
-        pw.owner = q.index; pw.dir = q.side; pw.ph = 'fly'; pw.rb = 1; pw.t = 0; pw.k = 0; pw.tgt = -1; pw.pass = 0;
-        pw.x0 = b.x; pw.y0 = b.y;
-        b.vx = pw.dir * C.POWER_SHOT_SPEED; b.vy = 0;
-        m.events.push({ type: 'rebound', player: q.index, fam: pw.fam, x: b.x, y: b.y });
-      }
+      if (pw.k >= HS.BLOCK_REST) fireBack(m, b, pw, m.players[pw.tgt], kit, fx);
       return true;
     }
     // ─ the Grab (§3 M3 74.08–74.30 s; wiki: grab shots "pull the defender back"): the hand
@@ -445,6 +464,17 @@ export function contact(m, p, b, kit, fx) {
     const r = cpContact(m, p, b, kit, pw, kicking, { block: (mm, q, bb, ppw) => block(mm, q, bb, ppw, kit), ailment: applyAilment });
     if (r !== undefined) return r;
   }
+  // THE EARLY HEADER (wiki South_Korea, Cameroon, Power_Shot_Guide): jump in front of the shooter
+  // right as he fires and the straight shot comes off your head straight back — over him and into
+  // his own goal. Only a player in the air, only within EARLY_HEADER px of where it left; he met
+  // it first, so no daze. (Not in our footage: the wiki's standard answer to stages 1–2.)
+  if (pw.fam === 'straight' && !pw.rb && !kicking && !p.onGround && Math.abs(b.x - pw.x0) < HS.EARLY_HEADER) {
+    b.power = null;
+    b.vx = -pw.dir * HS.EARLY_HEADER_V; b.vy = -150;
+    m.hitStop = Math.max(m.hitStop, C.HIT_STOP_POWER);
+    m.events.push({ type: 'blocked', player: p.index, by: pw.owner, fam: pw.fam, how: 'header', ...(pw.cp ? { cp: pw.cp } : {}) });
+    return 'deflect';
+  }
   // A weak Destructive (the first tier's cannon) is still blockable; from the middle of the
   // campaign on it smashes a block aside (the map's intensity is how strong a family plays).
   const mode = pw.rb ? 'grind' : F.block === 'smash' && pw.int < 0.4 ? 'grind' : F.block;
@@ -473,7 +503,11 @@ export function contact(m, p, b, kit, fx) {
   // THE HIT (§4 M4 43.33, M3 38.25): knocked back and dazed; the ball bounces off (below).
   m.hitStop = Math.max(m.hitStop, C.HIT_STOP_POWER);
   const smash = mode === 'smash' || mode === 'through';
-  knock(m, p, pw, kit, smash ? HS.SMASH_KNOCK : HS.HIT_KNOCK, C.POWER_BLOCK_STUN);
+  knock(m, p, pw, kit, smash ? HS.SMASH_KNOCK : HS.HIT_KNOCK, C.POWER_HIT_STUN, HS.HIT_LIFT, HS.HIT_FLIGHT);
+  // …and it marks his face, for the rest of the match, like a hurt (HS M4 62.85 s: the red nose
+  // the frame the ball met him, still there at 64.7 s) — sim.js `hurt`, drawn by game.js
+  p.hurt = Math.min(4, (p.hurt | 0) + 1);
+  m.events.push({ type: 'hurt', player: p.index, by: pw.owner, level: p.hurt, ko: false, power: true });
   landAilment(m, p, pw);
   const how = mode === 'through' ? 'through' : smash ? 'smash' : 'hit';
   m.events.push({ type: 'powerHit', player: p.index, by: pw.owner, fam: pw.fam, how, x: b.x, y: b.y });
@@ -505,21 +539,39 @@ export function contact(m, p, b, kit, fx) {
   return how;
 }
 
+// The block's end: the ball goes back out as a power shot — THE ONE HE BLOCKED, now his (Idan:
+// "counter with a kick and I do his power, not mine"). Its own flight, look, sound and effect on
+// whoever it meets, from the blocker's head height, at the other goal; no cut-in (§4: "full comet
+// tail, no cut-in"). `src` keeps whose power it is, so a fire-back blocked again stays that power.
+function fireBack(m, b, pw, q, kit, fx) {
+  const src = pw.src ?? pw.owner, shot = (m.players[src] && m.players[src].shot) || q.shot;
+  b.x = releaseX(q, b.r); b.y = releaseY(kit.headY(q));
+  launch(m, b, q, kit, fx, { shot, src, rebound: true });
+  m.events.push({ type: 'rebound', player: q.index, fam: b.power.fam, x: b.x, y: b.y });
+}
+
 // THE BLOCK (§4): pinned where it met the boot, the blocker pushed back and held.
 function block(m, p, b, pw, kit) {
   m.hitStop = Math.max(m.hitStop, C.HIT_STOP_POWER);
   pw.ph = 'grind'; pw.k = 0; pw.tgt = p.index;
   pw.x0 = b.x - p.x; pw.y0 = Math.max(b.y, kit.headY(p) - C.HEAD_R) - p.y;
+  // In the air he is held up there until it leaves him (stepPower 'grind'); only then set, so a
+  // block on the grass carries exactly the fields it always did.
+  const air = !p.onGround;
+  if (air) { pw.air = 1; pw.hx = p.x; pw.hy = p.y; }
   // Held while it grinds — the daze HS shows (~0.5s, power.blockStun); the ball grinds on to 0.8s.
-  kit.stun(m, p, C.POWER_BLOCK_STUN);
+  // Up in the air the controls stay out for all of it, since he cannot move anyway.
+  kit.stun(m, p, air ? HS.BLOCK_GRIND : C.POWER_BLOCK_STUN);
   if (pw.fam === 'ailment') landAilment(m, p, pw);
   m.events.push({ type: 'blocked', player: p.index, by: pw.owner, fam: pw.fam, shot: pw.fam, ...(pw.cp ? { cp: pw.cp } : {}) });
   return 'block';
 }
 
-function knock(m, p, pw, kit, v, daze, lift = HS.HIT_LIFT) {
+function knock(m, p, pw, kit, v, daze, lift = HS.HIT_LIFT, flight = 0) {
   p.vx = pw.dir * v; p.vy = -lift; p.onGround = false;
   kit.stun(m, p, daze);
+  // a THROW keeps its speed through the air (a stunned body otherwise loses 14% a tick)
+  if (flight > 0) p.koSlide = flight;
   if (!p.ail) applyAilment(m, p, 'stars', daze);
 }
 function landAilment(m, p, pw) {
@@ -594,7 +646,7 @@ export function ailMods(p) {
     case 'burn': o.reverse = true; break;
     case 'stars': o.dead = true; o.noDash = true; break;
     case 'thrown': o.dead = true; o.noDash = true; o.grav = 5; break;
-    case 'twister': o.dead = true; o.noDash = true; break;
+    case 'twister': o.dead = true; o.noDash = true; o.grav = p.onGround ? 1 : 5; break;   // flung like the Grab's throw
     case 'iced': o.dead = true; o.noJump = true; o.noDash = true; o.friction = 0.975; o.canArm = true; break;
     case 'beheaded': o.dead = true; o.noDash = true; break;   // (and sim.js drops the head's contacts)
     default: break;

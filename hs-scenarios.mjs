@@ -24,6 +24,7 @@ import * as C from './shared/constants.js';
 import { createMatch, step, headY } from './shared/sim.js';
 import { launch as launchPower, shotById } from './shared/hs-powers.js';
 import { createBot, botInput } from './shared/bot.js';
+import { stageConfig } from './shared/champions.js';
 
 const CHAR_A = { rarity: 'legendary', number: 3 };
 const CHAR_B = { rarity: 'legendary', number: 2 };
@@ -188,6 +189,15 @@ export const SCENARIOS = {
       z.x = 500; a.x = 500; a.y = C.GROUND_Y - 160; a.vy = 0; a.onGround = false;
     },
     input: (i) => [{}, i > 60 && i < 120 ? { right: true } : {}] },
+  // C10 — player 0 walks into player 1 and jumps, holding R until its boots clear the crown
+  // (HS M4 51.76–52.55 s: the human held R through the climb and let go on top).
+  headClimb: { clip: 'C10', ticks: 110, attempt: 'headstand',
+    setup: (m) => { openPlay(m); parkBall(m); m.players[0].x = 440; m.players[1].x = 520; },
+    input: (i, m, ctx) => {
+      const [a, z] = m.players;
+      if (a.y <= headY(z) - C.HEAD_R + 1) ctx.off = true;
+      return [{ right: !ctx.off, jump: i === 20 }, {}];
+    } },
   // C10 — player 1 jumps once undisturbed, then again while player 0 dashes under it.
   // Re-enacts HS M4 66.00–66.78 s: the CPU jumped, the human's dash met it at the top of its
   // jump (~0.4 s after takeoff), and he kept pushing — R held / double-tapped 66.35–67.10 s,
@@ -281,10 +291,13 @@ export const SCENARIOS = {
       return [botInput(ctx.bots[0], m, 0, C.TICK), botInput(ctx.bots[1], m, 1, C.TICK)];
     } },
   // Ten minutes of bot-vs-bot on one clock, for shares of play time (a 60 s match is a handful
-  // of high balls; ten minutes is enough of them to be a share).
-  botLong: { clip: 'M', ticks: 60 * 600, setup: (m) => { m.clock = 600; },
+  // of high balls; ten minutes is enough of them to be a share). FOUR of them: one ten-minute
+  // match still read anywhere from 0.3% to 5% of time off the top of the screen as the grass
+  // grip (BALL_GRIP) nudged which way it went, where 12 shorter matches sit at 4.6% ± a lot
+  // (single matches 1–8%).
+  botLong: { clip: 'M', ticks: 60 * 600, seeds: 4, setup: (m) => { m.clock = 600; },
     input: (i, m, ctx) => {
-      ctx.bots ??= [createBot(2, rng(11)), createBot(2, rng(23))];
+      ctx.bots ??= [createBot(2, rng(11 + 101 * ctx.seed)), createBot(2, rng(23 + 101 * ctx.seed))];
       return [botInput(ctx.bots[0], m, 0, C.TICK), botInput(ctx.bots[1], m, 1, C.TICK)];
     } },
   // THE HS CPU (docs/hs-estimates.json cpu.*): the bot in slot 1 — the RIGHT side, where the
@@ -296,6 +309,18 @@ export const SCENARIOS = {
   cpuWeak: cpuMatch(0),
 };
 
+// THE ARCADE'S OWN STAGE n as player 1 — its champion card, HS stats, power and bot profile
+// (champions.js stageConfig), exactly as the client fields it — against the same stand-in.
+// `node _arcade-diff.mjs` measures stages 1–3 with these against HS's weakest CPU.
+export function arcadeMatch(stage, standIn = 3) {
+  const cfg = stageConfig(stage);
+  return { clip: 'M', ticks: 60 * 200, seeds: 8, cpu: true, setup: () => {},
+    match: () => createMatch(CHAR_A, cfg.champ.card, cfg.matchOpts),
+    input: (i, m, ctx) => {
+      ctx.bots ??= [createBot(standIn, rng(31 + 101 * ctx.seed)), createBot(0, rng(47 + 101 * ctx.seed), cfg.bot)];
+      return [botInput(ctx.bots[0], m, 0, C.TICK), botInput(ctx.bots[1], m, 1, C.TICK)];
+    } };
+}
 function cpuMatch(level, standIn = 3) {
   return { clip: 'M', ticks: 60 * 200, seeds: 8, cpu: true, setup: () => {},
     input: (i, m, ctx) => {
@@ -309,10 +334,13 @@ function cpuMatch(level, standIn = 3) {
 function stillBall(m) { parkBall(m); m.idle = 0; }
 // C11: the victim (player 0) standing in open grass, the kicker (player 1) on his boot side.
 // Player 1 attacks the LEFT goal, so his boot swings left: he stands to the victim's right.
+// How far apart the kicker stands: KICK_REACH, or head to head if HS's oval heads (1.2x wide,
+// C.HS_STRETCH) keep them further apart than that — Idan booted the CPU with the heads touching.
+const bootGap = () => Math.max(C.KICK_REACH, 2 * C.HEAD_R * C.HS_STRETCH + 1);
 function bootSetup(m) {
   const [v, k] = m.players;
   v.x = C.W - 200; v.y = C.GROUND_Y; v.vx = 0; v.vy = 0; v.onGround = true;
-  k.x = v.x + C.KICK_REACH; k.y = C.GROUND_Y; k.vx = 0; k.vy = 0; k.onGround = true;
+  k.x = v.x + bootGap(); k.y = C.GROUND_Y; k.vx = 0; k.vy = 0; k.onGround = true;
 }
 // The kicker: keep the victim on the boot and press KICK (a fresh press) whenever it is ready —
 // Idan mashing at the CPU in M4 102–121 s. `restAfter` kicks landed, it stands still `rest` ticks.
@@ -327,9 +355,9 @@ function booter({ restAfter = Infinity, rest = 0 } = {}) {
     const inp = {};
     if (ctx.restUntil != null && i < ctx.restUntil) { ctx.prevKick = false; return [{}, inp]; }
     const gap = k.x - v.x;
-    if (gap > C.KICK_REACH + 6) inp.left = true;
-    else if (gap < C.KICK_REACH - 12) inp.right = true;
-    const ready = k.kickCd <= 0 && Math.abs(gap - C.KICK_REACH) < 18 && m.phase === 'play';
+    if (gap > bootGap() + 6) inp.left = true;
+    else if (gap < bootGap() - 12) inp.right = true;
+    const ready = k.kickCd <= 0 && Math.abs(gap - bootGap()) < 18 && m.phase === 'play';
     inp.kick = ready && !ctx.prevKick;
     ctx.prevKick = inp.kick;
     return [{}, inp];
@@ -369,11 +397,12 @@ export function runTakes(name) {
 export function runScenario(name, seed = 0) {
   const sc = SCENARIOS[name];
   if (!sc) throw new Error(`unknown scenario '${name}'`);
-  const m = createMatch(CHAR_A, CHAR_B, {});
+  // (an arcade scenario brings its own match: the stage's champion card, its HS stats and power)
+  const m = sc.match ? sc.match(seed) : createMatch(CHAR_A, CHAR_B, {});
   // THE STARTER'S STATS. Every HS number was measured on the starter character, and the
   // constants are fitted as that baseline; our rarity spread (legendary +6% speed, +5% jump…)
   // is the arcade's stat ladder, which Phase D maps onto HS's. So both bodies play at 1x here.
-  for (const p of m.players) p.stats = { speed: 1, jump: 1, kick: 1 };
+  if (!sc.match) for (const p of m.players) p.stats = { speed: 1, jump: 1, kick: 1 };
   const ctx = { seed };
   sc.setup(m, ctx);
   const frames = [], tags = [];

@@ -12,12 +12,12 @@
 import * as C from './constants.js';
 import { bootReach } from './kick.js';
 import { headY } from './sim.js';
-import { stepPower, launch as launchPower, FAMILIES } from './hs-powers.js';
+import { stepPower, releaseX, releaseY, launch as launchPower, FAMILIES } from './hs-powers.js';
 // Where the boot passes on its swing, [ahead, up] from the feet (the CPU's reach test).
 const BOOT_POINTS = bootReach();
 // CPU habits fitted to HS (test-hs-parity cpu.* rows, _cpu probe): per 0.25 s roll while it has
 // somewhere to be, and the chance a close ball in front gets the boot mashed at it.
-const DASH_BASE = 0.03, DASH_SKILL = 0.55, HOP = 0.075, MASH_SKILL = 0.3, LAZY = 0.15, KICK_GO = 0.2, PRESS_BASE = 0.44, PRESS_SKILL = 0.1;
+const DASH_BASE = 0.03, DASH_SKILL = 0.55, STRIKE_BASE = 0.05, STRIKE_SKILL = 0.9, DEAD_WAIT = 4, HOP = 0.075, MASH_SKILL = 0.3, LAZY = 0.15, KICK_GO = 0.2, PRESS_BASE = 0.44, PRESS_SKILL = 0.1;
 
 // `aggression` is flat across the tiers: it is how often a bot chases a ball the other player is
 // nearer to, and it was measured three times over (on the old physics) to be the one dial that
@@ -31,15 +31,8 @@ export const DIFFICULTIES = [
   { name: 'קשה מאוד', react: 0.08, error: 15, counter: 0.48, aggression: 0.38, aim: 0.90, powerHold: 0.4 },
   { name: 'אגדי',     react: 0.04, error: 7,  counter: 0.66, aggression: 0.38, aim: 0.98, powerHold: 0.2 },
 ];
-// HOW LONG A FULL GAUGE SITS BEFORE THE BOT ARMS IT. `powerHold` was compared with bot.t, the
-// bot's lifetime clock, which passes 2.2s two seconds into its first match — so every tier armed
-// the tick its gauge filled and fired at the first touch after: 2.4–2.8s from full to cut-in
-// (median, level 3), 4.5 power shots a match from one bot. The HS CPU in M4 (weakest tier) fires
-// 5.2, 6.8, 5.2, 10.5, 14.7 and 8.3s after its gauge fills (mean 8.5s: kickoff/cut-in times in
-// docs/hs-estimates.json against the measured 15.0s fill and 13.0s refill), about 3 a match.
-// Every one of those cut-ins is a 1.34s freeze of the whole game, so an eager bot is felt as a
-// game that keeps stopping. The hold is now time spent FULL, and the tiers keep their order.
-const FULL_HOLD = 2.5;               // s, added to each tier's powerHold (0.2–2.2s)
+// A FULL GAUGE IS ARMED AT ONCE (Idan): the bot presses POWER the tick its bar fills, as soon as
+// it is in play. (It used to hold a full gauge 2.7–4.7 s for a better moment, like M4's CPU.)
 // `profile` is an arcade champion's bot (shared/champions.js botProfile): the same dials as a
 // DIFFICULTIES row, placed anywhere on the line between them, plus how the champion plays its
 // own power. Without one, a bot is exactly the tier `level` names, as it always was.
@@ -54,18 +47,6 @@ export function createBot(level = 2, rng = Math.random, profile = null) {
     holdJump: 0,           // frames of jump still held — jump height is variable here
     out: { left: false, right: false, jump: false, kick: false, power: false },
   };
-}
-
-// WHEN A CHAMPION ARMS. The trigger is still the touch; this only decides whether now is the
-// moment its power was made for — a shot with the goal ahead, a wall with the ball coming home.
-// Weak arcade bots (and every non-arcade bot) skip the question and arm the moment they can.
-function armMoment(d, p, b) {
-  if (!d.arm || !d.smart) return true;
-  const myGoalX = p.side > 0 ? C.GOAL_W : C.W - C.GOAL_W;
-  const depth = (b.x - myGoalX) * p.side;           // 0 at my own line
-  if (d.arm === 'attack') return depth > C.W * 0.4 && (b.x - p.x) * p.side > -60;
-  if (d.arm === 'defend') return depth < C.W * 0.5;
-  return true;
 }
 
 export function botInput(bot, m, index, dt) {
@@ -89,7 +70,6 @@ function botInputRaw(bot, m, index, dt) {
   bot.t += dt;
   // How long the gauge has sat FULL and unarmed, on the wall clock (the bot runs through every
   // pause). What `powerHold` was always meant to gate — see FULL_HOLD.
-  bot.fullT = p.gauge >= 1 && p.armed <= 0 ? (bot.fullT || 0) + dt : 0;
 
   // Stunned is the only state that takes the controls away now — `knocked` is gone with the
   // rest of the signature effects. Pressing buttons at a stunned player does nothing anyway;
@@ -294,12 +274,11 @@ function botInputRaw(bot, m, index, dt) {
   // does not have.
   const played = C.MATCH_DURATION - m.clock;         // s of football actually played
   const armDelay = 1.5;
+  // Idan: the CPU presses POWER the moment its bar is full — no holding it for a better moment
+  // (it used to wait FULL_HOLD + powerHold and for the goal ahead and a good arm moment).
   const wantPower = m.phase === 'play' &&
                     played > armDelay &&
-                    p.gauge >= 1 && p.armed <= 0 && b.power == null &&
-                    bot.fullT > FULL_HOLD + d.powerHold &&
-                    (foe.x - p.x) * p.side > -80 &&   // the goal I am shooting at is ahead
-                    armMoment(d, p, b);
+                    p.gauge >= 1 && p.armed <= 0 && b.power == null;
   out.power = wantPower;
 
   return out;
@@ -334,12 +313,16 @@ function flight(b, T) {
     x += vx * C.TICK; y += vy * C.TICK;
     if (y > C.GROUND_Y - r) {
       y = C.GROUND_Y - r;
-      if (vy > 0) { vy = -vy * C.BALL_BOUNCE; if (Math.abs(vy) < 60) vy = 0; }
+      if (vy > 0) {
+        const v0 = vy;
+        vy = -vy * C.BALL_BOUNCE; if (Math.abs(vy) < 60) vy = 0;
+        vx = Math.sign(vx) * Math.max(0, Math.abs(vx) - C.BALL_GRIP * (v0 - vy));   // the grass grips (sim.js grip)
+      }
       vx *= C.BALL_GROUND_FRICTION;
     }
     if (y < C.CEIL_Y + r) { y = C.CEIL_Y + r; if (vy < 0) { vy = -vy * C.CEIL_BOUNCE; vx *= C.CEIL_KEEP_X; } }
-    if (x < r) { x = r; vx = Math.abs(vx) * C.BALL_WALL_BOUNCE; }
-    if (x > C.W - r) { x = C.W - r; vx = -Math.abs(vx) * C.BALL_WALL_BOUNCE; }
+    if (x < r) { x = r; if (vx < 0) vy = Math.sign(vy) * Math.max(0, Math.abs(vy) + C.BALL_GRIP * vx * (1 + C.BALL_WALL_BOUNCE)); vx = Math.abs(vx) * C.BALL_WALL_BOUNCE; }
+    if (x > C.W - r) { x = C.W - r; if (vx > 0) vy = Math.sign(vy) * Math.max(0, Math.abs(vy) - C.BALL_GRIP * vx * (1 + C.BALL_WALL_BOUNCE)); vx = -Math.abs(vx) * C.BALL_WALL_BOUNCE; }
     path.push({ t, x, y });
   }
   return path;
@@ -371,7 +354,8 @@ function powerPath(m, b, T) {
 // launch and flight, run on copies.
 function foeShotPath(m, b, foe) {
   if (!foe.shot) return [];
-  const ball = { x: b.x, y: b.y, vx: 0, vy: 0, r: b.r ?? C.BALL_R, spin: 0, power: null };
+  const r = b.r ?? C.BALL_R;
+  const ball = { x: releaseX(foe, r), y: releaseY(foe.y - C.BODY_H - C.HEAD_R + C.NECK), vx: 0, vy: 0, r, spin: 0, power: null };
   const fake = { events: [], xballs: null, players: m.players, cutin: 0, hitStop: 0 };
   launchPower(fake, ball, foe, NO_KIT, NO_FX);
   return ball.power ? powerPath(fake, ball, 2.2) : [];
@@ -445,7 +429,18 @@ function openPlay(bot, m, p, foe, b, out, d, dt) {
     // …and a weak tier sometimes simply does not go for a ball it could reach (re-rolled per
     // approach): HS's weak CPUs play 49% of the balls that come within reach, the five-star 86%.
     if (bot.goFor !== bot.approach) { bot.goFor = bot.approach; bot.lazy = bot.rng() < LAZY * (1 - s); }
-    const engage = !bot.lazy && (ballDepth < C.W * 0.55 || !foeFirst || bot.press);
+    // A DEAD BALL IS ANYBODY'S. Once the grass grips (sim.js BALL_GRIP) a ball can stop dead in
+    // midfield, past both players' pressing depth — and two bots each holding their line would
+    // then stand either side of it for the rest of the match (botLong, 2026-09-30: the ball at
+    // x 665 for eight minutes, the bots at 570 and 822). Neither the cap nor a lazy roll holds a
+    // bot off a ball lying still on the grass.
+    // …but only once it has LAIN there a while: HS lets a loose ball sit (M4 111.0 s rolled
+    // untouched for 6.6 s), and a bot that pounced on every still ball at once took a quarter of
+    // HS's calm out of the game (slow-ball time 18% → 14%, _phys-compare.mjs).
+    const still = Math.hypot(b.vx, b.vy) < 80 && b.y > C.GROUND_Y - b.r - 4 && !b.power;
+    if (!still) bot.deadSince = null; else bot.deadSince ??= bot.t;
+    const dead = still && bot.t - bot.deadSince > DEAD_WAIT;
+    const engage = dead || (!bot.lazy && (ballDepth < C.W * 0.55 || !foeFirst || bot.press));
     // Home: where it waits when it is not going. Stronger tiers wait further out (HS: the
     // five-star CPU averages 425px out from its wall, the weak ones 320).
     const home = myGoalX + side * 180;
@@ -456,22 +451,26 @@ function openPlay(bot, m, p, foe, b, out, d, dt) {
     if (behind) target = meet.x - side * 20;
     // Never further forward than the tier will go: its pressing depth.
     const cap = myGoalX + side * C.W * (PRESS_BASE + PRESS_SKILL * s);
-    target = side > 0 ? Math.min(target, cap) : Math.max(target, cap);
-    // ARMED: the power goes off on ANY touch of the ball (kick, head or body — shared/sim.js
-    // fireUltimateOnContact), so an armed bot simply runs into the ball. Generic on purpose:
-    // whatever the power family, "armed → touch the ball" is the whole of using it.
-    if (p.armed > 0 && !b.power) target = b.x - side * 6;
+    if (!dead) target = side > 0 ? Math.min(target, cap) : Math.max(target, cap);
+    // ARMED, IT KEEPS PLAYING ITS OWN GAME. The power goes off on its next touch of the ball
+    // (shared/sim.js fireUltimateOnContact), and HS's CPU does not run for that touch: it arms
+    // the moment its bar fills and fires on whatever touch comes next — 8.45 s later for the
+    // weakest CPUs (M4, M5), 6.2 s even for the five-star one (M3; docs/hs-reference.json
+    // cpu.powerDelay). This bot used to drop everything and dash into the ball the moment it was
+    // armed, firing 2.2–3.6 s after the fill: three times HS's rate of power shots at the first
+    // stages, which a person cannot answer (a friend's 1–9 against stage 1, a 3–2 win in HS).
     bot.aim = Math.max(C.GOAL_W * 0.5, Math.min(C.W - C.GOAL_W * 0.5, target));
 
     // DASH, on purpose: a long way to go and a reason to hurry (the ball is loose and they are
     // after it too, or it is coming home). HS: 14 a minute at five stars, 2 at the weak end.
     const far = Math.abs(bot.aim - p.x);
-    const urgent = behind || (engage && Math.abs(foe.x - meet.x) < far + 120) || p.armed > 0;
+    const urgent = behind || (engage && Math.abs(foe.x - meet.x) < far + 120);
     bot.dashRoll = (bot.dashRoll ?? 0) - d.react;
     if (bot.dashRoll <= 0) {
       bot.dashRoll = 0.25;
       bot.wantDash = far > 70 && (urgent || engage) && dashReady && bot.rng() < DASH_BASE + DASH_SKILL * s * s;
     }
+
     // Tackle: the boot shoves an opponent standing in it, off the ball. An able bot takes it
     // when nothing is coming at its goal.
     const foeNear = Math.abs(foe.x - p.x) < C.KICK_REACH + C.KICK_R * 0.8 && Math.abs(foe.y - p.y) < C.BODY_H + C.HEAD_R;
@@ -484,6 +483,25 @@ function openPlay(bot, m, p, foe, b, out, d, dt) {
     const helpless = foe.stunned > 0 || foe.ail === 'freeze' || foe.ail === 'stars';
     bot.wantTackle = foeNear && contest && !helpless && !toMyGoal && foe.tackleImmune <= 0 && bot.t >= (bot.tackleT ?? 0) &&
       bot.rng() < Math.min(0.95, d.aim * 1.2 * (d.tackle ?? 1));
+  }
+
+  // THE DASH STRIKE. HS's CPU does not only dash to get somewhere: it dashes THROUGH a low ball
+  // in front of it, and the ball leaves at the dash's ~2000 px/s — the rockets across the pitch in
+  // every HS match (M1–M3, M6: ~5–6 a minute between the two players; our bots made about one).
+  // A ball on or just off the grass, slow, a dash's length ahead on the side it attacks (a clean
+  // hit; a bouncing or passing ball only gets poked, and wastes the dash): one roll per chance (re-armed once the ball leaves the window), far likelier the
+  // stronger the tier. Closer than 60 px the ball is against the body and a dash only nudges it.
+  {
+    const side = p.side, ahd = (b.x - p.x) * side;
+    const chance = p.onGround && p.dashCd <= 0 && !b.power && !(p.stunned > 0) && m.phase === 'play' &&
+      b.y > C.GROUND_Y - b.r - 30 && Math.abs(b.vy) < 300 && Math.abs(b.vx) < 450 && ahd > 55 && ahd < 175;
+    if (!chance) bot.strikeRolled = false;
+    else if (!bot.strikeRolled && !bot.wantDash && bot.dashPulse == null) {
+      bot.strikeRolled = true;
+      if (bot.rng() < STRIKE_BASE + STRIKE_SKILL * skillOf(d) ** 2) { bot.wantDash = true; bot.strike = true; }
+    }
+    // it runs through the ball: steer past it, not to a stand-off spot short of it
+    if (bot.strike) { if (!bot.wantDash && bot.dashPulse == null) bot.strike = false; else bot.aim = b.x + side * 60; }
   }
 
   // ---- steering ----
@@ -569,7 +587,8 @@ function openPlay(bot, m, p, foe, b, out, d, dt) {
   // player is (the tackle) — 23–45 swings a minute overall, near the cooldown's cap up close.
   const close = ahead > -10 && Math.abs(dxb) < 110 && b.y > hy - 70;
   const mash = close && bot.rng() < 0.02 + MASH_SKILL * s;
-  const want = (bot.kickSeen && bot.kickGo) || mash || bot.wantTackle || (p.armed > 0 && Math.abs(dxb) < 90);
+  // (armed, it kicks like any other moment: HS's CPU does not boot at the ball to fire — see ARMED)
+  const want = (bot.kickSeen && bot.kickGo) || mash || bot.wantTackle;
   out.kick = want && p.kickCd <= 0 && !bot.lastKick;
   bot.lastKick = out.kick;
   if (out.kick && bot.wantTackle) { bot.wantTackle = false; bot.tackleT = bot.t + 1; }

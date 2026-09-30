@@ -11,7 +11,7 @@ Each arcade champion fires one real Head Soccer character's power shot: the same
   (the press glow, the cut-in, block, hit, stars, shock, twister) are PAINTED sprites from
   `public/vfx/fx-kit.js` (textures made once offscreen — soft falloffs, noise, streaks, bloom — blitted
   mostly additively) on two full-resolution layers over and under the DOM heads; the press glow is
-  HS's yellow flame licks for every character. Quality loop: `node _powers-hq.mjs stills|video|block|perf`
+  HS's silhouette glow and thin electric wisps for every character. Quality loop: `node _powers-hq.mjs stills|video|block|perf`
   and `node _powers-hq-sheets.mjs` (HS frame beside ours). The cut-in (1.34 s dark, rays,
   disc) and the arm → fire → counter / block / hit flow are HS's own and unchanged
   (`docs/HS-POWER-SHOTS.md`).

@@ -6,7 +6,7 @@ import { createMatch, step, headY, headR, NO_FX } from '../shared/sim.js';
 import { createBot, botInput, DIFFICULTIES } from '../shared/bot.js';
 import { shotFor } from '../shared/hs-powers.js';
 import { kickPose } from '../shared/kick.js';
-import { goalBox, goalAt, depthPoint, INSIDE_Z } from '../shared/goalbox.js';
+import { goalBox, goalAt, depthPoint, INSIDE_Z, PLAY_Z, NEAR_DROP, FAR_RISE } from '../shared/goalbox.js';
 import { createEditor, applyLayout, applyOpacity, loadOpacity } from './padlayout.js';
 import { walkPick, resolveWalk } from './walkpad.js';
 import { headCrop } from './head-crop.js';
@@ -24,7 +24,12 @@ import { createBodyArt, RUN_FRAMES, BOOT_H } from './body-art.js';
 
 // What a Head Soccer power shot looks like: the aura, the cut-in, the comet, the ailments. It
 // only watches the match (see champ-vfx.js).
-const VFXR = createVfx({ drawBall: (g, b) => drawBall(g, b), drawBody: (g, p) => drawBody(g, p, true), me: () => (ONLINE && NET ? (NET.you ?? 0) : 0) });
+// (drawBody paints a body over the cut-in's dark — its dash afterimages with it, or they would
+// be dark copies left behind a player dashing through the cut-in.)
+const VFXR = createVfx({ drawBall: (g, b) => drawBall(g, b), drawBody: (g, p) => {
+  for (let k = GHOSTS[p.index].length - 1; k >= 0; k--) { const q = GHOSTS[p.index][k]; g.save(); g.globalAlpha = q.alpha; drawBody(g, q, true); g.restore(); }
+  drawBody(g, p, true);
+}, me: () => (ONLINE && NET ? (NET.you ?? 0) : 0), headPose: (p) => headPose(p) });
 
 // The eleven backdrops a match can roll: the seven Street Fighter II homages plus the four
 // original directions. DIRECTIONS uses the identical { id, name, grass, wall, draw(g, s) }
@@ -1105,7 +1110,7 @@ function setPaused(on) {
   paused = on;
   $('#pause').classList.toggle('hidden', !on);
   $('#retry').hidden = !!ONLINE;
-  if (on) { releaseAll(); stopBed(); }
+  if (on) { releaseAll(); stopBed(); playEvent('pause'); }   // HS pips the whistle on pause (Pause2.ogg)
   else { acc = 0; last = performance.now(); startBed(); }
 }
 $('#pauseBtn').onclick = () => { if (running) setPaused(true); };
@@ -1210,7 +1215,8 @@ function drainEvents() {
     // drops up off the head (M4 116.9 s, 119.3 s) and the face bruises a tier (drawHeads). They
     // land as red spots on the grass and are all gone within a second of the hit (M4 119.6–120.4 s).
     // A kick on a player already knocked out (e.ko, the slide) throws them too.
-    if (e.type === 'hurt' || (e.type === 'tackle' && e.ko)) {
+    // (a power shot's hit throws its own droplets — champ-vfx — and only lends the bruise)
+    if ((e.type === 'hurt' && !e.power) || (e.type === 'tackle' && e.ko)) {
       const p = M.players[e.type === 'hurt' ? e.player : e.on];
       if (p) {
         const hy = headY(p) - headR(M, p) * 0.5;
@@ -1396,7 +1402,8 @@ function resize() {
   // the six-yard box costs you the goal.
   // HS: the players' feet at 82% of the screen's height, the buttons on the floor below them
   // (hs-video/M1, M4). The band under the ground line is that 18%.
-  const band = vh * 0.18 + safeInset('b');
+  // (HS M4 31.0 s: a ball at rest touches the grass 975 px down a 1180 px screen = 82.6%)
+  const band = vh * 0.174 + safeInset('b');
   // The pitch fills HS's box edge to edge: the goals stand at its sides, as in HS.
   const scale = vw / C.W;
   // …and if the screen is taller than that (a squarer one), the canvas carries more sky, so no
@@ -1628,9 +1635,11 @@ function draw() {
   drawGoalBack(g, false);
   // Dash afterimages first, so the player is drawn over their own trail. GHOSTS is read again
   // by drawHeads for the head copies.
-  // On a clock that stops during a hit-stop, so a freeze-frame freezes the trail with it.
+  // On a clock that stops during a hit-stop, so a freeze-frame freezes the trail with it — but
+  // not under a cut-in, where the other player plays on: a frozen trail there was a copy of him
+  // left standing where his dash began (Idan).
   const wall = performance.now() / 1000;
-  if (!(M.hitStop > 0)) TRAIL_CLOCK.t += Math.min(0.1, Math.max(0, wall - TRAIL_CLOCK.wall));
+  if (!(M.hitStop > 0) || M.cutin > 0) TRAIL_CLOCK.t += Math.min(0.1, Math.max(0, wall - TRAIL_CLOCK.wall));
   TRAIL_CLOCK.wall = wall;
   const now = TRAIL_CLOCK.t;
   for (const p of M.players) drawShadow(g, p);
@@ -1748,16 +1757,16 @@ function charNetMask(p, i, h, left) {
     netMask.width = cvNet.width; netMask.height = cvNet.height;
     netMaskCtx = netMask.getContext('2d');
   }
-  const g = netMaskCtx, wW = headR(M, p) * 2 * HEAD_W, wH = headR(M, p) * 2 * HEAD_H, u = wW / CHAR_BOX.boxW;
+  const g = netMaskCtx, wW = headR(M, p) * 2 * HEAD_W, wH = headR(M, p) * 2 * HEAD_H, f = charFrame(wW, wH);
   g.setTransform(1, 0, 0, 1, 0, 0);
   g.clearRect(0, 0, netMask.width, netMask.height);
   g.setTransform(ctxNet.getTransform());
   g.save();
   // the same placement as the DOM head: its tilt about the box centre, the art offset by
-  // CHAR_BOX, player two mirrored about the art's own centre (paintPitchChar, drawHeads)
-  const tilt = p.ail === 'twister' && !p.onGround ? (performance.now() / 1000) * 14 * p.side : reeling(p) ? -p.side * reelTilt(p) : 0;
-  g.translate(h.x, h.y); g.rotate(tilt);
-  const ax = -wW / 2 - CHAR_BOX.x * u, ay = -wH / 2 - CHAR_BOX.y * u, aw = CHAR_BOX.w * u, ah = CHAR_BOX.h * u;
+  // charFrame, player two mirrored about the art's own centre (paintPitchChar, drawHeads)
+  const hp = headPose(p);
+  g.translate(h.x + hp.dx, h.y + hp.dy); g.rotate(hp.tilt);
+  const ax = -wW / 2 + f.x, ay = -wH / 2 + f.y, aw = f.w, ah = f.h;
   if (i === 1) { g.translate(ax + aw / 2, 0); g.scale(-1, 1); g.translate(-(ax + aw / 2), 0); }
   g.drawImage(im, ax, ay, aw, ah);
   g.restore();
@@ -1911,7 +1920,8 @@ function drawStadium(g) {
   const topSky = STAGE.sky || barSky;
   if (SKY_TOP > 0 && topSky) R2(g, 0, -SKY_TOP, C.W, SKY_TOP + 1, topSky);
 
-  if (STAGE.hs) { hsBoardsAndFloor(g, standBot, ledTop, ledBot, gy); return; }
+  // HS's own boards are shorter and sit lower (M4 31.0 s: world 360-395, 36 tall against 48 here)
+  if (STAGE.hs) { hsBoardsAndFloor(g, standBot, gy - 75, gy - 40, gy); return; }
 
   // railing across the front of the crowd, common to every stage
   R2(g, 0, standBot - 6, C.W, 6, OUTLINE);
@@ -2012,24 +2022,35 @@ function hsBoardsAndFloor(g, standBot, ledTop, ledBot, gy) {
       g.beginPath(); g.moveTo(xb, top); g.lineTo(xb + 50, top); g.lineTo(xf + 70, bot); g.lineTo(xf, bot); g.fill();
     }
   }
-  // the markings, white, in perspective
-  const L = '#ffffffd0', feet = gy, front = gy + 58;
-  g.strokeStyle = L; g.lineWidth = 2.4;
+  // THE MARKINGS, white, in perspective — HS's own, measured on the court (M4 29.98 and 31.0 s,
+  // 2556 x 1180, world px from the feet line gy and the wall): a far touchline 21.5 behind the
+  // feet and a near one 29 in front, the halfway line between them, a centre circle 120 x 10.5
+  // around the feet line, and at each end a goal box and a penalty box whose sides slant OUT
+  // towards the wall as they come forward (they run to a vanishing point over the middle), the
+  // side touchline doing the same behind the goal. Ours used to be a 92 x 16 circle, a near line
+  // 58 in front and boxes slanting the wrong way.
+  // (on HS's court the lines are a faint cream, (215, 174, 116) over the wood's (198, 135, 52))
+  const L = STAGE.floor === 'wood' ? 'rgba(255,235,200,0.5)' : '#ffffffd0', back = gy - 21.5, front = gy + 29;
+  g.strokeStyle = L; g.lineWidth = 2.8;
   g.beginPath();
-  g.moveTo(0, top + 1); g.lineTo(C.W, top + 1);                              // the back line
-  g.moveTo(C.W / 2, top); g.lineTo(C.W / 2, bot);                            // halfway
-  g.ellipse(C.W / 2, feet, 92, 16, 0, 0, 6.2832);                            // the centre circle
+  g.moveTo(0, back); g.lineTo(C.W, back);                                    // far touchline
+  g.moveTo(0, front); g.lineTo(C.W, front);                                  // near touchline
+  g.moveTo(C.W / 2, back); g.lineTo(C.W / 2, front);                         // halfway
+  // (lift the pen to the circle's start first, or the path joins it to the halfway line)
+  g.moveTo(C.W / 2 + 120, gy + 2);
+  g.ellipse(C.W / 2, gy + 2, 120, 10.5, 0, 0, 6.2832);                       // the centre circle
   for (const side of [1, -1]) {
-    const x0 = side > 0 ? 0 : C.W, dir = side;
-    // penalty box: out from the back line, forward to the front line, back to the edge
-    const pb = x0 + dir * (C.GOAL_W + 150), pf = x0 + dir * (C.GOAL_W + 185);
-    g.moveTo(pb, top); g.lineTo(pf, front); g.lineTo(x0, front);
-    // goal box
-    const gb = x0 + dir * (C.GOAL_W + 55), gf = x0 + dir * (C.GOAL_W + 68), gfy = gy + 22;
-    g.moveTo(gb, top); g.lineTo(gf, gfy); g.lineTo(x0, gfy);
+    const X = (x) => side > 0 ? x : C.W - x;
+    g.moveTo(X(10), front); g.lineTo(X(77), back);                           // side touchline
+    g.moveTo(X(0), gy - 14); g.lineTo(X(170), gy - 14);                      // penalty box
+    g.lineTo(X(142), gy + 18); g.lineTo(X(0), gy + 18);
+    g.moveTo(X(0), gy - 6.5); g.lineTo(X(102), gy - 6.5);                    // goal box
+    g.lineTo(X(86), gy + 9.5); g.lineTo(X(0), gy + 9.5);
+    // the penalty arc, bulging out of the box's side
+    g.moveTo(X(157), gy - 5.5);
+    g.ellipse(X(157), gy + 2.5, 23, 8, 0, -Math.PI / 2, Math.PI / 2, side < 0);
   }
   g.stroke();
-  g.beginPath(); g.fillStyle = L; g.ellipse(C.W / 2, feet, 4, 2, 0, 0, 6.2832); g.fill();   // the centre spot
 }
 
 // A stone guardian, the way Sagat's temple stage frames its pitch. Blocky, three flat
@@ -2128,24 +2149,24 @@ function goalCorners(left) {
   const box = goalBox(left);
   const { lineX, wallX, top } = box;
   const G = C.GROUND_Y;
-  // The NEAR frame: all four corners real. Its foot is the grass, its bar is the bar the sim
-  // bounces the ball off, and its front post is the goal line itself. Nothing here is fudged,
-  // so the thing the player aims at is the thing the rules use.
+  // HS's box (goalbox.js): the FAR frame stands on the goal line and the near one a step
+  // (wx) out towards the wall; the play plane runs between them (PLAY_Z), so the near feet are
+  // NEAR_DROP below the grass and the far ones FAR_RISE above it. Posts and roof are the ones
+  // the sim bounces the ball off: near rail at `top`, roof and roof edge at the far frame.
+  const nx = lineX - box.wx;
   const c = {
     box,
     bar: C.POST_R * 2,
-    nFT: [lineX, top], nFB: [lineX, G],
-    nBT: [wallX, top], nBB: [wallX, G],
-    // …and the FAR frame: tops stepped back, feet on the same grass.
-    fFT: [lineX + box.wx, top + box.wy], fBT: [wallX + box.wx, top + box.wy],
-    fFB: [lineX + box.wx, G], fBB: [wallX + box.wx, G],
+    nFT: [nx, top], nFB: [nx, G + NEAR_DROP],
+    nBT: [wallX, top], nBB: [wallX, G + NEAR_DROP],
+    fFT: [lineX, top + box.wy], fBT: [wallX, top + box.wy],
+    fFB: [lineX, G - FAR_RISE], fBB: [wallX, G - FAR_RISE],
   };
-  // The MID-WIDTH top corners — the plane a body inside the net is drawn on. The roof is cut
-  // here so that its near half can go in front of a ball tucked under the bar while its far
-  // half stays behind it. Every other face is wholly in front of or wholly behind that plane,
-  // so the roof is the only one that has to be split.
-  c.mFT = mix(c.nFT, c.fFT, INSIDE_Z);
-  c.mBT = mix(c.nBT, c.fBT, INSIDE_Z);
+  // The top corners on the PLAY plane — where a body inside the net is. The roof is cut here so
+  // that its near part can go in front of a ball tucked under the bar while its far part stays
+  // behind it.
+  c.mFT = mix(c.nFT, c.fFT, PLAY_Z);
+  c.mBT = mix(c.nBT, c.fBT, PLAY_Z);
   return c;
 }
 
@@ -2357,14 +2378,14 @@ function bodyArt() {
 function drawShadow(g, p) {
   const s = depthPoint(p.x, C.GROUND_Y);
   const k = Math.max(0, Math.min(1, (C.GROUND_Y - p.y) / 130));
-  const rx = C.HEAD_R * 1.32 * (1 - 0.3 * k), ry = C.HEAD_R * 0.26 * (1 - 0.3 * k);
+  const rx = C.HEAD_R * 1.5 * (1 - 0.3 * k), ry = C.HEAD_R * 0.33 * (1 - 0.3 * k);   // HS: 145 x 28 px at the same edge
   g.save();
   g.translate(s.x, s.y + ry * 0.35);                        // mostly on the grass, as HS's is
   g.scale(rx, ry);
   const gr = g.createRadialGradient(0, 0, 0, 0, 0, 1);
   const a = 0.5 * (1 - 0.45 * k);
   gr.addColorStop(0, `rgba(20,10,4,${a})`);
-  gr.addColorStop(0.62, `rgba(20,10,4,${a * 0.9})`);
+  gr.addColorStop(0.8, `rgba(20,10,4,${a * 0.9})`);   // HS's is solid nearly to its rim (140 px wide)
   gr.addColorStop(1, 'rgba(20,10,4,0)');
   g.fillStyle = gr;
   g.beginPath(); g.arc(0, 0, 1, 0, 6.2832); g.fill();
@@ -2385,19 +2406,24 @@ function drawBody(g, p, ghost = false) {
   // face the other player the whole match, running backwards included, and the sim latches the
   // kick to the same rule (kickDir), so the boot that swings is the boot that can reach.
   const face = p.side;
-  // KNOCKED BACK (HS M4 61.9 s): the whole character tips back ~25° away from the hit, head
-  // included, and is carried backwards through the air. Pivoted at the neck so the body stays
-  // under the head, which means the boots swing out forward — the "feet taken out" look.
-  // Every kick that lands rocks the victim back like this for the shove (HS M4 102–121 s:
-  // KICK_REEL on the grass), and a knockout holds it under the stars (reeling()).
-  if (reeling(p)) {
+  // KNOCKED BACK THROUGH THE AIR (HS M4 43.3, 62.8 s: a power shot; 106.0 s: a boot to a
+  // player in mid-air): the whole character tips back ~40° away from the hit, head included, and
+  // is carried backwards. Pivoted at the head's centre so the body stays under the head, which
+  // means the boots swing out forward — the "feet taken out" look. ON THE GRASS only the head
+  // tips (a boot's reel, the knockout under the stars — headPose): the boots stay planted.
+  if (bodyReel(p)) {
     const ny = -(C.BODY_H + R - C.NECK);                    // the head's centre: head and body turn as one
     g.translate(0, ny);
     g.rotate(-face * reelTilt(p));
     g.translate(0, -ny);
   }
   const air = !p.onGround;
-  const kicking = p.kickT > 0;
+  // THE BOOT IS OUT FOR KICK_TIME FROM THE PRESS, whatever it met. HS holds it up in front of
+  // the victim's face after it connects (M4 103.3–104.2 s, 119.3 s) and toe-up after a strike —
+  // 16 frames out every time (HS-CHARACTER-LOOK). The sim spends kickT on a hit, so the picture
+  // runs off the press clock (kickCd) instead.
+  const kickK = p.kickT > 0 ? 1 - p.kickT / C.KICK_TIME : (C.KICK_COOLDOWN - (p.kickCd || 0)) / C.KICK_TIME;
+  const kicking = p.kickT > 0 || (p.kickCd > 0 && kickK < 1);
   // THE RUN: a flipbook of RUN_FRAMES paddle poses (body-art.js), stepped at HS's cadence —
   // a pair of feet shuffling under a head that does not bob or lean.
   const running = !air && Math.abs(p.vx) > 20;
@@ -2412,7 +2438,7 @@ function drawBody(g, p, ghost = false) {
   art.lower(g, kit, trim, pose, face);
 
   if (kicking) {
-    const k = 1 - p.kickT / C.KICK_TIME;
+    const k = Math.min(1, Math.max(0, kickK));
     const [fx, fy, ang] = kickPose(k);
     // the swoosh: a faint arc behind the rising boot, only while it is climbing
     if (k < 0.3 && !ghost) {
@@ -2456,7 +2482,7 @@ function trailGhosts(p, now) {
   TRAIL_AGES.forEach((age, i) => {
     let best = null;
     for (const h of tr.hist) if (!best || Math.abs(now - h.now - age) < Math.abs(now - best.now - age)) best = h;
-    if (best && Math.abs(best.x - p.x) > 6) out.push({ ...p, ...best, stunned: 0, alpha: TRAIL_ALPHA[i] * fade });
+    if (best && Math.abs(best.x - p.x) > 6) out.push({ ...p, ...best, stunned: 0, shoved: 0, kickCd: 0, alpha: TRAIL_ALPHA[i] * fade });
   });
   return out;
 }
@@ -2477,17 +2503,13 @@ function drawBall(g, b) {
   // Inside a net the ball is drawn one step along the goal's width axis, which is what puts
   // it BETWEEN the two side nets rather than flat against the front of the box. Out on the
   // pitch this is the identity — see shared/goalbox.js.
-  const d = depthPoint(b.x, b.y);
-  // (no shadow for a champion power's drawn extras, nor for its ball while it is invisible)
-  if (!b.fake && !VFXR.hideShadow(b)) {
-    g.save();
-    g.globalAlpha = .3;
-    g.fillStyle = '#000';
-    g.beginPath();
-    g.ellipse(d.x, C.GROUND_Y + 3, b.r * .9, 5, 0, 0, 6.2832);
-    g.fill();
-    g.restore();
-  }
+  // Held through a power's cut-in the ball has its own path round the shooter (champ-vfx cutBall).
+  const cp = b.fake ? null : VFXR.cutBall(b);
+  if (cp && cp.hide) return;
+  const d = cp ? depthPoint(cp.x, cp.y) : depthPoint(b.x, b.y);
+  // NO SHADOW. HS draws none under its ball, on the grass or in the air (M4 31.0 s at rest,
+  // 34.51 s 169 px up and nowhere near a player: plain floor under it). Ours had a dark ellipse
+  // under the ball, and ball plus shadow read as one bigger ball (Idan: "the ball feels bigger").
 
   // A POWER BALL is the plain ball at the nose of its family's comet (champ-vfx.js draws the
   // comet under it, docs/HS-POWER-SHOTS.md §3). An Aerial up off the top of the screen is not drawn.
@@ -2497,7 +2519,9 @@ function drawBall(g, b) {
   if (zoom === 0) return;
   g.save();
   g.translate(d.x, d.y);
+  g.scale(C.OVAL_X, C.OVAL_Y);          // HS's 1.2x sideways stretch, in screen axes (constants.js)
   if (zoom !== 1) g.scale(zoom, zoom);
+  if (cp) { g.scale(cp.sx, cp.sy); g.globalAlpha *= cp.a; }
   // It ROLLS: turned by the distance it has travelled over its own radius (it was 1/5 of that,
   // so a ball skidding across the grass looked like it was sliding on ice).
   const spin = b.x / b.r;
@@ -2522,11 +2546,13 @@ function drawBall(g, b) {
   g.closePath(); g.fill();
   for (let i = 0; i < 5; i++) {
     const a = i / 5 * 6.2832 - 1.5708, ca = Math.cos(a), sa = Math.sin(a);
-    const cx = ca * r * .92, cy = sa * r * .92;
+    // (at .92 r and a full P wide they joined into a dark ring round ~65% of the rim; HS's rim is
+    // mostly white, the outer panels separate black patches on it — M4 31.0 s)
+    const cx = ca * r * 1.0, cy = sa * r * 1.0;
     g.beginPath();
     for (let k = 0; k < 5; k++) {
       const q = Math.PI + k / 5 * 6.2832;               // k=0 is the corner pointing inward
-      const u = Math.cos(q) * P * .6, v = Math.sin(q) * P;
+      const u = Math.cos(q) * P * .7, v = Math.sin(q) * P * .8;
       g.lineTo(cx + ca * u - sa * v, cy + sa * u + ca * v);
     }
     g.closePath(); g.fill();
@@ -2540,9 +2566,11 @@ function drawBall(g, b) {
   g.beginPath(); g.arc(0, 0, r, 0, 6.2832); g.fill();
   g.fillStyle = '#ffffff';
   g.beginPath(); g.arc(-r * .42, -r * .42, r * .16, 0, 6.2832); g.fill();
+  // HS's keyline is ~2.5 screen px on the 2556 phone (M4 31.0 s, a profile through the ball's
+  // middle), 1.2 world. Ours was 2 world, twice as heavy, and a heavy rim reads as a bigger ball.
   g.strokeStyle = '#0e1422';
-  g.lineWidth = 2;
-  g.beginPath(); g.arc(0, 0, r - 1, 0, 6.2832); g.stroke();
+  g.lineWidth = 1.2;
+  g.beginPath(); g.arc(0, 0, r - 0.6, 0, 6.2832); g.stroke();
   g.restore();
 }
 
@@ -2552,8 +2580,10 @@ function ballShade(r) {
   const grad = ctx.createRadialGradient(-r * .4, -r * .4, 0, -r * .1, -r * .1, r * 1.1);
   grad.addColorStop(0, 'rgba(255,255,255,.25)');
   grad.addColorStop(.55, 'rgba(255,255,255,0)');
-  grad.addColorStop(.82, 'rgba(60,80,130,.22)');
-  grad.addColorStop(1, 'rgba(30,42,80,.45)');
+  // HS's ball is flat white right out to its thin keyline (M4 31.0 s: 250+ up to the rim). A
+  // .45 navy rim here ringed the whole ball in dark and made it read bigger than HS's.
+  grad.addColorStop(.82, 'rgba(60,80,130,.08)');
+  grad.addColorStop(1, 'rgba(30,42,80,.16)');
   ballShadeCache = { r, grad };
   return grad;
 }
@@ -2708,8 +2738,15 @@ const HUD = {
 // never sees any of this: its head is still the 26.4 circle, and the drawn one overhangs it a
 // few px at the cheeks and chin exactly as HS's hair and cheeks overhang its own.
 // Drawn at exactly the hitbox, the body showed 17 px under the chin (3.1:1 head to body) where
-// HS shows 15 (3.8:1); a 1.07 height puts the chin 15 px off the grass.
-const HEAD_W = 1.17, HEAD_H = 1.07;
+// HS shows 15 (3.8:1).
+// RE-MEASURED 2026-09-30 at full resolution (M3 15.2 s, M4 29.98 and 31.0 s, both players, 2556 x
+// 1180): HS's head sprite is 133-139 px wide and 108-113 tall, i.e. 67.7 x 55 world — 1.23:1,
+// because HS stretches its whole picture 1.2x sideways (constants.js HS_STRETCH). The 62 above
+// was cheek to cheek and left out the side hair, so ours was drawn 9% narrower than HS's head and
+// narrower than its own 63-wide hitbox. 1.28 x 1.04 is HS's box; its chin sits 15.5 off the grass
+// and its crown 70 up, as HS's do. Photo faces are cropped to the wider box (never stretched); the
+// painted characters are stretched into it (paintPitchChar), as HS stretches its own sprites.
+const HEAD_W = 1.28, HEAD_H = 1.04;
 // The silhouette, as points in a unit box (0..1 across, 0..1 down): a superellipse that is
 // ROUND on top (exponent 2.1, a dome) and squarer below (2.9: full cheeks and a flat chin),
 // widest a little below the middle, the jaw drawn in a touch at the bottom corners. One list, two users: the CSS clip-path on
@@ -2742,19 +2779,32 @@ function headBox(p) {
 // laid over the head box at its built scale: the box is 100 units wide, and the file reaches
 // CHAR_BOX.x/y units beyond it on the left/top so the hair can break the outline the way HS hair
 // does. Characters face right; player two's is mirrored.
-function paintPitchChar(inner, ch, w, expr, flip) {
+// THE PAINTED HEAD IS HS'S HEAD. Each character's drawn head — hair and keyline included, ch.fit —
+// is ~128 x 114 frame units, 1.24x the 100 x 91.5 box the art was laid out round, so laid over the
+// box at its built scale a character stood 168 px wide on HS's 2556 screen where HS's own sprite
+// (hair included, M3/M4) is 135. So the art is scaled for the drawn head to BE the head box
+// (HS's 1.28 x 1.04 of the hitbox), stretched sideways as HS stretches its sprites, its chin on the
+// box's bottom and its middle on the box's middle. One scale for all five, so none is distorted
+// against another. Returns the art's frame in px, from the head box's top-left.
+const CHAR_FIT = { w: 128, h: 114, cx: 75.2, bot: 118.2 };
+function charFrame(w, h) {
+  const u = w / CHAR_FIT.w, v = h / CHAR_FIT.h;
+  return { x: w / 2 - CHAR_FIT.cx * u, y: h - CHAR_FIT.bot * v, w: CHAR_BOX.w * u, h: CHAR_BOX.h * v };
+}
+function paintPitchChar(inner, ch, w, h, expr, flip) {
   warmCharacter(ch);
-  const u = w / CHAR_BOX.boxW;
+  const f = charFrame(w, h);
   Object.assign(inner.style, {
-    left: `${-CHAR_BOX.x * u}px`, top: `${-CHAR_BOX.y * u}px`, right: 'auto', bottom: 'auto',
-    width: `${CHAR_BOX.w * u}px`, height: `${CHAR_BOX.h * u}px`,
+    left: `${f.x}px`, top: `${f.y}px`, right: 'auto', bottom: 'auto',
+    width: `${f.w}px`, height: `${f.h}px`,
     backgroundImage: `url("${charUrl(ch, expr)}")`, backgroundSize: '100% 100%', backgroundPosition: '0 0',
     transform: flip ? 'scaleX(-1)' : '',
   });
-  // the red-nose bruise (.hurt1..3) sits on this face's nose, not the photo head's
+  // the hit marks (style.css) sit on this face's own nose and eyes, not the photo head's
   const [nx, ny] = ch.nose || [0.5, 0.6];
-  inner.style.setProperty('--nose-x', `${(nx * 100).toFixed(1)}%`);
-  inner.style.setProperty('--nose-y', `${(ny * 100).toFixed(1)}%`);
+  const [[bx, by], [fx, fy]] = ch.eyes || [[0.475, 0.5], [0.75, 0.5]];
+  const pc = (v) => `${(v * 100).toFixed(1)}%`;
+  for (const [k, v] of [['--nose-x', nx], ['--nose-y', ny], ['--eye-bx', bx], ['--eye-by', by], ['--eye-fx', fx], ['--eye-fy', fy]]) inner.style.setProperty(k, pc(v));
 }
 function clearPitchChar(inner) {
   for (const k of ['left', 'top', 'right', 'bottom', 'width', 'height', 'transform']) inner.style[k] = '';
@@ -2777,7 +2827,7 @@ function drawHeads() {
       el.style.height = h + 'px';
       el.style.setProperty('--ol', ol.toFixed(1) + 'px');
       el.classList.toggle('char', !!ch);
-      if (ch) paintPitchChar(el.firstElementChild, ch, w, expr, i === 1);
+      if (ch) paintPitchChar(el.firstElementChild, ch, w, h, expr, i === 1);
       else {
         clearPitchChar(el.firstElementChild);
         // The card is painted into the box INSIDE the keyline, so it is cropped for that box.
@@ -2797,8 +2847,8 @@ function drawHeads() {
     // UPRIGHT. An HS head does not lean into a run — it rides level on the feet paddling under
     // it — and only tips back, with the body (drawBody), when a hit knocks the player back.
     // (caught in Nigeria's tornado he spins as he flies — hs-powers `twister`)
-    const tilt = p.ail === 'twister' && !p.onGround ? (performance.now() / 1000) * 14 * p.side : reeling(p) ? -p.side * reelTilt(p) : 0;
-    el.style.transform = `translate(${x - w / 2}px, ${y - h / 2}px) rotate(${tilt}rad)`;
+    const hp = headPose(p);
+    el.style.transform = `translate(${x + hp.dx * SC - w / 2}px, ${y + hp.dy * SC - h / 2}px) rotate(${hp.tilt}rad)`;
     drawHeadGhosts(i, el, w, h);
     // ARMED: THE PLAYER GLOWS LIKE A FULL POWER BAR.
     //
@@ -2811,14 +2861,17 @@ function drawHeads() {
     // BEHEADED (the ailment): no head for its few seconds — champ-vfx draws the empty ring.
     const gone = p.ail === 'beheaded';
     if (el.classList.contains('gone') !== gone) { el.classList.toggle('gone', gone); el.style.visibility = gone ? 'hidden' : ''; }
-    // THE BRUISE, one tier per HURT this match (`hurt`, kickDamage in sim.js) — not health:
-    // HS keeps a red nose on a player it has hurt, through goals and after the stars (M4
-    // 116.7–121.3 s; M3 has a black eye too). Our own mark, drawn over the card: .hurt1..3.
-    const hurt = Math.min(3, p.hurt | 0);
-    if (el.dataset.hurt !== String(hurt)) {
-      el.classList.remove('hurt1', 'hurt2', 'hurt3');
-      if (hurt) el.classList.add('hurt' + hurt);
-      el.dataset.hurt = String(hurt);
+    // THE HIT MARKS, one per hurt that did not knock out (`hurt`, kickDamage in sim.js) — not
+    // health: HS keeps them on the face through goals and knockouts to the final whistle (M3, M4).
+    // In order — blue eye, red nose, violet bruise, grey cheek — the same for both players, so the
+    // first hurt already shows the blue (Idan: he never saw it when it came fourth on the CPU). HS's
+    // own order varies (M4's player blue → red → grey, M3's grey → red → blue).
+    // style.css paints them off --mk-v/r/u/g.
+    const marks = Math.min(4, p.hurt | 0);
+    if (el.dataset.marks !== String(marks)) {
+      for (let k = 0; k < 4; k++) el.style.setProperty('--mk-' + 'vrug'[k], k < marks ? '1' : '0');
+      el.classList.toggle('marked', marks > 0);
+      el.dataset.marks = String(marks);
     }
   }
 }
@@ -2827,6 +2880,26 @@ const reeling = (p) => p.stunned > 0 || p.shoved > 0;
 // HS tips a knocked-out head back further than a kick rocks it (M4 119.5–121 s: ~37° under the
 // stars against ~25° for a boot).
 const reelTilt = (p) => (p.stunned > 0 ? 0.65 : 0.45);
+// The whole character tips only while a hit carries it through the air (drawBody).
+const bodyReel = (p) => reeling(p) && !p.onGround;
+// THE HEAD'S POSE: its tilt, and how far (world px) its centre moves for it. On the grass HS tips
+// the HEAD ALONE back, about the neck — the chin stays on the body, the crown goes back away from
+// the hit, the boots never leave the grass (M4 103.3–104.2 s, four boots; 119.3 s the knockout).
+// In the air head and body turn as one about the head's centre (bodyReel), so it does not move.
+function headPose(p) {
+  if (p.ail === 'twister' && !p.onGround) return { tilt: (performance.now() / 1000) * 14 * p.side, dx: 0, dy: 0 };
+  // the power cut-in's wind-up: the head alone tips back, then whips forward (champ-vfx cutTilt)
+  // — unless a hit is rocking it (the lean runs on past the release). HS turns it about its OWN
+  // CENTRE, over a body that does not move (M4 40.20 s: the centre stays put to 59° back, and dips
+  // only 2–4 px leaning forward); turned about the neck it swung off the body and the boots showed.
+  const ct = reeling(p) ? 0 : VFXR.cutTilt(p);
+  if (ct) { const fwd = Math.max(0, ct * p.side) * 180 / Math.PI; return { tilt: ct, dx: 0, dy: Math.min(4, fwd / 27 * 2.5) }; }
+  if (!reeling(p)) return { tilt: 0, dx: 0, dy: 0 };
+  const t = -p.side * reelTilt(p);
+  if (bodyReel(p)) return { tilt: t, dx: 0, dy: 0 };
+  const d = headR(M, p) * HEAD_H * 0.85;              // centre to the neck, just above the chin
+  return { tilt: t, dx: d * Math.sin(t), dy: d * (1 - Math.cos(t)) };
+}
 
 // The head half of a dash afterimage: see-through copies of the head node, placed where the
 // body ghosts were drawn (GHOSTS, filled by draw). Cloned once per card and hidden the rest of
@@ -3137,7 +3210,7 @@ Object.assign(window, { goalBox, goalAt, depthPoint, INSIDE_Z });
 // boots are 23px long on screen and no screenshot of a match will ever settle whether one
 // reads as a football boot — see _bootshots.mjs, which calls this.
 Object.assign(window, { drawBody, HEAD_CROP, HEAD_W, HEAD_H });
-Object.assign(window, { C, startMatch, pick, paintHead, callout, VFXR });
+Object.assign(window, { C, startMatch, pick, paintHead, callout, VFXR, drainEvents });
 // The arcade, for the harness: the same entry points the buttons use, and the live progress.
 Object.assign(window, { startArcadeStage, openArcade, openModes, selectStage, CHAMPIONS });
 Object.defineProperty(window, 'ARCADE', { get: () => ARCADE });

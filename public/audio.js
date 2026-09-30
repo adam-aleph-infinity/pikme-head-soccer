@@ -53,7 +53,7 @@ function env(node, t0, peak, attack, decay) {
 }
 
 // A noise burst through a bandpass: the arcade impact sound.
-function thud({ freq = 220, q = 1.2, peak = 0.9, decay = 0.16, t = 0 } = {}) {
+function thud({ freq = 220, q = 1.2, peak = 0.9, decay = 0.16, t = 0, attack = 0.004 } = {}) {
   const a = ctx(), t0 = now() + t;
   const src = noise();
   const bp = a.createBiquadFilter();
@@ -62,22 +62,22 @@ function thud({ freq = 220, q = 1.2, peak = 0.9, decay = 0.16, t = 0 } = {}) {
   bp.frequency.exponentialRampToValueAtTime(Math.max(40, freq * 0.35), t0 + decay);
   bp.Q.value = q;
   src.connect(bp);
-  env(bp, t0, peak, 0.004, decay);
+  env(bp, t0, peak, attack, decay);
   src.start(t0);
-  src.stop(t0 + decay + 0.05);
+  src.stop(t0 + attack + decay + 0.05);
 }
 
 // A pitched sweep: whooshes, charges, stingers.
-function sweep({ from = 200, to = 800, type = 'square', peak = 0.5, dur = 0.18, t = 0, detune = 0 } = {}) {
+function sweep({ from = 200, to = 800, type = 'square', peak = 0.5, dur = 0.18, t = 0, detune = 0, attack = 0.008 } = {}) {
   const a = ctx(), t0 = now() + t;
   const o = a.createOscillator();
   o.type = type;
   o.detune.value = detune;
   o.frequency.setValueAtTime(from, t0);
   o.frequency.exponentialRampToValueAtTime(Math.max(20, to), t0 + dur);
-  env(o, t0, peak, 0.008, dur);
+  env(o, t0, peak, attack, dur);
   o.start(t0);
-  o.stop(t0 + dur + 0.05);
+  o.stop(t0 + attack + dur + 0.05);
 }
 
 function blip({ freq = 660, type = 'square', peak = 0.4, dur = 0.08, t = 0 } = {}) {
@@ -233,7 +233,9 @@ function loadTakes() {
       .then((b) => BUF.set(name, b)).catch(() => { /* the synth stands in */ });
   }
 }
-function take(kind, { gain = 1, t = 0, offset = 0, rate = [0.94, 1.06] } = {}) {
+// `shape`: cut a take to HS's own crowd sounds — `dur` seconds from `offset`, a level envelope
+// ([[s, 0–1], …]), and a tone: `lp`/`hp` (Hz), a `peak` ([Hz, dB, Q]), a high `shelf` ([Hz, dB]).
+function take(kind, { gain = 1, t = 0, offset = 0, rate = [0.94, 1.06], shape = null } = {}) {
   const ready = TAKES[kind].filter((n) => BUF.has(n));
   if (!ready.length) return false;
   const pool = ready.length > 1 ? ready.filter((n) => n !== LAST[kind]) : ready;
@@ -242,41 +244,140 @@ function take(kind, { gain = 1, t = 0, offset = 0, rate = [0.94, 1.06] } = {}) {
   const a = ctx(), src = a.createBufferSource(), g = a.createGain();
   src.buffer = BUF.get(name);
   src.playbackRate.value = rate[0] + Math.random() * (rate[1] - rate[0]);
-  g.gain.value = gain * (0.85 + Math.random() * 0.3);
-  src.connect(g); g.connect(master);
-  src.start(now() + t, offset);
+  const G = gain * (0.85 + Math.random() * 0.3), t0 = now() + t;
+  let head = src;
+  if (shape) {
+    if (shape.lp) { const f = a.createBiquadFilter(); f.type = 'lowpass'; f.frequency.value = shape.lp; f.Q.value = 0.6; head.connect(f); head = f; }
+    if (shape.hp) { const f = a.createBiquadFilter(); f.type = 'highpass'; f.frequency.value = shape.hp; f.Q.value = 0.6; head.connect(f); head = f; }
+    if (shape.shelf) { const f = a.createBiquadFilter(); f.type = 'highshelf'; [f.frequency.value, f.gain.value] = shape.shelf; head.connect(f); head = f; }
+    if (shape.peak) { const f = a.createBiquadFilter(); f.type = 'peaking'; [f.frequency.value, f.gain.value, f.Q.value] = shape.peak; head.connect(f); head = f; }
+    shape.env.forEach(([k, v], i) => (i ? g.gain.linearRampToValueAtTime(Math.max(0.0001, G * v), t0 + k) : g.gain.setValueAtTime(Math.max(0.0001, G * v), t0)));
+  } else g.gain.value = G;
+  head.connect(g); g.connect(master);
+  src.start(t0, offset);
+  if (shape) src.stop(t0 + shape.dur + 0.02);
   return true;
+}
+// HS's crowd at the final whistle (uploaded-images/Win2.ogg, Lose.ogg, measured), in OUR crowd's
+// real voices. The WIN: 4.1 s of cheering — up in 0.3 s, held, down 20 dB by 3.5 s, gone by 3.9 —
+// its weight at 630–1600 Hz: our goal roar from past its build-up, with applause under it.
+function cheer(t = 0) {
+  const env = [[0, 0], [0.3, 1], [3.3, 0.85], [3.62, 0.1], [3.95, 0]];
+  take('goal', { gain: 0.8, t, offset: 2.7, rate: [0.97, 1.03], shape: { dur: 4.0, shelf: [2500, 8], peak: [1100, 3.5, 1], env } });
+  take('applause', { gain: 0.5, t, offset: 1 + Math.random() * 3, rate: [1, 1], shape: { dur: 4.0, env } });
+}
+// The LOSS: a 1.8 s groan — up over 0.4 s, held, down 20 dB by 1.58 s — dark: the weight at
+// 250–1000 Hz, little above 1.6 kHz. Our "awww", cut past its slow start and darkened.
+function groan(t = 0) {
+  take('goalAgainst', { gain: 2.3, t, offset: 0.8, rate: [0.95, 1.02], shape: { dur: 1.8, hp: 260, lp: 4500, peak: [2000, -8, 2], env: [[0, 0], [0.06, 0.7], [0.4, 1], [1.3, 0.8], [1.58, 0.1], [1.75, 0]] } });
 }
 
 // ---------------------------------------------------------------------------
 // The kit. One entry per sim event, so game.js just forwards event types here.
 // A referee's whistle: a pea whistle's ~2.9 kHz tone, trilled by the pea (fast wobble).
-function whistleBlast(t = 0, dur = 0.32) {
-  for (let k = 0; k * 0.028 < dur; k++) blip({ freq: k % 2 ? 2750 : 2950, type: 'sine', peak: 0.2, dur: 0.034, t: t + k * 0.028 });
+// HS's pea whistle (uploaded-images/Start.ogg, End sound.ogg, Pause2.ogg, measured): a 2767 Hz
+// tone trilled by the pea at 76 Hz — the pitch swinging 2534–2943 Hz and the level pulsing ~0.8
+// deep at the same rate — with its octave 25 dB down. Flat for the blast, 10 ms in and out.
+function whistleBlast(t = 0, dur = 0.32, peak = 0.72) {
+  const a = ctx(), t0 = now() + t;
+  const o = a.createOscillator(), o2 = a.createOscillator(); o.frequency.value = 2767; o2.frequency.value = 2767 * 2;
+  const fm = a.createOscillator(), fg = a.createGain(), fg2 = a.createGain(); fm.frequency.value = 76; fg.gain.value = 205; fg2.gain.value = 410;
+  fm.connect(fg); fg.connect(o.frequency); fm.connect(fg2); fg2.connect(o2.frequency);
+  const am = a.createGain(), ad = a.createGain(); am.gain.value = 0.6; ad.gain.value = 0.4; fm.connect(ad); ad.connect(am.gain);
+  const h2 = a.createGain(); h2.gain.value = 0.056;
+  const out = a.createGain();
+  out.gain.setValueAtTime(0.0001, t0); out.gain.linearRampToValueAtTime(peak, t0 + 0.01);
+  out.gain.setValueAtTime(peak, t0 + dur - 0.012); out.gain.linearRampToValueAtTime(0.0001, t0 + dur);
+  o.connect(am); o2.connect(h2); h2.connect(am); am.connect(out); out.connect(master);
+  // the breath through it: a band of air round 1.8 kHz and a hiss above 6 kHz
+  const br = noise(); br.loop = true;
+  const n1 = a.createBiquadFilter(); n1.type = 'bandpass'; n1.frequency.value = 2000; n1.Q.value = 5;
+  const n2 = a.createBiquadFilter(); n2.type = 'highpass'; n2.frequency.value = 6000;
+  const ng1 = a.createGain(); ng1.gain.value = 1.2; const ng2 = a.createGain(); ng2.gain.value = 0.03;
+  br.connect(n1); n1.connect(ng1); ng1.connect(out); br.connect(n2); n2.connect(ng2); ng2.connect(out);
+  for (const n of [o, o2, fm, br]) { n.start(t0); n.stop(t0 + dur + 0.02); }
 }
+// Full time (End sound.ogg): short, short, long — 0.30 s, 0.30 s, 0.75 s, 0.18 and 0.25 s apart.
+function fullTime() { whistleBlast(0, 0.3); whistleBlast(0.48, 0.3); whistleBlast(1.03, 0.75); }
 // A struck metal tube: inharmonic sine partials ringing down.
 function clang(peak = 0.4, t = 0) {
-  [[620, 1], [1705, 0.55], [2790, 0.35], [4100, 0.2]].forEach(([f, g]) => blip({ freq: f, type: 'sine', peak: peak * g, dur: 0.5 * (1.2 - g * 0.4), t }));
+  const a = ctx(), t0 = now() + t, out = a.createGain();
+  [[0, 0.0001], [0.03, peak * 0.2], [0.21, peak], [0.55, peak * 0.7], [0.75, peak * 0.1], [0.97, peak * 0.01], [1.1, 0.0001]]
+    .forEach(([k, v], i) => (i ? out.gain.linearRampToValueAtTime(v, t0 + k) : out.gain.setValueAtTime(v, t0)));
+  // the rattle: the ring shaken at ~22 Hz, not quite regularly
+  const rat = a.createOscillator(), rg = a.createGain(), rm = a.createGain(); rat.frequency.value = 22; rg.gain.value = 0.35; rm.gain.value = 0.65;
+  rat.connect(rg); rg.connect(rm.gain); rm.connect(out); out.connect(master);
+  for (const [f, db] of [[452, 0], [754, -8], [883, -7], [1055, -6], [1357, -15], [1421, -14], [1550, -16], [1701, -17]]) {
+    const o = a.createOscillator(), g = a.createGain(); o.frequency.value = f * (1 + (Math.random() - 0.5) * 0.004); g.gain.value = Math.pow(10, db / 20) * 0.55;
+    o.connect(g); g.connect(rm); o.start(t0); o.stop(t0 + 1.15);
+  }
+  // …and the rattle's noise under the ring: low at 150–400 Hz, a hiss above 2.5 kHz
+  const nz = noise(); nz.loop = true;
+  const r1 = a.createBiquadFilter(); r1.type = 'bandpass'; r1.frequency.value = 320; r1.Q.value = 1.6;
+  const r2 = a.createBiquadFilter(); r2.type = 'bandpass'; r2.frequency.value = 2800; r2.Q.value = 1.2;
+  const q1 = a.createGain(); q1.gain.value = 2.4; const q2 = a.createGain(); q2.gain.value = 0.1;
+  nz.connect(r1); r1.connect(q1); q1.connect(rm); nz.connect(r2); r2.connect(q2); q2.connect(rm);
+  nz.start(t0); nz.stop(t0 + 1.15);
+  rat.start(t0); rat.stop(t0 + 1.15);
+}
+function ashes() {
+  const a = ctx(), t0 = now(), src = noise(); src.loop = true;
+  const hp = a.createBiquadFilter(); hp.type = 'highpass'; hp.frequency.value = 3500; hp.Q.value = 0.5;
+  const pk = a.createBiquadFilter(); pk.type = 'peaking'; pk.frequency.value = 8300; pk.Q.value = 0.9; pk.gain.value = 5;
+  const g = a.createGain(), P = 0.078;
+  [[0, P], [0.1, P * 0.8], [0.36, P * 0.9], [0.5, P * 0.5], [0.68, P * 0.1], [0.87, P * 0.01], [0.98, 0.0001]]
+    .forEach(([k, v], i) => (i ? g.gain.linearRampToValueAtTime(v, t0 + k) : g.gain.setValueAtTime(v, t0)));
+  const mid = a.createBiquadFilter(); mid.type = 'bandpass'; mid.frequency.value = 800; mid.Q.value = 0.4;
+  const mg = a.createGain(); mg.gain.value = 0.22;
+  src.connect(hp); hp.connect(pk); pk.connect(g); src.connect(mid); mid.connect(mg); mg.connect(g); g.connect(master); src.start(t0); src.stop(t0 + 1);
+  sweep({ from: 45, to: 30, type: 'sine', peak: 0.052, dur: 0.2 });
+}
+// A puff of air: noise through a low body band and a high hiss band, up over `at`, down over `dur`.
+function whoosh({ lo = 400, hi = 9000, peak = 0.2, at = 0.1, dur = 0.2, t = 0, body = 1 } = {}) {
+  const a = ctx(), t0 = now() + t, src = noise();
+  const b1 = a.createBiquadFilter(); b1.type = 'bandpass'; b1.frequency.value = lo; b1.Q.value = 0.9;
+  const b2 = a.createBiquadFilter(); b2.type = 'highpass'; b2.frequency.value = hi * 0.75;
+  const g1 = a.createGain(); g1.gain.value = body; const g2 = a.createGain(); g2.gain.value = 0.9;
+  const g = a.createGain(); g.gain.setValueAtTime(0.0001, t0); g.gain.linearRampToValueAtTime(peak, t0 + at); g.gain.exponentialRampToValueAtTime(0.0001, t0 + at + dur);
+  src.connect(b1); b1.connect(g1); g1.connect(g); src.connect(b2); b2.connect(g2); g2.connect(g); g.connect(master);
+  src.start(t0); src.stop(t0 + at + dur + 0.05);
 }
 
 export const SFX = {
-  // The boot on the ball: a round low thump with a pitch drop, no chip in it.
-  kick()      { thud({ freq: 140, q: 0.9, peak: 0.85, decay: 0.09 }); sweep({ from: 190, to: 60, type: 'sine', peak: 0.5, dur: 0.12 }); },
-  // The head: springier — a knock with a short boing on top.
-  head()      { thud({ freq: 420, q: 1.6, peak: 0.45, decay: 0.07 }); sweep({ from: 330, to: 150, type: 'sine', peak: 0.35, dur: 0.14 }); },
+  // THE BOOT ON THE BALL (uploaded-images/Kick.ogg, measured): a deep boom — nearly all of it at
+  // 30–60 Hz, peaking 30 ms in and down 20 dB by 90 ms, gone by 150 ms — with a hollow knock at
+  // 430–1200 Hz on the front and a faint click above.
+  kick()      { sweep({ from: 54, to: 33, type: 'sine', peak: 1.0, dur: 0.26, attack: 0.025 }); thud({ freq: 240, q: 0.8, peak: 0.55, decay: 0.2, attack: 0.012 }); thud({ freq: 800, q: 0.7, peak: 0.45, decay: 0.24, attack: 0.01 }); thud({ freq: 2600, q: 1, peak: 0.1, decay: 0.12, attack: 0.008 }); },
+  // THE SECOND KICK SOUND (Kick3.ogg) — on the head here: a shorter "thock" at 172 Hz (100–250 Hz
+  // hold it all), 110 ms, with a small click at 4–6 kHz.
+  head()      { sweep({ from: 190, to: 165, type: 'sine', peak: 0.47, dur: 0.2, attack: 0.03 }); sweep({ from: 120, to: 100, type: 'sine', peak: 0.125, dur: 0.18, attack: 0.03 }); thud({ freq: 480, q: 0.8, peak: 0.31, decay: 0.15, attack: 0.01 }); thud({ freq: 5000, q: 1.2, peak: 0.26, decay: 0.08, attack: 0.005 }); },
   jump()      { thud({ freq: 1800, q: 0.7, peak: 0.08, decay: 0.12 }); },
-  dash()      { thud({ freq: 2200, q: 0.5, peak: 0.16, decay: 0.16 }); },
-  post()      { clang(0.42); },
+  // THE DASH (Dash.ogg): a 0.5 s double whoosh — a 400 Hz body under a hiss at 6–16 kHz, up
+  // over 130 ms, a dip at 210 ms and a second puff at 270 ms, gone by 420 ms.
+  dash()      { whoosh({ lo: 380, hi: 9000, peak: 0.096, at: 0.14, dur: 0.24, body: 3 }); whoosh({ lo: 380, hi: 9000, peak: 0.08, at: 0.04, dur: 0.18, t: 0.24, body: 3 }); },
+  // THE CROSSBAR (crossbar.ogg): a metal frame ringing and rattling — partials 452, 754, 883,
+  // 1055, 1357–1701 Hz (452 loudest, the rest 6–17 dB down), swelling for 210 ms, held, and gone
+  // by ~1 s.
+  // The ball off the frame: SILENT (Idan: the clang's rattle read as a scraping, friction sound).
+  // The crowd's "ohh" at a shot off the post or bar is its own event (game.js chanceNear) and stays.
+  post()      {},
 
   // A boot to the shins: a heavy body knock with a smack on it.
   tackle()    { thud({ freq: 150, peak: 1.0, decay: 0.18 }); thud({ freq: 2400, q: 1.5, peak: 0.35, decay: 0.05 }); },
 
-  // Armed: a rising swell of air and tone — the power gathering.
+  // THE POWER BUTTON (Powershoot.ogg): a 1.8 s rush of bright noise — its weight at 2.5–10 kHz,
+  // the lows 20 dB under — swelling for 0.4 s, sagging round 0.8 s, up again, gone by 1.75 s.
   armed()     {
-    const a = ctx(), t0 = now(), src = noise(), bp = a.createBiquadFilter();
-    bp.type = 'bandpass'; bp.Q.value = 2; bp.frequency.setValueAtTime(300, t0); bp.frequency.exponentialRampToValueAtTime(3000, t0 + 0.5);
-    src.connect(bp); env(bp, t0, 0.35, 0.4, 0.15); src.start(t0); src.stop(t0 + 0.6);
-    sweep({ from: 220, to: 880, type: 'sine', peak: 0.2, dur: 0.5 });
+    const a = ctx(), t0 = now(), src = noise(); src.loop = true;
+    const hp = a.createBiquadFilter(); hp.type = 'highpass'; hp.frequency.value = 1400; hp.Q.value = 0.5;
+    const pk = a.createBiquadFilter(); pk.type = 'peaking'; pk.frequency.value = 4000; pk.Q.value = 0.8; pk.gain.value = 4;
+    const lo = a.createBiquadFilter(); lo.type = 'lowpass'; lo.frequency.value = 1100;
+    const lg = a.createGain(); lg.gain.value = 0.9;
+    const g = a.createGain(), P = 0.19;
+    [[0, 0.0001], [0.03, P * 0.25], [0.39, P], [0.62, P * 0.75], [0.8, P * 0.4], [1.0, P * 0.5], [1.12, P * 0.6], [1.5, P * 0.35], [1.75, 0.0001]]
+      .forEach(([k, v], i) => (i ? g.gain.linearRampToValueAtTime(v, t0 + k) : g.gain.setValueAtTime(v, t0)));
+    src.connect(hp); hp.connect(pk); pk.connect(g); src.connect(lo); lo.connect(lg); lg.connect(g); g.connect(master);
+    src.start(t0); src.stop(t0 + 1.8);
   },
 
   // The shot going off: a big rushing whoosh over a low boom.
@@ -307,9 +408,11 @@ export const SFX = {
     for (let i = 0; i < 3; i++) fanWhistle(0.3 + Math.random() * 1.8);
   },
   // The OPPONENT'S goal: a long, falling "awwww" and a low grumble, nobody clapping.
+  // THE OPPONENT'S GOAL: our crowd's real "awww", mixed with HS's (Goal_enemy2/5/7/8.ogg): their
+  // slower build (~0.8 s), their length (1.3–3.7 s) and their darker top (little above 1.6 kHz).
   goalAgainst() {
     loadTakes();
-    if (take('goalAgainst', { gain: 0.75, rate: [0.92, 1.04] })) return;
+    if (take('goalAgainst', { gain: 2.4, rate: [0.92, 1.04], shape: { dur: 2.3, hp: 280, lp: 4000, peak: [2000, -8, 2], env: [[0, 0], [0.25, 0.7], [0.55, 1], [1.8, 0.85], [2.15, 0.1], [2.3, 0]] } })) return;
     roar({ dur: 2.4, peak: 0.25, lo: 300, hi: 650 });
     chant({ n: 22, dur: 1.9, peak: 0.7,
       shape: [[0, 'aw'], [0.6, 'aw'], [1, 'o']],
@@ -327,12 +430,18 @@ export const SFX = {
       amp: [[0.1, 1], [0.55, 0.8], [1, 0]] });
   },
 
-  whistle()   { whistleBlast(0, 0.34); },
+  // Kick off (Start.ogg): one 0.55 s blast. Pause (Pause2.ogg): a 0.2 s pip.
+  whistle()   { whistleBlast(0, 0.55); },
+  pause()     { whistleBlast(0, 0.2, 0.27); },
 
   // Full time: three blasts over the crowd (a win cheers, a loss groans).
-  win()       { whistleBlast(0, 0.22); whistleBlast(0.3, 0.22); whistleBlast(0.6, 0.5); crowd({ dur: 2.6, peak: 0.6 }); },
+  win()       { loadTakes(); fullTime(); if (TAKES.goal.some((n) => BUF.has(n))) cheer(0.35); else crowd({ dur: 2.6, peak: 0.6 }); },
+  cheer()     { loadTakes(); cheer(); },
+  ashes()     { ashes(); },
+  groan()     { loadTakes(); groan(); },
   lose()      {
-    whistleBlast(0, 0.22); whistleBlast(0.3, 0.22); whistleBlast(0.6, 0.5);
+    loadTakes(); fullTime();
+    if (TAKES.goalAgainst.some((n) => BUF.has(n))) { groan(0.35); return; }
     const a = ctx(), t0 = now() + 0.2, src = noise(), lp = a.createBiquadFilter();
     lp.type = 'lowpass'; lp.frequency.setValueAtTime(900, t0); lp.frequency.exponentialRampToValueAtTime(250, t0 + 1.6);
     src.loop = true; src.connect(lp); env(lp, t0, 0.35, 0.3, 1.4); src.start(t0); src.stop(t0 + 1.8);
@@ -357,8 +466,9 @@ export const SFX = {
     switch (e?.ail) {
       case 'freeze': case 'iced':
         [2637, 3136, 3951].forEach((f, i) => blip({ freq: f, type: 'sine', peak: 0.2, dur: 0.35, t: i * 0.05 })); thud({ freq: 4000, q: 4, peak: 0.3, decay: 0.2 }); break;
-      case 'burn':
-        thud({ freq: 900, q: 0.5, peak: 0.5, decay: 0.5 }); sweep({ from: 200, to: 90, type: 'sawtooth', peak: 0.2, dur: 0.45 }); break;
+      // BURNT TO ASHES (Ashes.ogg): a bright crumbling hiss — its weight at 4–16 kHz, peak ~8.3 kHz —
+      // held 0.35 s and gone by 0.9 s, over a small low thump.
+      case 'burn': ashes(); break;
       case 'shock':
         for (let i = 0; i < 6; i++) blip({ freq: 110 + (i % 2) * 40, type: 'sawtooth', peak: 0.25, dur: 0.05, t: i * 0.05 }); break;
       case 'reverse':
@@ -379,11 +489,32 @@ const FAMILY_VOICE = {
   critical: { from: 2400, to: 200 }, downward: { from: 2000, to: 150 }, multiball: { from: 700, to: 1400, type: 'triangle' },
   updown: { from: 500, to: 1600, type: 'triangle' }, ailment: { from: 1200, to: 400, type: 'triangle' },
 };
+// …and the first three champions' own sound AT THE RELEASE, when the ball leaves the cut-in
+// (shared/constants.js POWER_CUTIN − POWER_RELEASE = 1.27 s after the touch that sent this event):
+// HS M4's audio has a broadband rush right there. So Korea is that rush, Cameroon's Thunderbolt a
+// thunder crack, Nigeria's Tornado a wind that swells and blows through (docs/HS-FIRST-3-POWERS.md).
+const RELEASE_AT = 1.27;
+const CP_VOICE = {
+  blueaura(t) { whoosh({ lo: 700, hi: 7000, peak: 0.34, at: 0.025, dur: 0.34, t, body: 2 }); },
+  thunderbolt(t) {
+    thud({ freq: 3200, q: 0.35, peak: 0.95, decay: 0.07, t });
+    thud({ freq: 1200, q: 0.5, peak: 0.7, decay: 0.18, t: t + 0.01 });
+    for (let i = 0; i < 5; i++) thud({ freq: 2400 + i * 520, q: 2, peak: 0.38, decay: 0.03, t: t + 0.04 + i * 0.037 });
+    thud({ freq: 70, q: 0.6, peak: 0.6, decay: 0.5, t });
+    sweep({ from: 95, to: 38, type: 'sine', peak: 0.5, dur: 0.7, t: t + 0.02 });
+  },
+  tornado(t) {
+    whoosh({ lo: 260, hi: 3200, peak: 0.42, at: 0.12, dur: 0.55, t, body: 3 });
+    whoosh({ lo: 420, hi: 5200, peak: 0.26, at: 0.08, dur: 0.4, t: t + 0.18, body: 2 });
+  },
+};
 const basePowershot = SFX.powershot;
 SFX.powershot = (e) => {
   basePowershot();
   const v = FAMILY_VOICE[e?.fam];
   if (v) sweep({ from: v.from, to: v.to, type: v.type || 'triangle', peak: 0.28, dur: 0.3, t: 0.04, detune: 7 });
+  // (a block's fire-back leaves at once — no cut-in — so its sound does too)
+  if (e?.cp && CP_VOICE[e.cp]) CP_VOICE[e.cp](e.rebound ? 0 : RELEASE_AT);
 };
 
 // ── THE MATCH BED: music and crowd (HS-GAP-AUDIT V4, V5) ─────────────────────────
@@ -456,7 +587,7 @@ export async function renderOffline(name, sec = 4) {
   const off = new OfflineAudioContext(2, Math.ceil(44100 * sec), 44100);
   AC = off; master = off.createGain(); master.gain.value = 0.32; master.connect(off.destination);
   noiseBuf = null; hall = null;
-  try { SFX[name](); } finally { [AC, master, noiseBuf, hall] = keep; }
+  try { SFX[name]({ player: 0 }); } finally { [AC, master, noiseBuf, hall] = keep; }
   const buf = await off.startRendering();
   return [buf.getChannelData(0), buf.getChannelData(1)];
 }

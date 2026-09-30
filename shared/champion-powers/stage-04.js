@@ -16,7 +16,9 @@ import * as C from '../constants.js';
 export const ILLUSION = Object.freeze({
   FAKES: 0.12,      // s the seven fakes fly beside it (≈ 260 px, "a small distance")
   INV: 0.55,        // s it is then invisible — and passes through anyone ("go through the defender")
-  DOWN: 0.075,      // its slope, vy / vx ("slightly downward")
+  DOWN: 0.15,       // its slope, vy / vx ("slightly downward", ≈ 8.5°): from the head-height release
+                    // (constants.js POWER_RELEASE_UP) it first bounces ≈ 400 px out, where the wiki's
+                    // "you can see it when it bounces" needs it (0.075 did that from a head-centre touch)
 });
 
 export default Object.freeze({

@@ -27,7 +27,8 @@ art-pixel density. See `docs/CHARACTERS.md`.
 | **Facing** | Always toward the opponent, running backwards included. (The result/select portraits face the VS too.) | all |
 | **Dash** | **Afterimages**: one or two see-through copies of the whole character (head and body, untinted, ~40% then ~25%) overlapping the player by more than half a head, lingering ~6 frames after the burst ends. | M4 57.9-58.1, 66.4 |
 | **Shadow** | A soft dark ellipse ~1.5 head diameters wide and ~0.25 D tall, alpha ~0.4, centred under the feet. | every frame |
-| **Hit / dazed** | A power shot into an unarmed player: the whole character tips **back ~25°** away from the hit and is carried backwards through the air; lands upright. No stars in these clips. The face sprite changes (squint), and a red "bloody nose" mark can stay on the face for a few seconds after. | M4 61.9-63.0, 80.3 |
+| **Hit / dazed** | **On the grass the head tips alone**: a boot to the face rocks only the head back ~30° about the neck (crown away from the kicker, chin on the body), boots planted, eyes shut, upright again in ~0.2 s; the kicker's boot stays up at the victim's face (M4 103.3–104.2 s, every 2nd frame). Knocked out: the head held back ~37°, body upright, eyes shut, three gold stars on a glowing ring tipped with the head (119.3 s). **In the air the whole character tips**: a power shot (43.3, 62.8 s) or a boot to a jumping player (106.0 s) tips head and body back ~40° and carries them off, pained face. Red drops fly off the head on a hurt (106.0, 119.3 s) and burst at the impact of a power hit (43.3 s); the red nose stays on the face after. | M4 43.3, 62.8, 103.3, 106.0, 119.3 s |
+| **Hit marks** | One mark per hurt (every 5th boot) but not the knockout's, all kept to the final whistle. Read pixel by pixel off full-res frames: **blue eye** — the eye gone deep navy (#100f60) in a blue-violet ring (#4c3eb0/#6a48ae), a little pink-red at its inner corner (#c06e90); **red nose** — red heart (#e24d46) in a pink glow (#d86874), a small drip under it; **violet bruise** under the other eye toward the nose (#7f61c6 round #582275); **grey-brown smudge** low on the back cheek. The order varies (M4 player blue → red → grey, M4 CPU red → grey, M3 player grey → red → blue); ours is one fixed order for both players — blue eye, red nose, violet bruise, grey cheek — so the first hurt shows the blue (Idan). M4 180 s also shows a grey-charcoal patch over one eye — left out (Idan). | M3 44–90 s, 86.3 s zoom; M4 95–187 s, 180.0 s zoom |
 | **YOU marker** | A rounded speech bubble with a downward tail, bold outlined "YOU" in yellow, directly on top of the local player's head, **only while the KICK OFF banner stands** (gone the moment play starts). ~1.5 heads wide. | M3 4.0-6.2 |
 | **Celebration** | None on the pitch: after a goal the players keep their normal poses under the GOAL! banner. | M3 11.4-14 |
 | **Result screen** | Big head portraits either side of VS; the **loser's portrait is darkened** to a grey silhouette with a "…" over it. | M3 92.8 |
@@ -43,7 +44,7 @@ art-pixel density. See `docs/CHARACTERS.md`.
 | Jump / run | Arms up, leg tuck / leg swing | Boots splay / boots paddle. |
 | Dash | nothing | Two afterimages: body copies on the canvas, head copies as DOM clones (`drawHeadGhosts`), on a clock that stops during a hit-stop. |
 | Shadow | 3 px bar | HS-size ellipse that stays on the grass and shrinks/fades with height. |
-| Stunned | body flat at 66°, head at 69° | Tipped back 0.45 rad (head and body together, body pivoted at the neck so the feet swing forward), three stars orbiting over the head. |
+| Stunned | body flat at 66°, head at 69° | On the grass the head alone tips about the neck (0.45 rad for a boot, 0.65 under the stars), boots planted; in the air (a power hit, an airborne boot) head and body tip as one. One face throughout (Idan, 2026-09-27: HS's eyes-shut hit face was tried and taken out). The kicker's boot is drawn out for the full KICK_TIME from the press, so it stays at the face it hit. |
 | Kickoff | — | "YOU" bubble in the local player's team colour over their head while the KICK OFF banner is up (online: over `NET.you`). |
 
 **Filter cost** (`node _headcost.mjs`: a live match, both heads moving, 844x390, CPU throttled 4x,
@@ -54,8 +55,7 @@ would be the expensive one. Not kept. Everything kept is WebKit-safe: `clip-path
 `-webkit-` prefixed), CSS filter functions, a `drop-shadow` filter for the armed glow (a
 box-shadow would glow round the box, not the head).
 
-Not taken: HS's red-nose bruise (the repo removed damage looks on purpose — no health in HS
-parity), the face turning to the opponent (our heads are front-facing photos), hair breaking the
+Not taken: the face turning to the opponent (our heads are front-facing photos), hair breaking the
 top of the outline (a photo cannot), the loser's grey portrait (result screen, separate work).
 
 ## Checking it

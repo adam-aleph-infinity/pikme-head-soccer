@@ -11,7 +11,7 @@
 // a soft shockwave ring and a burst of sparkles where each was; the real one fades out — a faint
 // refracted shimmer for the defender, a ghost of itself for the shooter — and flashes back into
 // sight, with a puff of light, each time it bounces.
-// Armed: Head Soccer's own yellow flame licks (fx-kit drawArmedGlow) — the same for everyone.
+// Armed: Head Soccer's own yellow glow and wisps (fx-kit drawArmedGlow) — the same for everyone.
 
 import { beam, glow, ring, spark, smoke, blit, rng, TAU } from '../fx-kit.js';
 import { ball } from './common.js';

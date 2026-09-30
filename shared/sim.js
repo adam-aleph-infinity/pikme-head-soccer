@@ -7,7 +7,7 @@ import { bootPose, kickPose } from './kick.js';
 import { walkBounds, barY, barCeiling, goalBox, ballInGoal, keepOutOfGoal } from './goalbox.js';
 import { championFor } from './champions.js';
 import {
-  shotFor, statsFor, meterRateFor, launch as launchPower, stepPower, contact as powerContact,
+  shotFor, statsFor, meterRateFor, releaseX, releaseY, launch as launchPower, stepPower, contact as powerContact,
   skipContact, earlyBlock, onArm, tickAilment, ailMods, ailInput, headless, EQUAL_STATS,
 } from './hs-powers.js';
 
@@ -17,6 +17,12 @@ import {
 // geometry at a swept pose — where the player was part-way through the tick — and not only
 // at where they ended it. One formula, two callers, nothing to drift apart.
 const headYAt = (y) => y - C.BODY_H - C.HEAD_R + C.NECK;
+// HS IS CIRCLES IN A STRETCHED WORLD (constants.js HS_STRETCH): its physics runs on a 3:2 picture
+// widened 1.2x onto the phone, so every round collider there is an oval 1.2x wider than it is
+// tall — the ball 72 x 60 px, a head as wide as its sprite (62) over a 52.8 hitbox height. Every
+// contact with a round thing is solved in that native space: sideways offsets and sideways
+// speeds divided by SX, each circle at its VERTICAL radius, the result stretched back.
+const SX = C.HS_STRETCH;
 const bodyTopAt = (y) => y - C.BODY_H;
 export const headY = (p) => headYAt(p.y);
 export const bodyTop = (p) => bodyTopAt(p.y);
@@ -102,7 +108,7 @@ export function createMatch(charA, charB, opts = {}) {
     // THE CUT-IN (see POWER_CUTIN): seconds left of the freeze a fired power shot makes, and
     // whose shot it is. The freeze itself is the hitStop above; these say it is a cut-in, so the
     // renderer can spotlight the shooter and a stun is not run down under it.
-    cutin: 0, cutinBy: -1,
+    cutin: 0, cutinBy: -1, ghost: false,
     // THE BANNER, as the sim times it: 'kickoff' (KICK OFF) or 'goal' (GOAL!), and seconds
     // left. In the sim rather than the renderer because HS times its restarts off the banner,
     // and an online client has to put it up on the same tick as the server.
@@ -267,7 +273,7 @@ export function step(m, inputs, dt = C.TICK, fx = NO_FX) {
   // Hit-stop. A few frozen frames on a heavy connect is most of what makes a hit read as
   // an impact rather than a teleport. Timers still tick so nothing can wedge here.
   //
-  // A fired power shot's CUT-IN is the same freeze, 1.34s long (POWER_CUTIN): the whole match
+  // A fired power shot's CUT-IN is the same freeze, 1.5s long (POWER_CUTIN): the whole match
   // holds while the shooter is spotlit, exactly as HS does.
   if (m.hitStop > 0) {
     m.hitStop -= dt;
@@ -275,12 +281,24 @@ export function step(m, inputs, dt = C.TICK, fx = NO_FX) {
     if (cut) { m.cutin -= dt; if (m.cutin <= 0) { m.cutin = 0; m.cutinBy = -1; } }
     // Only the SHOOTER holds under a cut-in (Idan: the other player must not be stuck while a
     // power goes off) — the other one keeps running, jumping and kicking as normal play.
-    const free = cut && m.cutinBy >= 0 ? m.players[1 - m.cutinBy] : null;
+    // (Only while the shot is HELD: a block's own short stop landing under the dark's played
+    // tail, after the ball has left, freezes everyone like any hit-stop — or a blocker up in the
+    // air fell through his grind.)
+    // (the hold's stop and the dark run down together, POWER_RELEASE apart; a block's stop under
+    // the tail leaves less than that between them)
+    const held = m.cutin - m.hitStop > C.POWER_RELEASE - 0.01;
+    const free = cut && held && m.cutinBy >= 0 ? m.players[1 - m.cutinBy] : null;
     latchReleases(m, inputs);
     if (free) {
       free.x0 = free.x; free.y0 = free.y;
       stepPlayer(m, free, inputs[free.index] || {}, dt, fx);
       resolvePlayers(m);
+      // THE COUNTER UNDER THE HOLD. The shot hangs by the shooter's head and nothing touches it
+      // while it does — but the other player is moving now, and an ARMED touch of it is a counter
+      // (Idan: he jumped into it armed, went straight through and fell). It fires on the spot: his
+      // cut-in, and he holds there — up in the air if he jumped — until his own shot leaves him.
+      const b = m.ball;
+      if (free.armed > 0 && b.power && b.power.owner !== free.index && touchesBall(m, free, b)) fireUltimateOnContact(m, free, b, fx);
     }
     // The stun is the one timer that keeps running through a pause. Everything else here is
     // frozen on purpose — that is what hit-stop is — but a player's 1.75 seconds on the floor
@@ -410,7 +428,7 @@ export function step(m, inputs, dt = C.TICK, fx = NO_FX) {
   // goal. HS has no idle rule — a ball left alone on the open grass rolls on and stays in play
   // (M4 111.0 s rolled untouched for 6.6 s) — so this only fires over a goal, at bar height.
   m.idle += dt;
-  const overGoal = (b) => (b.x < C.GOAL_W + C.POST_R + b.r || b.x > C.W - C.GOAL_W - C.POST_R - b.r)
+  const overGoal = (b) => (b.x < C.GOAL_W + C.POST_R + b.r * SX || b.x > C.W - C.GOAL_W - C.POST_R - b.r * SX)
     && b.y <= C.GROUND_Y - C.GOAL_H;
   if (m.phase === 'play' && m.idle > C.BALL_IDLE_RESET && overGoal(m.ball)) {
     const b = m.ball;
@@ -463,9 +481,12 @@ function stepExtraBalls(m, dt, fx) {
   const main = m.ball;
   for (const eb of [...m.xballs]) {
     m.ball = eb;
+    const goals = m.score[0] + m.score[1];
     const n = Math.max(1, Math.min(6, Math.ceil((Math.hypot(eb.vx, eb.vy) * dt) / (C.HEAD_R * 0.8))));
     for (let i = 0; i < n && m.phase === 'play'; i++) stepBall(m, dt / n, fx, i / n, 1 / n);
     m.ball = main;
+    // this one scored: the match ball's power goes with it, as the scorer's does (checkGoal)
+    if (m.score[0] + m.score[1] !== goals) main.power = null;
     if (m.phase !== 'play') {
       // This one scored, and the restart was written onto IT (resetPositions resets m.ball),
       // so the kickoff ball is copied back onto the real one.
@@ -594,12 +615,17 @@ function stepPlayer(m, p, input, dt, fx) {
   // `air` is a champion's extra jump in the air; zero everywhere else, which leaves this the
   // ground-or-coyote test it always was.
   const air = md ? md.airJumps : 0;
-  if ((p.jumpBuf > 0 || rejump) && (p.onGround || p.coyote > 0 || air > 0) && p.jumps > 0 && !(md && md.noJump)) {
+  // THE OTHER BODY IS FOOTING TOO. Hung on its shoulder or torso, or climbing its head (the
+  // `stand` resolvePlayers left from last tick), a fresh press jumps again, as often as you keep
+  // touching it — HS M4 66.78 s the CPU jumped off the dasher's shoulder, 160.04 s the human off
+  // the CPU's (Idan: jump on him, off his torso, onto his head).
+  const onBody = p.stand >= 0 && !p.onGround && p.jumpBuf > 0;
+  if ((p.jumpBuf > 0 || rejump) && (p.onGround || p.coyote > 0 || air > 0 || onBody) && (p.jumps > 0 || onBody) && !(md && md.noJump)) {
     p.vy = -C.JUMP_V * p.stats.jump * (md ? md.jump : 1);
     p.onGround = false;
     p.coyote = 0;
     p.jumpBuf = 0;
-    p.jumps--;
+    if (!onBody) p.jumps--;
     m.events.push({ type: 'jump', player: p.index });
   }
   // NO VARIABLE HEIGHT. A jump let go of early used to be cut short (JUMP_CUT); HS M4's jumps
@@ -786,17 +812,23 @@ export function playerContact(m, a, b, skin = 0) {
   const aT = bodyTopAt(a.y), aB = a.y, bT = bodyTopAt(b.y), bB = b.y;
   let best = null;
   const take = (c) => { if (c && (!best || c.d > best.d)) best = c; };
+  // Heads are ovals (SX): each head contact is solved in native space and its push stretched back.
+  const wide = (c) => {
+    const vx = c.nx * c.d * SX, vy = c.ny * c.d, d = Math.hypot(vx, vy);
+    // `top` keeps the NATIVE normal's vertical part: "standing on" is decided where the head is round
+    return d > 1e-9 ? { d, nx: vx / d, ny: vy / d, top: c.ny } : { d: c.d, nx: c.nx, ny: c.ny, top: c.ny };
+  };
   { // head – head
-    const dx = ahx - bhx, dy = ahy - bhy, dist = Math.hypot(dx, dy);
-    if (dist < ra + rb + skin) take(dist > 1e-9 ? { d: ra + rb - dist, nx: dx / dist, ny: dy / dist } : { d: ra + rb, nx: 0, ny: -1 });
+    const dx = (ahx - bhx) / SX, dy = ahy - bhy, dist = Math.hypot(dx, dy);
+    if (dist < ra + rb + skin) take(wide(dist > 1e-9 ? { d: ra + rb - dist, nx: dx / dist, ny: dy / dist } : { d: ra + rb, nx: 0, ny: -1 }));
   }
   { // a's head – b's body
-    const c = circleBox(ahx, ahy, ra + skin, bhx - hw, bhx + hw, bT, bB);
-    if (c) take({ ...c, d: c.d - skin });
+    const c = circleBox(ahx / SX, ahy, ra + skin, (bhx - hw) / SX, (bhx + hw) / SX, bT, bB);
+    if (c) take(wide({ ...c, d: c.d - skin }));
   }
   { // a's body – b's head (flip the normal: it came out pointing at b)
-    const c = circleBox(bhx, bhy, rb + skin, ahx - hw, ahx + hw, aT, aB);
-    if (c) take({ d: c.d - skin, nx: -c.nx, ny: -c.ny });
+    const c = circleBox(bhx / SX, bhy, rb + skin, (ahx - hw) / SX, (ahx + hw) / SX, aT, aB);
+    if (c) take(wide({ d: c.d - skin, nx: -c.nx, ny: -c.ny }));
   }
   { // body – body
     const ox = Math.min(ahx, bhx) + hw - (Math.max(ahx, bhx) - hw) + skin;
@@ -816,7 +848,7 @@ const ON_TOP = Math.SQRT1_2;
 // One positional push apart along the contact, then both bodies back inside their bounds.
 function pushApart(m, a, b, c) {
   let wa = 0.5, wb = 0.5;
-  if (Math.abs(c.ny) >= ON_TOP) { if (c.ny < 0) { wa = 1; wb = 0; } else { wa = 0; wb = 1; } }
+  if (Math.abs(c.top ?? c.ny) >= ON_TOP) { if (c.ny < 0) { wa = 1; wb = 0; } else { wa = 0; wb = 1; } }
   const ay = a.y, by = b.y;
   if (wa === 0.5) {
     // BESIDE: straight apart, sideways only — as far sideways as clears the overlap along n.
@@ -852,7 +884,11 @@ function resolvePlayers(m) {
   const [a, b] = m.players;
   const was = [a.stand, b.stand];
   a.stand = -1; b.stand = -1;
-  contactPlayers(m, a, b);
+  // Under a power's cut-in the other player walks THROUGH the shooter (Idan: he was stuck against
+  // her). `ghost` carries that past the cut-in for as long as the two still overlap, so they are
+  // never shoved apart the tick it ends — the bodies collide again once they have come clear.
+  if (m.cutin > 0 || m.ghost) m.ghost = !!playerContact(m, a, b);
+  else contactPlayers(m, a, b);
   // Stepped off, or the head walked away: in the air again (integrate() kept `onGround` for a
   // body that was standing on a head — see there — so it is cleared here, where it is known).
   for (const p of m.players) {
@@ -862,7 +898,7 @@ function resolvePlayers(m) {
 
 function contactPlayers(m, a, b) {
   const ax0 = a.x0 ?? a.x, ay0 = a.y0 ?? a.y, bx0 = b.x0 ?? b.x, by0 = b.y0 ?? b.y;
-  const reach = headR(m, a) + headR(m, b) + 4;
+  const reach = (headR(m, a) + headR(m, b)) * SX + 4;
   // Far apart for the whole tick (and never crossed): nothing to do.
   if (Math.min(Math.abs(a.x - b.x), Math.abs(ax0 - bx0)) > reach && Math.sign(a.x - b.x) === Math.sign(ax0 - bx0)) return;
 
@@ -888,13 +924,18 @@ function contactPlayers(m, a, b) {
   // Velocities, off the contact they end the tick in (touching within half a pixel).
   const c = playerContact(m, a, b, 0.5);
   if (!c) return;
-  if (Math.abs(c.ny) >= ON_TOP) {
+  if (Math.abs(c.top ?? c.ny) >= ON_TOP) {
     const up = c.ny < 0 ? a : b, lo = up === a ? b : a;
     const ux = up === a ? c.nx : -c.nx, uy = up === a ? c.ny : -c.ny;   // n, lower -> upper
     // Its motion INTO the lower body stops; along the surface it keeps going, so a body on the
     // steep side of a head slides off it rather than hanging there.
     const vn = (up.vx - lo.vx) * ux + (up.vy - lo.vy) * uy;
+    const vy0 = up.vy;
     if (vn < 0) { up.vx -= vn * ux; up.vy -= vn * uy; }
+    // …but a walk into the slope lifts it no faster than a climb (CLIMB_V): HS's climber goes
+    // up and over the curve at one steady speed and settles on the crown (M4 52.10–52.45 s);
+    // the whole walk speed turned upward flung it 10px over the crown and off the far side.
+    if (up.vy < vy0) up.vy = Math.max(up.vy, Math.min(vy0, lo.vy - C.CLIMB_V));
     if (!up.onGround) {                             // a landing, as on the grass
       up.jumps = C.MAX_JUMPS;
       up.landT = 0;
@@ -907,7 +948,24 @@ function contactPlayers(m, a, b) {
   // tick anyway — this is what a shove IS for that one tick).
   const vn = (a.vx - b.vx) * c.nx + (a.vy - b.vy) * c.ny;
   if (vn >= 0) return;
+  // CLIMBING (HS M4 52.10–52.43 s): an airborne body pushing into the other with its boots up
+  // past that one's head centre goes up the curve of the head rather than hanging on it. Only
+  // the one doing the pushing climbs — a body pushed into from below (the dash-under) still just
+  // hangs — and only while it pushes and the other does not push back: M4 159.2–160.0 s, the
+  // human held R into a CPU walking into him and hung on its shoulder, boots ~50px up, for 0.8 s
+  // (the dash-under hold, 66.40 s, is the same two-way push). Once the crown is under it the
+  // contact is ON TOP above.
+  const climber = [a, b].find((p) => {
+    const q = p === a ? b : a, toQ = Math.sign(q.x - p.x);
+    return !p.onGround && p.y < headYAt(q.y) && Math.sign(p.vx) === toQ && q.vx * toQ >= 0;
+  });
   a.vx -= 0.5 * vn * c.nx; b.vx += 0.5 * vn * c.nx;
+  if (climber) {
+    const q = climber === a ? b : a;
+    climber.vy = Math.min(climber.vy, q.vy - C.CLIMB_V);
+    climber.stand = q.index;
+    return;
+  }
   // BODY_GRIP: the push can hold an airborne body up against the one pushing it. One way —
   // it only ever slows a body FALLING relative to the other, so a jump beside somebody is never
   // damped, and nothing here moves anybody sideways.
@@ -960,7 +1018,12 @@ function stepBall(m, dt, fx, a0 = 0, aSpan = 1) {
     const fromX = b.x, fromY = b.y;
     b.x += b.vx * sdt;
     b.y += b.vy * sdt;
-    collideBounds(m, b, fx, sdt);
+    const pw = b.power;
+    // A POWER SHOT THAT MEETS THE FRAME IS OVER. A post, the bar, the roof, the back of the net
+    // or a wall: from there it is an ordinary ball and bounces like one. It used to stay a power
+    // ball pinned against whatever it met, pushed into it every tick and glowing, until its 2 s
+    // ran out (Idan: "the power stays on the screen for like 3 seconds").
+    if (collideBounds(m, b, fx, sdt) && pw && b.power === pw && (pw.ph === 'fly' || pw.ph === 'dive')) b.power = null;
     // DECIDED BEFORE THE PLAYERS ARE ASKED, and on the ball's own motion. resolveBallPlayers
     // moves the ball — that is what a push-out is — and a ball that is in the net only because
     // a body put it there has not scored. It gets to take a goal AWAY (checkGoal re-tests the
@@ -970,7 +1033,7 @@ function stepBall(m, dt, fx, a0 = 0, aSpan = 1) {
     resolveBallPlayers(m, fx, a0 + aSpan * ((i + 1) / sub));
     // A player's push comes after the walls, and a player can stand inside a net (the free play
     // after a goal): it never pushes the ball through the side walls or the back of the net.
-    const back = b.r + (b.y > C.GROUND_Y - C.GOAL_H ? C.POST_R : 0);
+    const back = b.r * SX + (b.y > C.GROUND_Y - C.GOAL_H ? C.POST_R : 0);
     if (b.x < back) b.x = back; else if (b.x > C.W - back) b.x = C.W - back;
     if (scorer !== null && checkGoal(m, fx, scorer)) return;
   }
@@ -994,6 +1057,13 @@ function enteredGoal(fromX, fromY, b) {
   return into.left ? 1 : 0;                          // the left net is player 1's goal
 }
 
+// Coulomb friction off a surface the ball just hit: `dv` of speed taken off the ball's `axis`
+// component, towards zero, and never past it (a bounce can stop the ball sliding, not reverse it).
+function grip(b, axis, dv) {
+  const v = b[axis];
+  b[axis] = Math.sign(v) * Math.max(0, Math.abs(v) - dv);
+}
+
 function collideBounds(m, b, fx, dt = C.TICK) {
   // ground
   if (b.y > C.GROUND_Y - b.r) {
@@ -1005,30 +1075,37 @@ function collideBounds(m, b, fx, dt = C.TICK) {
         b.vy = -b.vy * C.BALL_BOUNCE;
         if (Math.abs(b.vy) < 60) b.vy = 0;
         else m.events.push({ type: 'bounce', v });   // the thump on the grass (audio)
+        // The grass grips (Box2D friction): the landing's impulse takes sideways speed with it,
+        // BALL_GRIP of it, never more than there is (constants.js BALL_GRIP).
+        grip(b, 'vx', C.BALL_GRIP * (v - b.vy));
         fx.hit(b.x, b.y, '#ffffff', 0.4);
       }
     }
     b.vx *= C.BALL_GROUND_FRICTION ** (dt / C.TICK);
   }
-  // ceiling
   // ceiling — off the top of the screen: it keeps 0.41 of the climb and CEIL_KEEP_X of the
   // sideways speed (1: a skied ball carries on the way it was going).
   if (b.y < C.CEIL_Y + b.r) {
     b.y = C.CEIL_Y + b.r;
     if (b.vy < 0) { b.vy = -b.vy * C.CEIL_BOUNCE; b.vx *= C.CEIL_KEEP_X; }
   }
+  // (whatever changes the ball's velocity from here on is the frame or a wall: the return value)
+  const fvx = b.vx, fvy = b.vy;
 
   // side walls — only ABOVE the goal mouth; inside the mouth the ball is a goal
   const inMouthY = b.y > C.GROUND_Y - C.GOAL_H;
   if (!inMouthY) {
-    if (b.x < b.r) { b.x = b.r; b.vx = Math.abs(b.vx) * C.BALL_WALL_BOUNCE; }
-    if (b.x > C.W - b.r) { b.x = C.W - b.r; b.vx = -Math.abs(b.vx) * C.BALL_WALL_BOUNCE; }
+    const rx = b.r * SX;                          // the ball is 1.2x wider than tall (SX)
+    // The wall grips too (HS M3 15.34 / M5 46.10 / M5 70.23 s: a ball into the wall comes off it
+    // with half its fall taken away) — the same BALL_GRIP, on the up-and-down speed.
+    if (b.x < rx) { b.x = rx; if (b.vx < 0) grip(b, 'vy', C.BALL_GRIP * -b.vx * (1 + C.BALL_WALL_BOUNCE)); b.vx = Math.abs(b.vx) * C.BALL_WALL_BOUNCE; }
+    if (b.x > C.W - rx) { b.x = C.W - rx; if (b.vx > 0) grip(b, 'vy', C.BALL_GRIP * b.vx * (1 + C.BALL_WALL_BOUNCE)); b.vx = -Math.abs(b.vx) * C.BALL_WALL_BOUNCE; }
   } else {
     // BACK OF THE NET, and it is the frame's rear post rather than the screen edge. Those are
     // POST_R apart, which is nothing to the physics and everything to the picture: the back
     // rail is drawn at POST_R, so a ball stopping at the edge of the canvas was a ball resting
     // half way THROUGH the back of the goal it had just gone into.
-    const back = b.r + C.POST_R;
+    const back = b.r * SX + C.POST_R;
     if (b.x < back) { b.x = back; b.vx = Math.abs(b.vx) * 0.2; }
     if (b.x > C.W - back) { b.x = C.W - back; b.vx = -Math.abs(b.vx) * 0.2; }
   }
@@ -1046,6 +1123,7 @@ function collideBounds(m, b, fx, dt = C.TICK) {
   rang = bounceOffPost(b, C.GOAL_W, barY, fx) || rang;
   rang = bounceOffPost(b, C.W - C.GOAL_W, barY, fx) || rang;
   if (rang && v0 > 80) m.events.push({ type: 'post', v: v0 });   // the ring of the frame (audio)
+  return b.vx !== fvx || b.vy !== fvy;
 }
 
 // THE ROOF EDGE — the half of the crossbar that was drawn and never existed.
@@ -1099,9 +1177,12 @@ function collideBounds(m, b, fx, dt = C.TICK) {
 // It therefore cannot narrow the goal either. `wy` is negative — the far side steps UP — so
 // the whole segment lies above the crossbar, the mouth is everything below the crossbar, and
 // the one-sided test rules out even the corner case near the post.
+// HS's goal (goalbox.js WIDTH_X): the FAR post stands on the goal line, so the roof no longer
+// leans out over the pitch — its front edge is the far post's top, straight up from the near
+// rail's end to the roof, and it is solid both ways like any post.
 function bounceOffRoofEdge(b, left, fx) {
   const box = goalBox(left);
-  bounceOffBar(b, box.lineX, box.top, box.lineX + box.wx, box.top + box.wy, fx, true);
+  bounceOffBar(b, box.lineX, box.top, box.lineX, box.top + box.wy, fx);
 }
 
 // THE ROOF ITSELF — the far frame's top rail, the one the renderer draws a step up and across
@@ -1118,7 +1199,7 @@ function bounceOffRoofEdge(b, left, fx) {
 // anyway: the near rail stops it first, and over the pitch the roof edge does.
 function bounceOffRoof(b, left, fx) {
   const box = goalBox(left);
-  bounceOffBar(b, box.wallX + box.wx, box.top + box.wy, box.lineX + box.wx, box.top + box.wy, fx, 'strict');
+  bounceOffBar(b, box.wallX, box.top + box.wy, box.lineX, box.top + box.wy, fx, 'strict');
 }
 
 // A BAR: any capsule of radius POST_R laid along a segment, and the ball bounces off it.
@@ -1134,13 +1215,15 @@ function bounceOffRoof(b, left, fx) {
 // "score" meant "the centre got past the line at roughly bar height" — which is what made
 // shots that visibly clipped the top of the goal count.
 function bounceOffBar(b, ax, ay, bx, by, fx, fromAboveOnly = false) {
+  ax /= SX; bx /= SX;                             // native space (SX): the bar is a round capsule there
+  const bX = b.x / SX, bvx = b.vx / SX;
   const ex = bx - ax, ey = by - ay;
   const len2 = ex * ex + ey * ey;
   // Where along the bar the ball is closest to, as a fraction, clamped to its ends so the
   // caps are round — a ball past the end of a bar meets its corner, not a wall.
-  const t = len2 > 0 ? clamp(((b.x - ax) * ex + (b.y - ay) * ey) / len2, 0, 1) : 0;
+  const t = len2 > 0 ? clamp(((bX - ax) * ex + (b.y - ay) * ey) / len2, 0, 1) : 0;
   const px = ax + ex * t, py = ay + ey * t;
-  const dx = b.x - px, dy = b.y - py;
+  const dx = bX - px, dy = b.y - py;
   const d = Math.hypot(dx, dy);
   const min = b.r + C.POST_R;
   if (d >= min) return;
@@ -1166,11 +1249,11 @@ function bounceOffBar(b, ax, ay, bx, by, fx, fromAboveOnly = false) {
   }
   if (d < 0.0001) { b.y = py - min; b.vy = -Math.abs(b.vy) * 0.7; return; }
   const nx = dx / d, ny = dy / d;
-  b.x = px + nx * min;
+  b.x = (px + nx * min) * SX;
   b.y = py + ny * min;
-  const dot = b.vx * nx + b.vy * ny;
+  const dot = bvx * nx + b.vy * ny;
   if (dot < 0) {
-    b.vx = (b.vx - 2 * dot * nx) * C.BAR_BOUNCE;
+    b.vx = (bvx - 2 * dot * nx) * C.BAR_BOUNCE * SX;
     b.vy = (b.vy - 2 * dot * ny) * C.BAR_BOUNCE;
   }
   // Nothing may come to REST on the bar. A ball that lands flat on top has no horizontal
@@ -1187,7 +1270,7 @@ function bounceOffBar(b, ax, ay, bx, by, fx, fromAboveOnly = false) {
   // away. Topping up to 70 holds the nudge at exactly the speed the comment above asks for —
   // enough to roll off — and calling it again next tick, still resting, does nothing further.
   if (b.y < py && Math.hypot(b.vx, b.vy) < 90) {
-    const towardPitch = px < C.W / 2 ? 1 : -1;
+    const towardPitch = px * SX < C.W / 2 ? 1 : -1;
     const along = b.vx * towardPitch;               // how fast it's already headed that way
     if (along < 70) b.vx += (70 - along) * towardPitch;
   }
@@ -1196,15 +1279,15 @@ function bounceOffBar(b, ax, ay, bx, by, fx, fromAboveOnly = false) {
 }
 
 function bounceOffPost(b, px, py, fx) {
-  const dx = b.x - px, dy = b.y - py;
+  const dx = (b.x - px) / SX, dy = b.y - py;      // native space (SX)
   const d = Math.hypot(dx, dy);
   const min = b.r + C.POST_R;
   if (d >= min || d === 0) return;
   const nx = dx / d, ny = dy / d;
-  b.x = px + nx * min; b.y = py + ny * min;
-  const dot = b.vx * nx + b.vy * ny;
+  b.x = px + nx * min * SX; b.y = py + ny * min;
+  const bvx = b.vx / SX, dot = bvx * nx + b.vy * ny;
   // the post is the bar's own tube, so it keeps the bar's bounce (was a hard-coded 0.78)
-  b.vx = (b.vx - 2 * dot * nx) * C.BAR_BOUNCE;
+  b.vx = (bvx - 2 * dot * nx) * C.BAR_BOUNCE * SX;
   b.vy = (b.vy - 2 * dot * ny) * C.BAR_BOUNCE;
   fx.hit(px, py, '#ffe08a', 1);
   return true;
@@ -1247,7 +1330,7 @@ function tackleAt(m, p, foe, fx, kx, ky) {
   // leg that is actually attached to you would.
   const legX = clamp(foe.x, Math.min(p.x, kx), Math.max(p.x, kx));
   // Their whole silhouette counts: head circle or body box.
-  const hitHead = Math.hypot(legX - foe.x, ky - headY(foe)) < C.BOOT_R + headR(m, foe);
+  const hitHead = Math.hypot((legX - foe.x) / SX, ky - headY(foe)) < C.BOOT_R + headR(m, foe);
   const nx = clamp(legX, foe.x - C.BODY_W / 2, foe.x + C.BODY_W / 2);
   const ny = clamp(ky, bodyTop(foe), foe.y);
   const hitBody = Math.hypot(legX - nx, ky - ny) < C.BOOT_R;
@@ -1315,8 +1398,11 @@ function tackleAt(m, p, foe, fx, kx, ky) {
 function kickDamage(m, foe, by) {
   foe.kicked++;
   if (foe.kicked % C.KICK_HURT_EVERY !== 0) return;
-  foe.hurt = Math.min(3, foe.hurt + 1);
   const ko = foe.kicked >= C.KICK_HURT_EVERY * C.KICK_HURTS_TO_KO;
+  // `hurt` is the MARKS on the face (game.js/style.css), up to four, kept for the match: HS adds
+  // one for every hurt but the knockout's, whose picture is the stars (M4: the CPU wears two
+  // after its three hurts, 118.6 s and 125 s alike; the player four by 180 s).
+  if (!ko) foe.hurt = Math.min(4, foe.hurt + 1);
   m.events.push({ type: 'hurt', player: foe.index, by: by.index, level: foe.hurt, ko });
   if (!ko) return;
   foe.kicked = 0;
@@ -1335,11 +1421,13 @@ function kickDamage(m, foe, by) {
 //
 // Returns the closing speed (0 when the ball was already leaving), so the caller can tell a
 // touch from a ball resting on the crown.
+// (nx, ny) is the NATIVE normal (SX): the relative velocity is taken into native space, bounced
+// there, and the sideways part of the kick stretched back out.
 function bounceOffHead(b, p, nx, ny) {
-  const vn = (b.vx - p.vx) * nx + (b.vy - p.vy) * ny;
+  const vn = ((b.vx - p.vx) / SX) * nx + (b.vy - p.vy) * ny;
   if (vn >= 0) return 0;
   const j = -(1 + C.HEAD_BOUNCE) * vn;
-  b.vx += j * nx; b.vy += j * ny;
+  b.vx += j * nx * SX; b.vy += j * ny;
   b.spin *= 0.6;
   return -vn;
 }
@@ -1382,7 +1470,12 @@ function resolveBallPlayers(m, fx, alpha = 1) {
       const k = (C.KICK_TIME - p.kickT) / C.KICK_TIME - dk * (1 - alpha);
       const now = bootPose(k), was = bootPose(k - dk);
       const bx = px + dir * now[0] * R, by = py - now[1] * R;
-      const dx = b.x - bx, dy = b.y - by, d = Math.hypot(dx, dy), min = C.BOOT_R + b.r;
+      // The boot is solved in screen space against the round ball every kick number was fitted
+      // with: the ball's MEAN radius (b.r · (1 + SX) / 2 = 16.5), resting on the same grass (its
+      // centre `lift` above the oval's). HS's boot collider is not measured; this keeps its
+      // measured kicks (~445 px/s at the feet, 1050 head high) where they were.
+      const br = b.r * (1 + SX) / 2, lift = br - b.r;
+      const dx = b.x - bx, dy = b.y - lift - by, d = Math.hypot(dx, dy), min = C.BOOT_R + br;
       // Only a ball IN FRONT of the body is the boot's. The boot leaves its rest pose inside the
       // front of the body, and a ball already against the chest (a dash running onto it) would be
       // shoved backwards through the player by it — that ball is the body's, whose push fires it
@@ -1399,7 +1492,7 @@ function resolveBallPlayers(m, fx, alpha = 1) {
           // through the player.
           const fdx = dir * Math.abs(dx), fd = Math.hypot(fdx, dy);
           const nx = fdx / fd, ny = dy / fd;
-          b.x = bx + nx * min; b.y = by + ny * min;
+          b.x = bx + nx * min; b.y = by + ny * min + lift;
           // The boot's velocity: its path over the last tick, faster by the kick stat, plus the body's.
           const drive = C.BOOT_DRIVE * p.stats.kick / C.TICK;
           // The body's own motion: all of a dash (HS M5 65.28 s, dash + kick: the ball leaves at the
@@ -1430,7 +1523,7 @@ function resolveBallPlayers(m, fx, alpha = 1) {
     }
 
     // ---- head (circle) ----
-    const dx = b.x - px, dy = b.y - hy;
+    const dx = (b.x - px) / SX, dy = b.y - hy;    // native (SX): the head is an oval here
     const d = Math.hypot(dx, dy);
     const min = headR(m, p) + b.r;
     // BEHEADED: there is no head to meet the ball; it passes where the head was.
@@ -1471,14 +1564,14 @@ function resolveBallPlayers(m, fx, alpha = 1) {
       // sitting in the net is a match waiting on the idle reset. Measured over 120 bot matches,
       // this is the difference between one such ball (6.9s of nothing) and none.
       const fromX = b.x, fromY = b.y;
-      b.x = px + nx * min;
+      b.x = px + nx * min * SX;
       b.y = hy + ny * min;
       // The grass stops the push (a ball resting on it reaches the jaw): slide it out sideways
       // instead, far enough to clear the circle at the height it is held to.
       if (b.y > C.GROUND_Y - b.r) {
         b.y = C.GROUND_Y - b.r;
         const ddy = b.y - hy;
-        b.x = px + (Math.sign(nx) || (fromX >= px ? 1 : -1)) * Math.sqrt(Math.max(0, min * min - ddy * ddy));
+        b.x = px + (Math.sign(nx) || (fromX >= px ? 1 : -1)) * Math.sqrt(Math.max(0, min * min - ddy * ddy)) * SX;
       }
       b.x = keepOutOfGoal(fromX, fromY, b.x, b.y, b.r);
 
@@ -1510,11 +1603,12 @@ function resolveBallPlayers(m, fx, alpha = 1) {
     }
 
     // ---- body box ----
-    const halfW = C.BODY_W / 2;
+    // native (SX): the box keeps its drawn width, the ball is an oval against it
+    const halfW = C.BODY_W / 2 / SX, bX = b.x / SX, pX = px / SX;
     const top = bodyTopAt(py);
-    const nearestX = clamp(b.x, px - halfW, px + halfW);
+    const nearestX = clamp(bX, pX - halfW, pX + halfW);
     const nearestY = clamp(b.y, top, py);
-    const bx = b.x - nearestX, by = b.y - nearestY;
+    const bx = bX - nearestX, by = b.y - nearestY;
     const bd = Math.hypot(bx, by);
     let nx, ny, sx, sy;
     if (bd > 0.0001) {
@@ -1535,7 +1629,7 @@ function resolveBallPlayers(m, fx, alpha = 1) {
       // always ejects it the way they are going; only a near-stationary one falls back to
       // the geometric answer.
       const side = Math.abs(p.vx) > 40 ? Math.sign(p.vx) : (Math.sign(b.x - px) || 1);
-      const dh = side > 0 ? (px + halfW) - b.x : b.x - (px - halfW);
+      const dh = side > 0 ? (pX + halfW) - bX : bX - (pX - halfW);
       // Never eject UP through the torso while the ball is sitting on the grass: standing on
       // a ball does not lift it onto your chest, and the head's lower arc already covers the
       // top of this box anyway (it reaches to within 7px of the boots). And never eject DOWN
@@ -1547,9 +1641,9 @@ function resolveBallPlayers(m, fx, alpha = 1) {
       // sub-step, which is the buzz this whole branch exists to avoid.
       const du = b.y > C.GROUND_Y - b.r - 0.5 ? Infinity : b.y - top;
       const dd = py + b.r > C.GROUND_Y - b.r ? Infinity : py - b.y;
-      if (du <= dh && du <= dd) { nx = 0; ny = -1; sx = b.x; sy = top; }
-      else if (dd <= dh)        { nx = 0; ny =  1; sx = b.x; sy = py; }
-      else                      { nx = side; ny = 0; sx = px + side * halfW; sy = b.y; }
+      if (du <= dh && du <= dd) { nx = 0; ny = -1; sx = bX; sy = top; }
+      else if (dd <= dh)        { nx = 0; ny =  1; sx = bX; sy = py; }
+      else                      { nx = side; ny = 0; sx = pX + side * halfW; sy = b.y; }
     }
     // A ball caught between the boots and the grass cannot be pushed DOWN — the pitch is
     // there. Send it out of the side of the torso instead. Without this a player landing
@@ -1557,7 +1651,7 @@ function resolveBallPlayers(m, fx, alpha = 1) {
     // sub-step shoving it back out.
     if (ny > 0 && sy + ny * b.r > C.GROUND_Y - b.r) {
       const side = Math.abs(p.vx) > 40 ? Math.sign(p.vx) : (Math.sign(b.x - px) || 1);
-      nx = side; ny = 0; sx = px + side * halfW; sy = b.y;
+      nx = side; ny = 0; sx = pX + side * halfW; sy = b.y;
     }
     if (b.power && b.power.owner !== p.index) {
       // Same override as the head branch: armed beats incoming, body touch included.
@@ -1578,7 +1672,7 @@ function resolveBallPlayers(m, fx, alpha = 1) {
     // moving AWAY from the net — and without the clamp the ball is merely left sitting in a
     // goal it did not score in.
     const fromX = b.x, fromY = b.y;
-    b.x = sx + nx * b.r; b.y = sy + ny * b.r;
+    b.x = (sx + nx * b.r) * SX; b.y = sy + ny * b.r;
     b.x = keepOutOfGoal(fromX, fromY, b.x, b.y, b.r);
     bounceOffHead(b, p, nx, ny);                  // the torso bounces it too, as in HS
     fx.hit(b.x, b.y, '#cfd8ea', 0.4);
@@ -1610,6 +1704,22 @@ function resolveBallPlayers(m, fx, alpha = 1) {
 // it is fine: it is still a real touch of the silhouette, the same touch that would otherwise
 // have blocked it. Only a shot already flying under this
 // player's OWN name is off-limits, since there is nothing left there to spend the arm on.
+// Whether any of the player's silhouette — head, torso or a swinging boot — is on the ball,
+// in the pose he ends the tick in. For the hold, where resolveBallPlayers does not run.
+function touchesBall(m, p, b) {
+  const hy = headYAt(p.y);
+  if (!headless(p) && Math.hypot((b.x - p.x) / SX, b.y - hy) < headR(m, p) + b.r) return true;
+  const hw = C.BODY_W / 2;
+  if (circleBox(b.x / SX, b.y, b.r, (p.x - hw) / SX, (p.x + hw) / SX, bodyTopAt(p.y), p.y)) return true;
+  if (p.kickT > C.KICK_TIME * 0.08) {
+    const dir = p.kickDir || p.side, R = C.HEAD_R;
+    const pose = bootPose((C.KICK_TIME - p.kickT) / C.KICK_TIME);
+    const br = b.r * (1 + SX) / 2;                // the boot's round ball (resolveBallPlayers)
+    if (Math.hypot(b.x - (p.x + dir * pose[0] * R), b.y - (br - b.r) - (p.y - pose[1] * R)) < C.BOOT_R + br) return true;
+  }
+  return false;
+}
+
 function fireUltimateOnContact(m, p, b, fx) {
   if (p.armed <= 0) return false;
   if (b.power && b.power.owner === p.index) return false;
@@ -1627,15 +1737,20 @@ function fireUltimateOnContact(m, p, b, fx) {
   // Toward the opponent's goal, along this player's FAMILY's path (shared/hs-powers.js launch).
   // A live enemy shot touched while armed is the COUNTER (docs/HS-POWER-SHOTS.md §4): theirs is
   // cancelled and this one goes out from the same spot, with its own cut-in.
+  // HS carries the ball up over the head during the cut-in and the head whips it out in front, so
+  // it always leaves level with the top of his head (POWER_RELEASE_AT / _UP) — a touch off the
+  // boot or the body included. The sim puts it there at once; the renderer draws its way there
+  // (champ-vfx cutBall).
+  b.x = releaseX(p, b.r); b.y = releaseY(headY(p));
   launchPower(m, b, p, KIT, fx, { countered });
   cutIn(m, p);
   return true;
 }
 
-// THE CUT-IN: the screen goes dark round the shooter for POWER_CUTIN (1.34s, HS M4) the moment a
-// power shot goes off, and for the first 1.14s of it the whole match holds — then the ball leaves
-// and play runs under the last POWER_RELEASE (0.2s) of the dark (constants.js: M4 60.17 → 61.27 →
-// 61.49 s against the dark's luma trace). The hold rides the hit-stop, which already freezes everything,
+// THE CUT-IN: the screen goes dark round the shooter for POWER_CUTIN (1.5s from the touch to the
+// dark half-lifted, HS M4) the moment a power shot goes off, and for the first 1.27s of it the
+// whole match holds — then the ball leaves and play runs under the last POWER_RELEASE (0.23s) of
+// the dark (constants.js). The hold rides the hit-stop, which already freezes everything,
 // already travels in the snapshot and already watches the buttons for releases; `cutin`/`cutinBy`
 // say that this is the shooter's moment, for the renderer's spotlight and so a stun is not run
 // down under the hold.
@@ -1681,6 +1796,10 @@ function checkGoal(m, fx, scorer) {
   // runs its 1.35 s to 151.93 s — docs/HS-POWER-SHOTS.md §2.)
   m.events.push({ type: 'goal', player: scorer, power: !!b.power, shot: b.power?.fam || null });
   fx.goal(b.x, b.y, b.power?.color || '#ffffff');
+  // A POWER SHOT THAT SCORES IS AN ORDINARY BALL IN THE NET: no tail, no glow, off the back of
+  // the net like any ball (HS M4 124.1–125.2 s: a plain white ball bounces straight back out).
+  // It used to fly on as a power shot pinned against the net for the rest of its 2 s.
+  b.power = null;
   // A goal ends a Multi-Ball's extra balls. (Not the arm or the meter — those follow the
   // ordinary rules just below.)
   m.xballs.length = 0;
@@ -1754,7 +1873,7 @@ export function serialize(m) {
     hitStop: m.hitStop, idle: m.idle,
     // The HS restart and cut-in state: every one of these decides what a future tick does
     // (whether the ball exists, whether a stun runs, whether the gauge has started).
-    cutin: m.cutin, cutinBy: m.cutinBy, banner: m.banner, bannerT: m.bannerT,
+    cutin: m.cutin, cutinBy: m.cutinBy, ghost: m.ghost, banner: m.banner, bannerT: m.bannerT,
     ballWait: m.ballWait, gaugeLead: m.gaugeLead, afterGoal: m.afterGoal, afterGoalTo: m.afterGoalTo,
     score: [m.score[0], m.score[1]], golden: m.golden, lastScorer: m.lastScorer,
     // Players travel POSITIONALLY, in P_FIELDS order. Field names were 60% of the whole
@@ -1782,7 +1901,7 @@ export function restore(m, s) {
   m.t = s.t; m.clock = s.clock; m.phase = s.phase; m.freeze = s.freeze; m.hitStop = s.hitStop || 0; m.idle = s.idle || 0;
   m.score[0] = s.score[0]; m.score[1] = s.score[1];
   m.golden = s.golden; m.lastScorer = s.lastScorer;
-  m.cutin = s.cutin || 0; m.cutinBy = s.cutinBy ?? -1; m.banner = s.banner ?? null; m.bannerT = s.bannerT || 0;
+  m.cutin = s.cutin || 0; m.cutinBy = s.cutinBy ?? -1; m.ghost = !!s.ghost; m.banner = s.banner ?? null; m.bannerT = s.bannerT || 0;
   m.ballWait = s.ballWait || 0; m.gaugeLead = s.gaugeLead || 0;
   m.afterGoal = s.afterGoal || 0; m.afterGoalTo = s.afterGoalTo || 0;
   for (let i = 0; i < 2; i++) {

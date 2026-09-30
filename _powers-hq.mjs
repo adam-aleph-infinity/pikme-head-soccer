@@ -4,8 +4,13 @@
 //   node _powers-hq.mjs stills [1 2 …] [--dpr 3]   → .shots/powers-hq/<dpr>x/stage-NN-<moment>.png
 //   node _powers-hq.mjs video  [1 2 …] [--dpr 2]   → .shots/powers-hq/video/stage-NN.mp4 (60 fps)
 //                                                   + stage-NN-strip.png (every 4th frame)
+//   AX=920 ZX=160 BG=hs-arena …                  → where the shooter (AX) and the defender (ZX) stand, and the stadium
 //   node _powers-hq.mjs block                      → the kick-block burst and the rebound's stars
 //   node _powers-hq.mjs perf   [--cpu 4]           → FX ms per frame under CPU throttle
+//   node _powers-hq.mjs glow                       → .shots/glow/ours-*.png + ours-spec.json: 87 frames at
+//                                                   60 fps of the press glow, for tools/hs-glow-measure.mjs
+//   node _powers-hq.mjs armed  [--dpr 3]           → .shots/powers-hq/armed/sheet.png: HS's press glow
+//                                                   (M3 36.6 s, every STEP-th frame) over ours, 12 frames each
 //
 // The match is held (window.SIM_HOLD) and stepped from here; performance.now is replaced by a
 // clock that advances 1/60 s a tick, so flicker, spin and fades run at their real rates in the
@@ -19,7 +24,7 @@ import { ensureServer } from './_serve.mjs';
 import { CHAMPION_POWERS } from './shared/champion-powers.js';
 
 const args = process.argv.slice(2);
-const MODE = ['stills', 'video', 'block', 'perf'].includes(args[0]) ? args.shift() : 'stills';
+const MODE = ['stills', 'video', 'block', 'perf', 'armed', 'glow'].includes(args[0]) ? args.shift() : 'stills';
 const opt = (k, d) => { const i = args.indexOf(k); if (i < 0) return d; const v = args[i + 1]; args.splice(i, 2); return v; };
 const DPR = Number(opt('--dpr', MODE === 'video' ? 2 : 2));
 const CPU = Number(opt('--cpu', 4));
@@ -96,7 +101,7 @@ const HELPERS = (stage) => `(async () => {
   m.phase = 'play'; m.freeze = 0; m.banner = null; m.bannerT = 0; m.ballWait = 0; m.gaugeLead = 0; m.hitStop = 0; m.cutin = 0; m.clock = 60;
   const [z, a] = m.players;
   a.shot = HP.shotFor({ rarity: 'legendary', number: ${stage} }, { arcade: true });
-  a.x = 780; z.x = 360; a.y = z.y = C.GROUND_Y; a.vx = z.vx = 0; a.vy = z.vy = 0;
+  a.x = ${Number(process.env.AX) || 780}; z.x = ${Number(process.env.ZX) || 360}; a.y = z.y = C.GROUND_Y; a.vx = z.vx = 0; a.vy = z.vy = 0;
   for (const p of m.players) { p.stunned = 0; p.ail = ''; p.ailT = 0; p.kickT = 0; p.kickCd = 0; p.armed = 0; p.gauge = 0; p.prev = {}; }
   m.ball.power = null; m.xballs.length = 0;
   window.EVENTS = [];
@@ -105,10 +110,11 @@ const HELPERS = (stage) => `(async () => {
 })()`;
 const PRESS = `(() => { const a = MATCH.players[1]; a.gauge = 1; MATCH.ball.x = 560; MATCH.ball.y = 150; MATCH.ball.vx = MATCH.ball.vy = 0; __tick(1, [{}, { power: true }]); MATCH.ball.x = 560; MATCH.ball.y = 150; MATCH.ball.vy = 0; })()`;
 const HOLD_BALL = `MATCH.ball.x = 560; MATCH.ball.y = 150; MATCH.ball.vx = MATCH.ball.vy = 0;`;
-const TOUCH = `(() => { const a = MATCH.players[1]; MATCH.ball.x = a.x - 8; MATCH.ball.y = a.y - C.BODY_H - C.HEAD_R * 2 + 6; MATCH.ball.vx = MATCH.ball.vy = 0; __tick(1); })()`;
+// FEET=1: the touch is with the boot, the ball on the grass (a power still leaves at head height)
+const TOUCH = `(() => { const a = MATCH.players[1]; MATCH.ball.x = a.x - ${process.env.FEET ? 30 : 8}; MATCH.ball.y = ${process.env.FEET ? 'C.GROUND_Y - C.BALL_R' : 'a.y - C.BODY_H - C.HEAD_R * 2 + 6'}; MATCH.ball.vx = MATCH.ball.vy = 0; __tick(1); })()`;
 const HIT = `EVENTS.slice(-6).find((e) => e.type === 'powerHit' || e.type === 'blocked' || e.type === 'goal')`;
 const open = async (n) => {
-  await send('Page.navigate', { url: `http://127.0.0.1:${PORT}/?me=legendary_8&foe=legendary_${n}&play=1&solo=1&stage=japan` });
+  await send('Page.navigate', { url: `http://127.0.0.1:${PORT}/?me=legendary_8&foe=legendary_${n}&play=1&solo=1&stage=${process.env.BG || 'japan'}` });
   await sleep(1800);
   return js(HELPERS(n));
 };
@@ -135,6 +141,61 @@ if (MODE === 'stills') {
     if (!hit) bad++;
   }
   savePos();
+} else if (MODE === 'glow') {
+  const G = `${import.meta.dirname}/.shots/glow`;
+  mkdirSync(G, { recursive: true });
+  await open(1);
+  await sleep(1500);
+  await js(`__tick(30)`);
+  await js(PRESS);
+  await js(`(() => { __tick(20); ${HOLD_BALL} })()`);
+  const frames = [];
+  for (let i = 0; i < 87; i++) {
+    await js(`(() => { __tick(1); ${HOLD_BALL} })()`);
+    const f = `${G}/ours-${String(i).padStart(3, '0')}.png`;
+    await shot(f); frames.push({ png: f });
+  }
+  const P = POS['ours-000.png'];
+  writeFileSync(`${G}/ours-spec.json`, JSON.stringify({ frames, bg: 'low', cx: P.shooter.x, cy: P.shooter.y, R: 26.4 * P.k }));
+  console.log(`  ✓ ${G}/ours-spec.json`);
+} else if (MODE === 'armed') {
+  // 12 frames of the press glow, one every 3 ticks (HS's glow changes every ≈ 3 frames), cropped
+  // round the head exactly as HS's crop is (260 frame px = 4.92 head radii, the head centre at
+  // 127, 165), HS's row on top
+  await open(1);
+  await sleep(1500);
+  await js(`__tick(30)`);
+  await js(PRESS);
+  const HSR = 52.8, BOX = 260, BOXH = 330, CX = 127, CY = 230, STEP = Number(process.env.STEP || 3);   // STEP=1: every frame (the flow)
+  for (let i = 0; i < 12; i++) {
+    await js(`(() => { __tick(${STEP}); ${HOLD_BALL} })()`);
+    const f = `${OUT}/raw-${i}.png`;
+    await shot(f);
+    const P = POS[`raw-${i}.png`], k = (P.k * 26.4) / HSR;
+    const cx = Math.round(P.shooter.x - CX * k), cy = Math.round(P.shooter.y - CY * k), w = Math.round(BOX * k), hh = Math.round(BOXH * k);
+    spawnSync(FF, ['-v', 'error', '-y', '-i', f, '-vf', `crop=${w}:${hh}:${cx}:${cy},scale=${BOX}:${BOXH}:flags=lanczos`, `${OUT}/ours-${String(i).padStart(2, '0')}.png`]);
+  }
+  // TEX=1: the side flame's loop (fx-kit sideFlame), every frame, on black
+  if (process.env.TEX) {
+    const url = await js(`(async () => {
+      const K = await import('/public/vfx/fx-kit.js').catch(() => import('/vfx/fx-kit.js'));
+      const K2 = await import('/vfx/fx-kit.js?fresh=' + Math.random()); const t0 = window.__realNow(); for (let k = 0; k < K2.FLM.N; k++) K2.sideFlameFrame(k); window.__paintMs = window.__realNow() - t0;
+      for (let k = 0; k < K.FLM.N; k++) K.sideFlameFrame(k);
+      const fr = [K.sideFlame()], w = fr[0][0].width, h = fr[0][0].height, n = fr[0].length;
+      const c = document.createElement('canvas'); c.width = w * n; c.height = h;
+      const g = c.getContext('2d'); g.fillStyle = '#101020'; g.fillRect(0, 0, c.width, c.height);
+      fr.forEach((b, v) => b.forEach((t, i) => g.drawImage(t, i * w, v * h)));
+      c.height = c.height; g.fillStyle = '#101020'; g.fillRect(0, 0, c.width, c.height); fr.forEach((b, v) => b.forEach((t, i) => g.drawImage(t, i * w, v * h)));
+      return c.toDataURL();
+    })()`);
+    console.log('  sideFlame paint ms:', await js('window.__paintMs'));
+    if (url) writeFileSync(`${OUT}/crown-tex.png`, Buffer.from(url.split(',')[1], 'base64'));
+  }
+  const VID = process.env.HS_VIDEO || `${import.meta.dirname}/hs-video`;
+  spawnSync(FF, ['-v', 'error', '-y', '-ss', '36.6', '-i', `${VID}/M3-airdrop-full.mp4`, '-t', String(12 * STEP / 60 + 0.01), '-vf', `crop=${BOX}:${BOXH}:1938:660,select='not(mod(n\\,${STEP}))',tile=6x2`, '-frames:v', '1', `${OUT}/hs.png`]);
+  spawnSync(FF, ['-v', 'error', '-y', '-i', `${OUT}/ours-%02d.png`, '-vf', 'tile=6x2', '-frames:v', '1', `${OUT}/ours.png`]);
+  spawnSync(FF, ['-v', 'error', '-y', '-i', `${OUT}/hs.png`, '-i', `${OUT}/ours.png`, '-filter_complex', 'vstack=inputs=2', `${OUT}/sheet.png`]);
+  console.log(`  ✓ ${OUT}/sheet.png`);
 } else if (MODE === 'video') {
   for (const n of STAGES) {
     const tag = `stage-${String(n).padStart(2, '0')}`, dir = `${OUT}/${tag}`;
@@ -156,13 +217,18 @@ if (MODE === 'stills') {
     console.log(`  ${seen ? '✓' : '✗'} ${n}: ${f} frames → ${OUT}/${tag}.mp4 (${seen ? seen.type : 'no hit'})`);
   }
 } else if (MODE === 'block') {
-  // stage 1 fired at a defender who kicks into it: the grind's burst, the rebound, the stars
-  await open(1);
+  // stage BSTAGE (default 1) fired at a defender who kicks into it: the grind's burst, the fire-back
+  // (the blocked power, now the defender's), the stars
+  await open(Number(process.env.BSTAGE) || 1);
   await js(PRESS); await js(TOUCH);
   await js(`(() => { let g = 0; while (MATCH.cutin > C.POWER_RELEASE && g++ < 200) __tick(1); })()`);
   let k = 0;
   const kicked = await js(`(() => { let g = 0; while (g++ < 120) { const b = MATCH.ball, z = MATCH.players[0]; if (b.x - z.x < 150) { __tick(1, [{ kick: true }, {}]); break; } __tick(1); } let s = 0; while (s++ < 40 && !(MATCH.ball.power && MATCH.ball.power.ph === 'grind')) __tick(1); return MATCH.ball.power ? MATCH.ball.power.ph : 'none'; })()`);
   for (const f of [2, 4, 6, 10, 16, 24, 34, 50]) { await js(`__tick(${f - (k ? [2, 4, 6, 10, 16, 24, 34, 50][[2, 4, 6, 10, 16, 24, 34, 50].indexOf(f) - 1] : 0)})`); await shot(`${OUT}/grind-${String(k++).padStart(2, '0')}.png`); }
+  // the fire-back in flight: the blocked power, now player 0's
+  const fb = await js(`(() => { let g = 0; while (g++ < 120 && !(MATCH.ball.power && MATCH.ball.power.owner === 0)) __tick(1); return MATCH.ball.power ? (MATCH.ball.power.cp || MATCH.ball.power.fam) + ' by ' + MATCH.ball.power.owner : 'none'; })()`);
+  for (const f of [3, 6, 9]) { await js('__tick(3)'); await shot(`${OUT}/fireback-${f}.png`); }
+  console.log(`  fire-back: ${fb}`);
   const st = await js(`(() => { let g = 0; while (g++ < 200 && !MATCH.players.some((p) => p.stunned > 0 && !(MATCH.ball.power && MATCH.ball.power.ph === 'grind'))) __tick(1); __tick(6); return MATCH.players.map((p) => p.stunned); })()`);
   await shot(`${OUT}/stars-0.png`); await js('__tick(5)'); await shot(`${OUT}/stars-1.png`);
   console.log(`  block: ${kicked}; stunned ${JSON.stringify(st)}`);

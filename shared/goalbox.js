@@ -39,8 +39,17 @@ const clamp = (v, lo, hi) => (v < lo ? lo : v > hi ? hi : v);
 // looking slightly down on the box. These two fractions were the renderer's private numbers;
 // they live here now because the projection they define is what decides where a ball inside
 // the net gets drawn, and the renderer is no longer the only thing that needs to know.
-export const WIDTH_X = 0.40;          // of GOAL_W, towards the middle of the pitch
+// HS (M4 31.0 s, both goals): the near post stands 37px from the wall and the far post 57px, so
+// one step is 20px = 0.35 of GOAL_W (was 0.40, with the NEAR post on the line at 57: the whole
+// goal sat 20px further into the pitch than HS's and read 40% wider). The far top is 16-17px up.
+export const WIDTH_X = 0.35;          // of GOAL_W, towards the middle of the pitch
 export const WIDTH_Y = 0.13;          // of GOAL_H, up the screen
+// HS's pitch plane runs THROUGH the goal, not along its near side: the near posts' feet stand
+// 10px below the grass line and the far posts' 8px above it (M4 31.0 s). So the play plane sits
+// 10/18 of the way from the near net to the far one, and a body in the net is drawn where it is —
+// HS draws a player backed into the net right against the wall.
+export const NEAR_DROP = 10, FAR_RISE = 8;
+export const PLAY_Z = NEAR_DROP / (NEAR_DROP + FAR_RISE);
 
 // The two side nets, and the plane between them where anything inside the goal belongs.
 export const NEAR_Z = 0;
@@ -96,7 +105,7 @@ function buildBox(left) {
   return Object.freeze({
     left,
     inward,
-    lineX: left ? C.GOAL_W : C.W - C.GOAL_W,         // the goal line — the near post stands on it
+    lineX: left ? C.GOAL_W : C.W - C.GOAL_W,         // the goal line — the FAR post stands on it
     wallX: left ? C.POST_R : C.W - C.POST_R,         // the back of the net, hard against the wall
     top: barY(),
     ground: C.GROUND_Y,
@@ -135,9 +144,10 @@ export function depthZ(x, y) {
 // drawn (a post runs from the grass to top + wy, so a point a fraction f up it has moved
 // f · wy). Without that scaling a ball resting in the back of the net would be lifted 12px off
 // the floor and hang there, with its own shadow underneath it.
+// Since the play plane runs through the goal (PLAY_Z) this is the identity: a body in the net is
+// already between its two side nets, and only its draw order (z) changes.
 export function project(x, y, z, box) {
-  const h = clamp((box.ground - y) / C.GOAL_H, 0, 1);
-  return { x: x + box.wx * z, y: y + box.wy * z * h, z };
+  return { x, y, z };
 }
 
 // The renderer's one-liner: world point in, screen point and its depth out. Identity
@@ -158,8 +168,9 @@ export function depthPoint(x, y) {
 // bar is a ball on the roof.
 export function ballInGoal(x, y, r) {
   if (y - r <= barY()) return null;                  // any part still above the bar: not in
-  if (x + r < C.GOAL_W) return goalBox(true);        // fully into the LEFT net
-  if (x - r > C.W - C.GOAL_W) return goalBox(false);
+  const rx = r * C.HS_STRETCH;                       // the ball is 1.2x wider than tall
+  if (x + rx < C.GOAL_W) return goalBox(true);       // fully into the LEFT net
+  if (x - rx > C.W - C.GOAL_W) return goalBox(false);
   return null;
 }
 
@@ -198,7 +209,7 @@ export function keepOutOfGoal(fromX, fromY, toX, toY, r) {
   if (ballInGoal(fromX, fromY, r)) return toX;       // already in: not a crossing
   const into = ballInGoal(toX, toY, r);
   if (!into) return toX;
-  return into.left ? C.GOAL_W - r + EDGE : C.W - C.GOAL_W + r - EDGE;
+  return into.left ? C.GOAL_W - r * C.HS_STRETCH + EDGE : C.W - C.GOAL_W + r * C.HS_STRETCH - EDGE;
 }
 
 // THE SIM'S HALF OF THE SAME BOX: how far a body of width w may walk.

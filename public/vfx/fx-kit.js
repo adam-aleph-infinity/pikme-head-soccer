@@ -250,54 +250,24 @@ export function boltBlit(g, bk, x1, y1, x2, y2, wid, a = 1, pick = Math.random()
   blit(g, t, (x1 + x2) / 2, (y1 + y2) / 2, L * 1.05, wid, Math.atan2(dy, dx), a, true);
 }
 
-// ── THE ARMED GLOW (HS §1, M4 36.49–36.90 s full-res, every frame) ─────────────────────
-// The frame after POWER the player is wrapped in bright yellow electric FLAME LICKS: 3–5 thick
-// flowing S-curves with white-hot cores, rising off the sides of the head and body and over the
-// crown (about a head tall), some ending in a hot blob, all with a soft yellow bloom; a yellow
-// glow hugs the whole silhouette and lights the edge of the hair. 3–4 are lit at a time, each
-// held ≈ 3 frames (≈ 20 Hz), so it crackles — no pulse, no ring.
-export const ARMED = { SLOTS: 6, HZ: 20 };
-export function licks() {
-  return book('licks', 12, 96, 192, (g, w, h, k) => {
-    const r = rng(900 + k * 53);
-    const s = surface(w, h), x = ctx2d(s);
-    const blob = k % 4 === 3;                           // a hot blob on a thin stalk
-    const N = 30, cx = w / 2, bot = h - 18, top = 18 + r() * 22;
-    const A = (8 + r() * 8) * (r() < 0.5 ? -1 : 1), ph = r() * 1.2, fq = 1.2 + r() * 0.8, hook = (r() - 0.5) * 22;
-    const Wm = blob ? 5 : 9 + r() * 4;
-    const P = [];
-    for (let i = 0; i <= N; i++) {
-      const t = i / N, y = bot - (bot - top) * t;
-      const xx = cx + A * Math.sin(t * Math.PI * fq + ph) * (0.3 + 0.9 * t) + hook * t * t * t;
-      // fat low down, tapering to a flicking point (a flame lick), or a stalk with a hot blob
-      let wd = Wm * Math.pow(Math.sin(Math.PI * Math.min(1, 0.08 + t * 0.95)), 0.6) * (1.1 - 0.55 * t);
-      if (blob) wd = Wm * 0.7 * Math.sin(Math.PI * Math.min(1, t)) + 11 * Math.exp(-(((t - 0.82) / 0.1) ** 2));
-      P.push([xx, y, wd]);
-    }
-    const shape = (k2) => {
-      x.beginPath();
-      for (let i = 0; i < P.length; i++) {
-        const a = P[Math.max(0, i - 1)], b = P[Math.min(P.length - 1, i + 1)];
-        let nx = -(b[1] - a[1]), ny = b[0] - a[0]; const d = Math.hypot(nx, ny) || 1; nx /= d; ny /= d;
-        const p = P[i]; x.lineTo(p[0] + nx * p[2] * k2, p[1] + ny * p[2] * k2);
-      }
-      for (let i = P.length - 1; i >= 0; i--) {
-        const a = P[Math.max(0, i - 1)], b = P[Math.min(P.length - 1, i + 1)];
-        let nx = -(b[1] - a[1]), ny = b[0] - a[0]; const d = Math.hypot(nx, ny) || 1; nx /= d; ny /= d;
-        const p = P[i]; x.lineTo(p[0] - nx * p[2] * k2, p[1] - ny * p[2] * k2);
-      }
-      x.closePath();
-    };
-    x.fillStyle = '#ffd900'; shape(1); x.fill();
-    x.fillStyle = '#fff47a'; shape(0.72); x.fill();
-    x.fillStyle = '#ffffff'; shape(0.42); x.fill();
-    bloom(g, s, [[1, 0.8, '#fff04a'], [2, 1, '#ffd800'], [3, 0.85, '#ffc400'], [4, 0.5, '#ffae00']], w, h);
-  });
-}
-// The silhouette glow: the head's own cartoon outline (game.js HEAD_SHAPE: 1.17 × 1.07 of the
+// ── THE ARMED GLOW (HS §1: M4 36.5–36.9, 39.6–40.2 and 122.0–122.4 s, M3 71.0–71.6 s, full-res,
+// every frame) ──────────────────────────────────────────────────────────────────────────────
+// From the frame after POWER until the touch, the WHOLE character — head and body, down to the
+// boots — sits in a yellow glow that hugs its silhouette (the same on every character: it follows
+// a square head in M3 as it follows a round one in M4): white-hot right on the edge, saturated
+// yellow ≈ 0.15 head radii out, fading by ≈ 0.5 — strongest down the sides and round the body,
+// weaker over the crown. It is BEHIND the sprite: the face and the black suit are never washed.
+// Over it crackle THIN electric wisps (≈ 0.1 head radii across, white core, yellow body, bloom):
+// two or three rising off the upper corners of the head, a head or so tall, S- and C-curved, some
+// forked or ending in a hot comma; a long thin crescent down each side, hugging the outline from
+// the temple to the boots; and a brighter flare at the lower cheek and body. A whole new set every
+// ≈ 3 frames (20 Hz), so it crackles — no pulse, no ring. (The DOM head adds the thin rim on its
+// real hair line: style.css .head.armed.)
+export const ARMED = { HZ: 20, FRAMES: 16 };
+// The silhouette glow: the head's own cartoon outline (game.js HEAD_SHAPE: 1.28 × 1.04 of the
 // hitbox, a dome on top, full cheeks) — a bright rim just on its edge and a yellow glow out
 // from it (the body gets a soft glow of its own in drawArmedGlow).
-export const HEAD_W = 1.17, HEAD_H = 1.07;
+export const HEAD_W = 1.28, HEAD_H = 1.04;   // game.js HEAD_W/HEAD_H (keep the two in step)
 function headDist(dx, dy) {
   // signed distance (in head radii) to the head's superellipse outline, approximated radially
   const a = Math.atan2(dy, dx), c = Math.cos(a), s = Math.sin(a);
@@ -332,37 +302,184 @@ export function auraTex(col = '#ffd21a') {
     o[3] = Math.min(1, out * (d > 0 ? 1 : 0.8) + rim * 0.3) * k * (1 - sstep(0.9, 1, Math.hypot(dx, dy) / (w / 2)));
   }));
 }
+// The press look is painted in one box round the player, in head radii from the head centre
+// (y down): the head's own outline (headPath) and the body's box under it down to the feet at
+// y = kb, so the glow and the wisps sit on the silhouette the player actually has.
+const AB = { L: 2.1, T: 2.35, B: 0.55, TX: 48 };        // box: ±L across, T above, B under the feet; TX texels a radius
+const headPoly = () => {
+  const P = [];
+  for (let i = 0; i < 64; i++) {
+    const t = (i / 64) * TAU, c = Math.cos(t), s = Math.sin(t), n = s < 0 ? 2.1 : 2.9;
+    let u = Math.sign(c) * Math.abs(c) ** (2 / n);
+    const v = Math.sign(s) * Math.abs(s) ** (2 / n);
+    u *= 1 - 0.1 * Math.max(0, v) ** 2;
+    P.push([u * HEAD_W, (0.06 + v * (v < 0 ? 0.56 : 0.44)) * 2 * HEAD_H]);
+  }
+  return P;
+};
+const HEAD_POLY = headPoly();
+function polyDist(P, x, y) {
+  let d = Infinity, inside = false;
+  for (let i = 0, j = P.length - 1; i < P.length; j = i++) {
+    const [ax, ay] = P[j], [bx, by] = P[i], ex = bx - ax, ey = by - ay;
+    const h = clamp01(((x - ax) * ex + (y - ay) * ey) / (ex * ex + ey * ey));
+    d = Math.min(d, Math.hypot(x - ax - ex * h, y - ay - ey * h));
+    if ((ay > y) !== (by > y) && x < ax + ((y - ay) / (by - ay)) * ex) inside = !inside;
+  }
+  return inside ? -d : d;
+}
+// the body under the chin: the suit and the boots (body-art.js), a rounded box ±0.64 across
+function bodyDist(x, y, kb) {
+  const top = 0.45, bot = kb - 0.02, rr = 0.26, hx = 0.64 - rr, hy = (bot - top) / 2 - rr;
+  const qx = Math.abs(x) - hx, qy = Math.abs(y - (top + bot) / 2) - hy;
+  return Math.hypot(Math.max(qx, 0), Math.max(qy, 0)) + Math.min(Math.max(qx, qy), 0) - rr;
+}
+const kbKey = (kb) => Math.round(Math.min(2.2, Math.max(1.2, kb)) * 10) / 10;
+// THE SILHOUETTE GLOW (behind the sprite): nothing inside the body (its layer is under this
+// one), a little way inside the head's outline (the DOM head covers it) so the edge never gaps.
+export function armedGlowTex(kb) {
+  kb = kbKey(kb);
+  const w = Math.ceil(2 * AB.L * AB.TX), h = Math.ceil((AB.T + kb + AB.B) * AB.TX);
+  return tex(`armedGlow${kb}`, w, h, (g) => pix(g, w, h, (x, y, o) => {
+    const X = (x + 0.5) / AB.TX - AB.L, Y = (y + 0.5) / AB.TX - AB.T;
+    const dh = polyDist(HEAD_POLY, X, Y), db = bodyDist(X, Y, kb), d = Math.min(dh, db);
+    // the head: bright right on its edge; the body (its boots move, so its box is only roughly
+    // the drawn one): soft, with no edge of its own to show
+    const fall = (q) => Math.exp(-q / 0.1) + 0.85 * Math.exp(-q / 0.28) + 0.3 * Math.exp(-q / 0.6);
+    const ah = dh < 0 ? Math.exp(dh / 0.04) : fall(dh);
+    const ab = db < 0 ? 0 : (0.75 * Math.exp(-db / 0.2) + 0.35 * Math.exp(-db / 0.55)) * sstep(0, 0.12, db);
+    let a = db < 0 ? 0 : Math.max(ah, ab);
+    // weaker over the crown, full down the sides and round the body
+    const side = Math.abs(X) / (Math.hypot(X, Y + 0.1) || 1);
+    a *= Y < -0.2 ? 0.6 + 0.4 * side : 1 + 0.3 * sstep(-0.2, 0.6, Y);
+    const t = sstep(0, 0.3, Math.max(0, d));
+    o[0] = 255; o[1] = mix(250, 226, t); o[2] = mix(190, 20, sstep(0, 0.1, Math.max(0, d)));
+    o[3] = Math.min(1, a) * (1 - sstep(0.9, 1, Math.max(Math.abs(X) / AB.L, 0)));
+  }));
+}
+// THE SIDE FLAMES — MEASURED (tools/hs-glow-measure.mjs on M4 37.85–39.3 s, 87 frames at 60 fps,
+// the flame's light cut out from the stadium and mapped round the head in head radii; ours is
+// measured the same way from the game, `node _powers-hq.mjs glow`). On each side, mirrored:
+//   · a LOWER flame: broad and solid, from the feet (≈ 1.8 under the head centre) up the outside
+//     of the cheek to about eye level, ≈ 0.9 wide at its base, standing ≈ 1.0–1.9 out;
+//   · an UPPER flame: from the head's upper corner up to ≈ 2.1 over the centre, ≈ 0.7 wide,
+//     nearly upright, ≈ 0.6–1.6 out;
+//   · the two keep flowing together into one and apart (Idan: a second each);
+//   · real fire: its edges torn by noise that scrolls UP through it, so the shapes flow upward and
+//     change fast (HS: 79 % of the flame still there a frame later, 47 % after 3, 22 % after 8),
+//     and it swells and shrinks (area ± 40 %).
+// Painted once, per pixel, as a looping flipbook (FLM.N frames over FLM.LOOP s; the noise wraps,
+// so the loop is seamless). Units: head radii from the head centre, the right side (+X out).
+export const FLM = { N: 60, LOOP: 2, X0: 0.3, X1: 2.4, Y0: -2.6, Y1: 2.1, TX: 40, LINE: 0.17 };
+const FLAME_LO = { base: [0.82, 1.7], tip: [0.98, -0.35], hw: 0.42, pow: 0.5, bow: 0.18, flow: 0.6 };  // flow: it moves all the way down
+const FLAME_HI = { base: [0.72, -0.55], tip: [0.98, -2.1], hw: 0.3, pow: 0.7, bow: 0.12, flow: 0.6 };
+// Painting all FLM.N frames at once is ≈ 2 s on a Mac (much more on a phone), so the frames are
+// painted ONE AT A TIME — in the idle slices after load (sideFlameJobs, champ-vfx warmTextures) or,
+// if one is needed before that, when it is first drawn. The head's distance map is the same for
+// every frame and is worked out once.
+const SFB = { frames: null, dh: null };
+export function sideFlame() {
+  const T = FLM.TX, w = Math.ceil((FLM.X1 - FLM.X0) * T), h = Math.ceil((FLM.Y1 - FLM.Y0) * T);
+  if (!SFB.frames) SFB.frames = new Array(FLM.N).fill(null);
+  if (!DOM) { for (let k = 0; k < FLM.N; k++) SFB.frames[k] ||= surface(w, h); return SFB.frames; }
+  return SFB.frames;
+}
+export const sideFlameJobs = () => Array.from({ length: FLM.N }, (_, k) => () => sideFlameFrame(k));
+export function sideFlameFrame(k) {
+  const fr = sideFlame();
+  if (fr[k]) return fr[k];
+  const T = FLM.TX, w = Math.ceil((FLM.X1 - FLM.X0) * T), h = Math.ceil((FLM.Y1 - FLM.Y0) * T);
+  if (!SFB.dh) {
+    SFB.dh = new Float32Array(w * h);
+    for (let py = 0; py < h; py++) for (let px = 0; px < w; px++) SFB.dh[py * w + px] = polyDist(HEAD_POLY, FLM.X0 + (px + 0.5) / T, FLM.Y0 + (py + 0.5) / T);
+  }
+  const nA = noise2(501, 16), nB = noise2(733, 16), nS = noise2(911, 16);
+  const out = surface(w, h);
+  (() => {
+    const g = ctx2d(out);
+    const u = k / FLM.N, scroll = u * 16 * 2;                      // two noise periods a loop
+    const merge = 0.5 + 0.5 * Math.cos(TAU * u);                   // 1 = one flame, 0 = two
+    const pulse = (ph) => 0.86 + 0.1 * Math.sin(TAU * (3 * u + ph)) + 0.08 * Math.sin(TAU * (5 * u + ph * 2.3));
+    const fHi = 0.25 + 0.75 * sstep(0, 0.6, 0.6 + 0.4 * Math.sin(TAU * (3 * u + 0.2)) + 0.2 * Math.sin(TAU * (7 * u + 0.6)));
+    const fLo = 0.25 + 0.75 * sstep(0, 0.6, 0.65 + 0.35 * Math.sin(TAU * (2 * u + 0.75)) + 0.2 * Math.sin(TAU * (5 * u + 0.1)));
+    const flare = Math.max(0, 0.32 + 0.22 * Math.sin(TAU * (7 * u)) + 0.16 * Math.sin(TAU * (11 * u + 0.3)) + 0.1 * Math.sin(TAU * (17 * u + 0.7)));
+    const s2 = surface(w, h);
+    // one flame's heat at (x, y): a teardrop along base → tip, its edge torn by the rising noise
+    const heat = (F, x, y, grow, ph) => {
+      // the tip leaps up and sinks back (HS: its top varies ± 0.35 head radii)
+      const leap = 0.3 * Math.sin(TAU * (2 * u + ph * 0.1)) + 0.18 * Math.sin(TAU * (5 * u + ph * 0.37));
+      const [bx, by] = F.base, tx = F.tip[0], ty = F.tip[1] - grow - leap;
+      const v = (by - y) / (by - ty);                              // 0 at the base, 1 at the tip
+      if (v < -0.15 || v > 1.35) return -9;
+      // the whole flame sways out and in (its lines sweep ≈ 0.3 wide, as HS's do)
+      // (top and bottom swing TOGETHER, one fire — Idan: the same swing and flow)
+      const sway = 0.14 * Math.sin(TAU * 3 * u) * ((F.flow || 0.3) + Math.max(0, Math.min(1, v)));
+      const cxl = bx + (tx - bx) * Math.max(0, Math.min(1, v)) + (F.bow || 0) * Math.sin(Math.PI * Math.max(0, Math.min(1, v))) + sway;
+      // the tearing: sideways push and a ragged width, both scrolling up with the fire
+      const q = y * 1.9 + scroll;
+      // (the noise hardly varies across the flame, so it tears the edges, not stripes)
+      const push = (fbm(nA, x * 0.35, q * 0.8, 2) - 0.5) * 1.45 * ((F.flow || 0.25) + v);
+      const rag = 0.65 + 0.7 * fbm(nB, x * 0.5 + ph * 3, q * 0.9, 2);
+      const vv = Math.max(0, Math.min(1, v));
+      const hw = F.hw * pulse(ph) * Math.pow(Math.sin(Math.PI * Math.min(1, 0.12 + vv * 0.95)), F.pow) * Math.pow(1 - vv * 0.85, 0.6) * rag;
+      const off = x - cxl - push, d = Math.abs(off) / Math.max(1e-3, hw);
+      let e = 1 - d;
+      // only the flame's OUTER edge is a line (HS: one curling line per flame), and its tip
+      if (off < 0 && vv < 0.93) return -9;
+      // the tip breaks up into rising tongues and blobs
+      if (v > 0.6) e -= (v - 0.6) * 1.6 * fbm(nS, x * 0.9 + ph, q * 1.7, 2);
+      if (v < 0) e -= -v * 6;
+      if (v > 1) e -= (v - 1) * 3;
+      return e;
+    };
+    pix(ctx2d(s2), w, h, (px, py, o) => {
+      const x = FLM.X0 + (px + 0.5) / T, y = FLM.Y0 + (py + 0.5) / T;
+      // never over the face: the lines run just outside the head's outline
+      const dh = SFB.dh[py * w + px];
+      if (dh < 0.0) return;
+      // each flame's signed distance to its edge (head radii, + inside), their union
+      const sd = (F, grow, ph, e = heat(F, x, y, grow, ph)) => (e <= -8 ? -9 : e * F.hw * 0.8);
+      const lo = sd(FLAME_LO, 0.55 * merge, 0), hi = sd(FLAME_HI, 0, 7.3);
+      // each flame flares and fades on its own (HS's lines come and go: area ± 40 %, reach ± 0.35)
+      const br = merge > 0.02 ? sd({ base: [1.3, 0.1], tip: [1.08, -0.95], hw: 0.2 * merge, pow: 0.5 }, 0, 3.1) : -1;
+      const D = Math.max(lo, hi, br);
+      // HS's look: the fire's EDGE is a thin white-hot line (≈ 0.1 across) curling as the shape
+      // flows; inside it only a faint haze
+      // fatter toward the top, where HS's line ends in a hot comma, and by the jaw (HS: 0.5 there)
+      const lw = FLM.LINE * (1 + 2.5 * sstep(-1.3, -2.0, y) + 0.9 * sstep(-0.2, 0.4, y) * (1 - sstep(1.0, 1.6, y)));
+      const who = D === hi ? fHi : D === lo ? fLo : 1;
+      const line = Math.exp(-((D / lw) ** 2)) * who;
+      // and the bright soft haze HS has along the lower cheek, hugging the outline
+      // — it FLARES and dies back fast (HS's flame area swings ± 40 %), and its edge is torn too
+      const haze = flare * Math.exp(-dh / (0.16 + 0.22 * flare)) * sstep(-0.9, 0.1, y) * (1 - sstep(1.4, 2.0, y)) * (0.6 + 0.8 * fbm(nB, x * 1.2, y * 1.6 + scroll, 2));
+      const a = Math.max(line, haze) * sstep(0.0, 0.05, dh);
+      if (a < 0.01) return;
+      o[0] = 255; o[1] = mix(228, 255, line); o[2] = mix(60, 245, line * line);
+      o[3] = a;
+    });
+    bloom(g, s2, [[1, 1, '#fff04a'], [2, 1, '#ffe41a'], [3, 1, '#ffd400'], [4, 0.8, '#ffc800'], [5, 0.5, '#ffc000']], w, h);
+  })();
+  fr[k] = out;
+  return out;
+}
 // The whole press look at one player: head centre (hx, hy), radius r, feet (fx, fy), now t.
-// `col` recolours it (HS's is yellow for every character).
-const LICK_SLOTS = [
-  // [x (head radii from the head centre), y of its root, height (r), lean (rad)]
-  [-1.2, 0.5, 2.6, -0.12], [1.2, 0.45, 2.55, 0.12],             // up the sides of the head
-  [-0.95, -0.45, 1.9, -0.45], [0.95, -0.5, 1.85, 0.47],         // off the upper sides, curling out
-  [-1.0, 1.7, 1.5, -0.2], [1.02, 1.7, 1.5, 0.2],                // beside the body
-];
-export function drawArmedGlow(g, hx, hy, r, fx, fy, t, seed = 0) {
+// `part` 'under' paints the silhouette glow (the layer under the heads), 'over' the wisps (over
+// them); without layers both go on one canvas.
+export function drawArmedGlow(g, hx, hy, r, fx, fy, t, seed = 0, part = 'both') {
   const f = Math.floor(t * ARMED.HZ);
   const R = rng(f * 7919 + seed * 104729);
-  const flick = 0.82 + 0.18 * R();
-  // the silhouette glow (head and body)
-  blit(g, auraTex(), hx, hy, r * 4.8, r * 4.8, 0, flick * 0.66, true);
-  const bh = fy - (hy + r * 0.85);
-  if (bh > 4) blit(g, glow('#ffd21a', 0.02), fx, fy - bh / 2, r * 2.6, bh * 2.6, 0, flick * 0.35, true);
-  // the flame licks: most slots lit, each with its own frame, mirror, size and lean
-  const bk = licks();
-  let lit = 0;
-  for (let i = 0; i < LICK_SLOTS.length; i++) {
-    const s = LICK_SLOTS[i];
-    if (R() < 0.45 && lit >= 3) continue;                        // 3–4 lit at a time, as filmed
-    lit++;
-    const k = Math.floor(R() * bk.length), H = r * s[2] * (0.8 + 0.35 * R()), W = H * 0.62;
-    const x = hx + s[0] * r + (R() - 0.5) * r * 0.2, y = hy + s[1] * r;
+  const kb = (fy - hy) / r, bw = 2 * AB.L * r, bh = (AB.T + kbKey(kb) + AB.B) * r;
+  if (part !== 'over') blit(g, armedGlowTex(kb), hx, hy - AB.T * r, bw, bh, 0, 0.9 + 0.1 * R(), true, 0.5, 0);
+  if (part === 'under') return;
+  // the side flames (sideFlame): one frame of the loop, mirrored for the left side
+  const tx = sideFlameFrame(Math.floor(((t + seed * 0.37) / FLM.LOOP) * FLM.N) % FLM.N);
+  const W = (FLM.X1 - FLM.X0) * r, H = (FLM.Y1 - FLM.Y0) * r;
+  for (const out of [1, -1]) {
     g.save();
     g.globalCompositeOperation = 'lighter';
-    g.globalAlpha = 0.8 + 0.2 * R();
-    g.translate(x, y); g.rotate(s[3] + (R() - 0.5) * 0.25);
-    if (R() < 0.5) g.scale(-1, 1);
-    g.drawImage(bk[k], -W / 2, -H * 0.91, W, H);
+    g.translate(hx, hy);
+    g.scale(out, 1);
+    g.drawImage(tx, FLM.X0 * r, FLM.Y0 * r, W, H);
     g.restore();
   }
 }
