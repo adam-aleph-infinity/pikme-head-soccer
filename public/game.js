@@ -1446,15 +1446,22 @@ function resize() {
     c.setTransform(1 / PIXEL, 0, 0, 1 / PIXEL, 0, SKY_TOP / PIXEL);   // draw in WORLD units
     c.imageSmoothingEnabled = true;
   }
-  // (the effect layers: device pixels, capped at 2x — soft light needs no more, and it is cheaper)
-  const fxK = Math.min(2, window.devicePixelRatio || 1) * scale;
-  for (const [el, c] of [[cvBody, ctxBody], [cvFx0, ctxFx0], [cvFx1, ctxFx1]]) {
+  // (the effect layers: device pixels, capped at 2x — soft light needs no more, and it is cheaper.
+  // The characters' bodies are NOT capped: on a 3x phone a 2x body was stretched 1.5x and went
+  // blurry — the live game looked worse than the 2x phone simulator it was tuned on.)
+  const dpr = window.devicePixelRatio || 1;
+  const fxK = Math.min(2, dpr) * scale, bodyK = Math.min(3, dpr) * scale;
+  for (const [el, c, k] of [[cvBody, ctxBody, bodyK], [cvFx0, ctxFx0, fxK], [cvFx1, ctxFx1, fxK]]) {
     if (!el) continue;
     c.imageSmoothingEnabled = true;
-    el.width = Math.ceil(C.W * fxK);
-    el.height = Math.ceil((SKY_TOP + C.H + BLEED) * fxK);
-    c.setTransform(fxK, 0, 0, fxK, 0, SKY_TOP * fxK);
+    el.width = Math.ceil(C.W * k);
+    el.height = Math.ceil((SKY_TOP + C.H + BLEED) * k);
+    c.setTransform(k, 0, 0, k, 0, SKY_TOP * k);
   }
+  // HS's softness is 0.9 SCREEN pixels (measured on the 2556-wide iPhone recording, matched on a 2x
+  // screen as 0.45 CSS px). A CSS blur scales with the screen's density, so on a 3x phone 0.45 CSS px
+  // was 1.35 screen px — half again blurrier than HS. Set in screen pixels instead.
+  document.documentElement.style.setProperty('--char-soft', (0.9 / Math.max(1, dpr)).toFixed(3) + 'px');
   if (!crowd.length) {
     for (let i = 0; i < 520; i++) {
       crowd.push({ x: Math.random() * C.W, f: Math.random(), r: 4 + Math.random() * 5,

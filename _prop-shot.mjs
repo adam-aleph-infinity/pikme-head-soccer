@@ -15,7 +15,7 @@ ws.onmessage = (e) => { const m = JSON.parse(e.data); if (m.id && pend.has(m.id)
 const send = (m, p = {}) => new Promise((r) => { pend.set(++id, r); ws.send(JSON.stringify({ id, method: m, params: p })); });
 const js = async (x) => { const r = await send("Runtime.evaluate", { expression: x, returnByValue: true, awaitPromise: true }); if (r?.exceptionDetails) console.error(r.exceptionDetails.exception?.description); return r?.result?.value; };
 await send('Page.enable'); await send('Runtime.enable');
-await send('Emulation.setDeviceMetricsOverride', { width: 1278, height: 590, deviceScaleFactor: 2, mobile: true });
+await send('Emulation.setDeviceMetricsOverride', { width: Number(process.env.VW) || 1278, height: Number(process.env.VH) || 590, deviceScaleFactor: Number(process.env.DPR) || 2, mobile: true });
 await send('Page.navigate', { url: `http://127.0.0.1:${PORT}/?me=${process.env.ME || "legendary_8"}&foe=${process.env.FOE || "legendary_9"}&play=1&solo=1&stage=${process.env.STAGE || 'hs-day'}&nointro=1` });
 for (let i = 0; i < 60; i++) { await sleep(250); if (await js(`typeof MATCH !== 'undefined' && !!MATCH && document.readyState === 'complete'`)) break; }
 await sleep(800);
