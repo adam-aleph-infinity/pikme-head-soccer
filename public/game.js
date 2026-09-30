@@ -1458,10 +1458,10 @@ function resize() {
     el.height = Math.ceil((SKY_TOP + C.H + BLEED) * k);
     c.setTransform(k, 0, 0, k, 0, SKY_TOP * k);
   }
-  // HS's softness is 0.9 SCREEN pixels (measured on the 2556-wide iPhone recording, matched on a 2x
-  // screen as 0.45 CSS px). A CSS blur scales with the screen's density, so on a 3x phone 0.45 CSS px
-  // was 1.35 screen px — half again blurrier than HS. Set in screen pixels instead.
-  document.documentElement.style.setProperty('--char-soft', (0.9 / Math.max(1, dpr)).toFixed(3) + 'px');
+  // NO SOFTENING BLUR on the characters (Idan: "still blurred"). It was matched to HS's softness on
+  // the phone simulator, whose picture is shrunk to fit a Mac screen, which hides a blur; on a
+  // real phone it only made the characters look out of focus.
+  document.documentElement.style.setProperty('--char-soft', '0px');
   if (!crowd.length) {
     for (let i = 0; i < 520; i++) {
       crowd.push({ x: Math.random() * C.W, f: Math.random(), r: 4 + Math.random() * 5,

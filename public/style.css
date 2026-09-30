@@ -196,9 +196,9 @@ body.safedemo { --safe-l: 44px; --safe-r: 44px; --safe-b: 21px; --safe-t: 12px; 
   image-rendering: auto;
   /* HS's characters are a small sprite scaled up on the phone, so they sit a little soft; ours
      were crisp HD (head edge detail 48–62 against HS's 43). --char-soft takes the edge to HS's. */
-  filter: blur(var(--char-soft, 0.45px));
+  filter: none;
 }
-#cvbody { filter: blur(var(--char-soft, 0.45px)); }
+#cvbody { filter: none; }
 /* A dash afterimage: a see-through copy of the head (opacity set per frame by drawHeadGhosts). */
 .head.ghost { will-change: transform, opacity; }
 
