@@ -1176,6 +1176,25 @@ addEventListener('keydown', (e) => { if (e.key === 'Escape' && running) setPause
 document.addEventListener('visibilitychange', () => { if (document.hidden && running && !ONLINE) setPaused(true); });
 // The tuner is a developer's tool: ?dev=1 shows it. HS has nothing like it.
 $('#gear').hidden = !new URLSearchParams(location.search).has('dev');
+// ?dev=1 also shows a FRAME METER (top left): fps, the worst frames and how many ran long, the
+// screen's pixel density and how many megapixels of canvas are drawn — what to read off a real
+// phone when the game "does not move smoothly" (a friend's playtest, 2026-10-01). It only reads.
+if (new URLSearchParams(location.search).has('dev')) {
+  const el = document.createElement('pre');
+  el.style.cssText = 'position:fixed;left:4px;top:4px;z-index:99;margin:0;padding:3px 5px;font:10px/1.3 monospace;color:#0f0;background:#000a;pointer-events:none;white-space:pre';
+  document.body.appendChild(el);
+  const iv = [];
+  let lastT = 0;
+  const tick = (t) => { if (lastT) iv.push(t - lastT); lastT = t; requestAnimationFrame(tick); };
+  requestAnimationFrame(tick);
+  setInterval(() => {
+    if (!iv.length) return;
+    const a = iv.splice(0).sort((x, y) => x - y), n = a.length, mean = a.reduce((x, y) => x + y, 0) / n;
+    const mp = [...document.querySelectorAll('canvas')].reduce((x, c) => x + c.width * c.height, 0) / 1e6;
+    el.textContent = `${(1000 / mean).toFixed(0)} fps  p95 ${a[Math.floor(n * 0.95)].toFixed(1)} ms  max ${a[n - 1].toFixed(0)} ms\n` +
+      `long (>20 ms) ${a.filter((x) => x > 20).length}/${n}  dpr ${devicePixelRatio}  canvas ${mp.toFixed(1)} MP`;
+  }, 1000);
+}
 
 $('#back').onclick = $('#quit').onclick = () => {
   if (paused) setPaused(false);
@@ -1376,6 +1395,10 @@ function lerpIn(ahead) {
     if (o === M.ball && M.ballWait > 0) continue;
     const dy = o.onGround ? 0 : (o.vy || 0) * ahead;       // a body on the grass stays on it
     o.x += (o.vx || 0) * ahead; o.y += dy;
+    // never carried through the grass or a wall it is about to bounce off
+    const rr = o === M.ball ? (o.r || C.BALL_R) : 0;
+    if (o.y > C.GROUND_Y - rr) o.y = C.GROUND_Y - rr;
+    if (o === M.ball) o.x = Math.max(rr, Math.min(C.W - rr, o.x));
   }
   return true;
 }
@@ -3102,7 +3125,9 @@ function syncHud() {
     // is filled, so the colour under the tip never changes and you get a shorter rainbow
     // instead of a climbing one. Revealing a fixed ramp is what makes the leading edge
     // travel green -> yellow -> orange -> red with nothing to step over.
-    prop(gEl, '--p', gv.pct.toFixed(2) + '%');
+    // in half-percent steps: written every frame it restyled (and restarted the clip transition
+    // of) the bar 60 times a second while it filled; 0.5 % is 75 ms of fill, smoothed by the .08 s transition
+    prop(gEl, '--p', gv.pct - (gv.pct % 0.5) + '%');
     gEl.classList.toggle('full', gv.full);
     gEl.classList.toggle('powered', armed);
     txt(HUD.gaugeName[i], 'POWER');                  // HS letters the bar POWER; the arm shows as the glow

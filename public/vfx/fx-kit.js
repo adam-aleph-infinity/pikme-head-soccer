@@ -384,18 +384,41 @@ export function sideFlame() {
   if (!DOM) { for (let k = 0; k < FLM.N; k++) SFB.frames[k] ||= surface(w, h); return SFB.frames; }
   return SFB.frames;
 }
-export const sideFlameJobs = () => Array.from({ length: FLM.N }, (_, k) => () => sideFlameFrame(k));
-export function sideFlameFrame(k) {
+// one job a frame; each call paints a slice and answers false until the frame is done (re-queued)
+export const sideFlameJobs = () => Array.from({ length: FLM.N }, (_, k) => () => sideFlameFrame(k, 6) !== null);
+// A frame is painted a few ROWS at a time (`rows` per call: the idle-time warm-up asks for a
+// slice of ≈ 1–2 ms, so no frame of play waits on it — painted whole, one frame is ≈ 11 ms on a
+// Mac and 40+ on a slow phone, and sixty of them in the first seconds of a match were sixty
+// dropped frames). Returns the finished frame, or null while it is still being painted.
+const SFP = new Map();                                             // k → a frame being painted
+export function sideFlameFrame(k, rows = Infinity) {
   const fr = sideFlame();
   if (fr[k]) return fr[k];
   const T = FLM.TX, w = Math.ceil((FLM.X1 - FLM.X0) * T), h = Math.ceil((FLM.Y1 - FLM.Y0) * T);
-  if (!SFB.dh) {
-    SFB.dh = new Float32Array(w * h);
-    for (let py = 0; py < h; py++) for (let px = 0; px < w; px++) SFB.dh[py * w + px] = polyDist(HEAD_POLY, FLM.X0 + (px + 0.5) / T, FLM.Y0 + (py + 0.5) / T);
+  if (!SFB.dh) { SFB.dh = new Float32Array(w * h); SFB.dhRow = new Uint8Array(h); }
+  let st = SFP.get(k);
+  if (!st) { st = sideFlamePainter(k, w, h, T); SFP.set(k, st); }
+  const end = Math.min(h, st.y + rows);
+  for (; st.y < end; st.y++) {
+    const py = st.y;
+    if (!SFB.dhRow[py]) { for (let px = 0; px < w; px++) SFB.dh[py * w + px] = polyDist(HEAD_POLY, FLM.X0 + (px + 0.5) / T, FLM.Y0 + (py + 0.5) / T); SFB.dhRow[py] = 1; }
+    const d = st.img.data, o = [0, 0, 0, 0];
+    for (let px = 0; px < w; px++) {
+      o[0] = o[1] = o[2] = 255; o[3] = 0;
+      st.fn(px, py, o);
+      const i = (py * w + px) * 4, a = o[3] < 0 ? 0 : o[3] > 1 ? 1 : o[3];
+      d[i] = o[0]; d[i + 1] = o[1]; d[i + 2] = o[2]; d[i + 3] = a * 255;
+    }
   }
+  if (st.y < h) return null;
+  SFP.delete(k);
+  fr[k] = st.finish();
+  return fr[k];
+}
+function sideFlamePainter(k, w, h, T) {
   const nA = noise2(501, 16), nB = noise2(733, 16), nS = noise2(911, 16);
   const out = surface(w, h);
-  (() => {
+  {
     const g = ctx2d(out);
     const u = k / FLM.N, scroll = u * 16 * 2;                      // two noise periods a loop
     const merge = 0.5 + 0.5 * Math.cos(TAU * u);                   // 1 = one flame, 0 = two
@@ -432,7 +455,7 @@ export function sideFlameFrame(k) {
       if (v > 1) e -= (v - 1) * 3;
       return e;
     };
-    pix(ctx2d(s2), w, h, (px, py, o) => {
+    const fn = (px, py, o) => {
       const x = FLM.X0 + (px + 0.5) / T, y = FLM.Y0 + (py + 0.5) / T;
       // never over the face: the lines run just outside the head's outline
       const dh = SFB.dh[py * w + px];
@@ -456,11 +479,14 @@ export function sideFlameFrame(k) {
       if (a < 0.01) return;
       o[0] = 255; o[1] = mix(228, 255, line); o[2] = mix(60, 245, line * line);
       o[3] = a;
-    });
-    bloom(g, s2, [[1, 1, '#fff04a'], [2, 1, '#ffe41a'], [3, 1, '#ffd400'], [4, 0.8, '#ffc800'], [5, 0.5, '#ffc000']], w, h);
-  })();
-  fr[k] = out;
-  return out;
+    };
+    const img = ctx2d(s2).createImageData(w, h);
+    return { y: 0, img, fn, finish: () => {
+      ctx2d(s2).putImageData(img, 0, 0);
+      bloom(g, s2, [[1, 1, '#fff04a'], [2, 1, '#ffe41a'], [3, 1, '#ffd400'], [4, 0.8, '#ffc800'], [5, 0.5, '#ffc000']], w, h);
+      return out;
+    } };
+  }
 }
 // The whole press look at one player: head centre (hx, hy), radius r, feet (fx, fy), now t.
 // `part` 'under' paints the silhouette glow (the layer under the heads), 'over' the wisps (over
@@ -472,7 +498,12 @@ export function drawArmedGlow(g, hx, hy, r, fx, fy, t, seed = 0, part = 'both') 
   if (part !== 'over') blit(g, armedGlowTex(kb), hx, hy - AB.T * r, bw, bh, 0, 0.9 + 0.1 * R(), true, 0.5, 0);
   if (part === 'under') return;
   // the side flames (sideFlame): one frame of the loop, mirrored for the left side
-  const tx = sideFlameFrame(Math.floor(((t + seed * 0.37) / FLM.LOOP) * FLM.N) % FLM.N);
+  // a frame not painted yet (armed before the warm-up finished): the nearest painted one, and only
+  // if there is none at all is one painted whole here
+  const want = Math.floor(((t + seed * 0.37) / FLM.LOOP) * FLM.N) % FLM.N, fr = sideFlame();
+  let tx = fr[want];
+  for (let d = 1; !tx && d < FLM.N / 2; d++) tx = fr[(want + d) % FLM.N] || fr[(want - d + FLM.N) % FLM.N];
+  if (!tx) tx = sideFlameFrame(want);
   const W = (FLM.X1 - FLM.X0) * r, H = (FLM.Y1 - FLM.Y0) * r;
   for (const out of [1, -1]) {
     g.save();

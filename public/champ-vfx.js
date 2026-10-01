@@ -60,7 +60,16 @@ function warmTextures() {
   const jobs = [() => armedGlowTex(KB), ...sideFlameJobs(), auraTex, () => glow('#ffd21a', 0.02), starTex, orbitTex, goldRay, softRay, disc, () => halo(0), () => halo(1), ghostBall,
     () => spark('#ffd21a'), () => spark('#ffe14a'), () => glow('#ff2a14', 0.05), () => glow('#ffd21a', 0.3), bubble, ...Object.values(POWER_VFX).filter((P) => P.warm).map((P) => () => P.warm())];
   const idle = typeof requestIdleCallback === 'function' ? (f) => requestIdleCallback(f, { timeout: 500 }) : (f) => setTimeout(f, 16);
-  const next = () => { const j = jobs.shift(); if (!j) return; try { j(); } catch {} idle(next); };
+  // a job answering false is not finished (a texture painted in slices): it runs again next time
+  // Each idle slice runs as many small jobs as its spare time allows (≈ 3 ms kept back), at least one.
+  const next = (dl) => {
+    let n = 0;
+    do {
+      const j = jobs[0]; if (!j) return;
+      let done = true; try { done = j() !== false; } catch {} if (done) jobs.shift();
+    } while (jobs.length && dl && typeof dl.timeRemaining === 'function' && dl.timeRemaining() > 3 && ++n < 400);
+    if (jobs.length) idle(next);
+  };
   setTimeout(() => idle(next), 400);
 }
 let warmed = false;
