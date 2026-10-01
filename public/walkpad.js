@@ -46,7 +46,9 @@ const gapBetween = (a, b) => Math.hypot(
 export function walkPick(x, y, L, R, { cur = null, start = false } = {}) {
   if (!L || !R) return null;
   const unit = Math.max(1, Math.min(height(L), height(R), width(L), width(R)));
-  const reach = start ? Math.min(unit / 2, gapBetween(L, R) / 2 + 1) : unit;
+  // a new touch beside the arrows counts within a quarter of a button (the overlapping arrows have
+  // no gap, which left it 1 px — a thumb a hair off the glass did nothing)
+  const reach = start ? Math.min(unit / 2, Math.max(gapBetween(L, R) / 2 + 1, unit / 4)) : unit;
   const dL = distToRect(x, y, L), dR = distToRect(x, y, R);
   if (dL > reach && dR > reach) return null;
   let pick;

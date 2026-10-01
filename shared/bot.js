@@ -375,8 +375,12 @@ function steer(bot, p, out, target) {
   let dir = bot.dir || 0;
   if (dir === 0) { if (Math.abs(dx) > 12) dir = Math.sign(dx); }
   else if (dx * dir < 4) dir = Math.abs(dx) > 12 ? Math.sign(dx) : 0;
-  // …and never a second press of the same arrow inside the dash window unless a dash is meant.
-  if (dir !== 0 && dir !== bot.dir && bot.t - (bot.pressT?.[dir] ?? -9) < C.DASH_WINDOW + C.TICK) dir = 0;
+  // …and never a TAP of an arrow unless a dash is meant: the sim opens the dash window on the
+  // release of a press shorter than DASH_TAP_MAX, so a press is held at least that long (a
+  // reversal still turns at once). Then no later press can be the second half of a double tap.
+  if (bot.dir && dir !== bot.dir && dir !== -bot.dir && bot.t - (bot.pressT?.[bot.dir] ?? -9) < C.DASH_TAP_MAX + C.TICK) dir = bot.dir;
+  if (bot.dir && dir === -bot.dir && bot.t - (bot.pressT?.[bot.dir] ?? -9) < C.DASH_TAP_MAX + C.TICK) { (bot.shortT ??= {})[bot.dir] = bot.t; }
+  if (dir !== 0 && dir !== bot.dir && bot.t - (bot.shortT?.[dir] ?? -9) < C.DASH_WINDOW + C.TICK) dir = 0;
   if (dir !== 0 && dir !== bot.dir) (bot.pressT ??= {})[dir] = bot.t;
   bot.dir = dir;
   out.left = dir < 0; out.right = dir > 0;

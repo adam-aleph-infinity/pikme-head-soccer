@@ -699,7 +699,7 @@ const jumpArc = (input) => {
   ok('and a reversal in one tick', q.vx === -C.PLAYER_SPEED, `vx=${q.vx}`);
   // In the air too (the assumption, stated in constants.js).
   step(m, [{}, {}]);
-  run(m, 16);                                          // clear of the double-tap window
+  run(m, Math.ceil(C.DASH_WINDOW / C.TICK) + 2);       // clear of the double-tap window
   step(m, [{ jump: true, right: true }, {}]);
   step(m, [{}, {}]);
   ok('the air is steered the same way (assumed)', !p.onGround && p.vx === 0, `vx=${p.vx} air=${!p.onGround}`);
@@ -720,6 +720,32 @@ const jumpArc = (input) => {
   m.events.length = 0;
   for (let i = 0; i < 6; i++) step(m, [i % 2 ? {} : { right: true }, {}]);
   ok('no second dash inside DASH_COOLDOWN (HS >= 0.42s)', !m.events.some((e) => e.type === 'dash') && C.DASH_COOLDOWN >= 0.42);
+}
+{
+  // A HUMAN DOUBLE TAP (a friend's playtest, 2026-10-01: "the dash sometimes lags"). Thumbs hold a
+  // tap 60–120 ms and leave 80–250 ms between release and the next press; every one of these dashes
+  // on the second press. Held too long it is a walk, and walk + one tap is not a dash.
+  const tap = (m, hold, gap) => {
+    m.events.length = 0;
+    const T = (s) => Math.max(1, Math.round(s / C.TICK));
+    for (let i = 0; i < T(hold); i++) step(m, [{ right: true }, {}]);
+    for (let i = 0; i < T(gap); i++) step(m, [{}, {}]);
+    step(m, [{ right: true }, {}]);
+    return m.events.some((e) => e.type === 'dash');
+  };
+  for (const [hold, gap] of [[0.06, 0.08], [0.1, 0.15], [0.12, 0.25], [0.18, 0.28]]) {
+    ok(`a ${hold * 1000} ms tap, ${gap * 1000} ms gap, dashes on the second press`, tap(starter(fresh()), hold, gap));
+  }
+  ok('a 0.5 s walk then one tap does not dash', !tap(starter(fresh()), 0.5, 0.1));
+  ok('a gap longer than DASH_WINDOW does not dash', !tap(starter(fresh()), 0.08, C.DASH_WINDOW + 0.05));
+  // A second tap in the air, just before landing, is kept and dashes on the landing tick.
+  const m = starter(fresh()), p = m.players[0];
+  step(m, [{ jump: true }, {}]);
+  let g = 0; while (!p.onGround && g++ < 200) { if (p.vy > 0 && p.y > C.GROUND_Y - 6) break; step(m, [{}, {}]); }
+  m.events.length = 0;
+  step(m, [{ right: true }, {}]); step(m, [{ right: true }, {}]); step(m, [{}, {}]); step(m, [{ right: true }, {}]);
+  for (let i = 0; i < 12 && !m.events.some((e) => e.type === 'dash'); i++) step(m, [{ right: true }, {}]);
+  ok('a double tap just before landing dashes on landing (DASH_BUFFER)', m.events.some((e) => e.type === 'dash') && p.onGround);
 }
 {
   // THE KICK'S CLOCKS (HS M4): the leg is out 0.26s, and a mashed kick comes round every 0.349s.

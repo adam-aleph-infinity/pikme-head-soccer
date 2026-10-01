@@ -200,7 +200,15 @@ export const MAX_JUMPS = 1;          // HS: no double jump
 export let JUMP_REJUMP = 0.05;
 
 // ---- Dash (double-tap a direction) ----------------------------------------
-export const DASH_WINDOW = 0.24;      // s between the two taps
+// The double tap, measured the way a phone measures one: from the first tap's RELEASE to the second
+// press (the old 0.24 s press-to-press refused ordinary thumb double-taps — "the dash sometimes
+// lags", a friend's playtest 2026-10-01). Only a TAP counts as the first one (held under
+// DASH_TAP_MAX), so a walk followed by one tap is not a dash. A second tap that arrives while a
+// dash is not allowed (in the air, cooling down) is kept for DASH_BUFFER and fires as soon as it
+// is, instead of being thrown away and becoming the first tap of a new pair.
+export const DASH_WINDOW = 0.3;       // s, first release → second press
+export const DASH_TAP_MAX = 0.2;      // s a first tap may be held
+export const DASH_BUFFER = 0.15;      // s a refused second tap waits
 // HS M4 dash-mash, 45.84–47.08 s and 57.71–58.72 s: a burst, not a sprint — 1790 px/s peak,
 // 0.067s (4 frames) and ~120px above the half-way speed, then straight back to a walk. Those are
 // what the tracker READS, and it reads speed off a 3-frame fit that smears each edge of a burst

@@ -481,14 +481,24 @@ const heldNow = { left: false, right: false, jump: false, kick: false, power: fa
 // simply never seen. So every press is also remembered until a tick has consumed it: the next
 // tick sees the button down at least once, and the sim's own edge test does the rest. Writers
 // still just set held[k] = true/false; the Proxy is what notices the press.
-const tapped = {};
+// …and the other half of that: a button the last tick saw DOWN, let go and pressed again before
+// the next tick (a fast double tap on a slow frame) was seen as simply still down — no new edge,
+// so the second tap of a dash, or a re-kick, vanished. Such a tick now steps with the button UP
+// and the press is kept for the tick after, so the sim sees the release and then the press.
+const tapped = {}, relSince = {}, sawDown = {};
 const held = new Proxy(heldNow, {
-  set(t, k, v) { if (v && !t[k]) tapped[k] = true; t[k] = v; return true; },
+  set(t, k, v) { if (v && !t[k]) tapped[k] = true; if (!v && t[k]) relSince[k] = true; t[k] = v; return true; },
 });
 // The input one tick steps with: what is down now, plus anything pressed since the last tick.
 function tickInput() {
   const inp = { ...heldNow };
-  for (const k in tapped) { inp[k] = true; delete tapped[k]; }
+  for (const k in tapped) inp[k] = true;
+  for (const k in inp) {
+    if (inp[k] && relSince[k] && sawDown[k]) { inp[k] = false; tapped[k] = true; }   // up first, the press next tick
+    else delete tapped[k];
+    delete relSince[k];
+    sawDown[k] = inp[k];
+  }
   return inp;
 }
 
@@ -660,6 +670,39 @@ function readWalkRects() {
   return l && r ? { l, r } : null;
 }
 const pickAt = (x, y, opt) => (walkRects ? walkPick(x, y, walkRects.l, walkRects.r, opt) : null);
+// THE ACTION BUTTONS ARE SLANTED (POWER · KICK · JUMP, parallel / edges), but the browser hit-tests
+// their rectangles, and the rectangles overlap round each seam — so a thumb on KICK's right edge was
+// JUMP (the one later in the page). So the button is the one whose DRAWN shape (its SVG path) is
+// under the touch; a thumb just off every shape (above, below, in a seam) gets the nearest within a
+// third of a button's height (a friend's playtest, 2026-10-01: "the buttons respond late").
+function pickAction(x, y) {
+  let best = null, bd = Infinity;
+  for (const b of document.querySelectorAll('.pad .pad-r .btn')) {
+    const q = b.getBoundingClientRect();
+    if (!q.width || !q.height || getComputedStyle(b).visibility === 'hidden' || b.disabled) continue;
+    const svg = b.querySelector('svg'), path = svg && svg.querySelector('path');
+    if (path && path.isPointInFill && svg.getScreenCTM) {
+      const m = svg.getScreenCTM();
+      if (m) {
+        const pt = new DOMPoint(x, y).matrixTransform(m.inverse());
+        if (path.isPointInFill(pt)) return b.dataset.k;
+        // how far off the shape: probe a few px around it
+        for (const r of [4, 8, 14, q.height / 3]) {
+          let hit = false;
+          for (let a = 0; a < 8 && !hit; a++) {
+            const p2 = new DOMPoint(x + r * Math.cos(a * Math.PI / 4), y + r * Math.sin(a * Math.PI / 4)).matrixTransform(m.inverse());
+            hit = path.isPointInFill(p2);
+          }
+          if (hit) { if (r < bd) { bd = r; best = b.dataset.k; } break; }
+        }
+        continue;
+      }
+    }
+    const d = Math.max(0, q.left - x, x - q.right) + Math.max(0, q.top - y, y - q.bottom);
+    if (d < q.height / 3 && d < bd) { bd = d; best = b.dataset.k; }
+  }
+  return best;
+}
 const editing = () => !!(EDITOR && EDITOR.editing);
 
 // ── TOUCH ────────────────────────────────────────────────────────────────────
@@ -687,9 +730,10 @@ addEventListener('touchstart', (ev) => {
     if (btn) {
       k = btn.dataset.k;
       if (WALK.has(k)) walkRects = readWalkRects();
+      else if (btn.closest('.pad-r')) k = pickAction(t.clientX, t.clientY) || k;
     } else if (onPitch(t.target)) {
       walkRects = readWalkRects();
-      k = pickAt(t.clientX, t.clientY, { start: true });
+      k = pickAt(t.clientX, t.clientY, { start: true }) || pickAction(t.clientX, t.clientY);
     }
     if (!k) continue;
     mine = true;
@@ -733,8 +777,9 @@ for (const btn of PAD_BTNS) {
     if (editing()) return;            // while the layout is being edited a press MOVES the button
     if (ev.pointerType === 'touch' && HAS_TOUCH_EVENTS) return;   // the touch handlers own it
     ev.preventDefault();
-    const k = btn.dataset.k;
+    let k = btn.dataset.k;
     if (WALK.has(k)) walkRects = readWalkRects();
+    else if (btn.closest('.pad-r')) k = pickAction(ev.clientX, ev.clientY) || k;   // the drawn shape, not the box
     setFinger(pid(ev), k, { walk: WALK.has(k), touch: ev.pointerType === 'touch' });
     try { btn.setPointerCapture(ev.pointerId); } catch { /* older engines: harmless */ }
   });

@@ -58,7 +58,7 @@ function makePlayer(index, char) {
     jumps: C.MAX_JUMPS,
     kickT: 0, kickCd: 0, kickDir: 0, kickHit: false,
     dashT: 0, dashCd: 0, dashDir: 0,
-    tapDir: 0, tapT: 0,
+    tapDir: 0, tapT: 0, holdT: 0, dashBuf: 0, dashBufDir: 0,
     // Whose body is holding this one up — standing on its head, or pinned against it by a
     // push (resolvePlayers) — or -1 for the grass / the air. Rebuilt every tick.
     stand: -1,
@@ -557,20 +557,30 @@ function stepPlayer(m, p, input, dt, fx) {
   const prev = p.prev || {};
   const dir = (input.right ? 1 : 0) - (input.left ? 1 : 0);
 
-  // ---- dash: two taps of the same direction inside DASH_WINDOW ----
+  // ---- dash: a tap, then a second press of the same arrow inside DASH_WINDOW of its release ----
   if (p.tapT > 0) p.tapT -= dt;
+  if (p.dashBuf > 0) p.dashBuf -= dt;
+  // on the ground only: no dashing in the air (Idan, 2026-09-26)
+  const canDash = p.dashCd <= 0 && p.onGround && !(md && md.noDash);
+  const dash = (d) => {
+    p.dashT = C.DASH_TIME; p.dashDir = d; p.dashCd = md && md.dashFree ? 0.12 : C.DASH_COOLDOWN;
+    p.tapT = 0; p.tapDir = 0; p.dashBuf = 0;
+    m.events.push({ type: 'dash', player: p.index, dir: d });
+  };
   for (const [key, d] of [['left', -1], ['right', 1]]) {
     if (input[key] && !prev[key]) {
-      // on the ground only: no dashing in the air (Idan, 2026-09-26)
-      if (p.tapDir === d && p.tapT > 0 && p.dashCd <= 0 && p.onGround && !(md && md.noDash)) {
-        p.dashT = C.DASH_TIME; p.dashDir = d; p.dashCd = md && md.dashFree ? 0.12 : C.DASH_COOLDOWN;
-        p.tapT = 0; p.tapDir = 0;
-        m.events.push({ type: 'dash', player: p.index, dir: d });
-      } else {
-        p.tapDir = d; p.tapT = C.DASH_WINDOW;
-      }
+      if (p.tapDir === d && p.tapT > 0) {
+        if (canDash) dash(d);
+        else { p.dashBuf = C.DASH_BUFFER; p.dashBufDir = d; p.tapT = 0; p.tapDir = 0; }
+      } else { p.tapDir = 0; p.tapT = 0; }
+      p.holdT = 0;
+    } else if (!input[key] && prev[key]) {
+      // released: a short press opens the window for the second one; a walk does not
+      if (p.holdT <= C.DASH_TAP_MAX) { p.tapDir = d; p.tapT = C.DASH_WINDOW; } else if (p.tapDir === d) { p.tapDir = 0; p.tapT = 0; }
     }
   }
+  if (input.left || input.right) p.holdT = (p.holdT || 0) + dt;
+  if (p.dashBuf > 0 && p.dashT <= 0 && canDash) dash(p.dashBufDir);
 
   if (dir !== 0) p.facing = dir;
 
@@ -1840,7 +1850,7 @@ export { resetPositions };
 const PREV_KEYS = ['left', 'right', 'jump', 'kick', 'power'];
 const P_FIELDS = [
   'x', 'y', 'vx', 'vy', 'onGround', 'facing', 'jumps',
-  'kickT', 'kickCd', 'kickHit', 'dashT', 'dashCd', 'dashDir', 'tapDir', 'tapT',
+  'kickT', 'kickCd', 'kickHit', 'dashT', 'dashCd', 'dashDir', 'tapDir', 'tapT', 'holdT', 'dashBuf', 'dashBufDir',
   // `armed` is the ultimate AND the glow, so a client that restores without it either glows
   // at nothing or misses the touch that should have fired.
   'gauge', 'armed', 'shoved', 'koSlide', 'kickDir',

@@ -15,7 +15,7 @@ let enabled = true;
 
 function ctx() {
   if (!AC) {
-    AC = new (window.AudioContext || window.webkitAudioContext)();
+    AC = new (window.AudioContext || window.webkitAudioContext)({ latencyHint: 'interactive' });   // the lowest output delay the device offers
     master = AC.createGain();
     master.gain.value = 0.32;
     master.connect(AC.destination);
