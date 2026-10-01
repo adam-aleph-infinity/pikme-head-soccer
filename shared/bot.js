@@ -17,7 +17,7 @@ import { stepPower, releaseX, releaseY, launch as launchPower, FAMILIES } from '
 const BOOT_POINTS = bootReach();
 // CPU habits fitted to HS (test-hs-parity cpu.* rows, _cpu probe): per 0.25 s roll while it has
 // somewhere to be, and the chance a close ball in front gets the boot mashed at it.
-const DASH_BASE = 0.03, DASH_SKILL = 0.55, STRIKE_BASE = 0.05, STRIKE_SKILL = 0.9, DEAD_WAIT = 4, HOP = 0.075, MASH_SKILL = 0.3, LAZY = 0.15, KICK_GO = 0.2, PRESS_BASE = 0.44, PRESS_SKILL = 0.1;
+const DASH_BASE = 0.03, DASH_SKILL = 0.55, STRIKE_BASE = 0.05, STRIKE_SKILL = 0.9, DEAD_WAIT = 4, HOP = 0.075, MASH_BASE = 0.06, MASH_SKILL = 0.24, LAZY = 0.15, KICK_GO = 0.2, PRESS_BASE = 0.44, PRESS_SKILL = 0.1;
 
 // `aggression` is flat across the tiers: it is how often a bot chases a ball the other player is
 // nearer to, and it was measured three times over (on the old physics) to be the one dial that
@@ -586,7 +586,7 @@ function openPlay(bot, m, p, foe, b, out, d, dt) {
   // MASHING: the HS CPU keeps the boot going whenever the ball is close in front, or the other
   // player is (the tackle) — 23–45 swings a minute overall, near the cooldown's cap up close.
   const close = ahead > -10 && Math.abs(dxb) < 110 && b.y > hy - 70;
-  const mash = close && bot.rng() < 0.02 + MASH_SKILL * s;
+  const mash = close && bot.rng() < MASH_BASE + MASH_SKILL * s;
   // (armed, it kicks like any other moment: HS's CPU does not boot at the ball to fire — see ARMED)
   const want = (bot.kickSeen && bot.kickGo) || mash || bot.wantTackle;
   out.kick = want && p.kickCd <= 0 && !bot.lastKick;

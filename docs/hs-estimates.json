@@ -433,16 +433,17 @@
   },
   {
     "id": "ball.ceilingKeepX",
-    "value": 0,
+    "value": 0.63,
     "unit": "",
     "sd": 0.15,
-    "n": 3,
+    "n": 4,
     "clips": [
+      "M1",
       "M4"
     ],
-    "source": "M4 ceiling bounces",
+    "source": "M1 12.40, M4 49.95, M4 67.89, M4 130.44 s (_ceil-check.mjs, 2026-10-01): off the top 0.4 s+, |vx| > 200; keeps 0.64, 0.63, 0.60, 0.17",
     "how": "Horizontal speed after / before the ceiling.",
-    "note": "Qualitative: the ceiling kills the horizontal speed — the ball comes back down almost vertically."
+    "note": "Was 0 (qualitative, M4 only) and wrong: the ball keeps going the way it was going (Idan), at about two-thirds of its sideways speed."
   },
   {
     "id": "ball.goalTopRestitution",

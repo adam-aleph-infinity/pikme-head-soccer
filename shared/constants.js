@@ -31,11 +31,13 @@ export let GROUND_Y = 435;           // 82% down. Was 445; the extra 10px is gra
 // picture, which is why every high ball here rattled along an invisible roof.
 export const CEIL_Y = -130 - 15;      // -145: the ball centre turns at -130 (BALL_R 15)
 // HS M4, 3 ceiling bounces: the ceiling is DEAD. It keeps 0.41 of the climb (0.27–0.55, low
-// confidence — the contact itself is off-screen) and ALL of the sideways speed: in HS a ball that
+// confidence — the contact itself is off-screen) and MOST of the sideways speed: in HS a ball that
 // leaves the top keeps travelling the way it was going and comes back down further along, not
-// straight down from where it vanished (Idan).
+// straight down from where it vanished (Idan). How much: 2026-10-01, M1–M6, every ball off the
+// top for 0.4 s+ with real sideways speed (_ceil-check.mjs): it comes back with 0.60–0.64 of it
+// (0.63 median; one 0.17, one 0.90). It was 1 here, which sailed skied balls on too far.
 export let CEIL_BOUNCE = 0.41;
-export let CEIL_KEEP_X = 1;
+export let CEIL_KEEP_X = 0.63;
 // The top of the SKY as drawn — where effects lay out a ceiling, rain from, hang a banner. It
 // was the same number as the ball's ceiling until the ceiling moved off-screen; the effects
 // are pictures and stay inside the picture.
@@ -231,13 +233,13 @@ export const KICK_COOLDOWN = 0.349;
 // the pair, so everything the ball touches reads alike.
 // The boot is drawn 24 x 13.5 px; its collision is a disc of the boot's mean half-size.
 export let BOOT_R = 9;
-export let BOOT_BOUNCE = 0.5;
+export let BOOT_BOUNCE = 0.68;
 // Grip across the contact (Box2D friction): how much of the ball's sliding speed across the
 // boot's face the strike takes with it, as a fraction of the normal impulse, Coulomb-capped.
 // Small: the M5 kick left with no sideways speed although the boot was still inching forward.
 export let BOOT_GRIP = 0.1;
 // How much of the boot's path speed the ball feels (fitted: see below).
-export let BOOT_DRIVE = 1;
+export let BOOT_DRIVE = 0.893;
 // …and how much of the BODY's speed rides on the boot (fitted: see below).
 export let BOOT_BODY = 0;
 // The kick stat (1–10, arcade only) swings the boot faster, not further: HS "the higher the
@@ -579,6 +581,8 @@ const SETTERS = {
   KICK_R: (v) => { KICK_R = v; },
   BOOT_R: (v) => { BOOT_R = v; },
   BOOT_BOUNCE: (v) => { BOOT_BOUNCE = v; },
+  BOOT_BODY: (v) => { BOOT_BODY = v; },
+  BOOT_DRIVE: (v) => { BOOT_DRIVE = v; },
   BOOT_GRIP: (v) => { BOOT_GRIP = v; },
   GAUGE_PASSIVE: (v) => { GAUGE_PASSIVE = v; },
   GAUGE_CONCEDE: (v) => { GAUGE_CONCEDE = v; },

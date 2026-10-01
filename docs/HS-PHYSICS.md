@@ -202,3 +202,21 @@ The dead-ball rule now waits `DEAD_WAIT` 4 s before pouncing, like HS (M4 111.0 
 - The dash strike and the dead-ball wait barely move it.
 
 HS's 22% is a human against the CPU, so this number cannot be matched exactly. Match the per-bounce grip instead (0.072 vs 0.077).
+
+### 2026-10-01: the boot's HS bounce back, the ceiling's real keep, a busier weak CPU
+A friend said the ball feels slower than HS. Idan: "exactly HS", the CPU too, and the ceiling keeps the sideways speed (check it).
+
+| change | before | after | HS |
+|---|---|---|---|
+| boot bounce (`BOOT_BOUNCE`) / swing (`BOOT_DRIVE`) | 0.5 / 1 | 0.68 / 0.893 | 0.68 (M5 80.6 s) |
+| still ball at the feet, head-height kick (`_kickgrid`) | 532, 1197 | 533, 1152 | 439, 1050 |
+| kick at a ball coming in at 900, p90 (`_kick-incoming`) | 1038 | 1165 | — |
+| ceiling sideways keep (`CEIL_KEEP_X`, `_ceil-check`) | 1 | 0.63 | 0.60–0.64 (4 clear hits); the old "0" was wrong |
+| weak CPU kicks/min, touches/min (`MASH_BASE` 0.02 → 0.06) | 9.9, 10.1 | 16.2, 7.3 | 23, 9.2 |
+
+Corrections to §3:
+- The "touches 50/min vs 13" is the geometric detector on two bots. The per-CPU counts match HS (strong 19.4 vs 17.4, weak 7.3 vs 9.2).
+- HS's fast "frame/wall" touches are not walls. They are mid-pitch with no player within 150 px (`FW=1`): tracker glitches and power-shot tails. Without them, HS has ~5.3 fast sideways touches/min and ours ~7.
+- Our bots hit grass balls with the body 10× more than with the boot (`_grass-touch`), so bot-vs-bot frame speeds say little about a human's kicks.
+
+Open: power shots. Bot vs bot arms 10.1/match and 81% score, which is 8.2 of the 11.8 goals (`_goal-source`). HS converts ~58% (M3/M4), and its matches have ~8.7 goals in all.

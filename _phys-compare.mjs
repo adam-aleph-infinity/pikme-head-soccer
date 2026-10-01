@@ -8,6 +8,8 @@ import { createBot, botInput } from './shared/bot.js';
 import { series, detectContacts, launch, median } from './tools/hs-fit-lib.mjs';
 import { load } from './_hs-match-events.mjs';
 import { readFileSync } from 'node:fs';
+// TUNE='{"BOOT_BOUNCE":0.68}' node _phys-compare.mjs 20 — try constants without editing them
+if (process.env.TUNE) C.tune(JSON.parse(process.env.TUNE));
 // the power shots in the footage (the list _hs-compare.mjs stages), read as text: importing it runs it
 const SHOTS = [...readFileSync('./_hs-compare.mjs', 'utf8').matchAll(/video: '([^']+)', hs: \[([^\]]+)\]/g)]
   .map(([, video, hs]) => ({ video, hs: hs.split(',').map(Number) }));
@@ -148,7 +150,7 @@ function report(label, R) {
     const lab = (t) => t.dash ? 'dash' : t.kind === 'low' || t.kind === 'head' ? t.kind + (t.air ? '/air' : '/gnd') : t.kind;
     const cnt = {}; for (const t of F) cnt[lab(t)] = (cnt[lab(t)] || 0) + 1;
     console.log(`touches leaving >700 SIDEWAYS: ${(F.length / (R.secs / 60)).toFixed(1)}/min  ` + Object.entries(cnt).sort((a, b) => b[1] - a[1]).map(([k, v]) => `${k} ${(v / (R.secs / 60)).toFixed(1)}`).join('  ')); }
-  if (process.env.FW && R.touches[0]?.clip) for (const t of R.touches.filter((t) => t.kind === 'frame/wall' && Math.abs(t.speed * Math.cos(t.angle * Math.PI / 180)) > 700)) console.log('   fw', t.clip, t.t.toFixed(2), 'x', t.bx.toFixed(0), 'h', t.bh.toFixed(0), 'in', t.vin.toFixed(0), 'bvx', t.bvx.toFixed(0), '→ out', t.speed.toFixed(0), t.angle.toFixed(0) + '°');
+  if (process.env.FW && R.touches[0]?.clip) for (const t of R.touches.filter((t) => t.kind === 'frame/wall' && Math.abs(t.speed * Math.cos(t.angle * Math.PI / 180)) > 700)) console.log('   fw', t.clip, t.t.toFixed(2), 'x', t.bx.toFixed(0), 'h', t.bh.toFixed(0), 'in', t.vin.toFixed(0), 'bvx', t.bvx.toFixed(0), '→ out', t.speed.toFixed(0), t.angle.toFixed(0) + '°', 'nearest pvx', t.pvx.toFixed(0), 'hdx', t.hdx.toFixed(0), 'dy', t.dy.toFixed(0));
   if (process.env.LA) { const T = R.touches.filter((t) => t.kind === 'low' && t.air && !t.dash);
     if (R.touches[0]?.clip) for (const t of T) console.log('   la', t.clip, t.t.toFixed(2), 'ball vs head dx', t.hdx.toFixed(0), 'dy', t.dy.toFixed(0), 'in', t.vin.toFixed(0), '→', t.speed.toFixed(0), t.angle.toFixed(0) + '°', t.kicked ? 'K' : '');
     else { const b = {}; for (const t of T) { const k = `dy ${Math.floor(t.dy / 15) * 15}`; (b[k] ||= []).push(t.angle); } console.log('   ours low/air angle by dy:', Object.entries(b).sort().map(([k, a]) => `${k}: ${median(a).toFixed(0)}° n${a.length}`).join('  ')); } }
