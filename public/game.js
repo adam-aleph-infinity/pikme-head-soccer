@@ -858,6 +858,7 @@ function net() {
       d.classList.toggle('busy', st === 'connecting');
       d.title = { online: 'מחובר', connecting: 'מתחבר…', offline: 'לא מחובר' }[st] || st;
     },
+    onOnline: showOnline,
     onRoom: renderLobby,
     onStart: startOnlineMatch,
     onOver: () => { /* the local sim reaches full time too; endMatch already ran */ },
@@ -880,6 +881,13 @@ function net() {
   });
   NET.connect();
   return NET;
+}
+
+// «🟢 N מחוברים עכשיו» — everyone with the game open, arcade and online alike.
+function showOnline(n) {
+  for (const el of document.querySelectorAll('.online-count')) {
+    el.textContent = n > 0 ? `🟢 ${n} מחוברים עכשיו` : '';
+  }
 }
 
 function openLobby(mode, code) {
@@ -3157,6 +3165,10 @@ $('#tunerCopy').onclick = async () => {
     const res = await fetch('data/head-anchors.json');
     if (res.ok) ANCHORS = await res.json();
   } catch { /* fall back to the centre-of-card default */ }
+
+  // The socket opens on every page, whatever mode it ends up in: that is how the server counts
+  // who is playing (showOnline). Online play reuses this same connection.
+  try { net(); } catch { /* no host to reach (a file:// page) — just no count */ }
 
   // ?me=legendary_3&foe=epic_7&diff=4 — so a screenshot harness can pin a matchup.
   const q = new URLSearchParams(location.search);

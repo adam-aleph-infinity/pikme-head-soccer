@@ -39,6 +39,13 @@ const server = http.createServer((req, res) => {
   try { rel = decodeURIComponent(rel); } catch { /* keep the raw path */ }
   rel = '/' + rel.split('/').filter(Boolean).join('/');
   // Render supplies this non-secret SHA. A healthy old build must not pass a new deploy.
+  // How many have the game open right now, any mode — every page holds the socket from boot.
+  if (rel === '/stats') {
+    const rooms = [...reg.rooms.values()];
+    res.writeHead(200, { 'content-type': 'application/json', 'cache-control': 'no-store' });
+    res.end(JSON.stringify({ online: wss.clients.size, rooms: rooms.length, matches: rooms.filter((r) => r.phase === 'match').length }));
+    return;
+  }
   if (rel === '/version') {
     res.writeHead(200, { 'content-type': 'application/json', 'cache-control': 'no-store' });
     res.end(JSON.stringify({ commit: process.env.RENDER_GIT_COMMIT || 'local' }));
@@ -183,7 +190,20 @@ setInterval(() => {
   for (const room of [...reg.rooms.values()]) if (room.phase === 'match') stepRoom(room, dt);
 }, 8);
 
+// The live player count, pushed to every open page. Coalesced: a burst of connects (a deploy
+// bringing everyone back at once) is one broadcast, not N².
+let onlineTimer = null;
+function announceOnline() {
+  if (onlineTimer) return;
+  onlineTimer = setTimeout(() => {
+    onlineTimer = null;
+    const msg = JSON.stringify({ type: 'online', n: wss.clients.size });
+    for (const c of wss.clients) if (c.readyState === 1) c.send(msg);
+  }, 250);
+}
+
 wss.on('connection', (ws) => {
+  announceOnline();
   // `v` is the client's PROTOCOL, from its hello. 0 until one says otherwise: a page cached
   // before the field existed never sends it, and must not be seated in a room.
   const member = { id: 'p' + (nextId++), ws, name: 'שחקן', card: DEFAULT_CARD, index: 0, queue: createInputQueue(), v: 0 };
@@ -260,6 +280,7 @@ wss.on('connection', (ws) => {
   });
 
   ws.on('close', () => {
+    announceOnline();
     const room = roomOf(reg, member.id);
     if (!room) return;
     const wasMatch = room.phase === 'match';

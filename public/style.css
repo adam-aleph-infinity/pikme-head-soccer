@@ -789,6 +789,8 @@ body.safedemo { --safe-l: 44px; --safe-r: 44px; --safe-b: 21px; --safe-t: 12px; 
 .mode-card.red b { color: #fff; text-shadow: 0 3px 0 var(--s-red-lo); }
 .mode-card.gold b { color: #8a0015; text-shadow: 0 2px 0 #fff8; }
 .mode-sub { font-size: 13px; font-weight: 700; opacity: .92; }
+.online-count { font-size: 12px; font-weight: 900; color: #fff; margin: 4px 0 0; min-height: 1em; }
+.online-count:empty { display: none; }
 .mode-tag {
   position: absolute; top: 10px; inset-inline-end: 10px; font-style: normal; font-size: 11px; font-weight: 900;
   padding: 2px 8px; border-radius: 99px; background: #0007; color: #fff;

@@ -64,6 +64,19 @@ ok('version cannot be cached', version.headers.get('cache-control') === 'no-stor
 const A = client('אדם', { rarity: 'legendary', number: 3 });
 const B = client('חבר', { rarity: 'epic', number: 7 });
 await Promise.all([A.open, B.open]);
+{
+  // The live count: every open page holds a socket, and every page is told how many there are.
+  let n = null;
+  A.ws.addEventListener('message', (ev) => { const m = JSON.parse(ev.data); if (m.type === 'online') n = m.n; });
+  ok('every page is told how many are online', await until(() => n === 2), `got ${n}`);
+  const stats = await (await fetch(`http://127.0.0.1:${PORT}/stats`)).json();
+  ok('/stats counts them too', stats.online === 2 && stats.rooms === 0, JSON.stringify(stats));
+  const C3 = client('שלישי', { rarity: 'rare', number: 1 });
+  await C3.open;
+  ok('a third page raises the count', await until(() => n === 3), `got ${n}`);
+  C3.ws.close();
+  ok('closing it lowers the count', await until(() => n === 2), `got ${n}`);
+}
 ok('both clients connect', true);
 await until(() => A.id && B.id);
 ok('each gets an id', !!A.id && !!B.id && A.id !== B.id, `${A.id} / ${B.id}`);

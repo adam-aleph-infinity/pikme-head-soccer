@@ -18,7 +18,7 @@ const BUFFER = 240;             // ticks of local input kept for replay (~4s)
 const SEND_HZ = 30;
 const REDUNDANCY = 6;           // frames re-sent per packet, so one lost packet costs nothing
 
-export function createNet({ onRoom, onStart, onOver, onError, onStatus, onOpponentLeft }) {
+export function createNet({ onRoom, onStart, onOver, onError, onStatus, onOpponentLeft, onOnline }) {
   const url = `${location.protocol === 'https:' ? 'wss' : 'ws'}://${location.host}/ws`;
   const net = {
     ws: null, id: null, room: null, match: null,
@@ -29,16 +29,25 @@ export function createNet({ onRoom, onStart, onOver, onError, onStatus, onOppone
     lastSnap: null,
     rtt: 0, status: 'connecting',
     connected: false,
+    online: null,               // players with the game open right now, any mode (server count)
   };
 
   const setStatus = (s) => { net.status = s; onStatus?.(s); };
 
+  let retry = 0;
   function connect() {
     setStatus('connecting');
     const ws = new WebSocket(url);
     net.ws = ws;
-    ws.onopen = () => { net.connected = true; setStatus('online'); pingLoop(); };
-    ws.onclose = () => { net.connected = false; setStatus('offline'); };
+    ws.onopen = () => { net.connected = true; retry = 0; setStatus('online'); pingLoop(); };
+    // Every page holds this socket from boot, arcade included: it is how the server counts who
+    // has the game open. So a dropped one (a deploy, a phone waking up) comes back by itself,
+    // backing off to 30s against a server that is not there.
+    ws.onclose = () => {
+      if (net.ws !== ws) return;
+      net.connected = false; setStatus('offline');
+      setTimeout(connect, Math.min(30000, 2000 * 2 ** retry++));
+    };
     ws.onerror = () => { setStatus('offline'); };
     ws.onmessage = (ev) => {
       let msg;
@@ -68,6 +77,7 @@ export function createNet({ onRoom, onStart, onOver, onError, onStatus, onOppone
       }
       case 'opponentLeft': onOpponentLeft?.(msg.index); break;
       case 'over': net.live = false; onOver?.(msg.score); break;
+      case 'online': net.online = msg.n; onOnline?.(msg.n); break;
       case 'pong': net.rtt = Math.round(performance.now() - msg.t); break;
       default:
         // Snapshots are the hot path and carry no `type` — they are {t, i, s}.
@@ -153,7 +163,9 @@ export function createNet({ onRoom, onStart, onOver, onError, onStatus, onOppone
 
   function pingLoop() {
     sendMsg({ type: 'ping', t: performance.now() });
-    setTimeout(() => { if (net.connected) pingLoop(); }, 2000);
+    // 2s in a room (the RTT readout); otherwise a 25s keep-alive, so an idle arcade page is
+    // not waking the phone's radio every two seconds just to be counted.
+    setTimeout(() => { if (net.connected) pingLoop(); }, net.room || net.live ? 2000 : 25000);
   }
 
   Object.assign(net, {
