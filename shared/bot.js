@@ -166,19 +166,15 @@ function botInputRaw(bot, m, index, dt) {
   // counter — a Ground or Tornado shot is dodged, and walking into its line is walking into it)
   const cutPw = b.power, cutF = cutPw && (FAMILIES[cutPw.fam] || FAMILIES.straight);
   const answerable = cutF && (p.armed > 0 || (p.ail !== 'burn' && (cutPw.rb || cutF.block === 'grind' || cutF.block === 'grab' || (cutF.block === 'smash' && cutPw.int < 0.4))));
+  // On it, the cut-in is lead time: the ball leaves when m.cutin reaches POWER_RELEASE, from where
+  // it hangs now, so the answer below (into the path, then the jump and the boot timed to its
+  // arrival) runs with every arrival time pushed back by `tOff` — a jump that meets it right off
+  // the shooter's head (the early header), or a boot out as it reaches the spot.
+  let tOff = 0;
   if (answerable && m.cutin > C.POWER_RELEASE && m.cutinBy === 1 - index && m.phase === 'play' && !(p.stunned > 0)) {
-    bot.cutOnIt ??= bot.rng() < 0.15 + 0.65 * skillOf(d);
-    out.left = out.right = out.jump = out.kick = out.power = false;
-    if (bot.cutOnIt) {
-      const myGoalX = p.side > 0 ? C.GOAL_W : C.W - C.GOAL_W;
-      const spot = b.x + (myGoalX - b.x) * 0.3, gap = (myGoalX - b.x) > 0 ? 1 : -1;
-      const to = Math.abs(spot - b.x) < 70 ? b.x + gap * 70 : spot;
-      steer(bot, p, out, to);
-      // the shooter stands still in the way (the cut-in holds him): over his head, as HS's CPU goes
-      const across = (foe.x - p.x) * (to - p.x) > 0 && Math.abs(foe.x - p.x) < 2 * C.HEAD_R * 1.4 + 10;
-      out.jump = across && p.onGround;
-    }
-    return out;
+    bot.cutOnIt ??= bot.rng() < 0.1 + 0.45 * skillOf(d);
+    if (!bot.cutOnIt) { out.left = out.right = out.jump = out.kick = out.power = false; return out; }
+    tOff = m.cutin - C.POWER_RELEASE;
   }
   if (!(m.cutin > 0)) bot.cutOnIt = undefined;
   const pw = b.power;
@@ -195,6 +191,8 @@ function botInputRaw(bot, m, index, dt) {
       const onIt = bot.cutOnIt ?? bot.rng() < 0.3 + 0.4 * skillOf(d);   // (the cut-in's roll, if it had one)
       bot.powerPlan = p.armed > 0 ? 'counter' : !onIt ? 'panic' : bootStops ? 'block' : 'dodge';
       bot.powerKickAt = 0.06 + 0.06 * skillOf(d) + (bot.rng() * 2 - 1) * 0.05 * (1 - skillOf(d));
+      // …and its jump early or late by a few frames, the weaker the more (none at legendary).
+      bot.powerJumpErr = (bot.rng() * 2 - 1) * 0.07 * (1 - skillOf(d));
     }
     if (p.armed > 0 && bot.powerPlan !== 'counter') bot.powerPlan = 'counter';
     const path = powerPath(m, b, 1.6);
@@ -209,7 +207,9 @@ function botInputRaw(bot, m, index, dt) {
         if (q.hidden) continue;
         if ((q.x - myGoalX) * p.side < -30) break;                     // already in my net
         if (q.y < hi || q.y > C.GROUND_Y) continue;
-        if (Math.abs(q.x - p.x) <= speed * q.t + C.HEAD_R) return q;
+        // (Still held: not up against the shooter, where the timed boot lands on him, not the ball.)
+        if (tOff > 0 && Math.abs(q.x - foe.x) < 2 * C.HEAD_R + 24) continue;
+        if (Math.abs(q.x - p.x) <= speed * (q.t + tOff) + C.HEAD_R) return q;
       }
       return null;
     };
@@ -242,13 +242,17 @@ function botInputRaw(bot, m, index, dt) {
     const here = path.find((q) => !q.hidden && Math.abs(q.x - p.x) < C.HEAD_R + C.BALL_R + 6 && q.y > top && q.y < C.GROUND_Y + 1);
     // Over my head at the moment it gets here: jump so the crown is in its way.
     out.jump = false;
+    const tHere = here ? here.t + tOff + bot.powerJumpErr : 0;          // s from now it gets here
     if (here && here.y < crown - 4 && p.onGround) {
       const rise = crown - here.y;                                       // how far up it passes
-      for (let t = 0.06; t <= 0.42; t += C.TICK) if (jumpRise(t) >= rise - 6) { if (Math.abs(here.t - t) < 0.05) out.jump = true; break; }
+      for (let t = 0.06; t <= 0.42; t += C.TICK) if (jumpRise(t) >= rise - 6) { if (Math.abs(tHere - t) < 0.05) out.jump = true; break; }
     }
+    // Still held, with the shooter standing between me and the spot: over his head (HS's CPU does).
+    const to = meet ? meet.x : myGoalX + p.side * 40;
+    if (tOff > 0.45 && !out.jump && p.onGround && (foe.x - p.x) * (to - p.x) > 0 && Math.abs(foe.x - p.x) < 2 * C.HEAD_R * 1.4 + 10 && Math.abs(to - p.x) > 2 * C.HEAD_R) out.jump = true;
     // The boot: pressed so it is out (KICK_TIME, 0.26 s) as the ball arrives. A counter needs
     // only the touch, but a boot touch counts too and reaches further.
-    out.kick = !!here && here.t < bot.powerKickAt + (bot.powerPlan === 'counter' ? 0.08 : 0) && p.kickCd <= 0 && !bot.lastKick;
+    out.kick = !!here && here.t + tOff < bot.powerKickAt + (bot.powerPlan === 'counter' ? 0.08 : 0) && p.kickCd <= 0 && !bot.lastKick;
     bot.lastKick = out.kick;
     out.power = false;
     void coming;
@@ -273,6 +277,9 @@ function botInputRaw(bot, m, index, dt) {
   // / dash on frame-accurate checks — and the tiers differ in how fast and how well they read
   // (react, error), how often they take the chance they see (skill), and how far they press.
   openPlay(bot, m, p, foe, b, out, d, dt);
+  // A blocked shot grinding on a boot (the block was met close to the shooter): no mashing the
+  // boot at the other player standing right there — it fires back on its own.
+  if (b.power?.ph === 'grind') { out.kick = false; bot.lastKick = false; }
 
   // ---- power: ARM, on exactly the player's terms ----------------------------
   //
