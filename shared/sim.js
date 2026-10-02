@@ -95,6 +95,13 @@ function makePlayer(index, char) {
   };
 }
 
+// HOW HARD IT WAS HIT, in the touch's spray (a friend's playtest, 2026-10-01: "nothing tells you
+// you hit it strong or weak"). HS's kick sound does not change with strength (93 touches, M1/M2/M4/
+// M5: rank correlation 0.08 between the speed off the touch and the sound's spike), so the sound
+// stays one sound; only the little spray of the touch grows with the speed the ball leaves at —
+// 0.6x for a tap (~400 px/s and under) to 1.5x for a rocket (1800+). Pictures only: `fx` never
+// feeds back into the sim.
+const strikeFx = (b) => 0.6 + 0.9 * Math.max(0, Math.min(1, (Math.hypot(b.vx, b.vy) - 400) / 1400));
 export function createMatch(charA, charB, opts = {}) {
   const m = {
     t: 0,
@@ -1524,8 +1531,8 @@ function resolveBallPlayers(m, fx, alpha = 1) {
               p.kickHit = true;
               m.hitStop = Math.max(m.hitStop, C.HIT_STOP_KICK);
               m.idle = 0;
-              m.events.push({ type: 'strike', player: p.index, x: b.x, y: b.y, power: false });
-              fx.hit(b.x, b.y, '#ffffff', 1);
+              m.events.push({ type: 'strike', player: p.index, x: b.x, y: b.y, power: false, v: Math.round(Math.hypot(b.vx, b.vy)) });
+              fx.hit(b.x, b.y, '#ffffff', strikeFx(b));
             }
           }
         }
@@ -1596,8 +1603,8 @@ function resolveBallPlayers(m, fx, alpha = 1) {
         // A real touch, not a ball resting on the crown. Only a touch counts as play for the
         // idle reset, so a ball somehow held on a head nobody moves cannot hold the match.
         m.idle = 0;
-        m.events.push({ type: 'strike', player: p.index, x: b.x, y: b.y, head: true });
-        fx.hit(b.x, b.y, '#ffffff', 0.7);
+        m.events.push({ type: 'strike', player: p.index, x: b.x, y: b.y, head: true, v: Math.round(Math.hypot(b.vx, b.vy)) });
+        fx.hit(b.x, b.y, '#ffffff', 0.7 * strikeFx(b));
       } else if (nx * nx < 4e-4 && Math.hypot(b.vx - p.vx, b.vy - p.vy) < 20) {
         // Settled DEAD on top of a head — the one point of a round head gravity cannot roll
         // a ball off, and one only a scripted drop ever finds exactly. A float's worth of
