@@ -17,7 +17,7 @@ import { stepPower, releaseX, releaseY, launch as launchPower, FAMILIES } from '
 const BOOT_POINTS = bootReach();
 // CPU habits fitted to HS (test-hs-parity cpu.* rows, _cpu probe): per 0.25 s roll while it has
 // somewhere to be, and the chance a close ball in front gets the boot mashed at it.
-const DASH_BASE = 0.03, DASH_SKILL = 0.55, STRIKE_BASE = 0.05, STRIKE_SKILL = 0.9, DEAD_WAIT = 4, HOP = 0.075, MASH_BASE = 0.06, MASH_SKILL = 0.24, LAZY = 0.15, KICK_GO = 0.2, PRESS_BASE = 0.44, PRESS_SKILL = 0.1;
+const DASH_BASE = 0.03, DASH_SKILL = 0.55, STRIKE_BASE = 0.05, STRIKE_SKILL = 0.9, DEAD_WAIT = 4, HOP = 0.075, MASH_BASE = 0.06, MASH_SKILL = 0.16, LAZY = 0.15, KICK_GO = 0.2, PRESS_BASE = 0.44, PRESS_SKILL = 0.1;
 
 // `aggression` is flat across the tiers: it is how often a bot chases a ball the other player is
 // nearer to, and it was measured three times over (on the old physics) to be the one dial that
@@ -447,14 +447,19 @@ function openPlay(bot, m, p, foe, b, out, d, dt) {
     const engage = dead || (!bot.lazy && (ballDepth < C.W * 0.55 || !foeFirst || bot.press));
     // Home: where it waits when it is not going. Stronger tiers wait further out (HS: the
     // five-star CPU averages 425px out from its wall, the weak ones 320).
-    const home = myGoalX + side * 180;
+    const home = myGoalX + side * (210 + 130 * s);
     let target = engage ? meet.standX : home;
     // A ball that has got BEHIND me and is heading home: get back past it, goal-side, the
     // quickest way there is (a dash when it is far) — this is the defence against lobs.
     const behind = (meet.x - p.x) * side < -20 && toMyGoal;
     if (behind) target = meet.x - side * 20;
-    // Never further forward than the tier will go: its pressing depth.
-    const cap = myGoalX + side * C.W * (PRESS_BASE + PRESS_SKILL * s);
+    // How far forward it goes. Its pressing depth is where it USUALLY stops — but when it is the
+    // nearer player, or its press roll says go, it follows the ball on into the other half, as far
+    // as the tier dares (HS's five-star CPU ranges 26–796 px from its wall, p10–p90; the old hard
+    // cap stopped every tier at 0.44–0.54 of the pitch, and a friend's playtest said it: "the bots
+    // don't advance past a certain point").
+    const deep = !foeFirst;
+    const cap = myGoalX + side * C.W * (deep ? 0.66 + 0.24 * s : PRESS_BASE + PRESS_SKILL * s);
     if (!dead) target = side > 0 ? Math.min(target, cap) : Math.max(target, cap);
     // ARMED, IT KEEPS PLAYING ITS OWN GAME. The power goes off on its next touch of the ball
     // (shared/sim.js fireUltimateOnContact), and HS's CPU does not run for that touch: it arms
