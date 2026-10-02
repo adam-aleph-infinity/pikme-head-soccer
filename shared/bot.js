@@ -156,6 +156,31 @@ function botInputRaw(bot, m, index, dt) {
   // on — and reads from FAMILIES[fam].block whether a boot can stop it. Then: get into the path
   // and kick on time-to-arrival (or, armed, just meet it); against a shot a boot cannot stop, get
   // over it if it is low and out from under nothing — a hit is a hit.
+  // THE OTHER PLAYER'S CUT-IN: 1.34 s in which only the shooter and the ball hold (sim.js), so the
+  // defender plays on — and HS's uses it to get between the ball and its goal: 5 of the 11 filmed
+  // power shots were kicked away or countered (docs/HS-POWER-SHOTS.md §5). Ours used to read the
+  // frozen ball's path, find nothing to meet and jitter on the spot, so it was nowhere near the
+  // shot when it left (38 of 44 shots never came within 30 px of it) and 82% of them went in.
+  // Whether it gets there (and then answers at all) is one roll: 15% (weakest) to 80% (legendary).
+  // (only into the path of a shot it can answer there: one a boot stops, or any if it is armed to
+  // counter — a Ground or Tornado shot is dodged, and walking into its line is walking into it)
+  const cutPw = b.power, cutF = cutPw && (FAMILIES[cutPw.fam] || FAMILIES.straight);
+  const answerable = cutF && (p.armed > 0 || (p.ail !== 'burn' && (cutPw.rb || cutF.block === 'grind' || cutF.block === 'grab' || (cutF.block === 'smash' && cutPw.int < 0.4))));
+  if (answerable && m.cutin > C.POWER_RELEASE && m.cutinBy === 1 - index && m.phase === 'play' && !(p.stunned > 0)) {
+    bot.cutOnIt ??= bot.rng() < 0.15 + 0.65 * skillOf(d);
+    out.left = out.right = out.jump = out.kick = out.power = false;
+    if (bot.cutOnIt) {
+      const myGoalX = p.side > 0 ? C.GOAL_W : C.W - C.GOAL_W;
+      const spot = b.x + (myGoalX - b.x) * 0.3, gap = (myGoalX - b.x) > 0 ? 1 : -1;
+      const to = Math.abs(spot - b.x) < 70 ? b.x + gap * 70 : spot;
+      steer(bot, p, out, to);
+      // the shooter stands still in the way (the cut-in holds him): over his head, as HS's CPU goes
+      const across = (foe.x - p.x) * (to - p.x) > 0 && Math.abs(foe.x - p.x) < 2 * C.HEAD_R * 1.4 + 10;
+      out.jump = across && p.onGround;
+    }
+    return out;
+  }
+  if (!(m.cutin > 0)) bot.cutOnIt = undefined;
   const pw = b.power;
   if (pw && pw.owner !== index && !pw.extra && !['grind', 'grab'].includes(pw.ph)) {
     if (bot.powerRef !== pw || bot.powerPlanOwner !== pw.owner) {
@@ -167,7 +192,7 @@ function botInputRaw(bot, m, index, dt) {
       // HS power shots score about 58% of the time (M3/M4: 7 goals from 12 cut-ins), so a
       // defender who is always on the line is not an HS defender: 30% (weakest) to 70%
       // (legendary) of the time it gets its answer in, otherwise it is caught flat.
-      const onIt = bot.rng() < 0.3 + 0.4 * skillOf(d);
+      const onIt = bot.cutOnIt ?? bot.rng() < 0.3 + 0.4 * skillOf(d);   // (the cut-in's roll, if it had one)
       bot.powerPlan = p.armed > 0 ? 'counter' : !onIt ? 'panic' : bootStops ? 'block' : 'dodge';
       bot.powerKickAt = 0.06 + 0.06 * skillOf(d) + (bot.rng() * 2 - 1) * 0.05 * (1 - skillOf(d));
     }
