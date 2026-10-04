@@ -73,7 +73,10 @@ function botInputRaw(bot, m, index, dt) {
   // gets back up.
   // …and so do the ailments that take every control (hs-powers ailMods: frozen in ice, or the
   // three stars of a daze or a knockout): the sim ignores the buttons anyway.
-  if (p.stunned > 0 || m.phase === 'over' || p.ail === 'freeze' || p.ail === 'stars') {
+  // …and NO BALL YET (the ~0.55 s after a restart's hold before the ball drops, sim.js ballWait):
+  // HS's CPU "will virtually do nothing until the ball is launched" (docs/HS-CPU-RESEARCH-CC.md);
+  // ours used to walk 40–200 px at the parked ball.
+  if (p.stunned > 0 || m.phase === 'over' || p.ail === 'freeze' || p.ail === 'stars' || m.ballWait > 0) {
     out.left = out.right = out.jump = out.kick = out.power = false;
     bot.lastKick = false; bot.lastJump = false;
     return out;
