@@ -148,7 +148,7 @@ export function createMatch(charA, charB, opts = {}) {
       if (lv) p.stats = statsFor(lv);
       p.meterRate = (opts.meterRate && opts.meterRate[i]) || (lv ? meterRateFor(lv.power) : 1);
       const k = opts.statScale && opts.statScale[i];
-      if (k) p.stats = { speed: p.stats.speed * k.speed, jump: p.stats.jump * k.jump, kick: p.stats.kick * k.kick };
+      if (k) p.stats = { speed: p.stats.speed * k.speed, jump: p.stats.jump * k.jump, kick: p.stats.kick * k.kick, dash: (p.stats.dash ?? 1) * (k.dash ?? 1) };
     });
   }
   // BOTH PLAYERS START WITH THE ULTIMATE OFF, and it is asserted here rather than assumed
@@ -570,7 +570,8 @@ function stepPlayer(m, p, input, dt, fx) {
   // on the ground only: no dashing in the air (Idan, 2026-09-26)
   const canDash = p.dashCd <= 0 && p.onGround && !(md && md.noDash);
   const dash = (d) => {
-    p.dashT = C.DASH_TIME; p.dashDir = d; p.dashCd = md && md.dashFree ? 0.12 : C.DASH_COOLDOWN;
+    // the DASH stat: how long it lasts
+    p.dashT = C.DASH_TIME * (p.stats.dash ?? 1); p.dashDir = d; p.dashCd = md && md.dashFree ? 0.12 : C.DASH_COOLDOWN;
     p.tapT = 0; p.tapDir = 0; p.dashBuf = 0;
     m.events.push({ type: 'dash', player: p.index, dir: d });
   };
@@ -592,8 +593,13 @@ function stepPlayer(m, p, input, dt, fx) {
   if (dir !== 0) p.facing = dir;
 
   if (p.dashT > 0) {
+    // As many whole ticks of DASH_V as DASH_TIME always gave (5), times the DASH stat — the last tick
+    // of a stretched or shortened dash is a part one, so its length follows the stat smoothly (an
+    // equal dash is the same five whole ticks it always was).
+    const k = p.stats.dash ?? 1, whole = Math.ceil(C.DASH_TIME / C.TICK - 1e-9) * k;
+    const part = Math.max(0, Math.min(1, whole - (C.DASH_TIME * k - p.dashT) / C.TICK + 1e-6));
     p.dashT -= dt;
-    p.vx = p.dashDir * C.DASH_V * p.stats.speed * (md ? md.speed : 1);
+    p.vx = p.dashDir * C.DASH_V * part * (md ? md.speed : 1);       // the DASH stat sets how long (dash()), not how fast
   } else if (p.shoved > 0) {
     // A SHOVE OWNS THE BODY for TACKLE_SHOVE: ballistic in the air, a short slide on the grass.
     // With instant steering below, anything less and the knockback would last one tick.

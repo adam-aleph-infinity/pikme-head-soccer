@@ -521,7 +521,7 @@ function openPlay(bot, m, p, foe, b, out, d, dt) {
       if (q.y < reachY) continue;
       const low = q.y > C.GROUND_Y - C.BODY_H - C.HEAD_R;
       const standX = q.x - side * (low ? 34 + 14 * s : 16);
-      if (Math.abs(standX - p.x) - 6 <= speed * q.t + (dashReady ? 60 : 0)) { meet = { ...q, standX }; break; }
+      if (Math.abs(standX - p.x) - 6 <= speed * q.t + (dashReady ? 60 * (p.stats?.dash ?? 1) : 0)) { meet = { ...q, standX }; break; }
     }
     const last = path[path.length - 1];
     if (!meet) meet = { ...last, standX: last.x - side * 30 };
