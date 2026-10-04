@@ -10,7 +10,7 @@
 // powerHold). The whole ladder is monotonic: every tier beats every lower tier on average.
 
 import * as C from './constants.js';
-import { bootReach } from './kick.js';
+import { bootReach, bootAt } from './kick.js';
 import { headY } from './sim.js';
 import { stepPower, releaseX, releaseY, launch as launchPower, FAMILIES } from './hs-powers.js';
 import { powerById } from './champion-powers.js';
@@ -121,7 +121,7 @@ function botInputRaw(bot, m, index, dt) {
           }
           return best;
         };
-        const best = pick(crown - C.BALL_R * 0.5) || pick(crown - JUMP_APEX() - C.BALL_R);
+        const best = pick(crown - C.BALL_R * 0.5) || pick(crown - JUMP_APEX(jumpVOf(p)) - C.BALL_R);
         bot.foeSpot = best ? best.x : null;
       }
     }
@@ -225,7 +225,7 @@ function botInputRaw(bot, m, index, dt) {
     // is at a height a body (standing, or at the top of a jump) can meet, and that I can reach.
     const myGoalX = p.side > 0 ? C.GOAL_W : C.W - C.GOAL_W;
     const speed = C.PLAYER_SPEED * (p.stats?.speed ?? 1);
-    const top = crown - JUMP_APEX() - C.BALL_R;
+    const top = crown - JUMP_APEX(jumpVOf(p)) - C.BALL_R;
     const find = (hi) => {
       for (const q of path) {
         if (q.hidden) continue;
@@ -287,7 +287,7 @@ function botInputRaw(bot, m, index, dt) {
     const tHere = here ? here.t + tOff + bot.powerJumpErr : 0;          // s from now it gets here
     if (here && here.y < crown - 4 && p.onGround) {
       const rise = crown - here.y;                                       // how far up it passes
-      for (let t = 0.06; t <= 0.42; t += C.TICK) if (jumpRise(t) >= rise - 6) { if (Math.abs(tHere - t) < 0.05) out.jump = true; break; }
+      for (let t = 0.06; t <= 0.42; t += C.TICK) if (jumpRise(t, jumpVOf(p)) >= rise - 6) { if (Math.abs(tHere - t) < 0.05) out.jump = true; break; }
     }
     // Still held, with the shooter standing between me and the spot: over his head (HS's CPU does).
     const to = meet ? meet.x : myGoalX + p.side * 40;
@@ -468,8 +468,11 @@ function foeShotPath(m, b, foe) {
 
 // The fixed jump, derived: how high it lifts the head, and the head's rise t seconds after
 // takeoff (HS: one impulse, 45.8px, 0.77 s in the air; no variable height).
-const jumpRise = (t) => Math.max(0, C.JUMP_V * t - 0.5 * C.PLAYER_GRAV * t * t);
-const JUMP_APEX = () => (C.JUMP_V * C.JUMP_V) / (2 * C.PLAYER_GRAV);
+// Both read the player's OWN jump (the JUMP stat scales the take-off speed, sim.js), so a champion
+// on a higher level times its headers and its jumps into a power shot to the jump it really has.
+const jumpVOf = (p) => C.JUMP_V * (p?.stats?.jump ?? 1);
+const jumpRise = (t, v = C.JUMP_V) => Math.max(0, v * t - 0.5 * C.PLAYER_GRAV * t * t);
+const JUMP_APEX = (v = C.JUMP_V) => (v * v) / (2 * C.PLAYER_GRAV);
 
 function steer(bot, p, out, target) {
   // Hysteresis: start moving at 12px off the target, stop inside 4px. Without it a bot parked on
@@ -497,6 +500,13 @@ function openPlay(bot, m, p, foe, b, out, d, dt) {
   const myGoalX = side > 0 ? C.GOAL_W : C.W - C.GOAL_W;     // my goal line
   const hy = headY(p);
   const speed = C.PLAYER_SPEED * (p.stats?.speed ?? 1);
+  // WHERE TO MEET THE BALL is picked at the speed this loop was tuned on (equal stats) — or at the
+  // real one if the body is slower — and a faster body (a 5★ champion's +2) spends what it has over
+  // as time in hand. Picked at its full speed, it went for earlier, higher, longer-read touches and
+  // played WORSE for being faster (2026-10-04: the same brain, +2 speed, lost by 0.6 goals a match
+  // to itself on the old body; planning at the tuned speed, level).
+  const planSpeed = C.PLAYER_SPEED * Math.min(1, p.stats?.speed ?? 1), planDash = 60 * Math.min(1, p.stats?.dash ?? 1);
+  const foeSpeed = C.PLAYER_SPEED * (foe.stats?.speed ?? 1);
   const jumpV = C.JUMP_V * (p.stats?.jump ?? 1);
   const apex = (jumpV * jumpV) / (2 * C.PLAYER_GRAV);
   // The highest ball centre a jump can put the crown under.
@@ -521,7 +531,7 @@ function openPlay(bot, m, p, foe, b, out, d, dt) {
       if (q.y < reachY) continue;
       const low = q.y > C.GROUND_Y - C.BODY_H - C.HEAD_R;
       const standX = q.x - side * (low ? 34 + 14 * s : 16);
-      if (Math.abs(standX - p.x) - 6 <= speed * q.t + (dashReady ? 60 * (p.stats?.dash ?? 1) : 0)) { meet = { ...q, standX }; break; }
+      if (Math.abs(standX - p.x) - 6 <= planSpeed * q.t + (dashReady ? planDash : 0)) { meet = { ...q, standX }; break; }
     }
     const last = path[path.length - 1];
     if (!meet) meet = { ...last, standX: last.x - side * 30 };
@@ -529,7 +539,9 @@ function openPlay(bot, m, p, foe, b, out, d, dt) {
 
     const ballDepth = (meet.x - myGoalX) * side;                 // 0 at my line, W at theirs
     const toMyGoal = b.vx * side < -40;
-    const foeFirst = Math.abs(foe.x - meet.x) + 40 < Math.abs(p.x - meet.x);
+    // Who gets there first — by TIME, on each one's real speed (the same as by distance when both run
+    // alike): a faster champion contests, and wins, more of the loose balls.
+    const foeFirst = (Math.abs(foe.x - meet.x) + 40) / foeSpeed < Math.abs(p.x - meet.x) / speed;
     // PRESSING. The HS CPU goes for everything in its own 55% of the pitch and presses deeper
     // when it is the nearer player; beyond that it chases on the tier's aggression, and a weak
     // one also simply fails to go (1 - skill of the time it hangs back).
@@ -655,7 +667,7 @@ function openPlay(bot, m, p, foe, b, out, d, dt) {
     for (const q of near) {
       if (q.t > 0.42) break;
       const tj = Math.max(0, q.t + bot.jitter);
-      const hx = p.x + vxNow * speed * q.t, hyT = hy - jumpRise(tj) * (jumpV / C.JUMP_V);
+      const hx = p.x + vxNow * speed * q.t, hyT = hy - jumpRise(tj, jumpV);
       const dd = Math.hypot(q.x - hx, q.y - hyT);
       if (dd < C.HEAD_R + C.BALL_R + 3 && (q.x - hx) * side > -C.HEAD_R * 0.3 && q.y < hy - 6) { chance = true; break; }
       if (dd < C.HEAD_R + C.BALL_R + 3 && toMyGoal) { chance = true; break; }
@@ -688,25 +700,37 @@ function openPlay(bot, m, p, foe, b, out, d, dt) {
   // in front, up to face height in six frames, held there for the rest of KICK_TIME (0.26 s) —
   // so a swing pressed a few ticks before the ball arrives still meets it, low or at head height.
   const boots = BOOT_POINTS;
-  // onBoot: the ball meets the swing if it starts now. ballSoon: it reaches the boot before the
-  // swing could come round again (KICK_COOLDOWN) — then the boot is kept for the ball, not spent
-  // on the other player (a boot that lands on a player is used up, sim.js tryTackle).
+  // onBoot: a swing pressed NOW meets the ball — the boot where it really is at each moment of the
+  // swing (kick.js bootAt: low along the grass only for its first ~0.04 s, at the face from ~0.08 s),
+  // against the ball then. (It used to be "the ball passes near ANY point of the swing within
+  // 0.12 s", so a rolling ball got the boot pressed early, already up at the knee when the ball came,
+  // and the ball met the shins: our 5★ booted ~5 balls a minute and bumped 17 with its body, where
+  // HS's CPU plays about half its touches with the boot.)
+  // ballSoon: the ball reaches the swing's path before the swing could come round again
+  // (KICK_COOLDOWN) — then the boot is kept for the ball: no mash, no boot on the other player.
   let onBoot = false, ballSoon = false;
   for (const q of near) {
     if (q.t > C.KICK_COOLDOWN) break;
     const dy = p.onGround ? 0 : p.vy * q.t;
-    for (const [reach, up] of boots) {
-      const px = p.x + side * reach + vxNow * speed * q.t, py = p.y - up + dy;
-      if (Math.hypot(q.x - px, q.y - py) < C.BOOT_R + C.BALL_R + 6) { ballSoon = true; if (q.t <= 0.12) onBoot = true; break; }
+    const fx = p.x + vxNow * speed * q.t, fy = p.y + dy;
+    if (!onBoot && q.t <= C.KICK_TIME + C.TICK) {
+      // the boot sweeps 10–15 px a tick as it rises: test it through the tick, not only at its end
+      for (let j = 0; j <= 3 && !onBoot; j++) {
+        const bt = bootAt(fx, fy, side, Math.max(0, q.t - (C.TICK * j) / 3) / C.KICK_TIME);
+        if (Math.hypot(q.x - bt.x, q.y - bt.y) < C.BOOT_R + C.BALL_R + 4) onBoot = true;
+      }
+      if (onBoot) { ballSoon = true; break; }
     }
-    if (onBoot) break;
+    if (!ballSoon) for (const [reach, up] of boots) {
+      if (Math.hypot(q.x - (fx + side * reach), q.y - (fy - up)) < C.BOOT_R + C.BALL_R + 6) { ballSoon = true; break; }
+    }
   }
   if (onBoot && !bot.kickSeen) { bot.kickSeen = true; bot.kickGo = bot.rng() < KICK_GO + (1 - KICK_GO) * s; }
   if (!onBoot) bot.kickSeen = false;
   // MASHING: the HS CPU keeps the boot going whenever the ball is close in front, or the other
   // player is (the tackle) — 23–45 swings a minute overall, near the cooldown's cap up close.
   const close = ahead > -10 && Math.abs(dxb) < 110 && b.y > hy - 70;
-  const mash = close && bot.rng() < MASH_BASE + MASH_SKILL * s;
+  const mash = close && !(ballSoon && !onBoot) && bot.rng() < MASH_BASE + MASH_SKILL * s;
   // (armed, it kicks like any other moment: HS's CPU does not boot at the ball to fire — see ARMED)
   const want = (bot.kickSeen && bot.kickGo) || mash || (bot.wantTackle && !ballSoon);
   out.kick = want && p.kickCd <= 0 && !bot.lastKick;
