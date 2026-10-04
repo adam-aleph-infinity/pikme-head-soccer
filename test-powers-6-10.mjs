@@ -55,7 +55,7 @@ function run(f, n, until = () => false, qin = () => IDLE) {
 const ev = (f, type) => f.log.find((e) => e.type === type);
 const kickNear = (reach = 150) => (m) => {
   const q = m.players.find((pl) => pl.index !== (m.ball.power ? m.ball.power.owner : -1)) || m.players[1];
-  return { kick: !!m.ball.power && Math.abs(m.ball.x - q.x) < reach };
+  return { kick: !!m.ball.power && Math.abs(m.ball.x - q.x) < Math.max(reach, Math.abs(m.ball.vx) * 0.18) };
 };
 
 // Every built stage: fires from both seats with its own id, toward the other goal, with the cut-in.

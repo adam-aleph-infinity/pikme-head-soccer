@@ -1501,6 +1501,11 @@ function resolveBallPlayers(m, fx, alpha = 1) {
         // ARMED BEATS INCOMING off the boot too: HS's counter is any touch by an armed player
         // (§4), so a swing that meets their shot fires yours, just as the head and body do.
         if (b.power && b.power.owner !== p.index && p.armed > 0 && fireUltimateOnContact(m, p, b, fx)) { p.kickT = 0; return; }
+        // THE BOOT MEETS THE OTHER PLAYER'S POWER BALL: the counter by kick (HS's wiki: kick it
+        // "right before it hits you", Counter_Attacks). Only the boot itself — a power ball that
+        // meets the head or the body while the leg is out is a hit, not a block (it used to be a
+        // block: the whole 0.26 s of the swing and any part of the silhouette — far too easy).
+        if (b.power && b.power.owner !== p.index && !(p.armed > 0)) { p.bootOn = true; hitByPowerShot(m, p, b, fx); p.bootOn = false; return; }
         if (!b.power) {
           // ARMED: this touch is the one that spends it (see the note above the boot).
           if (p.armed > 0 && fireUltimateOnContact(m, p, b, fx)) { p.kickT = 0; return; }

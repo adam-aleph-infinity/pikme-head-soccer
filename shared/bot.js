@@ -13,6 +13,7 @@ import * as C from './constants.js';
 import { bootReach } from './kick.js';
 import { headY } from './sim.js';
 import { stepPower, releaseX, releaseY, launch as launchPower, FAMILIES } from './hs-powers.js';
+import { powerById } from './champion-powers.js';
 // Where the boot passes on its swing, [ahead, up] from the feet (the CPU's reach test).
 const BOOT_POINTS = bootReach();
 // CPU habits fitted to HS (test-hs-parity cpu.* rows, _cpu probe): per 0.25 s roll while it has
@@ -161,18 +162,23 @@ function botInputRaw(bot, m, index, dt) {
   // power shots were kicked away or countered (docs/HS-POWER-SHOTS.md §5). Ours used to read the
   // frozen ball's path, find nothing to meet and jitter on the spot, so it was nowhere near the
   // shot when it left (38 of 44 shots never came within 30 px of it) and 82% of them went in.
-  // Whether it gets there (and then answers at all) is one roll: 15% (weakest) to 80% (legendary).
+  // HOW SOON IT MOVES is the star rating (Idan's HS notes, 2026-10-02): below five stars it stands
+  // frozen for a beat from the moment the cut-in starts — 0.8 s at the bottom, 0.3 s at 4.5★ — and
+  // only then goes for the path, often a jump or a boot too late; a five-star CPU moves on the frame.
   // (only into the path of a shot it can answer there: one a boot stops, or any if it is armed to
   // counter — a Ground or Tornado shot is dodged, and walking into its line is walking into it)
   const cutPw = b.power, cutF = cutPw && (FAMILIES[cutPw.fam] || FAMILIES.straight);
-  const answerable = cutF && (p.armed > 0 || (p.ail !== 'burn' && (cutPw.rb || cutF.block === 'grind' || cutF.block === 'grab' || (cutF.block === 'smash' && cutPw.int < 0.4))));
+  const answerable = cutF && (p.armed > 0 || (p.ail !== 'burn' && bootStopsIt(cutPw, cutF)));
   // On it, the cut-in is lead time: the ball leaves when m.cutin reaches POWER_RELEASE, from where
   // it hangs now, so the answer below (into the path, then the jump and the boot timed to its
   // arrival) runs with every arrival time pushed back by `tOff` — a jump that meets it right off
   // the shooter's head (the early header), or a boot out as it reaches the spot.
   let tOff = 0;
   if (answerable && m.cutin > C.POWER_RELEASE && m.cutinBy === 1 - index && m.phase === 'play' && !(p.stunned > 0)) {
-    bot.cutOnIt ??= bot.rng() < 0.1 + 0.45 * skillOf(d);
+    if (C.POWER_CUTIN - m.cutin < freezeFor(d)) { out.left = out.right = out.jump = out.kick = out.power = false; return out; }
+    // …and then, MOVE OMISSION (the same notes): a low-star CPU sometimes simply has no answer and
+    // lets it come — 30% of the time it defends at the bottom of the ladder, ~90% at five stars.
+    bot.cutOnIt ??= bot.rng() < 0.3 + 0.6 * skillOf(d);
     if (!bot.cutOnIt) { out.left = out.right = out.jump = out.kick = out.power = false; return out; }
     tOff = m.cutin - C.POWER_RELEASE;
   }
@@ -184,15 +190,24 @@ function botInputRaw(bot, m, index, dt) {
       bot.powerRef = pw; bot.powerPlanOwner = pw.owner;
       const F = FAMILIES[pw.fam] || FAMILIES.straight;
       // (A burning bot cannot kick — hs-powers ailMods — so it has no block either.)
-      const bootStops = p.ail !== 'burn' && (pw.rb || F.block === 'grind' || F.block === 'grab' || (F.block === 'smash' && pw.int < 0.4));
+      const bootStops = p.ail !== 'burn' && bootStopsIt(pw, F);
       // HS power shots score about 58% of the time (M3/M4: 7 goals from 12 cut-ins), so a
       // defender who is always on the line is not an HS defender: 30% (weakest) to 70%
       // (legendary) of the time it gets its answer in, otherwise it is caught flat.
       const onIt = bot.cutOnIt ?? bot.rng() < 0.3 + 0.4 * skillOf(d);   // (the cut-in's roll, if it had one)
-      bot.powerPlan = p.armed > 0 ? 'counter' : !onIt ? 'panic' : bootStops ? 'block' : 'dodge';
-      bot.powerKickAt = 0.06 + 0.06 * skillOf(d) + (bot.rng() * 2 - 1) * 0.05 * (1 - skillOf(d));
-      // …and its jump early or late by a few frames, the weaker the more (none at legendary).
-      bot.powerJumpErr = (bot.rng() * 2 - 1) * 0.07 * (1 - skillOf(d));
+      // BODY, NOT BOOT (Idan's M7–M11, 2026-10-03: 21 of his power shots at the CPU, 1★ to 5★, and
+      // not one kick-block — every stop was the CPU's body in the path, hit and thrown back). So the
+      // CPU's answer to a shot its body stops is to get the body in the way ('body'); only an armed
+      // CPU reaches for it, to counter.
+      bot.powerPlan = p.armed > 0 ? 'counter' : !onIt ? 'panic' : bootStops ? 'body' : 'dodge';
+      bot.powerFrom = m.players[pw.owner].x;              // where the shooter stood (held there through the cut-in)
+      // SLOPPINESS (Idan's HS notes: a low-star CPU tracks the ball with an offset and jumps too
+      // late): the boot and the jump early or late, and the spot it stands on off the path, all
+      // re-rolled per shot — wide at the bottom of the ladder, a few frames and px even at five stars.
+      const e = 1 - skillOf(d);
+      bot.powerKickErr = (bot.rng() * 2 - 1) * (0.08 + 0.2 * e);
+      bot.powerJumpErr = (bot.rng() * 2 - 1) * (0.04 + 0.2 * e);
+      bot.powerSpotErr = (bot.rng() * 2 - 1) * (10 + 120 * e);
     }
     if (p.armed > 0 && bot.powerPlan !== 'counter') bot.powerPlan = 'counter';
     const path = powerPath(m, b, 1.6);
@@ -207,8 +222,9 @@ function botInputRaw(bot, m, index, dt) {
         if (q.hidden) continue;
         if ((q.x - myGoalX) * p.side < -30) break;                     // already in my net
         if (q.y < hi || q.y > C.GROUND_Y) continue;
-        // (Still held: not up against the shooter, where the timed boot lands on him, not the ball.)
-        if (tOff > 0 && Math.abs(q.x - foe.x) < 2 * C.HEAD_R + 24) continue;
+        // Not up against the shooter: HS's CPU meets the shot a stride or more out (M8 31.55 s: UK
+        // ~250 px from Korea), never right off his head (the wiki's early header, within 170 px).
+        if (Math.abs(q.x - bot.powerFrom) < 260) continue;
         if (Math.abs(q.x - p.x) <= speed * (q.t + tOff) + C.HEAD_R) return q;
       }
       return null;
@@ -227,7 +243,7 @@ function botInputRaw(bot, m, index, dt) {
       const here = path.find((q) => !q.hidden && Math.abs(q.x - p.x) < C.HEAD_R + C.BALL_R);
       out.kick = false; out.power = false;
       out.jump = false;
-      if (here && here.y > p.y - C.BODY_H - 2 && here.t < 0.22 && here.t > 0.08 && p.onGround) out.jump = true;
+      if (here && here.y > p.y - C.BODY_H - 2 && here.t < 0.22 && here.t > 0.08 && p.onGround && powerById(pw.cp)?.answer?.jump !== false) out.jump = true;
       else if (here && here.y > crown - C.BALL_R && here.y <= p.y - C.BODY_H - 2) {
         const away = myGoalX + p.side * (Math.abs(here.x - myGoalX) + 90);
         steer(bot, p, out, Math.max(C.GOAL_W, Math.min(C.W - C.GOAL_W, away)));
@@ -236,8 +252,9 @@ function botInputRaw(bot, m, index, dt) {
       out.left = out.right = false;
       return out;
     }
-    // BLOCK or COUNTER: into the path, then the boot (or, armed, any touch) on time-to-arrival.
-    if (meet) steer(bot, p, out, meet.x - p.side * 6);
+    // BODY or COUNTER: into the path (a jump when it passes over the head, so the head is in its way);
+    // armed, the boot too, on time-to-arrival (any touch counters).
+    if (meet) steer(bot, p, out, meet.x - p.side * 6 + bot.powerSpotErr);
     else { const guard = myGoalX + p.side * 40; steer(bot, p, out, guard); }
     const here = path.find((q) => !q.hidden && Math.abs(q.x - p.x) < C.HEAD_R + C.BALL_R + 6 && q.y > top && q.y < C.GROUND_Y + 1);
     // Over my head at the moment it gets here: jump so the crown is in its way.
@@ -252,7 +269,11 @@ function botInputRaw(bot, m, index, dt) {
     if (tOff > 0.45 && !out.jump && p.onGround && (foe.x - p.x) * (to - p.x) > 0 && Math.abs(foe.x - p.x) < 2 * C.HEAD_R * 1.4 + 10 && Math.abs(to - p.x) > 2 * C.HEAD_R) out.jump = true;
     // The boot: pressed so it is out (KICK_TIME, 0.26 s) as the ball arrives. A counter needs
     // only the touch, but a boot touch counts too and reaches further.
-    out.kick = !!here && here.t + tOff < bot.powerKickAt + (bot.powerPlan === 'counter' ? 0.08 : 0) && p.kickCd <= 0 && !bot.lastKick;
+    // The counter by kick is the BOOT meeting it (sim.js): the boot is down at the grass only for the
+    // swing's first frames and up at the face from 0.12 to 0.27 s after the press, so a ball on the
+    // grass is kicked ~0.07 s before it arrives and a ball at head height ~0.19 s (_block-window.mjs).
+    const lead = here ? (here.y > C.GROUND_Y - 45 ? 0.07 : 0.19) + bot.powerKickErr + (bot.powerPlan === 'counter' ? 0.08 : 0) : 0;
+    out.kick = bot.powerPlan === 'counter' && !!here && here.t + tOff < lead && p.kickCd <= 0 && !bot.lastKick;
     bot.lastKick = out.kick;
     out.power = false;
     void coming;
@@ -323,6 +344,17 @@ const clamp01 = (v) => Math.max(0, Math.min(1, v));
 // every arcade champion already carries (DIFFICULTIES, champions.js stageDifficulty) — so the new
 // behaviour needs no new field and the star ladder stays one monotonic line.
 const skillOf = (d) => clamp01((d.aim - 0.35) / 0.63);
+// Whether a kick into this power ball blocks it: the family's rule (FAMILIES[fam].block), unless the
+// champion's own power says otherwise (its `answer`, champion-powers/stage-NN.js — Nigeria's
+// Tornado is a Ground shot a kick still blocks).
+function bootStopsIt(pw, F) {
+  const own = pw.cp ? powerById(pw.cp)?.answer?.kick : undefined;
+  if (own !== undefined) return own;
+  return !!pw.rb || F.block === 'grind' || F.block === 'grab' || (F.block === 'smash' && pw.int < 0.4);
+}
+// The freeze when the other player's power shot starts (above): 0.8 s at the bottom of the ladder,
+// 0.3 s just under five stars, none at five (arcade stage 10 on, skill 0.97; the legendary tier).
+const freezeFor = (d) => { const s = skillOf(d); return s >= 0.95 ? 0 : 0.8 - 0.5 * (s / 0.95); };
 // HOW THE `react` AND `error` DIALS ARE READ HERE. They were calibrated for the old bot, which
 // used them on a slower, floatier game; read one-for-one by this loop every tier read the flight
 // like a machine — frame-perfect under every ball — and bot-vs-bot scoring fell to ~4 a match
@@ -462,6 +494,12 @@ function openPlay(bot, m, p, foe, b, out, d, dt) {
     // one also simply fails to go (1 - skill of the time it hangs back).
     bot.modeT = (bot.modeT ?? 0) - d.react;
     if (bot.modeT <= 0) { bot.press = bot.rng() < d.aggression + 0.3 * s; bot.modeT = 0.6 + bot.rng() * 0.8; }
+    // THE TWO FIVE-STAR STYLES (Idan's HS notes): the same brain, two plans. OFFENSIVE presses on
+    // past the halfway line into the other half all the time; DEFENSIVE camps by its own box and
+    // only crosses halfway for a ball lying loose. (`d.archetype`, arcade 5★ champions only.)
+    const arch = d.archetype;
+    if (arch === 'offense') bot.press = true;
+    if (arch === 'defense') bot.press = false;
     // …and a weak tier sometimes simply does not go for a ball it could reach (re-rolled per
     // approach): HS's weak CPUs play 49% of the balls that come within reach, the five-star 86%.
     if (bot.goFor !== bot.approach) { bot.goFor = bot.approach; bot.lazy = bot.rng() < LAZY * (1 - s); }
@@ -476,10 +514,10 @@ function openPlay(bot, m, p, foe, b, out, d, dt) {
     const still = Math.hypot(b.vx, b.vy) < 80 && b.y > C.GROUND_Y - b.r - 4 && !b.power;
     if (!still) bot.deadSince = null; else bot.deadSince ??= bot.t;
     const dead = still && bot.t - bot.deadSince > DEAD_WAIT;
-    const engage = dead || (!bot.lazy && (ballDepth < C.W * 0.55 || !foeFirst || bot.press));
+    const engage = dead || (!bot.lazy && (ballDepth < C.W * (arch === 'defense' ? 0.5 : 0.55) || (!foeFirst && arch !== 'defense') || bot.press));
     // Home: where it waits when it is not going. Stronger tiers wait further out (HS: the
     // five-star CPU averages 425px out from its wall, the weak ones 320).
-    const home = myGoalX + side * (210 + 130 * s);
+    const home = myGoalX + side * (arch === 'offense' ? C.W * 0.56 : arch === 'defense' ? 150 : 210 + 130 * s);
     let target = engage ? meet.standX : home;
     // A ball that has got BEHIND me and is heading home: get back past it, goal-side, the
     // quickest way there is (a dash when it is far) — this is the defence against lobs.
@@ -491,7 +529,7 @@ function openPlay(bot, m, p, foe, b, out, d, dt) {
     // cap stopped every tier at 0.44–0.54 of the pitch, and a friend's playtest said it: "the bots
     // don't advance past a certain point").
     const deep = !foeFirst;
-    const cap = myGoalX + side * C.W * (deep ? 0.66 + 0.24 * s : PRESS_BASE + PRESS_SKILL * s);
+    const cap = myGoalX + side * C.W * (arch === 'offense' ? 0.9 : arch === 'defense' ? 0.5 : deep ? 0.66 + 0.24 * s : PRESS_BASE + PRESS_SKILL * s);
     if (!dead) target = side > 0 ? Math.min(target, cap) : Math.max(target, cap);
     // ARMED, IT KEEPS PLAYING ITS OWN GAME. The power goes off on its next touch of the ball
     // (shared/sim.js fireUltimateOnContact), and HS's CPU does not run for that touch: it arms

@@ -167,15 +167,17 @@ const ladder = (hi, lo, n, seed0) => {
 // …and the power-shot exchange: KICKING the other bot's shot away (the block, HS §4) instead of
 // standing in it and being hit is skill too. The hard bot blocks a larger share than the easy one.
 {
-  const bl = [0, 0], hi = [0, 0];
+  const bl = [0, 0], hi = [0, 0], pg = [0, 0];
   const N = 32;
   for (let s = 0; s < N; s++) {
     const { stats } = playMatch(5, 0, 4000 + s * 37);
-    for (const i of [0, 1]) { bl[i] += stats.blocks[i]; hi[i] += stats.hits[i]; }
+    for (const i of [0, 1]) { bl[i] += stats.blocks[i]; hi[i] += stats.hits[i]; pg[i] += stats.powerGoals[i]; }
   }
-  const share = (i) => bl[i] / Math.max(1, bl[i] + hi[i]);
-  ok('the hardest bot wins the power-shot exchange: it kicks more of the shots away',
-     share(0) > share(1) + 0.15 && bl[0] > 10, `blocked ${bl[0]} / hit ${hi[0]} vs blocked ${bl[1]} / hit ${hi[1]} over ${N} matches`);
+  // HS's CPU stops a power shot with its BODY in the path, not its boot (Idan's M7–M11: 21 shots,
+  // 1★ to 5★, no kick-block), and a five-star one is in the path far more often than a weak one.
+  const share = (i) => (bl[i] + hi[i]) / Math.max(1, bl[i] + hi[i] + pg[1 - i]);
+  ok('the hardest bot wins the power-shot exchange: it stops more of the shots, with its body',
+     share(0) > share(1) + 0.15 && hi[0] > 2 * bl[0], `stopped ${(100 * share(0)).toFixed(0)}% (blocked ${bl[0]} / hit ${hi[0]}) vs ${(100 * share(1)).toFixed(0)}% (blocked ${bl[1]} / hit ${hi[1]}) over ${N} matches`);
 }
 // …and no stun-lock: the knockout (every 5th landed boot hurts, the 3rd hurt is 2 s of stars) is
 // a thing that happens now and then, not a loop a bot can put somebody in.

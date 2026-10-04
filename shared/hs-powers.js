@@ -447,9 +447,9 @@ export function contact(m, p, b, kit, fx) {
   // (The dark does NOT lift on contact: M3 38.25 s is a hit 0.24 s before the screen comes back,
   // and all seven measured darks are 1.31–1.37 s whatever the shot met — docs §2.)
   const F = FAMILIES[pw.fam];
-  // The leg is out for KICK_TIME after the press, whether or not the swing already met the ball
-  // (a strike cuts kickT short; the cooldown still says how long ago the press was).
-  const kicking = p.kickT > 0 || p.kickCd > C.KICK_COOLDOWN - C.KICK_TIME;
+  // KICKING means the BOOT met it (sim.js sets bootOn for that one contact): HS's counter is the
+  // foot into the ball, so a head or a body that meets it with the leg out is hit like anyone.
+  const kicking = !!p.bootOn;
   m.idle = 0;
   // A Multi-Ball's extra balls are only for scoring with: one touch knocks them dead.
   if (pw.extra) {

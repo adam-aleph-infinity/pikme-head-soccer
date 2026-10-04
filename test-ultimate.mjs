@@ -673,7 +673,11 @@ function track(m, s, inputs = NONE) {
 // docs/HS-POWER-SHOTS.md §4 — three outcomes, from what the defender is doing when it arrives.
 // atY: the height the shot flies at once it leaves (a shot always leaves at the shooter's head
 // height, constants.js POWER_RELEASE_UP — this puts it where a test needs it to meet him)
-function atDefender(fam, o = {}, { kick = false, armed = false, gap = 320, atY = null } = {}) {
+// When KICK goes in for a counter (the boot must meet it — _block-window.mjs): a ball at head height
+// ~0.18 s before it arrives (the boot is up 0.12–0.27 s after the press), one on the grass just as it
+// does (the boot is down there only for the first frames of the swing).
+const kickLead = (b) => (b.y > C.GROUND_Y - 45 ? 0.07 : 0.18);
+function atDefender(fam, o = {}, { kick = false, armed = false, gap = 560, atY = null } = {}) {
   const m = fresh();
   const a = m.players[0], z = m.players[1];
   a.shot = shotById(fam, o); z.shot = shotById('updown');
@@ -688,7 +692,7 @@ function atDefender(fam, o = {}, { kick = false, armed = false, gap = 320, atY =
   for (let i = 0; i < 240 && m.phase === 'play'; i++) {
     const b = m.ball;
     if (atY != null && b.power && m.hitStop <= 0 && !b.power.atY) { b.y = atY; b.power.y0 = atY; b.power.atY = 1; }
-    const near = kick && !pressed && b.power && b.power.owner === 0 && Math.abs(b.x - z.x) < 140 && m.hitStop <= 0;
+    const near = kick && !pressed && b.power && b.power.owner === 0 && Math.abs(b.x - z.x) < Math.max(140, Math.abs(b.vx) * kickLead(b)) && m.hitStop <= 0;   // a real counter's timing (_block-window.mjs)
     if (near) pressed = true;
     step(m, [{}, { kick: near }]);
     log.push(...m.events); m.events.length = 0;
@@ -1008,7 +1012,7 @@ function atDefender(fam, o = {}, { kick = false, armed = false, gap = 320, atY =
 // ═══ 16. THE CHAMPIONS' OWN POWERS (shared/champion-powers.js) ═════════════════
 // Each built arcade champion fires one real Head Soccer character's power. Fired here from its card
 // in an arcade match, from either seat, at a defender `gap` px away who stands, kicks or jumps.
-function fireCp(stage, seat, { gap = 400, kick = false, jump = false, s = 2.5 } = {}) {
+function fireCp(stage, seat, { gap = 400, kick = false, jump = false, s = 2.5, preKick = null } = {}) {
   const cards = [];
   cards[seat] = { rarity: 'legendary', number: stage }; cards[1 - seat] = { rarity: 'epic', number: 1 };
   const m = createMatch(cards[0], cards[1], { champions: true, duration: 600 });
@@ -1021,12 +1025,18 @@ function fireCp(stage, seat, { gap = 400, kick = false, jump = false, s = 2.5 } 
   step(m, NONE);
   const log = [...m.events]; m.events.length = 0;
   const pw0 = m.ball.power ? { ...m.ball.power } : null;
-  while (m.hitStop > 0) { step(m, NONE); log.push(...m.events); m.events.length = 0; }
-  const path = [];
+  // `preKick`: KICK goes in that many s before the ball leaves (a shot released close cannot be met
+  // by a press after it leaves: the boot is up only 0.12 s after the press).
   let pressed = false;
+  while (m.hitStop > 0) {
+    const inp = [{}, {}];
+    if (preKick != null && !pressed && m.hitStop <= preKick) { pressed = true; inp[1 - seat] = { kick: true }; }
+    step(m, inp); log.push(...m.events); m.events.length = 0;
+  }
+  const path = [];
   for (let i = 0; i < TICK_S(s) && m.phase === 'play'; i++) {
     const b = m.ball, inp = [{}, {}];
-    if (kick && !pressed && b.power && b.power.owner === seat && Math.abs(b.x - z.x) < 130 && m.hitStop <= 0) { pressed = true; inp[1 - seat] = { kick: true }; }
+    if (kick && !pressed && b.power && b.power.owner === seat && Math.abs(b.x - z.x) < Math.max(40, Math.abs(b.vx) * kickLead(b)) && m.hitStop <= 0) { pressed = true; inp[1 - seat] = { kick: true }; }
     if (jump && b.power && b.power.owner === seat && Math.abs(b.x - z.x) < 220) inp[1 - seat] = { jump: true };
     step(m, inp);
     path.push({ x: b.x, y: b.y, vx: b.vx, vy: b.vy, ph: b.power ? b.power.ph : null, cp: b.power ? b.power.cp : null, inv: b.power ? b.power.inv : 0, zy: z.y, zx: z.x, zail: z.ail, zst: z.stunned });
@@ -1118,7 +1128,7 @@ const first = (log, type, f = () => true) => log.find((e) => e.type === type && 
     ok(`USA (seat ${seat}): invisible, it goes straight through the defender into the goal`, !!first(t.log, 'powerHit', (e) => e.how === 'pass') && t.z.stunned <= 0 && !!first(t.log, 'goal', (e) => e.player === seat));
     const k = fireCp(4, seat, { gap: 420, kick: true, s: 1.2 });
     ok(`USA (seat ${seat}): …even through a kick`, !first(k.log, 'blocked'));
-    const c = fireCp(4, seat, { gap: 180, kick: true });
+    const c = fireCp(4, seat, { gap: 180, kick: true, preKick: 0.1 });
     ok(`USA (seat ${seat}): visible (released close), a kick still blocks it`, !!first(c.log, 'blocked', (e) => e.player === 1 - seat));
   }
 }
@@ -1153,7 +1163,7 @@ const first = (log, type, f = () => true) => log.find((e) => e.type === type && 
     let blk = null, pressed = false;
     for (let i = 0; i < 90 && !blk; i++) {
       const b = r.m.ball, inp = [{}, {}];
-      if (!pressed && b.power && b.power.ph === 'fly' && Math.abs(b.x - z.x) < 130) { pressed = true; inp[1] = { kick: true }; }
+      if (!pressed && b.power && b.power.ph === 'fly' && Math.abs(b.x - z.x) < Math.max(40, Math.abs(b.vx) * kickLead(b))) { pressed = true; inp[1] = { kick: true }; }
       step(r.m, inp);
       blk = r.m.events.find((e) => e.type === 'blocked');
       if (blk) ok('JAPAN: the low streak kicked is blocked, and the blocker knocked out 1.2 s', z.stunned > 1.0 && z.ail === 'stars');

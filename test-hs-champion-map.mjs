@@ -28,7 +28,9 @@ for (const r of rows) {
     total += v;
   }
   assert.equal(r.statTotal, total, `${at}: statTotal`);
-  if (prevTotal !== null) assert.ok(Math.abs(total - prevTotal) <= 2 && total >= prevTotal - 2, `${at}: total ${prevTotal}→${total}`);
+  // (HS's climb is steep through the first ten — a 0.5–2.5★ CPU on level 1, a 5★ one on 4–6 — and
+  // flat after; a champion's profile moves a stat or two, so a total may dip by a profile's worth.)
+  if (prevTotal !== null) assert.ok(total >= prevTotal - 2, `${at}: total ${prevTotal}→${total}`);
   assert.ok(r.stars >= 0.5 && r.stars <= 5 && r.stars >= prevStars, `${at}: stars ${r.stars}`);
   assert.ok(typeof r.intensity === 'number' && r.intensity >= 0 && r.intensity <= 1, `${at}: intensity ${r.intensity}`);
   if (r.gentle) assert.ok(r.intensity <= 0.15, `${at}: gentle but intensity ${r.intensity}`);

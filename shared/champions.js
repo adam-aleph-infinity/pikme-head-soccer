@@ -37,30 +37,27 @@ const TITLES = [
   'אדון המראות', 'המשגר', 'מלך הכדרור', 'רוח הרפאים', 'שומר הזמן', 'התאום', 'המפצל', 'עין הסערה', 'אדון הזמן',
 ];
 
-// How each bot style bends the base ladder. Small on purpose: aggression was measured as the
-// single biggest term in the scoreline (see bot.js), so a style nudges it rather than owns it.
-const STYLES = {
-  striker: { aggression: 0.06, tackle: 1.0 },
-  keeper: { aggression: -0.1, tackle: 0.9 },
-  brawler: { aggression: 0, tackle: 1.35 },
-};
+// Which five-star plan a champion's HS profile plays: the keepers and the tricky counter-strikers
+// defend, everyone else attacks.
+const ARCHETYPE = { tank: 'defense', tricky: 'defense' };
 
 const round = (v, n) => Math.round(v * 10 ** n) / 10 ** n;
 
-// The ladder. t runs 0 (stage 1) → 1 (stage 45).
+// The ladder: HS's stars, and stars are ONLY how smart the CPU plays (Idan, 2026-10-02). The first
+// nine climb half a star each — South Korea 0.5★, Cameroon 1★ … Brazil 4.5★ — and from the tenth
+// (Germany, 5★) on, every champion plays exactly as smart. What still differs after that is its
+// stats and its power. t runs 0 (stage 1) → 1 (stage FIVE_STAR and every one after).
+export const FIVE_STAR = 10;
 export function stageDifficulty(stage) {
-  const t = (stage - 1) / (CHAMPION_COUNT - 1);
+  const t = Math.min(1, (stage - 1) / (FIVE_STAR - 1));
   return {
     react: round(0.34 - 0.29 * t, 4),       // s between thinks        0.34 → 0.05
     error: round(78 - 70 * t, 2),            // px of misread           78   → 8
     counter: round(0.02 + 0.6 * t, 4),       // chance to counter       0.02 → 0.62
     aim: round(0.35 + 0.61 * t, 4),          // the main skill axis     0.35 → 0.96
     powerHold: round(2.2 - 1.95 * t, 4),     // s before it will arm    2.2  → 0.25
-    // These two are power-independent, so they are bent (t^1.5) to give the late stages more of
-    // the climb: the middle tier's powers already take the opponent's controls away, the last
-    // tiers' mostly do not, and the scoreline showed it — measured, _ladder in the README.
     aggression: round(0.16 + 0.5 * t ** 1.5, 4),   // how often it presses    0.16 → 0.66
-    stars: 1 + Math.round(t * 8) / 2,        // 1 → 5, in halves
+    stars: Math.min(5, stage * 0.5),         // 0.5 → 5, in halves, 5 from stage FIVE_STAR on
     t,
   };
 }
@@ -124,12 +121,16 @@ export function championFor(char) {
 // was made for.
 export function botProfile(champ) {
   const d = champ.difficulty;
-  const s = STYLES[champ.style] || STYLES.striker;
   return {
     name: champ.title,
     react: d.react, error: d.error, counter: d.counter, aim: d.aim, powerHold: d.powerHold,
-    aggression: round(d.aggression + s.aggression, 4),
-    tackle: s.tackle,
+    // One CPU per star level, as HS's: no per-champion style on top (Idan: after the tenth they all
+    // play exactly the same) — a champion differs by its stats and its power, not its brain.
+    aggression: d.aggression,
+    tackle: 1,
+    // …except the one split HS's five-star CPU has (Idan's HS notes): OFFENSIVE presses into the
+    // other half, DEFENSIVE camps by its own goal and counters — the same smartness either way.
+    ...(d.t >= 1 ? { archetype: ARCHETYPE[champ.hs.profile] || 'offense' } : {}),
     arm: 'attack',                           // every Head Soccer power is a shot at the goal
     smart: d.aim >= 0.55,
     adapt: d.t >= 0.5,                       // reads its own reversed controls and corrects them

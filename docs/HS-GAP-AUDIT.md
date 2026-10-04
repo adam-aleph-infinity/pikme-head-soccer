@@ -48,7 +48,7 @@ At the audit, `node test-hs-parity.mjs` passed 82 of 88 rows. The 6 failures are
 | W2 ✅ | M | Burn has the wrong effect | Blocks kicking and slows to 0.8× `hs-powers.js:591` | Reverses your walk | wiki |
 | W3 ✅ | L | Freezes are too short | 1.2–2.1 s | 2–3 s | wiki |
 | W4 ✅ | L | A frozen or dazed player can't arm their power | `sim.js:487` | Can still arm | wiki |
-| W5 🎥 | L | The block window is probably too forgiving: the whole 0.26 s, and a head touch counts too | `hs-powers.js:430, 529` | unmeasured | — |
+| W5 ✅ | L | Fixed 2026-10-02: the counter by kick is the BOOT meeting the power ball (sim.js `bootOn`); a head or body with the leg out is hit. Window (`node _block-window.mjs`): head-height shot 117–267 ms before it arrives standing, 67–267 ms jumping; a grass shot 33–108 ms. HS: all three of the human's kick-blocks in M4 were jump + kick; the wiki: kick "right before it hits you" (Counter_Attacks). Was: the block window is probably too forgiving: the whole 0.26 s, and a head touch counts too | `hs-powers.js:430, 529` | unmeasured | — |
 | W6 🎥 | L | 7 of the 11 families' speeds and paths are guesses, and Critical flies faster (2795 px/s) than anything filmed | — | Only Straight, Aerial and Grab were filmed | meas |
 | W7 ✅ | L | Korea's shot is 8% slow | 1978 px/s | 2150 | meas |
 | W8 ❓ | L | Online, stages 1–6 fire their family's shot, not the champion's own power | — | — | code |
@@ -131,6 +131,8 @@ Everything not ✅ above, plus gaps found after the audit.
 | N3 ✅ | M | Fixed 2026-10-02: the defender uses the cut-in to time its jump and boot for the release, so the ladder is right: tier 0 concedes 63% of power shots, tier 5 31%, ~48% on average (`node _power-def.mjs`). Was: power shots score too often, and the 5★ CPU conceded more (76%) than the weakest (47%) | bot vs bot: 81% of armed powers score, 8.2 of 11.8 goals | ~58%, ~8.7 goals a match | meas (`docs/HS-PHYSICS.md` §4) |
 | N4 | M | The ball drifts sideways at a steady medium speed; HS's either hangs near-vertical or rockets across | sideways speed p25/median/p90 129/219/630 | 45/164/893 | meas (`HS-PHYSICS.md` §3 #1) |
 | N5 | L | Headers and jumping body touches are too flat | 57°, 31° | 67–75°, 56–65° | meas, few samples (§3 #5–6) |
+| N7 ✅ | H | Fixed 2026-10-03: the CPU answers a power shot with its BODY in the path, never its boot, a stride or more out from the shooter; 5★ is in the path ~90% of the time, 0.5★ ~30% after its freeze. Was: the CPU kick-blocked 70–80% of shots (Idan: "it countered every shot"); HS: 0 kick-blocks in 21 shots (`docs/HS-POWER-SHOTS.md` §5b) | | | meas (M7–M11) |
+| N8 | M | The CPU's play style by stars (how far forward, jumps, dashes) is not measured off M7–M11: the face tracker gets ~30 s of clean play per clip (crowds, overlaps); the 5★ Offensive/Defensive split is from Idan's notes, and the tracks hint the other way round (UK deep in Idan's half, Germany in its own) — unconfirmed | | | — |
 | N6 | L | The CPU dash-strikes too rarely | 0.5/min | 1.4/min | meas (§3 #7) |
 | — | | Still open from above: K9, P10, W5, W6, W9 (need a recording); W8, R12 (decision / partly done); R7–R11, U8 (modes, economy, upgrades, menus: product decisions) | | | |
 
