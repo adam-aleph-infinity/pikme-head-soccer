@@ -18,6 +18,8 @@ import { powerById } from './champion-powers.js';
 const BOOT_POINTS = bootReach();
 // CPU habits fitted to HS (test-hs-parity cpu.* rows, _cpu probe): per 0.25 s roll while it has
 // somewhere to be, and the chance a close ball in front gets the boot mashed at it.
+// MEET_T: how long before a low ball in front reaches it the CPU steps into it (MEET IT MOVING).
+const MEET_T = 0.18;
 const DASH_BASE = 0.03, DASH_SKILL = 0.55, STRIKE_BASE = 0.05, STRIKE_SKILL = 0.9, DEAD_WAIT = 4, HOP = 0.075, MASH_BASE = 0.06, MASH_SKILL = 0.16, LAZY = 0.15, KICK_GO = 0.2, PRESS_BASE = 0.44, PRESS_SKILL = 0.1;
 
 // `aggression` is flat across the tiers: it is how often a bot chases a ball the other player is
@@ -633,6 +635,17 @@ function openPlay(bot, m, p, foe, b, out, d, dt) {
     if (bot.strike) { if (!bot.wantDash && bot.dashPulse == null) bot.strike = false; else bot.aim = b.x + side * 60; }
   }
 
+  // ---- MEET IT MOVING ----
+  // HS's CPU runs AT the ball: its ground touches leave FASTER than the ball came in (~520 in,
+  // ~865 out, M3/M4/M7–M11), which a body standing still cannot do — the bounce off a body is its
+  // relative speed, so it has to be going into the ball. Ours walked to its spot and waited, and the
+  // ball came off it at ~450. So in the last moment before a ball low in front reaches it (a little
+  // more than the bounce takes to close), it steps into it.
+  if (!bot.strike && p.onGround && !b.power) {
+    const ahd = (b.x - p.x) * p.side, closing = -b.vx * p.side + C.PLAYER_SPEED;
+    const low = b.y > C.GROUND_Y - C.BODY_H - 2 * C.HEAD_R;
+    if (low && ahd > 0 && ahd < 30 + closing * MEET_T && b.vx * p.side < 150) bot.aim = b.x + p.side * 40;
+  }
   // ---- steering ----
   steer(bot, p, out, bot.aim);
   // Dashing is a double tap: off, on, off, on — two rising edges inside DASH_WINDOW.
@@ -668,9 +681,12 @@ function openPlay(bot, m, p, foe, b, out, d, dt) {
       if (q.t > 0.42) break;
       const tj = Math.max(0, q.t + bot.jitter);
       const hx = p.x + vxNow * speed * q.t, hyT = hy - jumpRise(tj, jumpV);
-      const dd = Math.hypot(q.x - hx, q.y - hyT);
-      if (dd < C.HEAD_R + C.BALL_R + 3 && (q.x - hx) * side > -C.HEAD_R * 0.3 && q.y < hy - 6) { chance = true; break; }
-      if (dd < C.HEAD_R + C.BALL_R + 3 && toMyGoal) { chance = true; break; }
+      const dd = Math.hypot((q.x - hx) / C.HS_STRETCH, q.y - hyT);   // HS's oval head (sim.js SX)
+      // Only a ball ABOVE the head's centre is a header: one at the head's height or lower meets the
+      // head, the body or the boot standing, and jumping for it lifts the player over it — the ball
+      // rolled under and on behind him (2026-10-04: a third of the top tier's bumps on ground balls).
+      if (q.y >= hy - 6) continue;
+      if (dd < C.HEAD_R + C.BALL_R + 3 && ((q.x - hx) * side > -C.HEAD_R * 0.3 || toMyGoal)) { chance = true; break; }
     }
     // A chance is taken or passed on ONCE (per approach), on skill — a weak tier misses the
     // moment as often as it sees it.
@@ -708,15 +724,29 @@ function openPlay(bot, m, p, foe, b, out, d, dt) {
   // HS's CPU plays about half its touches with the boot.)
   // ballSoon: the ball reaches the swing's path before the swing could come round again
   // (KICK_COOLDOWN) — then the boot is kept for the ball: no mash, no boot on the other player.
-  let onBoot = false, ballSoon = false;
+  let onBoot = false, ballSoon = false, blocked = false;
   for (const q of near) {
     if (q.t > C.KICK_COOLDOWN) break;
     const dy = p.onGround ? 0 : p.vy * q.t;
     const fx = p.x + vxNow * speed * q.t, fy = p.y + dy;
-    if (!onBoot && q.t <= C.KICK_TIME + C.TICK) {
+    // …but only if the boot gets there FIRST: a ball that meets the head or the body on its way
+    // to the boot is a header or a bump, and the swing is wasted (2026-10-04: 63% of the top tier's
+    // "predicted" swings met the head or body first; only 14% met the boot).
+    if (!onBoot && !blocked) {
+      const hx = fx, hyT = fy - (p.y - headY(p));
+      // (heads and ball are HS's ovals, 1.2× as wide: the sim solves them with x squeezed by HS_STRETCH)
+      if (Math.hypot((q.x - hx) / C.HS_STRETCH, q.y - hyT) < C.HEAD_R + C.BALL_R ||
+          (Math.abs(q.x - fx) < C.BODY_W / 2 + C.BALL_R && q.y > fy - C.BODY_H - C.BALL_R)) blocked = true;
+    }
+    // Only the LIVE swing: the sim ignores the snap back to the feet (the last 8%, sim.js "drawn,
+    // not swung"), so a ball the boot would only meet on its way back down is no chance at all —
+    // counting it pressed KICK ~0.25 s early at a ball rolling in, and the ball met the shins.
+    if (!onBoot && !blocked && q.t <= C.KICK_TIME * 0.92 + C.TICK) {
       // the boot sweeps 10–15 px a tick as it rises: test it through the tick, not only at its end
       for (let j = 0; j <= 3 && !onBoot; j++) {
-        const bt = bootAt(fx, fy, side, Math.max(0, q.t - (C.TICK * j) / 3) / C.KICK_TIME);
+        const kk = Math.max(0, q.t - (C.TICK * j) / 3) / C.KICK_TIME;
+        if (kk > 0.92) continue;
+        const bt = bootAt(fx, fy, side, kk);
         if (Math.hypot(q.x - bt.x, q.y - bt.y) < C.BOOT_R + C.BALL_R + 4) onBoot = true;
       }
       if (onBoot) { ballSoon = true; break; }
