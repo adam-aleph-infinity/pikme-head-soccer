@@ -144,6 +144,32 @@ Three different outcomes, depending on what the defender is doing when the ball 
 | M2 41.8 (clock 0:43) | CPU | aerial meteor | lands in front of the keeper; rebound scored by the player |
 | M2 102.2 (clock 0:05) | player | straight comet | hits the UK player (103.8), bounces back; player clears |
 
+### 5b. Idan against the arcade CPU by stars — M7–M11 (2026-10-02/03)
+
+Five matches, Idan as Korea: M7 Italy (4★ on HS's ladder), M8 UK (5★), M9 Germany (5★), M10 Russia (3★),
+M11 Cameroon (1★) — `hs-video/M7…M11`, tracked by `_hs-track-match.mjs`, every cut-in found by the
+screen going dark and watched on frame sheets (0.15 s, and 30 fps zooms for M8 31.55 and M10 46.54).
+
+**His power shots at the CPU — 18 with an outcome:**
+
+| CPU | body in the path, HIT | kick-block | goal |
+|---|---|---|---|
+| UK 5★ (7) | 6 | 0 | 1 (42.15: hit, the ball popped up and dropped into UK's own net) |
+| Germany 5★ (3) | 3 | 0 | 0 |
+| Italy 4★ (3) | 2 | 0 | 1 (86.16: Italy on its line, out of the path) |
+| Russia 3★ (4) | 2 | 0 | 2 (32.08 while frozen; 84.25 armed but out of the path) |
+| Cameroon 1★ (3) | 2 | 0 | 1 (61.9: mid-pitch, out of the path) |
+
+- **No CPU kick-blocked a single one**, 1★ to 5★. Every stop was the body: a red splash, the CPU thrown back
+  ~400 px toward its own goal through the air (~0.5 s), stars.
+- What the stars change is **being in the path**: 5★ was there 9 times of 10, 1–4★ were caught out of it 4 of 10.
+- A hit near the CPU's goal can send the ball straight back the length of the pitch into the shooter's own
+  net (M10 46.54, M7 46.98).
+- The CPU never countered with its own power (M10 84.25: Russia was armed, and not in the path).
+
+**The CPU's shots at Idan — 16:** countered by the armed Idan 9, kick-blocked by him once (M10 28.37: it went
+back and froze Russia), hit once, goal 5 (UK's Aerial 3 of 3; Germany point-blank; Italy's giant ball from the centre).
+
 ## 6. What we took into the game
 
 | rule | number | source |

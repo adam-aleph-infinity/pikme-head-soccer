@@ -321,8 +321,11 @@ export function arcadeMatch(stage, standIn = 3) {
       return [botInput(ctx.bots[0], m, 0, C.TICK), botInput(ctx.bots[1], m, 1, C.TICK)];
     } };
 }
+// 24 seeds, not 8: the cpu.* rows read whole bot matches, and over 8 a ratio like cpu.rangeConv
+// swung 0.44–0.55 on the same code with nothing but the ball's flights changed (2026-10-04: the
+// ceiling's bounce; 24 seeds read 0.53 both before and after).
 function cpuMatch(level, standIn = 3) {
-  return { clip: 'M', ticks: 60 * 200, seeds: 8, cpu: true, setup: () => {},
+  return { clip: 'M', ticks: 60 * 200, seeds: 24, cpu: true, setup: () => {},
     input: (i, m, ctx) => {
       ctx.bots ??= [createBot(standIn, rng(31 + 101 * ctx.seed)), createBot(level, rng(47 + 101 * ctx.seed))];
       return [botInput(ctx.bots[0], m, 0, C.TICK), botInput(ctx.bots[1], m, 1, C.TICK)];

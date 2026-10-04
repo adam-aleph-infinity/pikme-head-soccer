@@ -12,7 +12,7 @@ import { FAMILIES, FAMILY_ORDER, AILMENT_ORDER, AURA_ORDER, shotById } from './s
 import { HS_MAP } from './shared/hs-champion-map.js';
 import {
   CHAMPIONS, ARCADE_STAGES, CHAMPION_COUNT, TIERS, championFor, championForStage, botProfile,
-  stageConfig, stageDifficulty,
+  stageConfig, stageDifficulty, FIVE_STAR,
 } from './shared/champions.js';
 import * as A from './shared/arcade.js';
 import { CHAMPION_POWERS, BUILT_STAGES, difficultyScore } from './shared/champion-powers.js';
@@ -98,7 +98,15 @@ const FOE_CARD = { rarity: 'epic', number: 1 };            // not a champion: no
   const fams = new Set(CHAMPIONS.map((c) => c.hs.family));
   ok('all eleven families are in the campaign', FAMILY_ORDER.every((f) => fams.has(f)), [...fams].join(','));
   ok('the gentle Grab and Multi-Ball are stages 2 and 6 (Idan\'s decision 1)', CHAMPIONS.filter((c) => c.hs.gentle).map((c) => c.stage).join() === '2,6');
-  ok('the stat total climbs from 12 to 45', (() => { const t = (c) => Object.values(c.hs.stats).reduce((a, b) => a + b, 0); return t(CHAMPIONS[0]) === 12 && t(CHAMPIONS[44]) === 45; })());
+  // HS's arcade stats (Idan, 2026-10-02): a low-star CPU (0.5–2.5★) is held to the bottom levels —
+  // speed and kick 1. A five-star one (Idan, 2026-10-04: HS's are "fully upgraded", so +2 over the
+  // player's equal stats) runs, jumps, kicks and dashes on levels 7–8; its power bar stays on 5–6,
+  // the player's own fill.
+  ok('the 0.5–2.5★ champions run and kick at level 1', CHAMPIONS.filter((c) => c.hs.stars <= 2.5).every((c) => c.hs.stats.speed === 1 && c.hs.stats.kick === 1 && Object.values(c.hs.stats).every((v) => v <= 2)));
+  const BODY = ['speed', 'jump', 'kick', 'dash'];
+  ok('every five-star champion runs, jumps, kicks and dashes on levels 7–8, its power bar on 5–6', CHAMPIONS.filter((c) => c.hs.stars === 5).every((c) => BODY.every((k) => c.hs.stats[k] >= 7 && c.hs.stats[k] <= 8) && c.hs.stats.power >= 5 && c.hs.stats.power <= 6));
+  ok('the body stats\' base level never steps down along the ladder', CHAMPIONS.every((c, i) => i === 0 || Math.min(...BODY.map((k) => c.hs.stats[k])) >= Math.min(...BODY.map((k) => CHAMPIONS[i - 1].hs.stats[k]))));
+  ok('the stars are HS\'s: half a star a stage to five at stage 10, five after', CHAMPIONS.every((c) => c.hs.stars === Math.min(5, c.stage / 2)));
 }
 
 // ═══ 2b. THE CHAMPIONS' OWN POWERS (shared/champion-powers.js) ═══════════════
@@ -185,9 +193,9 @@ function fireChampion(stage, i, gap = 460) {
   const m = createMatch({ rarity: 'legendary', number: 45 }, { rarity: 'legendary', number: 1 }, { champions: true });
   ok('no champion effects, mods or field survive', !m.champ.effects && !m.champ.field && m.players.every((p) => p.mods === undefined));
   ok('a champion plays on its HS stats; the player on equal ones', (() => {
-    const cfg = stageConfig(45);
+    const cfg = stageConfig(1);
     const g = createMatch({ rarity: 'epic', number: 3 }, cfg.champ.card, cfg.matchOpts);
-    return g.players[0].stats.speed === 1 && g.players[1].stats.speed > 1.05 && g.players[1].meterRate > 1;
+    return g.players[0].stats.speed === 1 && g.players[1].stats.speed < 0.8 && g.players[1].stats.kick < 0.7 && g.players[1].meterRate < 1;
   })());
 }
 
@@ -266,20 +274,30 @@ function fireChampion(stage, i, gap = 460) {
     const n = i + 1;
     ok(`stage ${n}: difficulty is all numbers`, ['react', 'error', 'counter', 'aim', 'powerHold', 'stars'].every((k) => finite(d[k])));
     ok(`stage ${n}: in range`, d.react > 0 && d.react <= 0.34 && d.error >= 0 && d.aim > 0 && d.aim < 1 &&
-       d.counter >= 0 && d.counter < 1 && d.powerHold > 0 && d.stars >= 1 && d.stars <= 5);
+       d.counter >= 0 && d.counter < 1 && d.powerHold > 0 && d.stars >= 0.5 && d.stars <= 5);
     const bp = botProfile(CHAMPIONS[i]);
     ok(`stage ${n}: bot profile is complete`, ['react', 'error', 'counter', 'aggression', 'aim', 'powerHold', 'tackle'].every((k) => finite(bp[k])) && typeof bp.arm === 'string');
-    if (i > 0) {
+    // Stars are only how smart it plays (Idan): smarter every stage up to five stars at stage
+    // FIVE_STAR, and from there on every champion plays exactly the same.
+    if (i > 0 && n <= FIVE_STAR) {
       const p = D[i - 1];
-      ok(`stage ${n}: at least as hard as stage ${n - 1}`,
-         d.react < p.react && d.error < p.error && d.aim > p.aim && d.counter > p.counter && d.powerHold < p.powerHold && d.stars >= p.stars);
+      ok(`stage ${n}: smarter than stage ${n - 1}`,
+         d.react < p.react && d.error < p.error && d.aim > p.aim && d.counter > p.counter && d.powerHold < p.powerHold && d.stars > p.stars);
     }
+    // (what a five-star CPU varies is its plan, Offensive or Defensive, and — from the 24th, as HS's
+    // Asura on — the counter by kick, tested below; nothing else about how smart it is)
+    const brain = (q) => { const r = { ...q, name: '', archetype: '' }; delete r.counterKick; delete r.counterRate; return r; };
+    ok(`stage ${n}: ${n >= 24 ? 'kicks the power shot back' : 'never kicks the power shot back'}`, n >= 24
+      ? bp.counterKick === true && bp.counterRate >= 0.4 && bp.counterRate <= 0.8 && (n === 24 || bp.counterRate > botProfile(CHAMPIONS[n - 2]).counterRate)
+      : !bp.counterKick);
+    if (n > FIVE_STAR) ok(`stage ${n}: plays exactly as smart as stage ${FIVE_STAR}`, JSON.stringify(d) === JSON.stringify(D[FIVE_STAR - 1]) && JSON.stringify(brain(bp)) === JSON.stringify(brain(botProfile(CHAMPIONS[FIVE_STAR - 1]))));
+    ok(`stage ${n}: ${n >= FIVE_STAR ? 'an Offensive or Defensive five-star plan' : 'no five-star plan yet'}`, n >= FIVE_STAR ? ['offense', 'defense'].includes(bp.archetype) : bp.archetype === undefined);
   }
   const first = D[0], last = D[44];
   ok('stage 1 is the bot\'s easiest tier', first.react === DIFFICULTIES[0].react && first.aim === DIFFICULTIES[0].aim && first.error === DIFFICULTIES[0].error);
   ok('stage 45 is short of its hardest (beatable)', last.react > DIFFICULTIES[5].react && last.aim < DIFFICULTIES[5].aim);
-  ok('no step between stages is a spike', D.every((d, i) => i === 0 || (D[i - 1].aim - d.aim) > -0.02));
-  ok('the campaign starts at one star and ends at five', first.stars === 1 && last.stars === 5);
+  ok('no step between stages is a spike (an even climb to five stars)', D.every((d, i) => i === 0 || d.aim - D[i - 1].aim <= 0.61 / (FIVE_STAR - 1) + 1e-3));
+  ok('the campaign starts at half a star and reaches five at stage 10', first.stars === 0.5 && D[FIVE_STAR - 1].stars === 5 && last.stars === 5);
 
   // …and the ladder is real on the pitch. Each stage's champion, exactly as the arcade builds
   // it (bot, HS stats, gauge rate), against one fixed opponent standing in for the player: the
@@ -311,12 +329,16 @@ function fireChampion(stage, i, gap = 460) {
     }
     return gd / n;
   };
+  // Stars are how smart it plays (Idan): the low-star stages (1–3, 0.5–1.5★) against the last tier of
+  // five-star ones (37–45) — the tiers' 9-stage averages no longer say it, since 4–4.5★ (stages 8–9)
+  // play nearly as smart as five stars and a five-star stage differs from the next only by its power.
   const tier = (t) => { let g = 0; for (let n = t * 9 + 1; n <= t * 9 + 9; n++) g += vsRef(n, 20); return g / 9; };
-  const t1 = tier(0), t5 = tier(4);
-  console.log(`  (info) champion vs the tier-3 bot, goal difference a match: tier 1 ${t1.toFixed(2)}, tier 5 ${t5.toFixed(2)}`);
+  const t1 = (vsRef(1, 20) + vsRef(2, 20) + vsRef(3, 20)) / 3, t5 = tier(4);
+  console.log(`  (info) champion vs the tier-3 bot, goal difference a match: stages 1–3 ${t1.toFixed(2)}, tier 5 ${t5.toFixed(2)}`);
   // (+1.5 until the power shot always left at head height, which helped the early champions'
   // straight shots most — +1.57 → +1.26; Idan kept that balance, 2026-09-30)
-  ok('the last tier of champions plays harder than the first', t5 > t1 + 1.0, `champion goal difference a match: tier 1 ${t1.toFixed(2)}, tier 5 ${t5.toFixed(2)}`);
+  // (measured 2026-10-03, the CPU body-blocking as in Idan's M7–M11: stages 1–3 −1.13, tier 5 −0.15)
+  ok('the last tier of champions plays harder than the first', t5 > t1 + 0.75, `champion goal difference a match: tier 1 ${t1.toFixed(2)}, tier 5 ${t5.toFixed(2)}`);
   let hi = 0, lo = 0;
   for (let s = 0; s < 16; s++) {
     for (const flip of [false, true]) {
@@ -459,7 +481,7 @@ function fireChampion(stage, i, gap = 460) {
   // AND the defender is free under a cut-in, and a skied ball keeps its sideways speed off the ceiling.
   // AND the cut-in timed from the touch (1.27 s hold, 1.5 s dark), the ball fired from 2.5 head radii
   // in front of the shooter (POWER_RELEASE_AT), a block's stop under the dark's tail freezing both.
-  const GOLDEN = 'd0ffb5dd67989491b853a06201ead84dc1a5227e298530b608a7b4aece0b2c36';   // re-recorded: a strike event carries the speed the ball leaves at (`v`, events only — the bodies and the ball are unchanged); before that the defender gets into the path of an answerable power shot during its cut-in; before that the CPU follows the ball past its pressing depth when it is the nearer player, and waits further out the stronger it is; before that the human double tap (window from the release, buffered second tap) and the bot's tap guard; before that the boot is HS's measured bounce again (BOOT_BOUNCE 0.68, its swing BOOT_DRIVE 0.893 so a still ball leaves as before), the ceiling keeps 0.63 of the sideways speed (CEIL_KEEP_X, HS M1–M4), and the CPU mashes a close ball more at the bottom tiers (bot.js MASH_BASE); before that a kick-block fires back THE POWER IT BLOCKED, now the blocker's (hs-powers fireBack, pw.src; Idan); before that a power shot's HIT throws the victim flat into his goal (1000 px/s), 0.9 s down, a mark on his face (hs-powers HIT_KNOCK / POWER_HIT_STUN, HS M4 62.85 s); before that an armed bot keeps playing its own game and fires on its next touch, instead of dashing and booting at the ball to fire (bot.js ARMED; HS cpu.powerDelay, a friend's 1–9 at stage 1); before that HS's own goal height again, and a power shot never leaves higher than just under the crossbar, so one fired from the top of a full jump goes in (constants.js POWER_RELEASE_BAR_GAP, Idan); before that a power shot always leaves at the shooter's head height, whatever touched it (constants.js POWER_RELEASE_UP, Idan); before that a straight power shot met by a player in the air right where it leaves goes back off him over the shooter (the wiki's early header, HS.EARLY_HEADER), and a blocked shot fires back plain, without the shooter's ailment; before that the CPU dash-strikes a slow grass ball in front of it (bot.js THE DASH STRIKE) and waits DEAD_WAIT before pouncing on a dead ball; before that the grass and the side walls grip the ball (BALL_GRIP 0.07, HS M1–M6) and a bot takes a dead ball past its pressing depth; before that a grass ball kicked leaves with HS's small lift (the boot's ground path rises, shared/kick.js BOOT_PATH); before that HS's proportions — the 1.2x sideways stretch (oval ball and heads, solved in native space), HS's goal box (far post on the line), the 221 kickoff spot; before that the HS cut-in timing and release spot; before that the CPU arms the moment its gauge is full (Idan); before that hit marks (`hurt`) count every hurt but the knockout's, up to four (HS M4 95–187 s); before that a power shot ends when it scores or meets the frame
+  const GOLDEN = '8d65cd740ecdcf5ba02bba54441dd7401849ac553d0367d3d3ee00e8f9a79feb';   // re-recorded (2026-10-04): the bot kicks with the boot it will really have — the live swing only (not the snap back), only when the boot meets the ball before the head or the body, header jumps only for a ball above the head's centre, and it steps into a low ball in front (MEET IT MOVING); before that the ceiling is HS's as measured on every hit in M1–M11 (_ceil-hits.mjs): the ball centre turns at -118 (CEIL_Y -133) and bounces back with 0.64 of the climb (was -130 and 0.41); before that the bot presses KICK when the boot, where it really is in the swing, meets the ball (kick.js bootAt, swept through each tick), keeps the boot for a ball about to arrive (no mash), plans where to meet the ball at the tuned speed and decides who is first by time, and times jumps to its own jump; before that the CPU boots the other player by its stars (bot.js bootOf: 0.03 up to 1.5 stars, every ready boot at five, a knocked-out player too) unless the ball is about to reach its boot; before that no bot moves in the ~0.55 s before a restart's ball drops (sim ballWait; HS's CPU 'does nothing until the ball is launched'); before that the CPU answers a power shot with its BODY in the path, never its boot, a stride or more out from the shooter (Idan's M7–M11: 21 shots, no CPU kick-block), and Nigeria's "close" deflection only right by him; before that the counter by kick is the BOOT meeting the power ball (sim.js bootOn; a head or body with the leg out is hit), and the bot times its kick to the boot's window (0.07 s for a grass ball, 0.19 s at head height); before that the defender freezes 0.8 → 0.3 s below five stars when the other player's power starts, then answers or not (0.3 + 0.6 skill), off by a tier's sloppiness in time and place, and a champion power's own answer (Nigeria: kick it, never jump it) beats its family's (Idan's HS notes); before that during the other player's cut-in the defender times its jump and boot to the release (bot.js tOff), and fewer tiers read it (0.1 + 0.45 skill), and no bot mashes its boot while a blocked shot grinds; before that a strike event carries the speed the ball leaves at (`v`, events only — the bodies and the ball are unchanged); before that the defender gets into the path of an answerable power shot during its cut-in; before that the CPU follows the ball past its pressing depth when it is the nearer player, and waits further out the stronger it is; before that the human double tap (window from the release, buffered second tap) and the bot's tap guard; before that the boot is HS's measured bounce again (BOOT_BOUNCE 0.68, its swing BOOT_DRIVE 0.893 so a still ball leaves as before), the ceiling keeps 0.63 of the sideways speed (CEIL_KEEP_X, HS M1–M4), and the CPU mashes a close ball more at the bottom tiers (bot.js MASH_BASE); before that a kick-block fires back THE POWER IT BLOCKED, now the blocker's (hs-powers fireBack, pw.src; Idan); before that a power shot's HIT throws the victim flat into his goal (1000 px/s), 0.9 s down, a mark on his face (hs-powers HIT_KNOCK / POWER_HIT_STUN, HS M4 62.85 s); before that an armed bot keeps playing its own game and fires on its next touch, instead of dashing and booting at the ball to fire (bot.js ARMED; HS cpu.powerDelay, a friend's 1–9 at stage 1); before that HS's own goal height again, and a power shot never leaves higher than just under the crossbar, so one fired from the top of a full jump goes in (constants.js POWER_RELEASE_BAR_GAP, Idan); before that a power shot always leaves at the shooter's head height, whatever touched it (constants.js POWER_RELEASE_UP, Idan); before that a straight power shot met by a player in the air right where it leaves goes back off him over the shooter (the wiki's early header, HS.EARLY_HEADER), and a blocked shot fires back plain, without the shooter's ailment; before that the CPU dash-strikes a slow grass ball in front of it (bot.js THE DASH STRIKE) and waits DEAD_WAIT before pouncing on a dead ball; before that the grass and the side walls grip the ball (BALL_GRIP 0.07, HS M1–M6) and a bot takes a dead ball past its pressing depth; before that a grass ball kicked leaves with HS's small lift (the boot's ground path rises, shared/kick.js BOOT_PATH); before that HS's proportions — the 1.2x sideways stretch (oval ball and heads, solved in native space), HS's goal box (far post on the line), the 221 kickoff spot; before that the HS cut-in timing and release spot; before that the CPU arms the moment its gauge is full (Idan); before that hit marks (`hurt`) count every hurt but the knockout's, up to four (HS M4 95–187 s); before that a power shot ends when it scores or meets the frame
   const h = createHash('sha256');
   const cases = [
     [{ rarity: 'legendary', number: 3 }, { rarity: 'legendary', number: 2 }, 3, 3, 11],

@@ -24,6 +24,7 @@ export const TORNADO = Object.freeze({
                     // screen and back in ≈ 1.25 s, as the Grab's throw (Nigeria.gif: gone ≈ 0.7 s)
   OUT: 3.0,         // s unconscious in all ("unconscious for 3 seconds")
   CLOSE: 0.1,       // s after it leaves: a defender standing right there sends it back behind Nigeria
+  NEAR: 150,        // px from where it left that counts as "right there" (Power_Shot_Guide: "get very close")
 });
 
 export default Object.freeze({
@@ -33,6 +34,9 @@ export default Object.freeze({
   desc: 'טורנדו רץ על הדשא עם הכדור ופוגע גם בקופץ. נפגעת? עף מסתחרר, 3 שניות מעולף.',
   sources: ['https://headsoccer.wiki.gg/wiki/Nigeria', 'https://headsoccer.wiki.gg/wiki/Power_Shot_Guide', 'https://headsoccer.wiki.gg/wiki/Power_Shots'],
   diff: { speed: 0.68, disable: TORNADO.OUT, jumpers: 1 },
+  // How a defender answers it (shared/bot.js reads this over the ground family's "a boot cannot
+  // stop it, jump it"): a kick blocks it, and a jump over it is caught in the funnel.
+  answer: { kick: true, jump: false },
 
   step(m, b, dt, pw, S, kit, api) {
     if (pw.ph !== 'roll') return undefined;                    // the drop is the ground family's
@@ -59,7 +63,9 @@ export default Object.freeze({
     if (kicking) return api.block(m, p, b, pw);                 // "deflected easily when you watch for it"
     // Standing right next to Nigeria as he fires, the ball comes off you and falls behind HIM
     // (Power_Shot_Guide: "get very close … the ball may fall behind Nigeria") — a plain ball.
-    if (p.onGround && (pw.ph === 'drop' || pw.k < TORNADO.CLOSE)) {
+    // (only right by him: the drop phase alone used to count, so a defender 300 px away on the
+    // grass sent every Tornado back while it was still coming down)
+    if (p.onGround && Math.abs(b.x - pw.x0) < TORNADO.NEAR && (pw.ph === 'drop' || pw.k < TORNADO.CLOSE)) {
       b.power = null;
       b.vx = -pw.dir * 420; b.vy = -520;
       m.events.push({ type: 'blocked', player: p.index, by: pw.owner, fam: pw.fam, how: 'close', cp: pw.cp });

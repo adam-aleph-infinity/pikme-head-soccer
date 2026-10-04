@@ -18,13 +18,13 @@
     "gentle": false,
     "profile": "power",
     "stats": {
-      "speed": 2,
-      "jump": 2,
-      "kick": 3,
-      "dash": 2,
-      "power": 3
+      "speed": 1,
+      "jump": 1,
+      "kick": 1,
+      "dash": 1,
+      "power": 2
     },
-    "statTotal": 12,
+    "statTotal": 6,
     "stars": 0.5,
     "rationale": "A cannonball: straight and heavy, the blocker is knocked back — HS Destructive in its plainest form."
   },
@@ -47,14 +47,14 @@
     "gentle": true,
     "profile": "tricky",
     "stats": {
-      "speed": 3,
-      "jump": 3,
-      "kick": 2,
-      "dash": 3,
-      "power": 2
+      "speed": 1,
+      "jump": 1,
+      "kick": 1,
+      "dash": 2,
+      "power": 1
     },
-    "statTotal": 13,
-    "stars": 0.5,
+    "statTotal": 6,
+    "stars": 1,
     "rationale": "Worms wrap the legs and pull — a Grab; the current slow/no-jump effect is exactly the shock ailment."
   },
   {
@@ -76,14 +76,14 @@
     "gentle": false,
     "profile": "kicker",
     "stats": {
-      "speed": 2,
-      "jump": 2,
-      "kick": 4,
-      "dash": 2,
-      "power": 4
+      "speed": 1,
+      "jump": 1,
+      "kick": 1,
+      "dash": 1,
+      "power": 1
     },
-    "statTotal": 14,
-    "stars": 0.5,
+    "statTotal": 5,
+    "stars": 1.5,
     "rationale": "Fireball down a straight line; the blocker burns, as the current blaze already does."
   },
   {
@@ -105,14 +105,14 @@
     "gentle": false,
     "profile": "tank",
     "stats": {
-      "speed": 2,
-      "jump": 3,
-      "kick": 3,
-      "dash": 2,
-      "power": 4
+      "speed": 1,
+      "jump": 2,
+      "kick": 1,
+      "dash": 1,
+      "power": 1
     },
-    "statTotal": 14,
-    "stars": 1,
+    "statTotal": 6,
+    "stars": 2,
     "rationale": "A mud ball that rolls along the turf; being stuck in the bog = shock (slow, no jump)."
   },
   {
@@ -134,14 +134,14 @@
     "gentle": false,
     "profile": "tank",
     "stats": {
-      "speed": 2,
-      "jump": 4,
-      "kick": 3,
-      "dash": 2,
-      "power": 4
+      "speed": 1,
+      "jump": 2,
+      "kick": 1,
+      "dash": 1,
+      "power": 1
     },
-    "statTotal": 15,
-    "stars": 1,
+    "statTotal": 6,
+    "stars": 2.5,
     "rationale": "A brick wall slides along the ground: can only be countered, never deflected."
   },
   {
@@ -163,14 +163,14 @@
     "gentle": true,
     "profile": "balanced",
     "stats": {
-      "speed": 4,
-      "jump": 3,
-      "kick": 3,
-      "dash": 3,
-      "power": 3
+      "speed": 2,
+      "jump": 2,
+      "kick": 2,
+      "dash": 2,
+      "power": 2
     },
-    "statTotal": 16,
-    "stars": 1,
+    "statTotal": 10,
+    "stars": 3,
     "rationale": "Coin shower becomes a few coin-balls, any of which may score (light early version)."
   },
   {
@@ -192,14 +192,14 @@
     "gentle": false,
     "profile": "jumper",
     "stats": {
-      "speed": 3,
-      "jump": 5,
-      "kick": 3,
-      "dash": 3,
-      "power": 3
+      "speed": 2,
+      "jump": 3,
+      "kick": 2,
+      "dash": 2,
+      "power": 2
     },
-    "statTotal": 17,
-    "stars": 1,
+    "statTotal": 11,
+    "stars": 3.5,
     "rationale": "Pogo spring: the shot boings up in a high arc."
   },
   {
@@ -222,13 +222,13 @@
     "profile": "kicker",
     "stats": {
       "speed": 3,
-      "jump": 2,
-      "kick": 5,
-      "dash": 2,
-      "power": 5
+      "jump": 3,
+      "kick": 4,
+      "dash": 3,
+      "power": 3
     },
-    "statTotal": 17,
-    "stars": 1,
+    "statTotal": 16,
+    "stars": 4,
     "rationale": "Magnet-true: the ball flies dead straight at the goal as if on a rail."
   },
   {
@@ -250,14 +250,14 @@
     "gentle": false,
     "profile": "balanced",
     "stats": {
-      "speed": 4,
-      "jump": 4,
-      "kick": 4,
+      "speed": 3,
+      "jump": 3,
+      "kick": 3,
       "dash": 3,
       "power": 3
     },
-    "statTotal": 18,
-    "stars": 1.5,
+    "statTotal": 15,
+    "stars": 4.5,
     "rationale": "The current red wave already rises and falls — the textbook Up-and-Down."
   },
   {
@@ -279,14 +279,14 @@
     "gentle": false,
     "profile": "tank",
     "stats": {
-      "speed": 3,
-      "jump": 4,
-      "kick": 4,
-      "dash": 3,
+      "speed": 7,
+      "jump": 8,
+      "kick": 7,
+      "dash": 7,
       "power": 5
     },
-    "statTotal": 19,
-    "stars": 1.5,
+    "statTotal": 34,
+    "stars": 5,
     "rationale": "A giant heads it down from above — Downward Slanting."
   },
   {
@@ -308,14 +308,14 @@
     "gentle": false,
     "profile": "tricky",
     "stats": {
-      "speed": 5,
-      "jump": 4,
-      "kick": 3,
-      "dash": 4,
-      "power": 4
+      "speed": 8,
+      "jump": 7,
+      "kick": 7,
+      "dash": 8,
+      "power": 5
     },
-    "statTotal": 20,
-    "stars": 1.5,
+    "statTotal": 35,
+    "stars": 5,
     "rationale": "Shrinking the head, taken to its end: the hit player is briefly beheaded."
   },
   {
@@ -337,14 +337,14 @@
     "gentle": false,
     "profile": "jumper",
     "stats": {
-      "speed": 4,
-      "jump": 6,
-      "kick": 4,
-      "dash": 3,
-      "power": 3
+      "speed": 7,
+      "jump": 8,
+      "kick": 7,
+      "dash": 7,
+      "power": 5
     },
-    "statTotal": 20,
-    "stars": 1.5,
+    "statTotal": 34,
+    "stars": 5,
     "rationale": "Moon gravity: the ball floats up in a long, slow arc."
   },
   {
@@ -366,14 +366,14 @@
     "gentle": false,
     "profile": "kicker",
     "stats": {
-      "speed": 4,
-      "jump": 3,
-      "kick": 6,
-      "dash": 3,
+      "speed": 7,
+      "jump": 7,
+      "kick": 8,
+      "dash": 7,
       "power": 5
     },
-    "statTotal": 21,
-    "stars": 1.5,
+    "statTotal": 34,
+    "stars": 5,
     "rationale": "The rocket lands on the grass first and skims in low."
   },
   {
@@ -395,14 +395,14 @@
     "gentle": false,
     "profile": "fast",
     "stats": {
-      "speed": 6,
-      "jump": 4,
-      "kick": 3,
-      "dash": 6,
-      "power": 3
+      "speed": 8,
+      "jump": 7,
+      "kick": 7,
+      "dash": 8,
+      "power": 5
     },
-    "statTotal": 22,
-    "stars": 2,
+    "statTotal": 35,
+    "stars": 5,
     "rationale": "Turbo: the fastest plain straight shot of the early game."
   },
   {
@@ -424,14 +424,14 @@
     "gentle": false,
     "profile": "power",
     "stats": {
-      "speed": 3,
-      "jump": 3,
-      "kick": 6,
-      "dash": 3,
-      "power": 8
+      "speed": 7,
+      "jump": 7,
+      "kick": 8,
+      "dash": 7,
+      "power": 6
     },
-    "statTotal": 23,
-    "stars": 2,
+    "statTotal": 35,
+    "stars": 5,
     "rationale": "A weight drops at a slant; whoever it hits is heavy (shock)."
   },
   {
@@ -453,14 +453,14 @@
     "gentle": false,
     "profile": "kicker",
     "stats": {
-      "speed": 4,
-      "jump": 3,
-      "kick": 7,
-      "dash": 3,
-      "power": 6
+      "speed": 7,
+      "jump": 7,
+      "kick": 8,
+      "dash": 7,
+      "power": 5
     },
-    "statTotal": 23,
-    "stars": 2,
+    "statTotal": 34,
+    "stars": 5,
     "rationale": "A skipping stone along the turf — low, grounded, counter-only."
   },
   {
@@ -482,14 +482,14 @@
     "gentle": false,
     "profile": "fast",
     "stats": {
-      "speed": 7,
-      "jump": 4,
-      "kick": 4,
-      "dash": 6,
-      "power": 3
+      "speed": 8,
+      "jump": 7,
+      "kick": 7,
+      "dash": 8,
+      "power": 5
     },
-    "statTotal": 24,
-    "stars": 2,
+    "statTotal": 35,
+    "stars": 5,
     "rationale": "Storm wind: a straight gust, and arming pushes the opponent away."
   },
   {
@@ -511,14 +511,14 @@
     "gentle": false,
     "profile": "kicker",
     "stats": {
-      "speed": 4,
-      "jump": 3,
+      "speed": 7,
+      "jump": 7,
       "kick": 8,
-      "dash": 3,
-      "power": 7
+      "dash": 7,
+      "power": 5
     },
-    "statTotal": 25,
-    "stars": 2,
+    "statTotal": 34,
+    "stars": 5,
     "rationale": "The strike already paralyses the blocker: knockback + stars; the arm aura stuns."
   },
   {
@@ -540,14 +540,14 @@
     "gentle": false,
     "profile": "tricky",
     "stats": {
-      "speed": 7,
-      "jump": 5,
-      "kick": 4,
-      "dash": 5,
+      "speed": 8,
+      "jump": 7,
+      "kick": 7,
+      "dash": 8,
       "power": 5
     },
-    "statTotal": 26,
-    "stars": 2.5,
+    "statTotal": 35,
+    "stars": 5,
     "rationale": "The joker: controls flip (???) on hit, and on arming."
   },
   {
@@ -569,14 +569,14 @@
     "gentle": false,
     "profile": "tricky",
     "stats": {
-      "speed": 7,
-      "jump": 5,
-      "kick": 4,
-      "dash": 5,
+      "speed": 8,
+      "jump": 7,
+      "kick": 7,
+      "dash": 8,
       "power": 5
     },
-    "statTotal": 26,
-    "stars": 2.5,
+    "statTotal": 35,
+    "stars": 5,
     "rationale": "Snowman: the hit player freezes; arming freezes anyone close."
   },
   {
@@ -598,14 +598,14 @@
     "gentle": false,
     "profile": "jumper",
     "stats": {
-      "speed": 5,
-      "jump": 9,
-      "kick": 5,
-      "dash": 3,
+      "speed": 7,
+      "jump": 8,
+      "kick": 7,
+      "dash": 7,
       "power": 5
     },
-    "statTotal": 27,
-    "stars": 2.5,
+    "statTotal": 34,
+    "stars": 5,
     "rationale": "A meteor dives down into the goal and burns on impact."
   },
   {
@@ -627,14 +627,14 @@
     "gentle": false,
     "profile": "tricky",
     "stats": {
-      "speed": 7,
-      "jump": 6,
-      "kick": 4,
-      "dash": 6,
+      "speed": 8,
+      "jump": 7,
+      "kick": 7,
+      "dash": 8,
       "power": 5
     },
-    "statTotal": 28,
-    "stars": 2.5,
+    "statTotal": 35,
+    "stars": 5,
     "rationale": "Power drain as an ailment: the hit player is sapped (shock)."
   },
   {
@@ -656,14 +656,14 @@
     "gentle": false,
     "profile": "power",
     "stats": {
-      "speed": 4,
-      "jump": 4,
-      "kick": 7,
-      "dash": 4,
-      "power": 10
+      "speed": 7,
+      "jump": 7,
+      "kick": 8,
+      "dash": 7,
+      "power": 6
     },
-    "statTotal": 29,
-    "stars": 3,
+    "statTotal": 35,
+    "stars": 5,
     "rationale": "Earthquake: the blocker is thrown and sees stars; arming shakes the ground (push)."
   },
   {
@@ -685,14 +685,14 @@
     "gentle": false,
     "profile": "jumper",
     "stats": {
-      "speed": 5,
-      "jump": 10,
-      "kick": 5,
-      "dash": 4,
+      "speed": 7,
+      "jump": 8,
+      "kick": 7,
+      "dash": 7,
       "power": 5
     },
-    "statTotal": 29,
-    "stars": 3,
+    "statTotal": 34,
+    "stars": 5,
     "rationale": "Trampoline bounces: a wavy up-down flight."
   },
   {
@@ -714,14 +714,14 @@
     "gentle": false,
     "profile": "kicker",
     "stats": {
-      "speed": 5,
-      "jump": 4,
-      "kick": 9,
-      "dash": 4,
-      "power": 8
+      "speed": 7,
+      "jump": 7,
+      "kick": 8,
+      "dash": 7,
+      "power": 5
     },
-    "statTotal": 30,
-    "stars": 3,
+    "statTotal": 34,
+    "stars": 5,
     "rationale": "Stop-and-go is already a Delay shot: freeze mid-air, then burst on."
   },
   {
@@ -743,14 +743,14 @@
     "gentle": false,
     "profile": "fast",
     "stats": {
-      "speed": 9,
-      "jump": 5,
-      "kick": 5,
-      "dash": 9,
-      "power": 3
+      "speed": 8,
+      "jump": 7,
+      "kick": 7,
+      "dash": 8,
+      "power": 5
     },
-    "statTotal": 31,
-    "stars": 3,
+    "statTotal": 35,
+    "stars": 5,
     "rationale": "An ice puck sliding on the floor; whoever touches it freezes."
   },
   {
@@ -774,12 +774,12 @@
     "stats": {
       "speed": 8,
       "jump": 7,
-      "kick": 5,
-      "dash": 6,
-      "power": 6
+      "kick": 7,
+      "dash": 8,
+      "power": 5
     },
-    "statTotal": 32,
-    "stars": 3,
+    "statTotal": 35,
+    "stars": 5,
     "rationale": "The ball enters a portal, hangs, and comes out still flying — a Delay."
   },
   {
@@ -801,14 +801,14 @@
     "gentle": false,
     "profile": "kicker",
     "stats": {
-      "speed": 5,
-      "jump": 4,
-      "kick": 10,
-      "dash": 4,
-      "power": 9
+      "speed": 7,
+      "jump": 7,
+      "kick": 8,
+      "dash": 7,
+      "power": 5
     },
-    "statTotal": 32,
-    "stars": 3.5,
+    "statTotal": 34,
+    "stars": 5,
     "rationale": "Boomerang: a high arcing loop back into the goal."
   },
   {
@@ -830,14 +830,14 @@
     "gentle": false,
     "profile": "power",
     "stats": {
-      "speed": 5,
-      "jump": 5,
+      "speed": 7,
+      "jump": 7,
       "kick": 8,
-      "dash": 5,
-      "power": 10
+      "dash": 7,
+      "power": 6
     },
-    "statTotal": 33,
-    "stars": 3.5,
+    "statTotal": 35,
+    "stars": 5,
     "rationale": "The drill bores through the first blocker, knocking him aside."
   },
   {
@@ -859,14 +859,14 @@
     "gentle": false,
     "profile": "kicker",
     "stats": {
-      "speed": 6,
-      "jump": 5,
-      "kick": 10,
-      "dash": 4,
-      "power": 9
+      "speed": 7,
+      "jump": 7,
+      "kick": 8,
+      "dash": 7,
+      "power": 5
     },
     "statTotal": 34,
-    "stars": 3.5,
+    "stars": 5,
     "rationale": "The goal magnet pulls the ball down into the net at a slant."
   },
   {
@@ -888,14 +888,14 @@
     "gentle": false,
     "profile": "power",
     "stats": {
-      "speed": 5,
-      "jump": 5,
-      "kick": 10,
-      "dash": 5,
-      "power": 10
+      "speed": 7,
+      "jump": 7,
+      "kick": 8,
+      "dash": 7,
+      "power": 6
     },
     "statTotal": 35,
-    "stars": 3.5,
+    "stars": 5,
     "rationale": "The vacuum already drags the keeper around — now it drags him into his own goal."
   },
   {
@@ -917,14 +917,14 @@
     "gentle": false,
     "profile": "tricky",
     "stats": {
-      "speed": 9,
+      "speed": 8,
       "jump": 7,
-      "kick": 5,
-      "dash": 7,
-      "power": 7
+      "kick": 7,
+      "dash": 8,
+      "power": 5
     },
     "statTotal": 35,
-    "stars": 3.5,
+    "stars": 5,
     "rationale": "The vampire bites the blocker and drags him in; drained health = burn."
   },
   {
@@ -946,14 +946,14 @@
     "gentle": false,
     "profile": "kicker",
     "stats": {
-      "speed": 6,
-      "jump": 5,
-      "kick": 10,
-      "dash": 5,
-      "power": 10
+      "speed": 7,
+      "jump": 7,
+      "kick": 8,
+      "dash": 7,
+      "power": 5
     },
-    "statTotal": 36,
-    "stars": 4,
+    "statTotal": 34,
+    "stars": 5,
     "rationale": "Golden boot: the faster, harder-to-counter shot — Critical."
   },
   {
@@ -975,14 +975,14 @@
     "gentle": false,
     "profile": "balanced",
     "stats": {
-      "speed": 8,
-      "jump": 8,
+      "speed": 7,
+      "jump": 7,
       "kick": 7,
       "dash": 7,
-      "power": 7
+      "power": 5
     },
-    "statTotal": 37,
-    "stars": 4,
+    "statTotal": 33,
+    "stars": 5,
     "rationale": "A soft woolly lob; whoever touches it goes limp (shock)."
   },
   {
@@ -1004,14 +1004,14 @@
     "gentle": false,
     "profile": "kicker",
     "stats": {
-      "speed": 8,
-      "jump": 5,
-      "kick": 10,
-      "dash": 5,
-      "power": 10
+      "speed": 7,
+      "jump": 7,
+      "kick": 8,
+      "dash": 7,
+      "power": 5
     },
-    "statTotal": 38,
-    "stars": 4,
+    "statTotal": 34,
+    "stars": 5,
     "rationale": "Guided missile: locks onto the open corner — Critical."
   },
   {
@@ -1033,14 +1033,14 @@
     "gentle": false,
     "profile": "jumper",
     "stats": {
-      "speed": 8,
-      "jump": 10,
-      "kick": 8,
-      "dash": 5,
-      "power": 7
+      "speed": 7,
+      "jump": 8,
+      "kick": 7,
+      "dash": 7,
+      "power": 5
     },
-    "statTotal": 38,
-    "stars": 4,
+    "statTotal": 34,
+    "stars": 5,
     "rationale": "Gravity flip: the ball falls up and back down, and the world turns upside down (???)."
   },
   {
@@ -1062,14 +1062,14 @@
     "gentle": false,
     "profile": "balanced",
     "stats": {
-      "speed": 8,
-      "jump": 8,
-      "kick": 8,
-      "dash": 8,
-      "power": 7
+      "speed": 7,
+      "jump": 7,
+      "kick": 7,
+      "dash": 7,
+      "power": 5
     },
-    "statTotal": 39,
-    "stars": 4,
+    "statTotal": 33,
+    "stars": 5,
     "rationale": "The mirror returns everything reversed: a Critical that leaves ??? on the blocker."
   },
   {
@@ -1091,14 +1091,14 @@
     "gentle": false,
     "profile": "fast",
     "stats": {
-      "speed": 10,
-      "jump": 8,
+      "speed": 8,
+      "jump": 7,
       "kick": 7,
-      "dash": 10,
+      "dash": 8,
       "power": 5
     },
-    "statTotal": 40,
-    "stars": 4.5,
+    "statTotal": 35,
+    "stars": 5,
     "rationale": "Teleport: the ball blinks to the goal mouth — the hardest to counter."
   },
   {
@@ -1120,14 +1120,14 @@
     "gentle": false,
     "profile": "fast",
     "stats": {
-      "speed": 10,
-      "jump": 8,
-      "kick": 8,
-      "dash": 10,
+      "speed": 8,
+      "jump": 7,
+      "kick": 7,
+      "dash": 8,
       "power": 5
     },
-    "statTotal": 41,
-    "stars": 4.5,
+    "statTotal": 35,
+    "stars": 5,
     "rationale": "Glue: the ball sticks to the blocker and carries him into the goal."
   },
   {
@@ -1149,14 +1149,14 @@
     "gentle": false,
     "profile": "fast",
     "stats": {
-      "speed": 10,
-      "jump": 8,
-      "kick": 8,
-      "dash": 10,
+      "speed": 8,
+      "jump": 7,
+      "kick": 7,
+      "dash": 8,
       "power": 5
     },
-    "statTotal": 41,
-    "stars": 4.5,
+    "statTotal": 35,
+    "stars": 5,
     "rationale": "Phantom: ghost balls fly alongside the real one, and any may score."
   },
   {
@@ -1178,14 +1178,14 @@
     "gentle": false,
     "profile": "tricky",
     "stats": {
-      "speed": 10,
-      "jump": 9,
+      "speed": 8,
+      "jump": 7,
       "kick": 7,
       "dash": 8,
-      "power": 8
+      "power": 5
     },
-    "statTotal": 42,
-    "stars": 4.5,
+    "statTotal": 35,
+    "stars": 5,
     "rationale": "Slow motion: the ball hangs mid-air; the hit player stays slow (shock)."
   },
   {
@@ -1207,14 +1207,14 @@
     "gentle": false,
     "profile": "balanced",
     "stats": {
-      "speed": 9,
-      "jump": 9,
-      "kick": 9,
-      "dash": 8,
-      "power": 8
+      "speed": 7,
+      "jump": 7,
+      "kick": 7,
+      "dash": 7,
+      "power": 5
     },
-    "statTotal": 43,
-    "stars": 4.5,
+    "statTotal": 33,
+    "stars": 5,
     "rationale": "The twin kicks a second ball at the same time."
   },
   {
@@ -1236,13 +1236,13 @@
     "gentle": false,
     "profile": "kicker",
     "stats": {
-      "speed": 10,
+      "speed": 7,
       "jump": 7,
-      "kick": 10,
+      "kick": 8,
       "dash": 7,
-      "power": 10
+      "power": 5
     },
-    "statTotal": 44,
+    "statTotal": 34,
     "stars": 5,
     "rationale": "The split shot is already three balls — full Multi-Ball."
   },
@@ -1265,13 +1265,13 @@
     "gentle": false,
     "profile": "power",
     "stats": {
-      "speed": 8,
-      "jump": 8,
-      "kick": 10,
-      "dash": 8,
-      "power": 10
+      "speed": 7,
+      "jump": 7,
+      "kick": 8,
+      "dash": 7,
+      "power": 6
     },
-    "statTotal": 44,
+    "statTotal": 35,
     "stars": 5,
     "rationale": "The tornado carries the ball up and down across the pitch and throws the opponent (stars)."
   },
@@ -1294,13 +1294,13 @@
     "gentle": false,
     "profile": "balanced",
     "stats": {
-      "speed": 9,
-      "jump": 9,
-      "kick": 9,
-      "dash": 9,
-      "power": 9
+      "speed": 7,
+      "jump": 7,
+      "kick": 7,
+      "dash": 7,
+      "power": 5
     },
-    "statTotal": 45,
+    "statTotal": 33,
     "stars": 5,
     "rationale": "Time stop: ball and opponent freeze, then the shot resumes — the final Delay."
   }

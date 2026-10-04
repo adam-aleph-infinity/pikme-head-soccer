@@ -755,26 +755,31 @@
   },
   {
     "id": "ball.ceilingRestitution",
-    "value": 0.41,
+    "value": 0.64,
     "unit": "",
     "clips": [
-      "M4"
+      "M4",
+      "M5",
+      "M9",
+      "M10",
+      "M11"
     ],
-    "n": 3,
-    "sd": 0.14,
-    "tol": 0.28,
+    "n": 9,
+    "sd": 0.05,
+    "tol": 0.1,
     "scenario": "ceilingBounce",
     "status": "estimated",
-    "source": "M4 ceiling bounces (range 0.27–0.55)",
-    "how": "fitRestitution on the flights either side of the (off-screen) contact.",
-    "note": "Low confidence: the contact itself is off-screen. Timestamps not re-verified in this pass."
+    "source": "M4 35.36, 49.95, 66.28 s; M5 81.01; M9 7.67; M10 42.73; M11 15.26, 38.59, 54.73 s: every ball that leaves the top of the picture and comes back, with a clean ceiling hit (_ceil-hits.mjs, 2026-10-04)",
+    "how": "The fitted flights either side (x a line with drag 0.099/s, y a parabola with g 583 fixed) are intersected; e = vy out / vy in at the crossing. Median of 9 (0.62, 0.71, 0.64, 0.60, 0.55, 0.59, 0.67, 0.66, 0.67).",
+    "note": "Like every other HS surface (grass 0.65, wall 0.67, goal roof 0.67), as Box2D requires (restitution is the higher of the two fixtures'). Supersedes 0.41 (M4, 3 bounces, extrapolated to an assumed apex at -130)."
   },
   {
     "id": "ball.ceilingKeepX",
     "value": 0.63,
     "unit": "",
     "clips": [
-      "M1", "M4"
+      "M1",
+      "M4"
     ],
     "n": 4,
     "sd": 0.15,
@@ -787,19 +792,23 @@
   },
   {
     "id": "geom.ceilingY",
-    "value": -130,
+    "value": -118,
     "unit": "px",
     "clips": [
-      "M4"
+      "M4",
+      "M5",
+      "M9",
+      "M10",
+      "M11"
     ],
-    "n": 3,
-    "sd": 10,
-    "tol": 20,
+    "n": 9,
+    "sd": 5,
+    "tol": 12,
     "scenario": "ceilingBounce",
     "status": "estimated",
-    "source": "M4 lofted balls that leave the top of the screen and come back (the other M4 pass, scratchpad ceil.mjs)",
-    "how": "Ball-centre y at the top of each ceiling bounce (extrapolated from both flights).",
-    "note": "The ceiling is ABOVE the visible screen (world y ≈ −130; our CEIL_Y is +30). Timestamps not re-verified in this pass."
+    "source": "M4 35.36, 49.95, 66.28 s; M5 81.01; M9 7.67; M10 42.73; M11 15.26, 38.59, 54.73 s: every ball that leaves the top of the picture and comes back, with a clean ceiling hit (_ceil-hits.mjs, 2026-10-04)",
+    "how": "Ball-centre y where the two fitted flights cross (no apex assumed): -120, -129, -127, -116, -119, -113, -118, -118, -118.",
+    "note": "Supersedes -130 (M4, 3 balls, extrapolated). The surface is BALL_R above (constants.js CEIL_Y -133)."
   },
   {
     "id": "geom.goalTopY",

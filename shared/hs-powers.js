@@ -170,13 +170,15 @@ function makeShot(family, o = {}) {
 
 // ── stats ───────────────────────────────────────────────────────────────────────
 // HS's 1–10 stat levels → multipliers (estimated spread: level 1 runs 25% and kicks 40% under an
-// average body and jumps ~14% under, level 10 as far over). Only an arcade champion has levels;
-// everyone else is EQUAL.
-export const EQUAL_STATS = Object.freeze({ speed: 1, jump: 1, kick: 1 });
+// average body and jumps ~14% under, level 10 as far over). DASH is how long a dash lasts at its
+// measured 1790 px/s — HS's "the further your character will move" — estimated with speed's spread,
+// ±25% (Idan, 2026-10-04: the dash stat alone sets it, not speed). Only an arcade champion has
+// levels; everyone else is EQUAL.
+export const EQUAL_STATS = Object.freeze({ speed: 1, jump: 1, kick: 1, dash: 1 });
 const lvl = (L, lo, hi) => lo + (hi - lo) * (Math.max(1, Math.min(10, L || 5.5)) - 1) / 9;
 export function statsFor(levels) {
   if (!levels) return EQUAL_STATS;
-  return { speed: lvl(levels.speed, 0.75, 1.25), jump: lvl(levels.jump, 0.86, 1.14), kick: lvl(levels.kick, 0.6, 1.4) };
+  return { speed: lvl(levels.speed, 0.75, 1.25), jump: lvl(levels.jump, 0.86, 1.14), kick: lvl(levels.kick, 0.6, 1.4), dash: lvl(levels.dash, 0.75, 1.25) };
 }
 // The POWER stat is how fast the gauge fills: level 5–6 is the starter's 15s, 10 is 25% faster.
 export const meterRateFor = (L) => (L ? 0.8 + (Math.max(1, Math.min(10, L)) - 1) * 0.05 : 1);
@@ -447,9 +449,9 @@ export function contact(m, p, b, kit, fx) {
   // (The dark does NOT lift on contact: M3 38.25 s is a hit 0.24 s before the screen comes back,
   // and all seven measured darks are 1.31–1.37 s whatever the shot met — docs §2.)
   const F = FAMILIES[pw.fam];
-  // The leg is out for KICK_TIME after the press, whether or not the swing already met the ball
-  // (a strike cuts kickT short; the cooldown still says how long ago the press was).
-  const kicking = p.kickT > 0 || p.kickCd > C.KICK_COOLDOWN - C.KICK_TIME;
+  // KICKING means the BOOT met it (sim.js sets bootOn for that one contact): HS's counter is the
+  // foot into the ball, so a head or a body that meets it with the leg out is hit like anyone.
+  const kicking = !!p.bootOn;
   m.idle = 0;
   // A Multi-Ball's extra balls are only for scoring with: one touch knocks them dead.
   if (pw.extra) {

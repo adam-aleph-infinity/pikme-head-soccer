@@ -1,5 +1,7 @@
 # Head Soccer gap audit: full evidence (2026-09-25)
 
+> Evidence snapshot from 2026-09-25, not updated. For what is fixed and what is still open, see [HS-GAP-AUDIT.md](HS-GAP-AUDIT.md) (status updated 2026-10-02, §8).
+
 The complete per-area audits behind [HS-GAP-AUDIT.md](HS-GAP-AUDIT.md), which is the merged summary with IDs and the fix order. Each section below is one audit, unedited. It covers every gap with its evidence and file:line, what already matches, and what is unverified or dropped.
 
 **Sections:**

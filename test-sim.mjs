@@ -339,7 +339,9 @@ function kickInto(m, i, reach = 130, ticks = 90) {
   let pressed = false;
   const log = [];
   for (let t = 0; t < ticks; t++) {
-    const near = !pressed && m.ball.power && m.ball.power.owner !== i && Math.abs(m.ball.x - q.x) < reach;
+    // pressed at a real counter's timing: the boot is up 0.12–0.27 s after the press (HS: the KICK
+    // press ~0.16 s before the ball, M4's three kick-blocks), so a fast shot is met further out
+    const near = !pressed && m.ball.power && m.ball.power.owner !== i && Math.abs(m.ball.x - q.x) < Math.max(reach, Math.abs(m.ball.vx) * 0.18);
     if (near) pressed = true;
     const inputs = [{}, {}]; inputs[i] = { kick: near };
     step(m, inputs);
@@ -354,7 +356,7 @@ function kickInto(m, i, reach = 130, ticks = 90) {
   const m = fresh();
   const a = m.players[0], b = m.players[1];
   a.shot = shotById('straight');
-  b.x = a.x + 300;
+  b.x = a.x + 560;
   firePower(m, 0);
   const log = kickInto(m, 1, 130, 20);
   ok('a defender who kicks into the power shot blocks it', log.some((e) => e.type === 'blocked' && e.player === 1) && m.score[0] === 0,
@@ -373,7 +375,7 @@ function kickInto(m, i, reach = 130, ticks = 90) {
   const m = fresh();
   const a = m.players[0], b = m.players[1];
   a.shot = shotById('straight');
-  b.x = a.x + 300;
+  b.x = a.x + 560;
   firePower(m, 0);
   const log = kickInto(m, 1, 130, 20);
   ok('(blocked)', log.some((e) => e.type === 'blocked'));
@@ -388,7 +390,7 @@ function kickInto(m, i, reach = 130, ticks = 90) {
   const m = fresh();
   const a = m.players[0], b = m.players[1];
   a.shot = shotById('straight');
-  b.x = a.x + 300;
+  b.x = a.x + 560;
   firePower(m, 0);
   const log = [];
   for (let t = 0; t < 20; t++) { step(m, NONE); log.push(...m.events); m.events.length = 0; }
@@ -1188,7 +1190,7 @@ const jumpArc = (input) => {
   a.shot = shotById('straight');
   firePower(m, 0);
   ok('(the ultimate is away)', !!m.ball.power);
-  d.x = m.ball.x + 200; d.y = C.GROUND_Y; d.vy = 0; d.onGround = true;
+  d.x = m.ball.x + 460; d.y = C.GROUND_Y; d.vy = 0; d.onGround = true;
   const log = kickInto(m, 1, 130, 30);
   const blocked = log.some((e) => e.type === 'blocked');
   ok('a boot in its path blocks it', blocked && m.score[0] === 0, `score ${m.score[0]}`);

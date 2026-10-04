@@ -29,6 +29,13 @@ export const CLIPS = {
   M5: { src: 'hs-video/M5-kor-kor-weak.mp4', W: 848, H: 384, x0: 70, x1: 781, ground: 322.5 },
   // M6 (2026-09-29): Korea vs Cameroon, a full match in the day stadium; WhatsApp like M1/M2/M5.
   M6: { src: 'hs-video/M6-headers.mp4', W: 848, H: 384, x0: 70, x1: 781, ground: 322.5, darkSkin: true },
+  // M7–M11 (2026-10-02/03): Idan (Korea) against the arcade CPU by star rating, WhatsApp like M6 —
+  // Italy 4★, UK 5★, Germany 5★, Russia 3★, Cameroon 1★. Each opens on the PLAYER SELECT screen.
+  M7: { crowd: true, hairId: true, start: 23, src: 'hs-video/M7-italy-4star.mp4', W: 848, H: 384, x0: 70, x1: 781, ground: 322.5 },
+  M8: { crowd: true, hairId: true, start: 7, src: 'hs-video/M8-uk-5star.mp4', W: 848, H: 384, x0: 70, x1: 781, ground: 322.5 },
+  M9: { crowd: true, hairId: true, start: 4.5, src: 'hs-video/M9-germany-5star.mp4', W: 848, H: 384, x0: 70, x1: 781, ground: 322.5 },
+  M10: { crowd: true, hairId: true, start: 5.5, src: 'hs-video/M10-russia-3star.mp4', W: 848, H: 384, x0: 70, x1: 781, ground: 322.5 },
+  M11: { crowd: true, hairId: true, skinId: true, start: 3.5, src: 'hs-video/M11-cameroon-1star.mp4', W: 848, H: 384, x0: 70, x1: 781, ground: 322.5, darkSkin: true },
 };
 
 async function track(name) {
@@ -76,21 +83,31 @@ async function track(name) {
       // does not move, so up there a face pixel must also stand off the median background. Only
       // above the ad boards (y < GY − 60 k): the CPU keeper stands in his goal so long that the
       // median background has his face in it.
-      if (cfg.darkSkin && y < GY - 60 * k && Math.abs(gray.data[y * W + x] - bg.data[y * W + x]) < 22) continue;
+      // (M7–M11's stadiums have skin-coloured crowds too: `crowd` applies the same rule.)
+      if ((cfg.darkSkin || cfg.crowd) && y < GY - 60 * k && Math.abs(gray.data[y * W + x] - bg.data[y * W + x]) < 22) continue;
       mask[y * W + x] = 1;
     }
     const seen = new Uint8Array(W * H), blobs = [], st = [];
     for (let s = 0; s < mask.length; s++) {
       if (!mask[s] || seen[s]) continue;
-      let n = 0, sx = 0, sy = 0, minY = 1e9, maxY = 0, minX = 1e9, maxX = 0;
+      let n = 0, sx = 0, sy = 0, minY = 1e9, maxY = 0, minX = 1e9, maxX = 0, pe = 0;
       seen[s] = 1; st.push(s);
       while (st.length) {
         const q = st.pop(), x = q % W, y = (q / W) | 0;
+        { const o = q * 4; if (peach(px[o], px[o + 1], px[o + 2])) pe++; }
         n++; sx += x; sy += y; if (y < minY) minY = y; if (y > maxY) maxY = y; if (x < minX) minX = x; if (x > maxX) maxX = x;
         // ±2 as well as ±1: the goal net draws 1-px lines over a face in the mouth
         for (const nq of [q - 1, q + 1, q - W, q + W, q - 2, q + 2, q - 2 * W, q + 2 * W]) if (mask[nq] && !seen[nq]) { seen[nq] = 1; st.push(nq); }
       }
-      if (n >= 50 * k * k) blobs.push({ x: sx / n, y: sy / n, n, minX, maxX, minY, maxY });
+      if (n < 50 * k * k) continue;
+      // HAIR: the share of near-black pixels in a band just over the face (Idan's Korea has black
+      // hair; none of M7–M11's CPUs do) — `hairId` clips use it to tell the two players apart.
+      let dark = 0, tot = 0;
+      for (let y = Math.max(0, minY - Math.round(9 * k)); y < minY - Math.round(2 * k); y++) for (let x = minX; x <= maxX; x++) {
+        const o = (y * W + x) * 4; tot++; if (px[o] + px[o + 1] + px[o + 2] < 150) dark++;
+      }
+      // (and PEACH: the share of the face that is peach — Korea against M11's brown-skinned Cameroon)
+      blobs.push({ x: sx / n, y: sy / n, n, minX, maxX, minY, maxY, hair: cfg.skinId ? pe / n : tot ? dark / tot : 0 });
     }
     return blobs;
   }
@@ -159,7 +176,8 @@ async function track(name) {
     // FACES: identity is continuity alone — predicted from the last two positions, the pair
     // assigned jointly; overlapping heads record neither until they part; a face lost for a while
     // comes back as the one blob the other player is not.
-    const blobs = skinBlobs(px, gray).filter((b) => b.n < 2500 * k * k && b.maxX - b.minX < 60 * k).sort((a, b) => b.n - a.n).slice(0, 5);
+    // (`start`: the clip opens on PLAYER SELECT and the VS screen, two big portraits; faces from kickoff on)
+    const blobs = t < (cfg.start || 0) ? [] : skinBlobs(px, gray).filter((b) => b.n < 2500 * k * k && b.maxX - b.minX < 60 * k).sort((a, b) => b.n - a.n).slice(0, 5);
     const next = [null, null];
     if (!faces[0] || !faces[1]) {
       const two = blobs.slice(0, 2).sort((a, b) => a.x - b.x);
@@ -195,6 +213,13 @@ async function track(name) {
         if (free.length === 1) next[q] = free[0];
       }
     }
+    if (cfg.hairId) {
+      // the human is the black-haired one: a clear difference overrides continuity (after an overlap
+      // the tracker used to carry on with the two swapped); one face alone takes the slot its hair says
+      if (next[0] && next[1] && next[1].hair > next[0].hair + 0.08) [next[0], next[1]] = [next[1], next[0]];
+      else if (!next[1] && next[0] && next[0].hair < (cfg.skinId ? 0.4 : 0.03)) { next[1] = next[0]; next[0] = null; }
+      else if (!next[0] && next[1] && next[1].hair > (cfg.skinId ? 0.5 : 0.12)) { next[0] = next[1]; next[1] = null; }
+    }
     for (let q = 0; q < 2; q++) {
       if (next[q]) { faces[q] = next[q]; faceHist[q].push({ x: next[q].x, y: next[q].y, i }); faceHist[q] = faceHist[q].slice(-3); }
     }
@@ -203,7 +228,7 @@ async function track(name) {
     rec.push({
       i, t: +t.toFixed(4), dup,
       ball: ball ? { x: +ball.x.toFixed(2), y: +ball.y.toFixed(2), r: +ball.r.toFixed(2), a: ball.area } : null,
-      f: next.map((b) => (b ? { x: +b.x.toFixed(1), y: +b.y.toFixed(1), n: b.n, x0: b.minX, x1: b.maxX, y0: b.minY, y1: b.maxY } : null)),
+      f: next.map((b) => (b ? { x: +b.x.toFixed(1), y: +b.y.toFixed(1), n: b.n, x0: b.minX, x1: b.maxX, y0: b.minY, y1: b.maxY, hair: +(b.hair ?? 0).toFixed(2) } : null)),
       btn,
     });
   });

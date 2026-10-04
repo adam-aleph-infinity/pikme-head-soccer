@@ -25,18 +25,21 @@ export const H = 530;
 export let GROUND_Y = 435;           // 82% down. Was 445; the extra 10px is grass, on request —
                                      // and grass below the feet is also where the controls sit,
                                      // so a taller apron is a wider berth for a thumb.
-// THE CEILING IS OFF THE TOP OF THE SCREEN. HS M4: a lofted ball leaves the top of the picture
-// and comes back, turning at world y ≈ −130 (its CENTRE, extrapolated from the flights either
-// side, n = 3). So the surface is a ball's radius above that. It used to be at +30, inside the
-// picture, which is why every high ball here rattled along an invisible roof.
-export const CEIL_Y = -130 - 15;      // -145: the ball centre turns at -130 (BALL_R 15)
-// HS M4, 3 ceiling bounces: the ceiling is DEAD. It keeps 0.41 of the climb (0.27–0.55, low
-// confidence — the contact itself is off-screen) and MOST of the sideways speed: in HS a ball that
-// leaves the top keeps travelling the way it was going and comes back down further along, not
-// straight down from where it vanished (Idan). How much: 2026-10-01, M1–M6, every ball off the
-// top for 0.4 s+ with real sideways speed (_ceil-check.mjs): it comes back with 0.60–0.64 of it
-// (0.63 median; one 0.17, one 0.90). It was 1 here, which sailed skied balls on too far.
-export let CEIL_BOUNCE = 0.41;
+// THE CEILING IS OFF THE TOP OF THE SCREEN. 2026-10-04, every ball in M1–M11 that leaves the top
+// and comes back (_ceil-hits.mjs): the flights either side are fitted and INTERSECTED, so where and
+// when it hit come out of the footage instead of being assumed. Nine clean hits turn the ball's
+// CENTRE at world y −118 (−113…−129); the surface is a ball's radius above that. (It was −130 off
+// three M4 balls, extrapolated to an assumed apex.)
+export const CEIL_Y = -118 - 15;      // -133: the ball centre turns at -118 (BALL_R 15)
+// It bounces back down with 0.64 of the climb (0.55–0.71, n = 9) — like every other HS surface
+// (grass 0.65, wall 0.67, goal roof 0.67), as it must in Box2D, which bounces off the HIGHER of
+// the ball's and the surface's restitution: no surface returns less than the ball's own. The old
+// 0.41 came from the assumed −130 apex.
+// SIDEWAYS it is slowed in every hit that could be measured (n = 5), by how much depends on the
+// ball's spin (Box2D friction with a spinning ball): 0.71 off a header, 0.34–0.35 off a wall or a
+// rolling ball, ~0 off a boot kicked straight up. Our ball has no physical spin; 0.63 (the first
+// pass, 2026-10-01) stays until that is settled.
+export let CEIL_BOUNCE = 0.64;
 export let CEIL_KEEP_X = 0.63;
 // The top of the SKY as drawn — where effects lay out a ceiling, rain from, hang a banner. It
 // was the same number as the ball's ceiling until the ceiling moved off-screen; the effects

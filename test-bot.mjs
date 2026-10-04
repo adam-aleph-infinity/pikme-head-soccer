@@ -4,6 +4,7 @@
 import * as C from './shared/constants.js';
 import { createMatch, step } from './shared/sim.js';
 import { createBot, botInput, DIFFICULTIES } from './shared/bot.js';
+import { stageConfig } from './shared/champions.js';
 
 let pass = 0, fail = 0;
 const ok = (name, cond, extra = '') => {
@@ -167,33 +168,40 @@ const ladder = (hi, lo, n, seed0) => {
 // …and the power-shot exchange: KICKING the other bot's shot away (the block, HS §4) instead of
 // standing in it and being hit is skill too. The hard bot blocks a larger share than the easy one.
 {
-  const bl = [0, 0], hi = [0, 0];
+  const bl = [0, 0], hi = [0, 0], pg = [0, 0];
   const N = 32;
   for (let s = 0; s < N; s++) {
     const { stats } = playMatch(5, 0, 4000 + s * 37);
-    for (const i of [0, 1]) { bl[i] += stats.blocks[i]; hi[i] += stats.hits[i]; }
+    for (const i of [0, 1]) { bl[i] += stats.blocks[i]; hi[i] += stats.hits[i]; pg[i] += stats.powerGoals[i]; }
   }
-  const share = (i) => bl[i] / Math.max(1, bl[i] + hi[i]);
-  ok('the hardest bot wins the power-shot exchange: it kicks more of the shots away',
-     share(0) > share(1) + 0.15 && bl[0] > 10, `blocked ${bl[0]} / hit ${hi[0]} vs blocked ${bl[1]} / hit ${hi[1]} over ${N} matches`);
+  // HS's CPU stops a power shot with its BODY in the path, not its boot (Idan's M7–M11: 21 shots,
+  // 1★ to 5★, no kick-block), and a five-star one is in the path far more often than a weak one.
+  const share = (i) => (bl[i] + hi[i]) / Math.max(1, bl[i] + hi[i] + pg[1 - i]);
+  ok('the hardest bot wins the power-shot exchange: it stops more of the shots, with its body',
+     share(0) > share(1) + 0.15 && hi[0] > 2 * bl[0], `stopped ${(100 * share(0)).toFixed(0)}% (blocked ${bl[0]} / hit ${hi[0]}) vs ${(100 * share(1)).toFixed(0)}% (blocked ${bl[1]} / hit ${hi[1]}) over ${N} matches`);
 }
-// …and no stun-lock: the knockout (every 5th landed boot hurts, the 3rd hurt is 2 s of stars) is
-// a thing that happens now and then, not a loop a bot can put somebody in.
+// …and the boot on the other player, by STARS (HS's CPU "kicks you continuously" until you are
+// knocked out, its bottom-of-the-ladder Korea and Nigeria rarely — docs/HS-CPU-RESEARCH-CC.md C8):
+// the stage-45 CPU lands far more boots on the player than stage 1's, and stage 1 knocks nobody out.
 {
-  let ko = 0, tackles = 0;
-  const N = 12;
-  for (let s = 0; s < N; s++) {
-    const rng = mulberry32(3100 + s);
-    const m = createMatch({ rarity: 'legendary', number: 3 }, { rarity: 'legendary', number: 2 }, {});
-    const bots = [createBot(5, rng), createBot(5, rng)];
-    for (let k = 0; k < 60 * 200 && m.phase !== 'over'; k++) {
-      step(m, [botInput(bots[0], m, 0, C.TICK), botInput(bots[1], m, 1, C.TICK)]);
-      for (const e of m.events) { if (e.type === 'knockout') ko++; if (e.type === 'tackle') tackles++; }
-      m.events.length = 0;
+  const N = 8, boots = {}, ko = {};
+  for (const stage of [1, 45]) {
+    boots[stage] = 0; ko[stage] = 0;
+    const cfg = stageConfig(stage);
+    for (let s = 0; s < N; s++) {
+      const rng = mulberry32(3100 + s);
+      const m = createMatch({ rarity: 'legendary', number: 3 }, cfg.champ.card, { ...cfg.matchOpts });
+      const bots = [createBot(3, rng), createBot(0, rng, cfg.bot)];
+      for (let k = 0; k < 60 * 200 && m.phase !== 'over'; k++) {
+        step(m, [botInput(bots[0], m, 0, C.TICK), botInput(bots[1], m, 1, C.TICK)]);
+        for (const e of m.events) { if (e.type === 'tackle' && e.by === 1) boots[stage]++; if (e.type === 'knockout' && e.player === 0) ko[stage]++; }
+        m.events.length = 0;
+      }
     }
   }
-  ok('bots do not stun-lock each other with the boot', ko / N <= 2 && tackles / N <= 45,
-     `${(ko / N).toFixed(2)} knockouts and ${(tackles / N).toFixed(1)} landed boots a match, legendary vs legendary`);
+  ok('the five-star CPU boots the player far more than the bottom of the ladder, which knocks nobody out',
+     boots[45] > 3 * boots[1] && ko[1] / N < 0.2,
+     `landed boots a match: stage 1 ${(boots[1] / N).toFixed(1)}, stage 45 ${(boots[45] / N).toFixed(1)}; knockouts: ${(ko[1] / N).toFixed(2)} / ${(ko[45] / N).toFixed(2)}`);
 }
 {
   ok('there are six difficulty tiers', DIFFICULTIES.length === 6);

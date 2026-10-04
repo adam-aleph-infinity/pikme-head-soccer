@@ -1,4 +1,4 @@
-# Head Soccer gap audit (2026-09-25)
+# Head Soccer gap audit (2026-09-25, status updated 2026-10-02)
 
 Every place where our game is not exactly like real Head Soccer (HS). Duplicates found by more than one audit are merged.
 
@@ -7,7 +7,7 @@ Every place where our game is not exactly like real Head Soccer (HS). Duplicates
 
 Already decided, so not listed as gaps: no in-match items, HS-style power shots, HS stats in the arcade only, the custom sim, exact head size.
 
-✅ = fixed on branch `hs/gap-fixes`. 🎥 = waiting for a new HS recording (Idan's rule: every feel number traces to a measurement). ❓ = needs Idan's decision. Parity was 82/88 at the audit; after stage 1 it is 87–88/88 (only `cpu.rangeConv` still wobbles at the edge of its tolerance).
+✅ = fixed (status checked against the code and `git log` on 2026-10-02). 🎥 = waiting for a new HS recording (Idan's rule: every feel number traces to a measurement). ❓ = needs Idan's decision. **Now (2026-10-02, after the power-defence fix): `node test-hs-parity.mjs` passes 88 of 89 rows.** The one miss is `cpu.powerDelay.weak` (the weak CPU fires its power 3.8 s after the bar fills, HS 8.5 s), left as is by Idan. See §8 for every gap still open.
 
 At the audit, `node test-hs-parity.mjs` passed 82 of 88 rows. The 6 failures are the headers (×2), the goal-restart timing, the 5★ CPU's position, the 5★ CPU's touch rate, and the kick repeat rate.
 
@@ -22,9 +22,9 @@ At the audit, `node test-hs-parity.mjs` passed 82 of 88 rows. The 6 failures are
 | K3 ✅ | M | A header teleports the ball 40–60 px up in one frame | `sim.js:1242-1243` | No teleport | code |
 | K4 ✅ | H | The kick is a fixed circle at ground height that stays live for the whole 0.26 s. A ball 70–90 px up in front is missed completely | `KICK_REACH` 62, `KICK_R` 22, `sim.js:1421-1491` | The boot is at knee height for ~2 frames, then ~51 px ahead and ~52 px up for the rest of the swing | meas (M4 frames) |
 | K5 ✅ | M | Holding jump while kicking lobs, a modifier HS doesn't have. A jumping kick without it only peaks at 101 px | `sim.js:584`, `LOB_LIFT` 1.9 | A jump kick peaks around 340 px, with no modifier | 1 sample + know |
-| K6 🎥 | M | A ground kick is probably too flat | 478 px/s at 32°, 57 px apex | Arcs higher | know (unmeasured) |
-| K7 🎥 | M | A dash kick goes out as a flat 14° drive | `sim.js:1489` | "Up diagonally quickly" | wiki |
-| K8 | L | The kick repeats slightly slower than HS | 0.367 s | 0.349 s | meas |
+| K6 ✅ | M | Fixed 2026-09-29: a grass ball kicked leaves with HS's small lift (`docs/HS-PHYSICS.md` §4). A ground kick is probably too flat | 478 px/s at 32°, 57 px apex | Arcs higher | know (unmeasured) |
+| K7 ✅ | M | Fixed 2026-09-26 (8266870): a ball the rising boot catches first goes up diagonally; a dash onto the ball fires it on flat at the dash cap, like HS M5. A dash kick goes out as a flat 14° drive | `sim.js:1489` | "Up diagonally quickly" | wiki |
+| K8 ✅ | L | Fitted with the kick 2026-09-26 (865c301); the parity row passes. The kick repeats slightly slower than HS | 0.367 s | 0.349 s | meas |
 | K9 | L | Kick contact may reach too far | up to ~100 px from the body's centre | unmeasured | — |
 
 ## 2. Physics and movement
@@ -44,11 +44,11 @@ At the audit, `node test-hs-parity.mjs` passed 82 of 88 rows. The 6 failures are
 
 | # | Sev | Gap | Ours | HS | Source |
 |---|---|---|---|---|---|
-| W1 ✂️ | M | **Scoped by Idan: only the first 5 champions' powers** (built and painted in the earlier HQ passes). Only 6 of 45 champion powers are built (stages 1–6); the other 39 fire their family's generic shot, drawn as one comet in different colours | `shared/champion-powers/`, `vfx/families.js:134` | Each character has its own shot and look | spec |
+| W1 ✅✂️ | M | Stages 1–5 built (Korea, Cameroon, Nigeria, USA, Japan; `docs/HS-45-POWERS-PROGRESS.md`).  **Scoped by Idan: only the first 5 champions' powers** (built and painted in the earlier HQ passes). Only 6 of 45 champion powers are built (stages 1–6); the other 39 fire their family's generic shot, drawn as one comet in different colours | `shared/champion-powers/`, `vfx/families.js:134` | Each character has its own shot and look | spec |
 | W2 ✅ | M | Burn has the wrong effect | Blocks kicking and slows to 0.8× `hs-powers.js:591` | Reverses your walk | wiki |
 | W3 ✅ | L | Freezes are too short | 1.2–2.1 s | 2–3 s | wiki |
 | W4 ✅ | L | A frozen or dazed player can't arm their power | `sim.js:487` | Can still arm | wiki |
-| W5 🎥 | L | The block window is probably too forgiving: the whole 0.26 s, and a head touch counts too | `hs-powers.js:430, 529` | unmeasured | — |
+| W5 ✅ | L | Fixed 2026-10-02: the counter by kick is the BOOT meeting the power ball (sim.js `bootOn`); a head or body with the leg out is hit. Window (`node _block-window.mjs`): head-height shot 117–267 ms before it arrives standing, 67–267 ms jumping; a grass shot 33–108 ms. HS: all three of the human's kick-blocks in M4 were jump + kick; the wiki: kick "right before it hits you" (Counter_Attacks). Was: the block window is probably too forgiving: the whole 0.26 s, and a head touch counts too | `hs-powers.js:430, 529` | unmeasured | — |
 | W6 🎥 | L | 7 of the 11 families' speeds and paths are guesses, and Critical flies faster (2795 px/s) than anything filmed | — | Only Straight, Aerial and Grab were filmed | meas |
 | W7 ✅ | L | Korea's shot is 8% slow | 1978 px/s | 2150 | meas |
 | W8 ❓ | L | Online, stages 1–6 fire their family's shot, not the champion's own power | — | — | code |
@@ -65,13 +65,13 @@ At the audit, `node test-hs-parity.mjs` passed 82 of 88 rows. The 6 failures are
 | R3 ✅ | M | Sudden death doesn't restart play; it only sets a flag | `sim.js:321` | Red wipe and banner, both players reset, the ball drops at the centre ~2.5 s later | meas (M2) |
 | R4 ✅ | M | The clock stops during power cut-ins, so matches run 5–11 s long | `sim.js:262-280` | The clock keeps ticking | meas (M4) |
 | R5 ✅ | M | The 5★ CPU plays too far forward, from a fixed waiting spot | 511 px avg, `bot.js:445` | 427 px | meas |
-| R6 ⏳ | M | **Borderline** (0.45–0.51 over runs; with the body bouncing it hit 0.70's tolerance in one run). The 5★ CPU lets too many balls go | plays 49% of balls in reach | 70% | meas |
+| R6 ✅ | M | Fitted 2026-09-26 (b526014); the parity row passes. Was **borderline** (0.45–0.51 over runs; with the body bouncing it hit 0.70's tolerance in one run). The 5★ CPU lets too many balls go | plays 49% of balls in reach | 70% | meas |
 | R7 | M | Missing modes | Arcade (45 stages) + private online rooms only | Tournament, League, Survival, Head Cup, Death Mode, Fight, 2P on one device | wiki |
 | R8 | M | No points economy | — | 100 pts for the first win, 50 after; some modes cost 5,000 to enter | wiki |
 | R9 | M | No stat upgrades | Base stats forever | 5 stats × 10 levels, 500–256,000 points per step | wiki |
 | R10 | L | Arcade progress is one counter shared by every card | `arcade.js:4` | Per character | wiki |
 | R11 | L | No costumes and no achievements (card unlocks may be a deliberate product choice) | — | Yes | wiki |
-| R12 🎥 | L | The CPU is never fooled by delayed shots, because it reads the power ball's real path | `bot.js:189` | Jumps too early | know |
+| R12 🎥 | L | Partly: since ac11347 the CPU uses the shooter's cut-in to get into the path, as HS's does.  The CPU is never fooled by delayed shots, because it reads the power ball's real path | `bot.js:189` | Jumps too early | know |
 | R13 ✅ | L | The weak CPU dashes too rarely | 0.4/min | 2.2/min | meas |
 | R14 ✅ | L | The clock pause after a goal is tied to the wrong moment; once R2 is fixed, the clock must stay stopped until the ball drops | — | Stopped until the drop (3.0–3.8 s) | meas |
 | R15 ✅ | L | The comment at `sim.js:1760` is wrong: the code does give the conceding side the gauge bonus | — | — | code |
@@ -120,6 +120,22 @@ At the audit, `node test-hs-parity.mjs` passed 82 of 88 rows. The 6 failures are
 
 - `style.css` has ~758 lines duplicated (roughly 391–1148 repeated at 1261–2018). The later copy wins, so edits to the first copy silently do nothing. **Fix this before any UI work.**
 
+## 8. Open now (2026-10-02)
+
+Everything not ✅ above, plus gaps found after the audit.
+
+| # | Sev | Gap | Ours | HS | Source |
+|---|---|---|---|---|---|
+| N1 ✋ | M | Left as is by Idan (2026-10-02). The CPU fires its power too soon (parity OFF for the weak tier only) | 3.7 s strong, 3.9 s weak | 6.2 s, 8.5 s | meas |
+| N2 | M | The weak CPU scores too much: passes parity on its 8 matches, but 24 matches give 4.9, at the edge | 5.6 goals a match | 2.7 | meas |
+| N3 ✅ | M | Fixed 2026-10-02: the defender uses the cut-in to time its jump and boot for the release, so the ladder is right: tier 0 concedes 63% of power shots, tier 5 31%, ~48% on average (`node _power-def.mjs`). Was: power shots score too often, and the 5★ CPU conceded more (76%) than the weakest (47%) | bot vs bot: 81% of armed powers score, 8.2 of 11.8 goals | ~58%, ~8.7 goals a match | meas (`docs/HS-PHYSICS.md` §4) |
+| N4 | M | The ball drifts sideways at a steady medium speed; HS's either hangs near-vertical or rockets across | sideways speed p25/median/p90 129/219/630 | 45/164/893 | meas (`HS-PHYSICS.md` §3 #1) |
+| N5 | L | Headers and jumping body touches are too flat | 57°, 31° | 67–75°, 56–65° | meas, few samples (§3 #5–6) |
+| N7 ✅ | H | Fixed 2026-10-03: the CPU answers a power shot with its BODY in the path, never its boot, a stride or more out from the shooter; 5★ is in the path ~90% of the time, 0.5★ ~30% after its freeze. Was: the CPU kick-blocked 70–80% of shots (Idan: "it countered every shot"); HS: 0 kick-blocks in 21 shots (`docs/HS-POWER-SHOTS.md` §5b) | | | meas (M7–M11) |
+| N8 | M | The CPU's play style by stars (how far forward, jumps, dashes) is not measured off M7–M11: the face tracker gets ~30 s of clean play per clip (crowds, overlaps); the 5★ Offensive/Defensive split is from Idan's notes, and the tracks hint the other way round (UK deep in Idan's half, Germany in its own) — unconfirmed | | | — |
+| N6 | L | The CPU dash-strikes too rarely | 0.5/min | 1.4/min | meas (§3 #7) |
+| — | | Still open from above: K9, P10, W5, W6, W9 (need a recording); W8, R12 (decision / partly done); R7–R11, U8 (modes, economy, upgrades, menus: product decisions) | | | |
+
 ## Already matches HS (don't touch)
 
 - **Walking and jumping:** walk speed, jump, gravity, and the passive head bounce (747 vs 717).
@@ -129,7 +145,7 @@ At the audit, `node test-hs-parity.mjs` passed 82 of 88 rows. The 6 failures are
 - **Controls:** sliding between the walk arrows, multitouch, POWER showing only when the gauge is full, and the HUD's overall layout.
 - **Look:** head size, the painted character quality, faces staying on the normal expression (HS does too), shadows, the dash trail, the power-armed glow, the fixed camera, the static net, and 60 fps.
 
-## Suggested fix order
+## Suggested fix order (original; steps 1–6 are done except W1's other 40 powers and V1's other 175 characters, both scoped out by Idan)
 
 1. **Quick wins that fix the feel (small code):** K1, K2, K3, U1, R1, R2+R14, R3, R4, P2, P6, P7, U12, U13, the CSS duplication, and R15.
 2. **Kick rework:** K4, K5, K7, P1, then re-tune against the parity test.

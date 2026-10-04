@@ -148,7 +148,7 @@ export function createMatch(charA, charB, opts = {}) {
       if (lv) p.stats = statsFor(lv);
       p.meterRate = (opts.meterRate && opts.meterRate[i]) || (lv ? meterRateFor(lv.power) : 1);
       const k = opts.statScale && opts.statScale[i];
-      if (k) p.stats = { speed: p.stats.speed * k.speed, jump: p.stats.jump * k.jump, kick: p.stats.kick * k.kick };
+      if (k) p.stats = { speed: p.stats.speed * k.speed, jump: p.stats.jump * k.jump, kick: p.stats.kick * k.kick, dash: (p.stats.dash ?? 1) * (k.dash ?? 1) };
     });
   }
   // BOTH PLAYERS START WITH THE ULTIMATE OFF, and it is asserted here rather than assumed
@@ -570,7 +570,8 @@ function stepPlayer(m, p, input, dt, fx) {
   // on the ground only: no dashing in the air (Idan, 2026-09-26)
   const canDash = p.dashCd <= 0 && p.onGround && !(md && md.noDash);
   const dash = (d) => {
-    p.dashT = C.DASH_TIME; p.dashDir = d; p.dashCd = md && md.dashFree ? 0.12 : C.DASH_COOLDOWN;
+    // the DASH stat: how long it lasts
+    p.dashT = C.DASH_TIME * (p.stats.dash ?? 1); p.dashDir = d; p.dashCd = md && md.dashFree ? 0.12 : C.DASH_COOLDOWN;
     p.tapT = 0; p.tapDir = 0; p.dashBuf = 0;
     m.events.push({ type: 'dash', player: p.index, dir: d });
   };
@@ -592,8 +593,13 @@ function stepPlayer(m, p, input, dt, fx) {
   if (dir !== 0) p.facing = dir;
 
   if (p.dashT > 0) {
+    // As many whole ticks of DASH_V as DASH_TIME always gave (5), times the DASH stat — the last tick
+    // of a stretched or shortened dash is a part one, so its length follows the stat smoothly (an
+    // equal dash is the same five whole ticks it always was).
+    const k = p.stats.dash ?? 1, whole = Math.ceil(C.DASH_TIME / C.TICK - 1e-9) * k;
+    const part = Math.max(0, Math.min(1, whole - (C.DASH_TIME * k - p.dashT) / C.TICK + 1e-6));
     p.dashT -= dt;
-    p.vx = p.dashDir * C.DASH_V * p.stats.speed * (md ? md.speed : 1);
+    p.vx = p.dashDir * C.DASH_V * part * (md ? md.speed : 1);       // the DASH stat sets how long (dash()), not how fast
   } else if (p.shoved > 0) {
     // A SHOVE OWNS THE BODY for TACKLE_SHOVE: ballistic in the air, a short slide on the grass.
     // With instant steering below, anything less and the knockback would last one tick.
@@ -1100,8 +1106,8 @@ function collideBounds(m, b, fx, dt = C.TICK) {
     }
     b.vx *= C.BALL_GROUND_FRICTION ** (dt / C.TICK);
   }
-  // ceiling — off the top of the screen: it keeps 0.41 of the climb and CEIL_KEEP_X of the
-  // sideways speed (1: a skied ball carries on the way it was going).
+  // ceiling — off the top of the screen: it bounces back with CEIL_BOUNCE of the climb, like every
+  // HS surface, and keeps CEIL_KEEP_X of the sideways speed (constants.js).
   if (b.y < C.CEIL_Y + b.r) {
     b.y = C.CEIL_Y + b.r;
     if (b.vy < 0) { b.vy = -b.vy * C.CEIL_BOUNCE; b.vx *= C.CEIL_KEEP_X; }
@@ -1501,6 +1507,11 @@ function resolveBallPlayers(m, fx, alpha = 1) {
         // ARMED BEATS INCOMING off the boot too: HS's counter is any touch by an armed player
         // (§4), so a swing that meets their shot fires yours, just as the head and body do.
         if (b.power && b.power.owner !== p.index && p.armed > 0 && fireUltimateOnContact(m, p, b, fx)) { p.kickT = 0; return; }
+        // THE BOOT MEETS THE OTHER PLAYER'S POWER BALL: the counter by kick (HS's wiki: kick it
+        // "right before it hits you", Counter_Attacks). Only the boot itself — a power ball that
+        // meets the head or the body while the leg is out is a hit, not a block (it used to be a
+        // block: the whole 0.26 s of the swing and any part of the silhouette — far too easy).
+        if (b.power && b.power.owner !== p.index && !(p.armed > 0)) { p.bootOn = true; hitByPowerShot(m, p, b, fx); p.bootOn = false; return; }
         if (!b.power) {
           // ARMED: this touch is the one that spends it (see the note above the boot).
           if (p.armed > 0 && fireUltimateOnContact(m, p, b, fx)) { p.kickT = 0; return; }
