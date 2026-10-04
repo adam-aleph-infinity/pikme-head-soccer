@@ -341,6 +341,14 @@ function armNow(m, p, b) {
 // every arcade champion already carries (DIFFICULTIES, champions.js stageDifficulty) — so the new
 // behaviour needs no new field and the star ladder stays one monotonic line.
 const skillOf = (d) => clamp01((d.aim - 0.35) / 0.63);
+// How keen it is to boot the other player (above), off its STARS: 0.03 up to 1.5 stars, rising in a
+// straight line to 1 at five (Idan, 2026-10-04). An arcade champion carries its stars (botProfile);
+// a plain tier reads them off its skill the way the arcade ladder lays them out (0.5 → 5 stars over
+// skill 0 → 0.97).
+export function bootOf(d) {
+  const stars = d.stars ?? 0.5 + 4.5 * Math.min(1, skillOf(d) / 0.968);
+  return stars <= 1.5 ? 0.03 : Math.min(1, 0.03 + 0.97 * (stars - 1.5) / 3.5);
+}
 // Whether a kick into this power ball blocks it: the family's rule (FAMILIES[fam].block), unless the
 // champion's own power says otherwise (its `answer`, champion-powers/stage-NN.js — Nigeria's
 // Tornado is a Ground shot a kick still blocks).
@@ -547,18 +555,15 @@ function openPlay(bot, m, p, foe, b, out, d, dt) {
       bot.wantDash = far > 70 && (urgent || engage) && dashReady && bot.rng() < DASH_BASE + DASH_SKILL * s * s;
     }
 
-    // Tackle: the boot shoves an opponent standing in it, off the ball. An able bot takes it
-    // when nothing is coming at its goal.
+    // BOOTING THE OTHER PLAYER, on purpose, the way HS's CPU does (docs/HS-CPU-RESEARCH-CC.md C8:
+    // five players say it "kicks you continuously" until you are knocked out; the wiki's Korea and
+    // Nigeria, the bottom of the ladder, rarely do). Every fifth boot that lands hurts and the third
+    // hurt knocks the player out for 2 s (sim.js kickDamage), and a boot on a knocked-out player
+    // slides him back toward his own goal (sim.js KO_KICK_SLIDE) — it takes those too. How keen it is
+    // is bootOf(d): almost never at 1.5 stars and below, every time the boot is ready at five. Only
+    // defending comes first: not while the ball is coming at its goal.
     const foeNear = Math.abs(foe.x - p.x) < C.KICK_REACH + C.KICK_R * 0.8 && Math.abs(foe.y - p.y) < C.BODY_H + C.HEAD_R;
-    // NOT A STUN-LOCK. Every fifth boot that lands hurts and the fifteenth knocks the player out
-    // for 2 s (sim.js kickDamage, HS's knockout), so a bot that booted whoever stood next to it
-    // every time the cooldown allowed would chain knockouts. A deliberate tackle is for a ball in
-    // dispute (it is within reach of one of them), never on a helpless player, and at most once
-    // a second; the boot still lands when it is swung at the ball, as it does in HS.
-    const contest = Math.min(Math.abs(b.x - p.x), Math.abs(b.x - foe.x)) < 160;
-    const helpless = foe.stunned > 0 || foe.ail === 'freeze' || foe.ail === 'stars';
-    bot.wantTackle = foeNear && contest && !helpless && !toMyGoal && foe.tackleImmune <= 0 && bot.t >= (bot.tackleT ?? 0) &&
-      bot.rng() < Math.min(0.95, d.aim * 1.2 * (d.tackle ?? 1));
+    bot.wantTackle = foeNear && !toMyGoal && foe.tackleImmune <= 0 && bot.t >= (bot.tackleT ?? 0) && bot.rng() < bootOf(d);
   }
 
   // THE DASH STRIKE. HS's CPU does not only dash to get somewhere: it dashes THROUGH a low ball
@@ -647,13 +652,16 @@ function openPlay(bot, m, p, foe, b, out, d, dt) {
   // in front, up to face height in six frames, held there for the rest of KICK_TIME (0.26 s) —
   // so a swing pressed a few ticks before the ball arrives still meets it, low or at head height.
   const boots = BOOT_POINTS;
-  let onBoot = false;
+  // onBoot: the ball meets the swing if it starts now. ballSoon: it reaches the boot before the
+  // swing could come round again (KICK_COOLDOWN) — then the boot is kept for the ball, not spent
+  // on the other player (a boot that lands on a player is used up, sim.js tryTackle).
+  let onBoot = false, ballSoon = false;
   for (const q of near) {
-    if (q.t > 0.12) break;
+    if (q.t > C.KICK_COOLDOWN) break;
     const dy = p.onGround ? 0 : p.vy * q.t;
     for (const [reach, up] of boots) {
       const px = p.x + side * reach + vxNow * speed * q.t, py = p.y - up + dy;
-      if (Math.hypot(q.x - px, q.y - py) < C.BOOT_R + C.BALL_R + 6) { onBoot = true; break; }
+      if (Math.hypot(q.x - px, q.y - py) < C.BOOT_R + C.BALL_R + 6) { ballSoon = true; if (q.t <= 0.12) onBoot = true; break; }
     }
     if (onBoot) break;
   }
@@ -664,8 +672,8 @@ function openPlay(bot, m, p, foe, b, out, d, dt) {
   const close = ahead > -10 && Math.abs(dxb) < 110 && b.y > hy - 70;
   const mash = close && bot.rng() < MASH_BASE + MASH_SKILL * s;
   // (armed, it kicks like any other moment: HS's CPU does not boot at the ball to fire — see ARMED)
-  const want = (bot.kickSeen && bot.kickGo) || mash || bot.wantTackle;
+  const want = (bot.kickSeen && bot.kickGo) || mash || (bot.wantTackle && !ballSoon);
   out.kick = want && p.kickCd <= 0 && !bot.lastKick;
   bot.lastKick = out.kick;
-  if (out.kick && bot.wantTackle) { bot.wantTackle = false; bot.tackleT = bot.t + 1; }
+  if (out.kick && bot.wantTackle) { bot.wantTackle = false; bot.tackleT = bot.t + (1 - bootOf(d)); }
 }

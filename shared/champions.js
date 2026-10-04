@@ -128,6 +128,7 @@ export function botProfile(champ) {
     // play exactly the same) — a champion differs by its stats and its power, not its brain.
     aggression: d.aggression,
     tackle: 1,
+    stars: d.stars,                          // how keen it is to boot the other player (bot.js bootOf)
     // …except the one split HS's five-star CPU has (Idan's HS notes): OFFENSIVE presses into the
     // other half, DEFENSIVE camps by its own goal and counters — the same smartness either way.
     ...(d.t >= 1 ? { archetype: ARCHETYPE[champ.hs.profile] || 'offense' } : {}),
