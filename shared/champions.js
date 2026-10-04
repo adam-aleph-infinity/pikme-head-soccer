@@ -133,7 +133,6 @@ export function botProfile(champ) {
     ...(d.t >= 1 ? { archetype: ARCHETYPE[champ.hs.profile] || 'offense' } : {}),
     arm: 'attack',                           // every Head Soccer power is a shot at the goal
     smart: d.aim >= 0.55,
-    adapt: d.t >= 0.5,                       // reads its own reversed controls and corrects them
   };
 }
 

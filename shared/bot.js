@@ -51,15 +51,10 @@ export function createBot(level = 2, rng = Math.random, profile = null) {
 }
 
 export function botInput(bot, m, index, dt) {
-  const out = botInputRaw(bot, m, index, dt);
-  // A bot that has had its own controls reversed on it (the `reverse` ailment, ???). The sim swaps
-  // them after the bot has chosen, so an able bot chooses the other way round; a weak one runs the
-  // wrong way, the same as a person does.
-  const p = m.players[index];
-  if ((bot.d.adapt ?? skillOf(bot.d) >= 0.6) && p.ail === 'reverse') {
-    const l = out.left; out.left = out.right; out.right = l;
-  }
-  return out;
+  // A bot whose controls are reversed (the `reverse` ailment, ???) does NOT correct for it: the sim
+  // swaps its arrows and it runs the wrong way, often into its own goal — HS's CPU "clearly isn't
+  // aware" of it, at every star level (wiki Power_Shot_Guide; docs/HS-CPU-RESEARCH-CC.md C7).
+  return botInputRaw(bot, m, index, dt);
 }
 
 function botInputRaw(bot, m, index, dt) {
