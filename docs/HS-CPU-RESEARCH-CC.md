@@ -376,24 +376,24 @@ RECOVER   (stun over)
 | 9 | Depth 325 → 427 px | `home`/`cap` (`bot.js:520,532`); R5 fitted | DONE |
 | 10 | Plays 47% → 70% of balls in reach | `LAZY`, `headerGo`, `kickGo` | DONE (parity) |
 | 11 | Mashes the boot 23–45/min | `MASH_*` (`bot.js:668`); ours 64–68/min at 5★ | PARTIAL (too many, PHYS 2026-09-30) |
-| 12 | Kickoff: idle until the ball drops | No `ballWait` rule in `bot.js`; it plays the parked ball | **CONFLICT?** (not run-checked; one report) |
+| 12 | Kickoff: idle until the ball drops | Fixed 2026-10-04 (bc1a88c): no bot moves before the drop | DONE |
 | 13 | Offensive runs to the ball at kickoff | 5★ offense only, through `press` | PARTIAL |
 | 14 | Follows the ball into own goals; parks it on top of goals | Header rule allows any side when defending (`bot.js:623`); no own-goal rate measured | UNKNOWN |
 | 15 | Arms the instant the bar is full (wiki) | `wantPower` at `gauge>=1` after 1.5 s of play (`bot.js:332`) | DONE (wiki) / **CONFLICT** with M3's 3.1–3.8 s hold (C3) |
 | 16 | Full → shot 6.2 s (5★), 8.45 s (weak) | 3.7 s / 3.9 s (AUDIT N1, left as is by Idan) | PARTIAL |
 | 17 | Armed: keeps playing, fires on its next touch, no placement | "ARMED, IT KEEPS PLAYING ITS OWN GAME" (`bot.js:534`) | DONE |
 | 18 | Never kicks the player's power back up to #23; body in path | `'body'` plan (`bot.js:202`); kick only when armed | DONE |
-| 19 | **From Asura (#24) on: jumps and kicks to counter** | No kick-counter at any stage | **MISSING** (C6) |
+| 19 | **From Asura (#24) on: jumps and kicks to counter** | Fixed 2026-10-04 (eec5b44): stages 24–45 counter Asura-style, 40% → 80% | DONE |
 | 20 | In the path 60% (1–4★) / 90% (5★) | `cutOnIt = 0.3 + 0.6·s` (`bot.js:181`) | DONE (30% at the very bottom) |
 | 21 | Below 5★ freezes on the cut-in, jumps late | `freezeFor` 0.8 → 0.3 s (`bot.js:357`), `powerJumpErr` | DONE |
 | 22 | Jumps **too early** on delayed or long-range shots; jumps at ground shots | Reads the real power path (`powerPath`), jumps on time-to-arrival; dodges Ground shots smartly | **CONFLICT** (AUDIT R12, partly done) |
 | 23 | Never fooled by decoys or invisible balls (cheat) | Reads the real ball | DONE |
-| 24 | Never uses its own power to shield | `shieldArm` can arm on the opponent's glow (`bot.js:108`) | **CONFLICT** (PWR §5b: never seen) |
-| 25 | Reversed controls: never corrects, walks into its own goal | `adapt: d.t >= 0.5` corrects from stage 5–6 (`bot.js:59`, `champions.js:136`) | **CONFLICT** (C7) |
-| 26 | Boots the opponent a lot (5 reports); low stars rarely | Tackle only on a contested ball, ≤ 1/s, never on a helpless player (`bot.js:563`); scales with `aim` | PARTIAL / **CONFLICT** (C8) |
+| 24 | Never uses its own power to shield | Removed 2026-10-04 (75fe8ad) | DONE |
+| 25 | Reversed controls: never corrects, walks into its own goal | Fixed 2026-10-04 (70043a5): no bot corrects it | DONE |
+| 26 | Boots the opponent a lot (5 reports); low stars rarely | Fixed 2026-10-04 (86d20d7): `bootOf` by stars, 0.03 → 1, the ball first | DONE |
 | 27 | Kicking a knocked-out player launches him to his goal | Sim: `KO_KICK_SLIDE` (`sim.js:1375`); the bot avoids it on purpose | PARTIAL |
 | 28 | Hit by a power: thrown ~400 px, 0.5 s stars; can still arm while stunned | Sim (AUDIT W4 ✅); the bot outputs nothing while stunned (`bot.js:81`), so it never arms | PARTIAL (a stunned bot could still arm) |
-| 29 | 5★ stats "fully upgraded" (max 10) | 5★ flat level 5 (strong stat 6) (memory hs-stars-stats) | **CONFLICT?** (C4) |
+| 29 | 5★ stats "fully upgraded" (max 10) | 2026-10-04 (1c2b069): 5★ body stats +2 (7–8), power bar 5–6; the bot does not yet use the stronger body (step 8) | PARTIAL |
 | 30 | Arcade CPUs wear stat costumes | No costumes (product decision, AUDIT R11) | MISSING (by choice) |
 | 31 | No easy/normal/hard; difficulty is per opponent | Arcade: per stage. `DIFFICULTIES` 0–5 used outside the arcade | DONE (arcade) |
 | 32 | Gauge on the clock, frozen at restarts, conceder bonus, none in sudden death | Sim (AUDIT "already matches") | DONE |
