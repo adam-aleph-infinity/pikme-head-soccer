@@ -28,7 +28,7 @@ Re-run the comparison:
 | rolling slow-down | ~0.15 /s total | M4 |
 | bounce off grass | 0.65 | 5, M3 (low confidence) |
 | bounce off goal roof | 0.67 | 2, M4 |
-| ceiling | 130 px above the top of the screen, bounce 0.41, keeps sideways speed (Idan) | M4 |
+| ceiling | ball centre turns 118 px above the top of the screen; bounce **0.64** (0.55–0.71), like every surface; sideways slowed in every hit, by spin: 0.71 off a header, ~0.35 off a wall or a roll, ~0 off a boot straight up (ours 0.63) | 9 hits, M4–M11 (`_ceil-hits.mjs`, 2026-10-04) |
 | rests on the crossbar? | never | M4 |
 | respawn | 302 px up, drifts ±138 px/s | 7, M3 |
 | fastest ordinary ball | ~2240 while a dash pushes it, then **1970 kept** (only drag slows it) | M5 29.1 s and 3 more |

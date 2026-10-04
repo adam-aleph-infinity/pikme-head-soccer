@@ -1106,8 +1106,8 @@ function collideBounds(m, b, fx, dt = C.TICK) {
     }
     b.vx *= C.BALL_GROUND_FRICTION ** (dt / C.TICK);
   }
-  // ceiling — off the top of the screen: it keeps 0.41 of the climb and CEIL_KEEP_X of the
-  // sideways speed (1: a skied ball carries on the way it was going).
+  // ceiling — off the top of the screen: it bounces back with CEIL_BOUNCE of the climb, like every
+  // HS surface, and keeps CEIL_KEEP_X of the sideways speed (constants.js).
   if (b.y < C.CEIL_Y + b.r) {
     b.y = C.CEIL_Y + b.r;
     if (b.vy < 0) { b.vy = -b.vy * C.CEIL_BOUNCE; b.vx *= C.CEIL_KEEP_X; }
