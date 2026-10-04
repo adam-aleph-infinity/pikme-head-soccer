@@ -85,11 +85,10 @@ function botInputRaw(bot, m, index, dt) {
   // ---- the opponent is ARMED: the glow is the telegraph ----------------------
   //
   // An armed opponent is waiting for a touch of the ball; the shot goes where its FAMILY flies
-  // from wherever that touch happens. Three answers, all generic (no family or champion is
-  // named here):
-  //   * ARM TOO, when the gauge is full: an armed defender's touch of the shot is the counter
-  //     (§4), and it is the only answer to a shot a boot cannot stop (FAMILIES[fam].block —
-  //     a Ground shot passes through a block, a strong Destructive or a Critical smashes it).
+  // from wherever that touch happens. Two answers, all generic (no family or champion is
+  // named here). It never ARMS its own power as a shield against the glow: HS's CPU was never
+  // seen doing it (M10 84.25 s, docs/HS-POWER-SHOTS.md §5b) — it arms when its own bar fills,
+  // and that is all (below).
   //   * a boot CAN stop it: stand in its path. The path is the family's own flight, run
   //     forward from the ball as it is now (launch + stepPower on copies — see foeShotPath):
   //     flat at the ball's height, down onto the grass, up and out and diving at the mouth…
@@ -103,7 +102,6 @@ function botInputRaw(bot, m, index, dt) {
       bot.foeArmT = bot.t + 0.3;
       const s = skillOf(d);
       bot.readsGlow = bot.rng() < 0.35 + 0.6 * s;
-      bot.shieldArm = p.gauge >= 1 && p.armed <= 0 && bot.rng() < 0.2 + 0.7 * s;
       const F = FAMILIES[foe.shot?.family] || FAMILIES.straight;
       bot.bootStops = F.block === 'grind' || F.block === 'grab' || (F.block === 'smash' && (foe.shot?.intensity ?? 0.5) < 0.4);
       bot.foeSpot = null;
@@ -137,7 +135,7 @@ function botInputRaw(bot, m, index, dt) {
       out.kick = adx < C.KICK_REACH + C.KICK_R && (b.x - p.x) * p.side > -10 && p.kickCd <= 0 && !bot.lastKick;
       bot.lastKick = out.kick;
       out.jump = false;
-      out.power = bot.shieldArm && m.phase === 'play' && p.gauge >= 1 && p.armed <= 0;
+      out.power = armNow(m, p, b);          // its own bar filling: armed as always, never as a shield
       return out;
     }
   }
@@ -316,21 +314,16 @@ function botInputRaw(bot, m, index, dt) {
   //   p.gauge >= 1       — the meter fills on the clock (GAUGE_PASSIVE) and starts every
   //                        match at zero (clearUltimate), so it is never full at kickoff.
   //   p.armed <= 0       — no re-pressing something already armed.
-  //   armDelay           — a beat of ordinary football after kickoff before the bot will even
+  //   1.5 s played       — a beat of ordinary football after kickoff before the bot will even
   //                        consider it, measured on the MATCH clock rather than on bot.t, so a
   //                        bot object that outlives its match cannot carry the clock over.
   //
   // And arming is no longer the move: the bot still has to walk the ball down afterwards,
   // through the same contact test a human faces. There is no shortcut here that the player
   // does not have.
-  const played = C.MATCH_DURATION - m.clock;         // s of football actually played
-  const armDelay = 1.5;
   // Idan: the CPU presses POWER the moment its bar is full — no holding it for a better moment
   // (it used to wait FULL_HOLD + powerHold and for the goal ahead and a good arm moment).
-  const wantPower = m.phase === 'play' &&
-                    played > armDelay &&
-                    p.gauge >= 1 && p.armed <= 0 && b.power == null;
-  out.power = wantPower;
+  out.power = armNow(m, p, b);
 
   return out;
 }
@@ -338,6 +331,12 @@ function botInputRaw(bot, m, index, dt) {
 // ════ OPEN PLAY ═══════════════════════════════════════════════════════════════════════════════
 
 const clamp01 = (v) => Math.max(0, Math.min(1, v));
+// ARM: the tick the bar is full, once in play and 1.5 s of football in (never at kickoff, and the
+// match clock, not bot.t, so a reused bot object cannot carry it over), and not while a power
+// ball is already flying.
+function armNow(m, p, b) {
+  return m.phase === 'play' && C.MATCH_DURATION - m.clock > 1.5 && p.gauge >= 1 && p.armed <= 0 && b.power == null;
+}
 // THE SKILL AXIS, 0 (the weakest tier) … 1 (legendary), read off `aim` — the dial every tier and
 // every arcade champion already carries (DIFFICULTIES, champions.js stageDifficulty) — so the new
 // behaviour needs no new field and the star ladder stays one monotonic line.
