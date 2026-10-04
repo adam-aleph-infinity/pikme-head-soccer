@@ -174,7 +174,7 @@ function botInputRaw(bot, m, index, dt) {
     if (C.POWER_CUTIN - m.cutin < freezeFor(d)) { out.left = out.right = out.jump = out.kick = out.power = false; return out; }
     // …and then, MOVE OMISSION (the same notes): a low-star CPU sometimes simply has no answer and
     // lets it come — 30% of the time it defends at the bottom of the ladder, ~90% at five stars.
-    bot.cutOnIt ??= bot.rng() < 0.3 + 0.6 * skillOf(d);
+    bot.cutOnIt ??= (d.counterKick && bootStopsIt(cutPw, cutF)) || bot.rng() < 0.3 + 0.6 * skillOf(d);
     if (!bot.cutOnIt) { out.left = out.right = out.jump = out.kick = out.power = false; return out; }
     tOff = m.cutin - C.POWER_RELEASE;
   }
@@ -195,7 +195,11 @@ function botInputRaw(bot, m, index, dt) {
       // not one kick-block — every stop was the CPU's body in the path, hit and thrown back). So the
       // CPU's answer to a shot its body stops is to get the body in the way ('body'); only an armed
       // CPU reaches for it, to counter.
-      bot.powerPlan = p.armed > 0 ? 'counter' : !onIt ? 'panic' : bootStops ? 'body' : 'dodge';
+      // …until the 24th champion (champions.js COUNTER_STAGE): from there on HS's CPU tries to KICK
+      // every shot back — Asura "standing in his start off place, and repeatedly jumping and
+      // kicking" (wiki) — and it comes off `counterRate` of the time ('kick'). A shot no boot can
+      // stop keeps the old answer.
+      bot.powerPlan = p.armed > 0 ? 'counter' : d.counterKick && bootStops ? 'kick' : !onIt ? 'panic' : bootStops ? 'body' : 'dodge';
       bot.powerFrom = m.players[pw.owner].x;              // where the shooter stood (held there through the cut-in)
       // SLOPPINESS (Idan's HS notes: a low-star CPU tracks the ball with an offset and jumps too
       // late): the boot and the jump early or late, and the spot it stands on off the path, all
@@ -204,6 +208,15 @@ function botInputRaw(bot, m, index, dt) {
       bot.powerKickErr = (bot.rng() * 2 - 1) * (0.08 + 0.2 * e);
       bot.powerJumpErr = (bot.rng() * 2 - 1) * (0.04 + 0.2 * e);
       bot.powerSpotErr = (bot.rng() * 2 - 1) * (10 + 120 * e);
+      // THE COUNTER'S ROLL, once per shot: on a hit the boot is timed to a few frames; on a miss it
+      // goes out 0.15–0.25 s early or late — well outside the boot's window (_block-window.mjs) —
+      // so the try is seen, and the shot hits the body or goes by.
+      if (bot.powerPlan === 'kick') {
+        const hit = bot.rng() < (d.counterRate ?? 0.6);
+        const sgn = bot.rng() < 0.5 ? -1 : 1;
+        bot.powerKickErr = hit ? (bot.rng() * 2 - 1) * 0.02 : sgn * (0.15 + 0.1 * bot.rng());
+        bot.powerJumpErr = hit ? (bot.rng() * 2 - 1) * 0.02 : bot.powerJumpErr;
+      }
     }
     if (p.armed > 0 && bot.powerPlan !== 'counter') bot.powerPlan = 'counter';
     const path = powerPath(m, b, 1.6);
@@ -226,7 +239,23 @@ function botInputRaw(bot, m, index, dt) {
       return null;
     };
     // A point it passes at standing height first (no jump to time), else one a jump reaches.
-    const meet = find(crown - C.BALL_R * 0.5) || find(top);
+    let meet = find(crown - C.BALL_R * 0.5) || find(top);
+    // The counter-kicker holds ITS KICKOFF SPOT (Asura): of the reachable points on the path, the
+    // one nearest that spot — standing height first. (A shooter already past the spot: as above.)
+    if (bot.powerPlan === 'kick') {
+      const home = C.SPAWN_X[p.side > 0 ? 0 : 1];
+      const near = (hi) => {
+        let best = null;
+        for (const q of path) {
+          if (q.hidden || q.y < hi || q.y > C.GROUND_Y) continue;
+          if ((q.x - myGoalX) * p.side < -30) break;
+          if (Math.abs(q.x - bot.powerFrom) < 260 || Math.abs(q.x - p.x) > speed * (q.t + tOff) + C.HEAD_R) continue;
+          if (!best || Math.abs(q.x - home) < Math.abs(best.x - home)) best = q;
+        }
+        return best;
+      };
+      meet = near(crown - C.BALL_R * 0.5) || near(top) || meet;
+    }
     const coming = path.length > 0 && path.some((q) => !q.hidden && Math.abs(q.x - p.x) < C.HEAD_R + C.BALL_R + 10 && q.y > top && q.y < C.GROUND_Y + 1);
     if (bot.powerPlan === 'panic') {
       // Caught flat: it stands and watches, and is hit only if the shot is aimed through it.
@@ -269,7 +298,14 @@ function botInputRaw(bot, m, index, dt) {
     // swing's first frames and up at the face from 0.12 to 0.27 s after the press, so a ball on the
     // grass is kicked ~0.07 s before it arrives and a ball at head height ~0.19 s (_block-window.mjs).
     const lead = here ? (here.y > C.GROUND_Y - 45 ? 0.07 : 0.19) + bot.powerKickErr + (bot.powerPlan === 'counter' ? 0.08 : 0) : 0;
-    out.kick = bot.powerPlan === 'counter' && !!here && here.t + tOff < lead && p.kickCd <= 0 && !bot.lastKick;
+    out.kick = (bot.powerPlan === 'counter' || bot.powerPlan === 'kick') && !!here && here.t + tOff < lead && p.kickCd <= 0 && !bot.lastKick;
+    // …and while it waits on its spot, Asura's look: hops and swings, but only while there is time
+    // for the boot to come round and the jump to land before the real one (KICK_COOLDOWN, airtime).
+    if (bot.powerPlan === 'kick' && !out.kick && !out.jump && p.onGround && meet && Math.abs(meet.x - p.x) < 14) {
+      const tArr = (here ? here.t : (path.find((q) => !q.hidden && Math.abs(q.x - p.x) < 40)?.t ?? 9)) + tOff;
+      if (tArr - lead > C.KICK_COOLDOWN + 0.15 && p.kickCd <= 0 && !bot.lastKick && bot.rng() < 0.12) out.kick = true;
+      else if (tArr - lead > 0.95 && bot.rng() < 0.04) out.jump = true;
+    }
     bot.lastKick = out.kick;
     out.power = false;
     void coming;

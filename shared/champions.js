@@ -48,6 +48,10 @@ const round = (v, n) => Math.round(v * 10 ** n) / 10 ** n;
 // (Germany, 5★) on, every champion plays exactly as smart. What still differs after that is its
 // stats and its power. t runs 0 (stage 1) → 1 (stage FIVE_STAR and every one after).
 export const FIVE_STAR = 10;
+// From the 24th champion on the CPU KICKS the player's power shot back (HS: "every character
+// starting at Asura will counter it", Asura being the 24th; before him none do — wiki
+// Power_Shot_Guide, Asura). How often the counter comes off: 40% at the 24th, 80% at the last (Idan).
+export const COUNTER_STAGE = 24;
 export function stageDifficulty(stage) {
   const t = Math.min(1, (stage - 1) / (FIVE_STAR - 1));
   return {
@@ -132,6 +136,7 @@ export function botProfile(champ) {
     // …except the one split HS's five-star CPU has (Idan's HS notes): OFFENSIVE presses into the
     // other half, DEFENSIVE camps by its own goal and counters — the same smartness either way.
     ...(d.t >= 1 ? { archetype: ARCHETYPE[champ.hs.profile] || 'offense' } : {}),
+    ...(champ.stage >= COUNTER_STAGE ? { counterKick: true, counterRate: round(0.4 + 0.4 * (champ.stage - COUNTER_STAGE) / (CHAMPION_COUNT - COUNTER_STAGE), 3) } : {}),
     arm: 'attack',                           // every Head Soccer power is a shot at the goal
     smart: d.aim >= 0.55,
   };

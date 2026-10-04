@@ -281,8 +281,12 @@ function fireChampion(stage, i, gap = 460) {
       ok(`stage ${n}: smarter than stage ${n - 1}`,
          d.react < p.react && d.error < p.error && d.aim > p.aim && d.counter > p.counter && d.powerHold < p.powerHold && d.stars > p.stars);
     }
-    // (the one thing a five-star CPU varies is its plan, Offensive or Defensive — not how smart)
-    const brain = (q) => ({ ...q, name: '', archetype: '' });
+    // (what a five-star CPU varies is its plan, Offensive or Defensive, and — from the 24th, as HS's
+    // Asura on — the counter by kick, tested below; nothing else about how smart it is)
+    const brain = (q) => { const r = { ...q, name: '', archetype: '' }; delete r.counterKick; delete r.counterRate; return r; };
+    ok(`stage ${n}: ${n >= 24 ? 'kicks the power shot back' : 'never kicks the power shot back'}`, n >= 24
+      ? bp.counterKick === true && bp.counterRate >= 0.4 && bp.counterRate <= 0.8 && (n === 24 || bp.counterRate > botProfile(CHAMPIONS[n - 2]).counterRate)
+      : !bp.counterKick);
     if (n > FIVE_STAR) ok(`stage ${n}: plays exactly as smart as stage ${FIVE_STAR}`, JSON.stringify(d) === JSON.stringify(D[FIVE_STAR - 1]) && JSON.stringify(brain(bp)) === JSON.stringify(brain(botProfile(CHAMPIONS[FIVE_STAR - 1]))));
     ok(`stage ${n}: ${n >= FIVE_STAR ? 'an Offensive or Defensive five-star plan' : 'no five-star plan yet'}`, n >= FIVE_STAR ? ['offense', 'defense'].includes(bp.archetype) : bp.archetype === undefined);
   }
