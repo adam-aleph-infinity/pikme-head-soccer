@@ -393,7 +393,7 @@ RECOVER   (stun over)
 | 26 | Boots the opponent a lot (5 reports); low stars rarely | Fixed 2026-10-04 (86d20d7): `bootOf` by stars, 0.03 → 1, the ball first | DONE |
 | 27 | Kicking a knocked-out player launches him to his goal | Sim: `KO_KICK_SLIDE` (`sim.js:1375`); the bot avoids it on purpose | PARTIAL |
 | 28 | Hit by a power: thrown ~400 px, 0.5 s stars; can still arm while stunned | Sim (AUDIT W4 ✅); the bot outputs nothing while stunned (`bot.js:81`), so it never arms | PARTIAL (a stunned bot could still arm) |
-| 29 | 5★ stats "fully upgraded" (max 10) | 2026-10-04 (1c2b069): 5★ body stats +2 (7–8), power bar 5–6; the bot does not yet use the stronger body (step 8) | PARTIAL |
+| 29 | 5★ stats "fully upgraded" (max 10) | 2026-10-04 (1c2b069, df99365): 5★ body stats +2 (7–8), power bar 5–6; the bot plans with its own speed and jump. Head-to-head the +2 body is level with the old; against the tier-3 stand-in ~1 goal a match lower (it strikes from closer in, fewer long shots) — kept as is (Idan) | DONE |
 | 30 | Arcade CPUs wear stat costumes | No costumes (product decision, AUDIT R11) | MISSING (by choice) |
 | 31 | No easy/normal/hard; difficulty is per opponent | Arcade: per stage. `DIFFICULTIES` 0–5 used outside the arcade | DONE (arcade) |
 | 32 | Gauge on the clock, frozen at restarts, conceder bonus, none in sudden death | Sim (AUDIT "already matches") | DONE |
