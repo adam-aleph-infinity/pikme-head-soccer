@@ -256,6 +256,21 @@ The low stars mostly don't:
 | Levels | 1–10 each; 500 points, doubling, up to 256,000 for the last step. Dash, Power and Survival were added in v1.2.0 | [VERIFIED W:Stats ; hungryapp v1.2.0 notes] |
 | Costumes and bodies | Add stats (e.g. Horse +7/+5/+2/+3/+3). Opponents use them too | [VERIFIED W:Costumes, W:Beginners_Guide] |
 
+### The CPU's stats by star level, measured (2026-10-05)
+The wiki says a CPU below 5★ has speed, kick, jump and dash "not upgraded to the maximum. The less stars they have, the less high are their stats", that 5★ ones are "fully upgraded", that Russia (3★) is "a little bit more than half" of a 5★, and that a 5★ CPU's "power bar doesn't charge faster" than a low-star one's [VERIFIED W:Playing_styles, W:Germany, W:Speed]. No source gives a CPU's bar count. Measured on Idan's clips, every CPU against the same human. Idan's own bars (M7 player select): speed 3, kick 3, jump 3, dash 4, power 3. [MEASURED PROBE]
+
+| | Korea 0.5★ (M5, M1) | Cameroon 1★ (M11) | Russia 3★ (M10) | Italy 4★ (M7) | UK, Germany 5★ (M8, M9) | Idan, 3 bars (M7–M11) |
+|---|---|---|---|---|---|---|
+| Run speed, px/s (n ≈ 120–160 runs a peak) | 188 | 218 | 260 | 260 | 289–290 | 241 (225 in M5, an earlier account) |
+| Jump apex, px (n 1–6 a clip) / airtime | 40 / 0.73 s | 42 / 0.77 s | 52 / 0.85 s | 54 / 0.87 s | 58–60 / 0.90 s | 46 / 0.80 s |
+| Power bar fill, px of bar a second | 8.94 | 8.93 | 9.03 | — (overlay) | 8.92 (Germany) | 13.0–13.6 (11.6 in M5) |
+
+- **1★ → 5★:** runs 1.33× faster, jumps 1.43× higher (take-off speed 1.19×; apex and airtime fit one gravity, ~590 px/s², ours 595), power bar exactly the same. Korea 0.5★ is slower than any player can be (wiki: "the slowest of all characters"). [MEASURED PROBE]
+- **As player bars** (linear through Idan's 3 and 5★ = 10): speed Cameroon ≈ 0, Russia and Italy ≈ 6, Korea below 0; jump Korea ≈ 0, Cameroon ≈ 1, Russia ≈ 6, Italy ≈ 7. Russia's 6 is the wiki's "a little bit more than half". The "level = stars × 2" guess fits the middle and top, not the bottom: Cameroon is 0–1, not 2. [INFERRED from the measurements]
+- **Power:** every CPU's bar fills at the same rate, about 18 s from empty to full (a starter player's is 15.0 s, REF:gauge.fillTime; Idan's 3 bars ≈ 12 s). [MEASURED PROBE]
+- **Not measured:** kick strength (0–2 clean ball-at-rest boots per clip) and dash length (0–5 clean CPU dashes per clip; Idan's 4-bar dash is 110–119 px). Korea and Cameroon almost never dash (M5, M1: none). [MEASURED PROBE ; W:Korea "very rarely uses Dash"]
+- Method: the CPU re-tracked from the video by background subtraction (the old face tracks follow Korea's hair and miss most CPUs); the human is the left player, confirmed by Idan's arrow presses (M5: 764 moves with the arrow, 10 against); run speeds are steady 12-frame grass runs, two clean peaks per clip; the power bar is read column by column off the HUD.
+
 ### One AI, plus a style flag and roster switches
 - One AI for everyone, with a two-way style split (Offensive/Defensive) given per character at **every** star level, not just 5★. [VERIFIED W:Playing_styles ; INFERRED: the wiki describes every character's behaviour as the same rules plus style, stats and power]
 - Some behaviour switches on by roster position (counters from Asura, #24), and some notes are per character (Germany's own-goal headers, Italy countering its own shot). [VERIFIED W:Asura, W:Playing_styles]
@@ -424,7 +439,7 @@ RECOVER   (stun over)
 | Own-goal rate and the CPU's goal patterns | M7–M11: label each goal (power, dash, header, own goal, rebound) by eye. Count CPU own goals per match. |
 | How often it boots the human on purpose | M8/M9 (5★) vs M11 (1★): count CPU boots that land on Idan with no ball within 160 px. |
 | Kickoff idle | M7–M11 restarts: does the CPU move in the 0.555 s between "players free" (2.24 s) and the ball drop (2.795 s)? |
-| Stat level of each starred CPU | Run each CPU's speed, jump and dash on clips (as REF:player.topSpeed). Compare Korea, Russia and Germany to the human's known levels. |
+| Stat level of each starred CPU | Speed, jump and power DONE 2026-10-05 (§5, "The CPU's stats by star level"). Still open: kick and dash — frame-count clean CPU boots on a slow ball and open-field dashes by eye in M8/M9 against M11. |
 | Ground-shot jump habit | A clip of Nigeria's or Italy's ground shot against a 5★ CPU: does it jump? |
 | Base gauge per Power level | Two clips with a known Power stat (1 vs 5): frame-count kickoff → POWER plaque. |
 | Datamine / official AI values | None exist publicly (searched GitHub, forums; Fandom 402, namu 403, Reddit blocked). An APK decompile (Unity/Cocos assets) is the only way. |
