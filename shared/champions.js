@@ -13,7 +13,8 @@
 //     meter. Stage 1 is the bot's easiest tier (קל מאוד) and stage 45 just short of its hardest
 //     (אגדי). This is what a PERSON feels: a bot that turns up late and misreads the ball.
 //   the champion's body — Head Soccer's five 1–10 stats (speed, jump, kick, dash, power), which
-//     climb from a total of 12 at stage 1 to 45 at stage 45 (the map). Bot against bot the dials
+//     climb a little every stage from level 1 at stage 1 to the five-star body at stage 10, and stay
+//     there (the map; Idan, 2026-10-05). Bot against bot the dials
 //     above barely move a scoreline while the body does — 10% off the jump cost 50 goals over 64
 //     matches — so the body is the ladder's other half. The POWER stat is how fast the gauge fills.
 //

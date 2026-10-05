@@ -98,12 +98,17 @@ const FOE_CARD = { rarity: 'epic', number: 1 };            // not a champion: no
   const fams = new Set(CHAMPIONS.map((c) => c.hs.family));
   ok('all eleven families are in the campaign', FAMILY_ORDER.every((f) => fams.has(f)), [...fams].join(','));
   ok('the gentle Grab and Multi-Ball are stages 2 and 6 (Idan\'s decision 1)', CHAMPIONS.filter((c) => c.hs.gentle).map((c) => c.stage).join() === '2,6');
-  // HS's arcade stats (Idan, 2026-10-02): a low-star CPU (0.5–2.5★) is held to the bottom levels —
-  // speed and kick 1. A five-star one (Idan, 2026-10-04: HS's are "fully upgraded", so +2 over the
+  // The arcade's stats (Idan, 2026-10-05): champions 1–10 climb a little every stage, every stat
+  // from level 1 at the first to the five-star body at the tenth, none ever stepping down (it was
+  // HS's 0.5–2.5★ held on level 1, then a leap from 3 to 7 at stage 10). A five-star one (Idan, 2026-10-04: HS's are "fully upgraded", so +2 over the
   // player's equal stats) runs, jumps, kicks and dashes on levels 7–8; its power bar stays on 5–6,
   // the player's own fill.
-  ok('the 0.5–2.5★ champions run and kick at level 1', CHAMPIONS.filter((c) => c.hs.stars <= 2.5).every((c) => c.hs.stats.speed === 1 && c.hs.stats.kick === 1 && Object.values(c.hs.stats).every((v) => v <= 2)));
-  const BODY = ['speed', 'jump', 'kick', 'dash'];
+  const BODY = ['speed', 'jump', 'kick', 'dash'], ALL = [...BODY, 'power'];
+  ok('the first champion is on level 1 throughout', ALL.every((k) => CHAMPIONS[0].hs.stats[k] === 1));
+  ok('champions 1–10: the total climbs every stage and no stat ever steps down', CHAMPIONS.slice(1, 10).every((c, i) => {
+    const prev = CHAMPIONS[i].hs.stats, cur = c.hs.stats;
+    return ALL.every((k) => cur[k] >= prev[k]) && ALL.reduce((a, k) => a + cur[k] - prev[k], 0) >= 2;
+  }));
   ok('every five-star champion runs, jumps, kicks and dashes on levels 7–8, its power bar on 5–6', CHAMPIONS.filter((c) => c.hs.stars === 5).every((c) => BODY.every((k) => c.hs.stats[k] >= 7 && c.hs.stats[k] <= 8) && c.hs.stats.power >= 5 && c.hs.stats.power <= 6));
   ok('the body stats\' base level never steps down along the ladder', CHAMPIONS.every((c, i) => i === 0 || Math.min(...BODY.map((k) => c.hs.stats[k])) >= Math.min(...BODY.map((k) => CHAMPIONS[i - 1].hs.stats[k]))));
   ok('the stars are HS\'s: half a star a stage to five at stage 10, five after', CHAMPIONS.every((c) => c.hs.stars === Math.min(5, c.stage / 2)));

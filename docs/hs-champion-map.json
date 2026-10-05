@@ -22,9 +22,9 @@
       "jump": 1,
       "kick": 1,
       "dash": 1,
-      "power": 2
+      "power": 1
     },
-    "statTotal": 6,
+    "statTotal": 5,
     "stars": 0.5,
     "rationale": "A cannonball: straight and heavy, the blocker is knocked back — HS Destructive in its plainest form."
   },
@@ -47,13 +47,13 @@
     "gentle": true,
     "profile": "tricky",
     "stats": {
-      "speed": 1,
-      "jump": 1,
-      "kick": 1,
-      "dash": 2,
+      "speed": 2,
+      "jump": 2,
+      "kick": 2,
+      "dash": 1,
       "power": 1
     },
-    "statTotal": 6,
+    "statTotal": 8,
     "stars": 1,
     "rationale": "Worms wrap the legs and pull — a Grab; the current slow/no-jump effect is exactly the shock ailment."
   },
@@ -76,13 +76,13 @@
     "gentle": false,
     "profile": "kicker",
     "stats": {
-      "speed": 1,
-      "jump": 1,
-      "kick": 1,
-      "dash": 1,
-      "power": 1
+      "speed": 2,
+      "jump": 3,
+      "kick": 2,
+      "dash": 2,
+      "power": 2
     },
-    "statTotal": 5,
+    "statTotal": 11,
     "stars": 1.5,
     "rationale": "Fireball down a straight line; the blocker burns, as the current blaze already does."
   },
@@ -105,13 +105,13 @@
     "gentle": false,
     "profile": "tank",
     "stats": {
-      "speed": 1,
-      "jump": 2,
-      "kick": 1,
-      "dash": 1,
-      "power": 1
+      "speed": 3,
+      "jump": 4,
+      "kick": 3,
+      "dash": 3,
+      "power": 2
     },
-    "statTotal": 6,
+    "statTotal": 15,
     "stars": 2,
     "rationale": "A mud ball that rolls along the turf; being stuck in the bog = shock (slow, no jump)."
   },
@@ -134,13 +134,13 @@
     "gentle": false,
     "profile": "tank",
     "stats": {
-      "speed": 1,
-      "jump": 2,
-      "kick": 1,
-      "dash": 1,
-      "power": 1
+      "speed": 4,
+      "jump": 4,
+      "kick": 4,
+      "dash": 3,
+      "power": 3
     },
-    "statTotal": 6,
+    "statTotal": 18,
     "stars": 2.5,
     "rationale": "A brick wall slides along the ground: can only be countered, never deflected."
   },
@@ -163,13 +163,13 @@
     "gentle": true,
     "profile": "balanced",
     "stats": {
-      "speed": 2,
-      "jump": 2,
-      "kick": 2,
-      "dash": 2,
-      "power": 2
+      "speed": 5,
+      "jump": 5,
+      "kick": 4,
+      "dash": 4,
+      "power": 3
     },
-    "statTotal": 10,
+    "statTotal": 21,
     "stars": 3,
     "rationale": "Coin shower becomes a few coin-balls, any of which may score (light early version)."
   },
@@ -192,13 +192,13 @@
     "gentle": false,
     "profile": "jumper",
     "stats": {
-      "speed": 2,
-      "jump": 3,
-      "kick": 2,
-      "dash": 2,
-      "power": 2
+      "speed": 5,
+      "jump": 5,
+      "kick": 5,
+      "dash": 5,
+      "power": 4
     },
-    "statTotal": 11,
+    "statTotal": 24,
     "stars": 3.5,
     "rationale": "Pogo spring: the shot boings up in a high arc."
   },
@@ -221,13 +221,13 @@
     "gentle": false,
     "profile": "kicker",
     "stats": {
-      "speed": 3,
-      "jump": 3,
-      "kick": 4,
-      "dash": 3,
-      "power": 3
+      "speed": 6,
+      "jump": 6,
+      "kick": 6,
+      "dash": 6,
+      "power": 4
     },
-    "statTotal": 16,
+    "statTotal": 28,
     "stars": 4,
     "rationale": "Magnet-true: the ball flies dead straight at the goal as if on a rail."
   },
@@ -250,13 +250,13 @@
     "gentle": false,
     "profile": "balanced",
     "stats": {
-      "speed": 3,
-      "jump": 3,
-      "kick": 3,
-      "dash": 3,
-      "power": 3
+      "speed": 7,
+      "jump": 7,
+      "kick": 6,
+      "dash": 6,
+      "power": 5
     },
-    "statTotal": 15,
+    "statTotal": 31,
     "stars": 4.5,
     "rationale": "The current red wave already rises and falls — the textbook Up-and-Down."
   },
