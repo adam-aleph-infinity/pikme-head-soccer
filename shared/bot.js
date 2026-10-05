@@ -569,14 +569,18 @@ function openPlay(bot, m, p, foe, b, out, d, dt) {
     const still = Math.hypot(b.vx, b.vy) < 80 && b.y > C.GROUND_Y - b.r - 4 && !b.power;
     if (!still) bot.deadSince = null; else bot.deadSince ??= bot.t;
     const dead = still && bot.t - bot.deadSince > DEAD_WAIT;
-    const engage = dead || (!bot.lazy && (ballDepth < C.W * (arch === 'defense' ? 0.5 : 0.55) || (!foeFirst && arch !== 'defense') || bot.press));
+    // …nor off a ball that has dropped in BEHIND it, between it and its own goal: a lazy roll is a
+    // weak CPU letting a ball go by, not one standing with its back to a ball at its own goal
+    // (Idan's playtest, 2026-10-05: stages 1–5 stood still for up to 4 s with the ball behind them).
+    const atMyBack = (meet.x - p.x) * side < -20;
+    const engage = dead || ((!bot.lazy || atMyBack) && (ballDepth < C.W * (arch === 'defense' ? 0.5 : 0.55) || (!foeFirst && arch !== 'defense') || bot.press));
     // Home: where it waits when it is not going. Stronger tiers wait further out (HS: the
     // five-star CPU averages 425px out from its wall, the weak ones 320).
     const home = myGoalX + side * (arch === 'offense' ? C.W * 0.56 : arch === 'defense' ? 150 : 210 + 130 * s);
     let target = engage ? meet.standX : home;
     // A ball that has got BEHIND me and is heading home: get back past it, goal-side, the
     // quickest way there is (a dash when it is far) — this is the defence against lobs.
-    const behind = (meet.x - p.x) * side < -20 && toMyGoal;
+    const behind = atMyBack && toMyGoal;
     if (behind) target = meet.x - side * 20;
     // How far forward it goes. Its pressing depth is where it USUALLY stops — but when it is the
     // nearer player, or its press roll says go, it follows the ball on into the other half, as far
