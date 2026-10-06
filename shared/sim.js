@@ -426,7 +426,12 @@ export function step(m, inputs, dt = C.TICK, fx = NO_FX) {
   // eight could block it, and the ones that failed failed by tunnelling rather than by
   // timing. Splitting the tick into slices no longer than a head keeps "get in the way" a
   // thing the geometry can actually see.
-  const speed = Math.hypot(m.ball.vx, m.ball.vy);
+  // An UPGRADED body faster than the base dash counts too: a level-10 dash covers 41px a tick, and
+  // a still ball it ran into in one step came out on the wrong side, dead. (A level-0 body never
+  // needed it, and the level-0 game stays exactly as it was.)
+  const upgraded = (p) => (p.stats.speed > 1 || p.stats.dash > 1 ? Math.abs(p.vx) : 0);
+  const body = Math.max(upgraded(m.players[0]), upgraded(m.players[1]));
+  const speed = Math.hypot(m.ball.vx, m.ball.vy) + (body > C.DASH_V ? body : 0);
   const slices = Math.max(1, Math.min(6, Math.ceil((speed * dt) / (C.HEAD_R * 0.8))));
   for (let i = 0; i < slices; i++) stepBall(m, dt / slices, fx, i / slices, 1 / slices);
   if (m.xballs.length && m.phase === 'play') stepExtraBalls(m, dt, fx);
@@ -570,8 +575,7 @@ function stepPlayer(m, p, input, dt, fx) {
   // on the ground only: no dashing in the air (Idan, 2026-09-26)
   const canDash = p.dashCd <= 0 && p.onGround && !(md && md.noDash);
   const dash = (d) => {
-    // the DASH stat: how long it lasts
-    p.dashT = C.DASH_TIME * (p.stats.dash ?? 1); p.dashDir = d; p.dashCd = md && md.dashFree ? 0.12 : C.DASH_COOLDOWN;
+    p.dashT = C.DASH_TIME; p.dashDir = d; p.dashCd = md && md.dashFree ? 0.12 : C.DASH_COOLDOWN;
     p.tapT = 0; p.tapDir = 0; p.dashBuf = 0;
     m.events.push({ type: 'dash', player: p.index, dir: d });
   };
@@ -593,19 +597,19 @@ function stepPlayer(m, p, input, dt, fx) {
   if (dir !== 0) p.facing = dir;
 
   if (p.dashT > 0) {
-    // As many whole ticks of DASH_V as DASH_TIME always gave (5), times the DASH stat — the last tick
-    // of a stretched or shortened dash is a part one, so its length follows the stat smoothly (an
-    // equal dash is the same five whole ticks it always was).
-    const k = p.stats.dash ?? 1, whole = Math.ceil(C.DASH_TIME / C.TICK - 1e-9) * k;
-    const part = Math.max(0, Math.min(1, whole - (C.DASH_TIME * k - p.dashT) / C.TICK + 1e-6));
+    // As many whole ticks of DASH_V as DASH_TIME gives (4), at DASH_V times the DASH stat: an
+    // upgraded dash is faster over the same 4 ticks, so as much further (HS: Idan's 4 dash bars,
+    // the same 4 frames at 33 px a frame against level 0's 28).
+    const whole = Math.ceil(C.DASH_TIME / C.TICK - 1e-9);
+    const part = Math.max(0, Math.min(1, whole - (C.DASH_TIME - p.dashT) / C.TICK + 1e-6));
     p.dashT -= dt;
-    p.vx = p.dashDir * C.DASH_V * part * (md ? md.speed : 1);       // the DASH stat sets how long (dash()), not how fast
+    p.vx = p.dashDir * C.DASH_V * (p.stats.dash ?? 1) * part * (md ? md.speed : 1);
   } else if (p.shoved > 0) {
     // A SHOVE OWNS THE BODY for TACKLE_SHOVE: ballistic in the air, a short slide on the grass.
     // With instant steering below, anything less and the knockback would last one tick.
     if (p.onGround) p.vx *= C.PLAYER_FRICTION;
   } else {
-    // In the air a little faster than on the grass (HS M5: 241 against 224–228; see PLAYER_AIR_SPEED).
+    // In the air a little faster than on the grass (HS M12: 210 against 195; see PLAYER_AIR_SPEED).
     const target = dir * (p.onGround ? C.PLAYER_SPEED : C.PLAYER_AIR_SPEED) * p.stats.speed * (md ? md.speed : 1);
     if (md && (md.accel < 1 || md.friction)) {
       // The arcade's grip powers (ice, mud) are the one place a body still has to get going
@@ -1024,7 +1028,10 @@ function stepBall(m, dt, fx, a0 = 0, aSpan = 1) {
   // at ~2240 for as long as the dash pushes it, then 1970) — so a capped ball the dasher keeps
   // catching is pushed, not pumped to 2300–3600 px/s off a body that springs back. The ordinary
   // BALL_MAX_SPEED again the moment the dash ends.
-  const cap = Math.max(C.BALL_MAX_SPEED, C.DASH_BALL_CAP * Math.max(Math.abs(m.players[0].vx), Math.abs(m.players[1].vx)));
+  // (The body's speed over its DASH stat: an upgraded dash carries the dasher further, it does not
+  // turn a dash touch into a faster ball.)
+  const dashV = (p) => Math.abs(p.vx) / (p.stats.dash ?? 1);
+  const cap = Math.max(C.BALL_MAX_SPEED, C.DASH_BALL_CAP * Math.max(dashV(m.players[0]), dashV(m.players[1])));
   if (!powered && sp > cap) { b.vx *= cap / sp; b.vy *= cap / sp; }
 
   // Sub-step the ball so it can never skip past a body in one tick. Discrete stepping

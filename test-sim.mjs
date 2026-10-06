@@ -654,11 +654,11 @@ const jumpArc = (input) => {
 {
   const tap = jumpArc((i) => i === 0);
   const hold = jumpArc((i) => i < 30);
-  // v²/2g less the integrator's half-tick: 46.4 sampled (see JUMP_V). HS: 45.8.
-  ok('a tapped jump peaks ~46px up (HS M4 45.8)', tap.apex > 44 && tap.apex < 48, `${tap.apex.toFixed(1)}px`);
+  // v²/2g less the integrator's half-tick: 39.2 sampled (see JUMP_V). HS's level 0 (M12): 39.3.
+  ok('a tapped jump peaks ~39px up (HS M12 level 0, 39.3)', tap.apex > 37.5 && tap.apex < 41, `${tap.apex.toFixed(1)}px`);
   ok('and HOLDING jump does not make it any higher — no variable height', Math.abs(hold.apex - tap.apex) < 1e-9,
      `tap ${tap.apex.toFixed(2)} vs hold ${hold.apex.toFixed(2)}`);
-  ok('it is in the air ~0.79s (2 x 235 / 595)', Math.abs(tap.air * C.TICK - 0.79) < 0.03, `${(tap.air * C.TICK).toFixed(3)}s`);
+  ok('it is in the air ~0.73s (2 x 216 / 595; HS M12 0.74)', Math.abs(tap.air * C.TICK - 0.73) < 0.03, `${(tap.air * C.TICK).toFixed(3)}s`);
 }
 {
   // HOLD JUMP AND YOU KEEP JUMPING: 3 ticks (0.05s) after every landing, with no fresh press.
@@ -691,7 +691,7 @@ const jumpArc = (input) => {
   const m = starter(fresh());
   const p = m.players[0];
   step(m, [{ right: true }, {}]);
-  ok('full speed on the first tick', p.vx === C.PLAYER_SPEED && C.PLAYER_SPEED === 228, `vx=${p.vx}`);
+  ok('full speed on the first tick (HS M12 level 0, 195)', p.vx === C.PLAYER_SPEED && C.PLAYER_SPEED === 195, `vx=${p.vx}`);
   step(m, [{}, {}]);
   ok('a dead stop on the tick it is let go', p.vx === 0, `vx=${p.vx}`);
   // (A fresh body for the turn: right, let go, right again is a double tap — a dash.)
@@ -707,16 +707,16 @@ const jumpArc = (input) => {
   ok('the air is steered the same way (assumed)', !p.onGround && p.vx === 0, `vx=${p.vx} air=${!p.onGround}`);
 }
 {
-  // THE DASH: double-tap, 5 ticks at DASH_V (1790) — what the camera reads as HS's 4 frames and
-  // 120px (see DASH_TIME) — then straight back to a walk; and not again for DASH_COOLDOWN.
+  // THE DASH: double-tap, 4 ticks at DASH_V (1680) — HS M12's level-0 box, 4 frames of 28px, 112px
+  // (see DASH_TIME) — then straight back to a walk; and not again for DASH_COOLDOWN.
   const m = starter(fresh());
   const p = m.players[0];
   const seq = [{ right: true }, {}, { right: true }];
   const vs = [];
   for (let i = 0; i < 14; i++) { step(m, [seq[i] || { right: true }, {}]); vs.push(p.vx); }
   const fast = vs.filter((v) => v === C.DASH_V).length;
-  ok('a double tap dashes at 1790 px/s', vs.includes(1790), vs.join(','));
-  ok('for 5 ticks', fast === 5, `${fast} ticks`);
+  ok('a double tap dashes at 1680 px/s (HS M12 level 0)', vs.includes(1680) && C.DASH_V === 1680, vs.join(','));
+  ok('for 4 ticks: 112px (HS M12 level 0)', fast === 4 && Math.abs(fast * C.DASH_V * C.TICK - 112) < 0.5, `${fast} ticks`);
   ok('then walks again at once', vs[vs.length - 1] === C.PLAYER_SPEED);
   // Cooldown: a second double-tap straight after does not dash.
   m.events.length = 0;
@@ -803,10 +803,10 @@ const jumpArc = (input) => {
 // --- gauge & clock ----------------------------------------------------------
 {
   // THE GAUGE IS A CLOCK (Head Soccer). Nobody touches anything: both meters go from empty to
-  // full in 1 / GAUGE_PASSIVE seconds — 15s, HS M4's first fill AND its refill — and stay full.
+  // full in 1 / GAUGE_PASSIVE seconds — 18.5s, HS's level 0 (M12, three fills alike) — and stay full.
   const m = fresh();
   const full = 1 / C.GAUGE_PASSIVE;
-  ok('(the fill time is HS\'s 15s)', Math.abs(full - 15) < 1e-9, `${full}s`);
+  ok('(the fill time is HS\'s level 0, 18.5s)', Math.abs(full - 18.5) < 1e-9, `${full}s`);
   run(m, Math.round((full - 0.5) / C.TICK));
   const [p0, p1] = m.players;
   ok('half a second short of it, the gauge is not yet full', p0.gauge < 1 && p0.gauge > 0.95,
@@ -821,16 +821,16 @@ const jumpArc = (input) => {
   ok('the clock alone arms nobody', p0.armed === 0 && p1.armed === 0);
 }
 {
-  // THE FIRST FILL, FROM A REAL KICKOFF: 15.0s after the KICK OFF banner ends (HS M4), the same
-  // 15s as its refill from the press (see GAUGE_PASSIVE): nothing under the banner, 1/15 a
-  // second of play after it.
+  // THE FIRST FILL, FROM A REAL KICKOFF: 18.5s after the KICK OFF banner ends (HS M12 level 0; M4's
+  // 15.0 was an upgraded bar), the same as its refill (see GAUGE_PASSIVE): nothing under the
+  // banner, 1/18.5 a second of play after it.
   const m = createMatch(CA, CB, {});
   run(m, Math.round(C.KICKOFF_FREEZE / C.TICK) - 2);
   ok('the gauge does not fill under the KICK OFF banner', m.players[0].gauge === 0 && m.phase === 'kickoff');
   let t = 0;
   while (m.phase !== 'play') { step(m, NONE); }
   while (m.players[0].gauge < 1 && t < 30) { m.ball.x = C.W / 2; m.ball.y = 60; m.ball.vx = m.ball.vy = 0; step(m, NONE); t += C.TICK; }
-  ok('the first fill takes ~15s from the banner (HS M4 14.99)', Math.abs(t - 15) < 0.1, `${t.toFixed(2)}s`);
+  ok('the first fill takes ~18.5s from the banner (HS M12 level 0)', Math.abs(t - 18.5) < 0.1, `${t.toFixed(2)}s`);
 }
 {
   // It runs straight through a cut-in (HS M4 40.44 s / 41.97 s: same rate under both), and it
@@ -2134,7 +2134,7 @@ const jumpArc = (input) => {
     // Jump off it: a head is ground to jump from.
     let top = a.y;
     run(m, 50, (i, mm) => { top = Math.min(top, mm.players[0].y); return [i === 1 ? { jump: true } : {}, {}]; });
-    ok('…and can jump off it', crownFeet(b) - top > 40, `rose ${(crownFeet(b) - top).toFixed(1)}px off the crown`);
+    ok('…and can jump off it (a whole jump)', crownFeet(b) - top > 36, `rose ${(crownFeet(b) - top).toFixed(1)}px off the crown`);
   }
   {
     // The head walks away: nothing carries the upper body sideways (HS M4 53.00–53.40 s), and
@@ -2180,15 +2180,18 @@ const jumpArc = (input) => {
     const y0 = a.y;
     let top = y0;
     run(m, 30, (i, mm) => { top = Math.min(top, mm.players[0].y); return [{ right: true, jump: i === 0 }, { left: true }]; });
-    ok('jumping while pushing into somebody is not damped', y0 - top > 40, `rose ${(y0 - top).toFixed(1)}px`);
+    ok('jumping while pushing into somebody is not damped (a whole jump)', y0 - top > 36, `rose ${(y0 - top).toFixed(1)}px`);
   }
   {
     // Walk into somebody standing still and jump, holding the arrow: past the top of the jump
     // the body climbs the curve of the head, ~64px/s, and stands on the crown once the arrow is
-    // let go (HS M4 51.76–52.55 s: shoulder to crown in 0.33 s, R released ~0.1 s later).
-    const climb = (bIn) => {
+    // let go (HS M4 51.76–52.55 s: shoulder to crown in 0.33 s, R released ~0.1 s later). That
+    // was Idan's account, ~3 bars: a 46px jump (JUMP_V 240) at 228 px/s. HS's level 0 jumps 39px,
+    // and its boots never pass the other head's centre, so it cannot climb (checked below).
+    const climb = (bIn, lv0 = false) => {
       const m = fresh();
       const [a, b] = m.players;
+      if (!lv0) a.stats = { ...a.stats, jump: 240 / C.JUMP_V, speed: 228 / C.PLAYER_SPEED };
       a.x = 440; b.x = 520; m.ball.x = 950;
       let hold = true, from = -1, at = -1, top = C.GROUND_Y;
       run(m, 130, (i, mm) => {
@@ -2208,6 +2211,9 @@ const jumpArc = (input) => {
        `feet ${up.a.y.toFixed(1)} vs crown ${crownFeet(up.b).toFixed(1)}, stand ${up.a.stand}`);
     ok('…shoulder to crown in about HS\'s 0.33 s', up.secs > 0.25 && up.secs < 0.42, `${up.secs.toFixed(2)} s`);
     ok('…without being flung over the crown', up.over < 4, `${up.over.toFixed(1)}px over`);
+    const base = climb({}, true);
+    ok('on the base jump (HS level 0, 39px) the boots never pass his head centre: he hangs on the shoulder, never on the crown',
+       base.a.y > crownFeet(base.b) + 10, `feet ${base.a.y.toFixed(1)} vs crown ${crownFeet(base.b).toFixed(1)}`);
     {
       // Hung on his torso you can jump again, and again off his shoulder, onto his head (Idan;
       // HS M4 66.78 and 160.04 s: jumps off a shoulder hang).

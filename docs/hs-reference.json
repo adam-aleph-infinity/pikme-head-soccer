@@ -103,19 +103,19 @@
   },
   {
     "id": "player.topSpeed",
-    "value": 228,
+    "value": 195,
     "unit": "px/s",
     "clips": [
-      "M4"
+      "M12"
     ],
-    "n": 2,
-    "sd": 5,
+    "n": 1847,
+    "sd": 4,
     "tol": 10,
     "scenario": "run",
     "status": "estimated",
-    "source": "M4 32.3–33.9 s (run right from standstill) and 85.4–88.4 s",
+    "source": "M12 (both players on HS base stats, level 0): 12-frame grass runs, 198 (left, arrow lit, 672 windows) and 191 (right, 1175); e.g. 4.36–4.74 s 200, 13.29–13.68 s 198, 24.53–24.91 s 195 (docs/hs-clips/M12-base-stats.json)",
     "how": "Straight-line fit to the head x over the run's plateau (fitTopSpeed).",
-    "note": "M3's 260 ± 35 (6.66–11.42 s, an auto head track of short walks) was lower confidence and is superseded."
+    "note": "Was 228 off M4 (M4 32.3–33.9 s (run right from standstill) and 85.4–88.4 s) — Idan's account with upgrades bought, not HS level 0. M3's 260 ± 35 (6.66–11.42 s, an auto head track of short walks) was lower confidence and is superseded."
   },
   {
     "id": "player.accel",
@@ -213,66 +213,67 @@
   },
   {
     "id": "jump.apex.tap",
-    "value": 45.8,
+    "value": 39.3,
     "unit": "px",
     "clips": [
-      "M4"
+      "M12"
     ],
-    "n": 10,
+    "n": 28,
     "sd": 1,
     "tol": 2,
     "scenario": "jumpTap",
     "status": "estimated",
-    "source": "M4 21.05–29.4 s: 10 standstill jumps (21.05, 21.96, 23.01, 23.81, 24.73, 25.51, 26.52, 27.64, 28.64 s…)",
+    "source": "M12 level 0: 28 jumps, both players, 36–40 px (e.g. 23.78, 31.00, 36.59, 8.52, 14.69 s); HS has one fixed jump, tap or hold",
     "how": "Head rise above standing, from a parabola per jump (hs-fit-lib jumps()).",
-    "note": "Identical for tap and hold. The head path is a plain parabola (fit rmse < 0.8 px): M3's 0.2 s 'flat top' is the vertex seen through 1-px quantisation, not a hover. A head-TOP track of the same jumps gives 43.8."
+    "note": "Was 45.8 off M4 (M4 21.05–29.4 s: 10 standstill jumps (21.05, 21.96, 23.01, 23.81, 24.73, 25.51, 26.52, 27.64, 28.64 s…)) — Idan's account with upgrades bought, not HS level 0. Identical for tap and hold. The head path is a plain parabola (fit rmse < 0.8 px): M3's 0.2 s 'flat top' is the vertex seen through 1-px quantisation, not a hover. A head-TOP track of the same jumps gives 43.8."
   },
   {
     "id": "jump.apex.hold",
-    "value": 45.8,
+    "value": 39.3,
     "unit": "px",
     "clips": [
-      "M4"
+      "M12"
     ],
-    "n": 10,
+    "n": 28,
     "sd": 1,
     "tol": 2,
     "scenario": "jumpHold",
     "status": "estimated",
-    "source": "M4 21.05–29.4 s",
+    "source": "M12 level 0, as jump.apex.tap",
     "how": "As jump.apex.tap.",
-    "note": "Holding JUMP does not change the height — HS has no variable jump."
+    "note": "Was 45.8 off M4 (M4 21.05–29.4 s) — Idan's account with upgrades bought, not HS level 0. Holding JUMP does not change the height — HS has no variable jump."
   },
   {
     "id": "jump.airtime.tap",
-    "value": 0.772,
+    "value": 0.74,
     "unit": "s",
     "clips": [
-      "M4"
+      "M12"
     ],
-    "n": 9,
-    "sd": 0.004,
-    "tol": 0.0232,
+    "n": 28,
+    "sd": 0.01,
+    "tol": 0.0222,
     "scenario": "jumpTap",
     "status": "estimated",
-    "source": "M4 21.00–29.45 s: 9 standstill jumps",
+    "source": "M12 level 0: 28 jumps, 0.72–0.76 s",
     "how": "Head-top track (m4/u1.json, the human at x≈330), one free parabola per jump through every frame ≥ 3 px up; airtime between its two crossings of the standing line. Checked on the FEET line (shoe bottoms, frames 1310–1370): last standing frame 21.948, first frame 4 px up 21.965, last frame 3 px up 22.713, down 22.730 — 0.774 s.",
-    "note": "Re-measured (was 0.74, an under-count: the first pass fell back to the frames more than 3 px above standing, on a head-TOP track, and 2·√(2·40.8/595) = 0.74). The nine jumps at 21.00, 21.95, 22.98, 23.78, 24.71, 25.49, 26.51, 27.62, 28.60 s: 0.769 0.770 0.773 0.773 0.766 0.773 0.778 0.776 0.772. Fitted freely they give g 592–613 (mean 602), takeoff 233 px/s, apex 44.8 — 2·233/602 = 0.774, so apex 45.8 and g 595 (which imply 0.785) and this airtime agree within the fit. Our sim's 0.790 (235 takeoff, g 595) is 2% long, inside the tolerance; the sim is left as it is."
+    "note": "Was 0.772 off M4 (M4 21.00–29.45 s: 9 standstill jumps) — Idan's account with upgrades bought, not HS level 0. Re-measured (was 0.74, an under-count: the first pass fell back to the frames more than 3 px above standing, on a head-TOP track, and 2·√(2·40.8/595) = 0.74). The nine jumps at 21.00, 21.95, 22.98, 23.78, 24.71, 25.49, 26.51, 27.62, 28.60 s: 0.769 0.770 0.773 0.773 0.766 0.773 0.778 0.776 0.772. Fitted freely they give g 592–613 (mean 602), takeoff 233 px/s, apex 44.8 — 2·233/602 = 0.774, so apex 45.8 and g 595 (which imply 0.785) and this airtime agree within the fit. Our sim's 0.790 (235 takeoff, g 595) is 2% long, inside the tolerance; the sim is left as it is."
   },
   {
     "id": "jump.airtime.hold",
-    "value": 0.772,
+    "value": 0.74,
     "unit": "s",
     "clips": [
-      "M4"
+      "M12"
     ],
-    "n": 9,
-    "sd": 0.004,
-    "tol": 0.0232,
+    "n": 28,
+    "sd": 0.01,
+    "tol": 0.0222,
     "scenario": "jumpHold",
     "status": "estimated",
-    "source": "M4 21.00–29.45 s",
-    "how": "As jump.airtime.tap (the held jumps, 23.78–26.51 s, are the same parabola)."
+    "source": "M12 level 0, as jump.airtime.tap",
+    "how": "As jump.airtime.tap (the held jumps, 23.78–26.51 s, are the same parabola).",
+    "note": "Was 0.772 off M4 (M4 21.00–29.45 s) — Idan's account with upgrades bought, not HS level 0."
   },
   {
     "id": "player.gravity",
@@ -292,18 +293,19 @@
   },
   {
     "id": "jump.takeoffSpeed",
-    "value": 235,
+    "value": 212,
     "unit": "px/s",
     "clips": [
-      "M4"
+      "M12"
     ],
-    "n": 10,
-    "sd": 8,
+    "n": 28,
+    "sd": 6,
     "tol": 16,
     "scenario": "jumpTap",
     "status": "estimated",
-    "source": "M4 21.05–29.4 s",
-    "how": "Velocity of the fitted parabola at takeoff (≈ √(2·g·apex))."
+    "source": "M12 level 0: 4 x apex / airtime = 4 x 39.3 / 0.74",
+    "how": "Velocity of the fitted parabola at takeoff (≈ √(2·g·apex)).",
+    "note": "Was 235 off M4 (M4 21.05–29.4 s) — Idan's account with upgrades bought, not HS level 0."
   },
   {
     "id": "jump.holdRejump",
@@ -323,64 +325,67 @@
   },
   {
     "id": "jump.airSpeed",
-    "value": 241,
+    "value": 210,
     "unit": "px/s",
     "clips": [
-      "M5"
+      "M12"
     ],
-    "n": 8,
-    "sd": 7,
+    "n": 547,
+    "sd": 6,
     "tol": 14,
     "scenario": "runJump",
     "status": "estimated",
-    "source": "M5 6.46–15.81 s: Idan's jump tests, 8 airborne runs with an arrow held (238, 229, 240, 252, 241, 246, 241, 230 px/s)",
+    "source": "M12 level 0: 8-frame airborne runs, 211 (left, arrow lit) and 210 (right)",
     "how": "Face-centroid x (_hs-track-match.mjs), a straight-line fit over each run of ≥10 frames more than 8 px off the grass while L or R is lit.",
-    "note": "Against 224–228 on the grass in the same takes (9 runs; M4: 228). Steering in the air is instant: the arrow let go at the top stops the body dead, the other arrow reverses it the same frame."
+    "note": "Was 241 off M5 (M5 6.46–15.81 s: Idan's jump tests, 8 airborne runs with an arrow held (238, 229, 240, 252, 241, 246, 241, 230 px/s)) — Idan's account with upgrades bought, not HS level 0. Against 224–228 on the grass in the same takes (9 runs; M4: 228). Steering in the air is instant: the arrow let go at the top stops the body dead, the other arrow reverses it the same frame."
   },
   {
     "id": "dash.speed",
-    "value": 1790,
+    "value": 1694,
     "unit": "px/s",
     "clips": [
-      "M4"
+      "M12"
     ],
-    "n": 3,
-    "sd": 90,
+    "n": 8,
+    "sd": 12,
     "tol": 180,
     "scenario": "dash",
     "status": "estimated",
-    "source": "M4 dash-mash windows 45.84–47.08 s and 57.71–58.72 s (double taps on R / L)",
-    "how": "Peak head-x speed after the second tap (burst())."
+    "source": "M12 level 0: 8 ground dashes through burst(), 1683–1714 (raw: 4 frames of 27–29 px)",
+    "how": "Peak head-x speed after the second tap (burst()).",
+    "note": "Was 1790 off M4 (M4 dash-mash windows 45.84–47.08 s and 57.71–58.72 s (double taps on R / L)) — Idan's account with upgrades bought, not HS level 0."
   },
   {
     "id": "dash.duration",
     "value": 0.067,
     "unit": "s",
     "clips": [
-      "M4"
+      "M12"
     ],
-    "n": 3,
-    "sd": 0.008,
+    "n": 8,
+    "sd": 0.001,
     "tol": 0.0167,
     "scenario": "dash",
     "status": "estimated",
-    "source": "M4 45.84–47.08 s and 57.71–58.72 s",
-    "how": "Frames above the midpoint between the dash peak and the run speed: 4 frames."
+    "source": "M12 level 0: 8 ground dashes through burst(), 0.065–0.068 s (P1 32.12, 56.74, 57.79 s; P0 20.23 s)",
+    "how": "Frames above the midpoint between the dash peak and the run speed: 4 frames.",
+    "note": "Was 0.067 off M4 (M4 45.84–47.08 s and 57.71–58.72 s) — Idan's account with upgrades bought, not HS level 0."
   },
   {
     "id": "dash.distance",
-    "value": 120,
+    "value": 109,
     "unit": "px",
     "clips": [
-      "M4"
+      "M12"
     ],
-    "n": 3,
-    "sd": 10,
+    "n": 8,
+    "sd": 2.5,
     "tol": 20,
     "scenario": "dash",
     "status": "estimated",
-    "source": "M4 45.84–47.08 s and 57.71–58.72 s",
-    "how": "Head-x displacement over the dash's burst."
+    "source": "M12 level 0: 8 ground dashes through burst() (half-way speed to half-way speed), 105–112 px; end to end 112 px",
+    "how": "Head-x displacement over the dash's burst.",
+    "note": "Was 120 off M4 (M4 45.84–47.08 s and 57.71–58.72 s) — Idan's account with upgrades bought, not HS level 0."
   },
   {
     "id": "dash.cooldown",
@@ -1108,19 +1113,19 @@
   },
   {
     "id": "gauge.fillTime",
-    "value": 14.99,
+    "value": 18.5,
     "unit": "s",
     "clips": [
-      "M4"
+      "M12"
     ],
-    "n": 1,
-    "sd": 0.05,
-    "tol": 0.4497,
+    "n": 2,
+    "sd": 0.1,
+    "tol": 0.555,
     "scenario": "gauge",
     "status": "estimated",
-    "source": "M4 end of the kickoff banner (19.57 s) → POWER plaque",
+    "source": "M12 level 0: both bars from kickoff, 8.89 px/s to 163 px (rms 0.6 px, a straight line); every arcade CPU fills at the same rate (M5, M7–M11), and M1–M3 read 18.1",
     "how": "Frames from the banner going to the POWER button appearing.",
-    "note": "Preferred over M1–M3's script-tagged 18.1: M4 plays the starter character, M1–M3 other characters (the Power stat changes the fill).",
+    "note": "Was 14.99 off M4 (M4 end of the kickoff banner (19.57 s) → POWER plaque) — Idan's account with upgrades bought, not HS level 0. Preferred over M1–M3's script-tagged 18.1: M4 plays the starter character, M1–M3 other characters (the Power stat changes the fill).",
     "tracksValue": 18.1367,
     "tracksClips": [
       "M3"
@@ -1128,19 +1133,19 @@
   },
   {
     "id": "gauge.refillTime",
-    "value": 15.2,
+    "value": 18.5,
     "unit": "s",
     "clips": [
-      "M4"
+      "M12"
     ],
-    "n": 1,
+    "n": 2,
     "sd": 0.1,
-    "tol": 0.456,
+    "tol": 0.555,
     "scenario": "gauge",
     "status": "estimated",
-    "source": "M4 36.49 s (POWER pressed; the refill starts here, see gauge.refillStart) → 54.88 s (POWER plaque back) = 18.39 s, less the 3.19 s the bar stands still for the goal restart (goal 43.40 s → ball drop 46.59 s)",
+    "source": "M12 level 0: the right bar refilled 24.60 → 43.2 s and 44.65 → 57.5 s at 8.89–8.90 px/s",
     "how": "Bar fill traced frame by frame (leftmost fill column of the top-left bar, every 0.25–0.5 s): climbs 17.5 px/s from 36.56 s, flat 43.40–46.59 s across the goal, climbs again to the plaque; the cut-ins at 40.44 s and 41.97 s do not change the rate.",
-    "note": "Timed from the PRESS, where the refill really starts. It used to be 12.98 s timed from the fire (41.9 s), which cut the 5.4 s of refill between press and fire off the front; 15.2 s of play now agrees with gauge.fillTime (15.0 s), so the gauge is one play-time clock at 1/15. M3 (another character) climbs at the same 17.4 px/s and also stops at its goals (39.0 s, 45.7 s, 85.1 s).",
+    "note": "Was 15.2 off M4 (M4 36.49 s (POWER pressed; the refill starts here, see gauge.refillStart) → 54.88 s (POWER plaque back) = 18.39 s, less the 3.19 s the bar stands still for the goal restart (goal 43.40 s → ball drop 46.59 s)) — Idan's account with upgrades bought, not HS level 0. Timed from the PRESS, where the refill really starts. It used to be 12.98 s timed from the fire (41.9 s), which cut the 5.4 s of refill between press and fire off the front; 15.2 s of play now agrees with gauge.fillTime (15.0 s), so the gauge is one play-time clock at 1/15. M3 (another character) climbs at the same 17.4 px/s and also stops at its goals (39.0 s, 45.7 s, 85.1 s).",
     "tracksValue": 16.2733,
     "tracksClips": [
       "M3"
@@ -1532,36 +1537,36 @@
   },
   {
     "id": "jump.apex.match",
-    "value": 45,
+    "value": 39.3,
     "unit": "px",
     "clips": [
-      "M3"
+      "M12"
     ],
-    "n": 2,
-    "sd": 3,
+    "n": 28,
+    "sd": 1.5,
     "tol": 6,
     "metric": "jump.apex.tap",
     "scenario": "jumpTap",
     "status": "estimated",
-    "source": "M3 13.43–14.13 s and 15.16–15.66 s: the left player jumps in place",
-    "note": "The head's rise above standing, in a match. Agrees with M4's 45.8."
+    "source": "M12 level 0, every jump in the match (see jump.apex.tap)",
+    "note": "Was 45 off M3 (M3 13.43–14.13 s and 15.16–15.66 s: the left player jumps in place) — Idan's account with upgrades bought, not HS level 0. The head's rise above standing, in a match. Agrees with M4's 45.8."
   },
   {
     "id": "jump.airtime.match",
-    "value": 0.78,
+    "value": 0.74,
     "unit": "s",
     "clips": [
-      "M3"
+      "M12"
     ],
-    "n": 10,
-    "sd": 0.005,
-    "tol": 0.0234,
+    "n": 28,
+    "sd": 0.01,
+    "tol": 0.0222,
     "metric": "jump.airtime.tap",
     "scenario": "jumpTap",
     "status": "estimated",
-    "source": "M3 (hs-video/M3-airdrop-full) live play, the human's standstill and running jumps well clear of every banner: takeoffs 15.18, 16.81, 22.06, 23.26, 24.46, 25.53, 56.46, 63.16, 67.11, 79.67 s",
+    "source": "M12 level 0, every jump in the match",
     "how": "Head-top track of the left player (scratchpad cpu/trk.mjs on the half-res pass cpu/pass3.mjs, standing top y 418), one free parabola per jump through every frame >= 3 px up, airtime between its two crossings of the standing line (cpu/airfit.mjs) — the M4 method (jump.airtime.tap). The raw count of frames >= 3 px up is 0.717–0.750 s, the same as M4's raw 0.748 before its crossing extrapolation.",
-    "note": "RE-MEASURED 2026-09-25: 0.772 0.774 0.775 0.778 0.780 0.780 0.782 0.784 0.785 0.786 — mean 0.780, apex 44.7–46.8 px, g 590–617. The old 0.70 (13.43–14.13 s, n = 1) was an under-count: that jump is the first after the 11.37 s goal, landing under the banner, and M4's clean jumps (0.772) already said so. M3 and M4 agree; our sim's 0.790 is 1% long."
+    "note": "Was 0.78 off M3 (M3 (hs-video/M3-airdrop-full) live play, the human's standstill and running jumps well clear of every banner: takeoffs 15.18, 16.81, 22.06, 23.26, 24.46, 25.53, 56.46, 63.16, 67.11, 79.67 s) — Idan's account with upgrades bought, not HS level 0. RE-MEASURED 2026-09-25: 0.772 0.774 0.775 0.778 0.780 0.780 0.782 0.784 0.785 0.786 — mean 0.780, apex 44.7–46.8 px, g 590–617. The old 0.70 (13.43–14.13 s, n = 1) was an under-count: that jump is the first after the 11.37 s goal, landing under the banner, and M4's clean jumps (0.772) already said so. M3 and M4 agree; our sim's 0.790 is 1% long."
   },
   {
     "id": "cpu.touchesPerMin.weak",

@@ -27,6 +27,10 @@ import { createBot, botInput } from './shared/bot.js';
 import { stageConfig } from './shared/champions.js';
 
 const CHAR_A = { rarity: 'legendary', number: 3 };
+// M4's body: Idan's account then, with upgrades bought (228 px/s, a 46px jump, a 120px dash) — the
+// base is HS's level 0 now (M12), so what was only ever seen on M4 is re-enacted on M4's body.
+const M4_BODY = Object.freeze({ speed: 228 / C.PLAYER_SPEED, jump: 240 / C.JUMP_V, kick: 1, dash: 120 / 112 });
+const onM4 = (m) => { for (const p of m.players) p.stats = M4_BODY; };
 const CHAR_B = { rarity: 'legendary', number: 2 };
 const BAR_Y = () => C.GROUND_Y - C.GOAL_H;
 
@@ -82,7 +86,8 @@ export const SCENARIOS = {
   // inside them lifts that line 2px and shaves every height and time measured from it.
   jumpTap: { clip: 'C3', ticks: 165, jumpKind: 'tap', setup: (m) => { openPlay(m); parkBall(m); },
     input: (i) => (i === 15 || i === 85 ? { jump: true } : {}) },
-  jumpHold: { clip: 'C3', ticks: 170, jumpKind: 'hold', setup: (m) => { openPlay(m); parkBall(m); },
+  // (long enough for the last held jump to land: the level-0 jump is shorter, and fits a fourth)
+  jumpHold: { clip: 'C3', ticks: 215, jumpKind: 'hold', setup: (m) => { openPlay(m); parkBall(m); },
     input: (i) => (i >= 15 && i < 160 ? { jump: true } : {}) },
   // C4 — a running jump.
   runJump: { clip: 'C4', ticks: 110, setup: (m) => { openPlay(m); parkBall(m); m.players[0].x = 150; parkP1(m); },
@@ -191,8 +196,9 @@ export const SCENARIOS = {
     input: (i) => [{}, i > 60 && i < 120 ? { right: true } : {}] },
   // C10 — player 0 walks into player 1 and jumps, holding R until its boots clear the crown
   // (HS M4 51.76–52.55 s: the human held R through the climb and let go on top).
+  // On M4's body: the level-0 jump (39px) never lifts the boots past a head's centre (test-sim).
   headClimb: { clip: 'C10', ticks: 110, attempt: 'headstand',
-    setup: (m) => { openPlay(m); parkBall(m); m.players[0].x = 440; m.players[1].x = 520; },
+    setup: (m) => { onM4(m); openPlay(m); parkBall(m); m.players[0].x = 440; m.players[1].x = 520; },
     input: (i, m, ctx) => {
       const [a, z] = m.players;
       if (a.y <= headY(z) - C.HEAD_R + 1) ctx.off = true;
@@ -204,7 +210,7 @@ export const SCENARIOS = {
   // 0.75 s — while the CPU hung on his shoulder. So: player 1 jumps at 75, player 0 double-taps
   // right to arrive at ~99 (its apex) and holds right for 0.75 s.
   dashUnder: { clip: 'C10', ticks: 170, attempt: 'dashunder', stand: [1, 0],
-    setup: (m) => { openPlay(m); parkBall(m); m.players[0].x = 380; m.players[1].x = 560; },
+    setup: (m) => { onM4(m); openPlay(m); parkBall(m); m.players[0].x = 380; m.players[1].x = 560; },
     input: (i) => [
       (i >= 88 && i < 90) || (i >= 92 && i < 92 + 45) ? { right: true } : {},
       i === 5 || i === 75 ? { jump: true } : {},
@@ -458,7 +464,10 @@ export function runScenario(name, seed = 0) {
       if (e.type === 'powershot') { tag(i, 'cutin_on'); st.cut = true; if (who === 0 && e.countered) tag(i, 'counter'); continue; }
       if (who !== 0) continue;
       if (e.type === 'jump') tag(i, sc.jumpKind === 'hold' ? 'jump_hold' : 'jump_tap');
-      else if (e.type === 'dash') tag(i, 'dash');
+      // (on the frame BEFORE: the body has already moved by the frame the dash fires on, and on
+      // video the tag is the second press, before it moves — tagged late, burst() missed the
+      // first dash frame, and the dash was tuned a tick long to make up for it)
+      else if (e.type === 'dash') tag(Math.max(0, i - 1), 'dash');
       else if (e.type === 'armed') { tag(i, 'power_press'); tag(i, 'armed'); }
       else if (e.type === 'counter') tag(i, 'counter');
       else if (e.type === 'blocked') tag(i, 'blocked');

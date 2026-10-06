@@ -29,7 +29,11 @@ export function parseProgress(raw) {
       if (!Number.isInteger(n) || n < 1 || n > STAGE_COUNT || !r || typeof r !== 'object') continue;
       const w = Number.isInteger(r.w) && r.w > 0 ? r.w : 0;
       const l = Number.isInteger(r.l) && r.l > 0 ? r.l : 0;
-      if (w || l) record[n] = { w, l };
+      if (!(w || l)) continue;
+      record[n] = { w, l };
+      // the last score against this champion, yours first (Player Select's score pill)
+      const last = Array.isArray(r.last) && r.last.length === 2 && r.last.every((g) => Number.isInteger(g) && g >= 0 && g < 1000) ? [r.last[0], r.last[1]] : null;
+      if (last) record[n].last = last;
     }
   }
   return { v: 1, cleared, record };
@@ -59,15 +63,23 @@ export const currentStage = (prog) => Math.min(prog.cleared + 1, STAGE_COUNT);
 
 export const campaignComplete = (prog) => prog.cleared >= STAGE_COUNT;
 
+// The last score against stage `n`'s champion, yours first — [0, 0] before you have played it.
+export const lastScore = (prog, n) => (prog.record[n] && prog.record[n].last) || [0, 0];
+
 // A match on stage `n` just ended. Returns a NEW progress object and what changed; the input is
-// never mutated, so a caller that fails to save still holds the old truth.
+// never mutated, so a caller that fails to save still holds the old truth. `score`, when given,
+// is the match's final score from your side ([yours, theirs]) and is kept as the stage's `last`
+// — HS shows it on Player Select, over the two heads.
 //
 // A result for a stage that cannot be started is refused outright — the only way to reach a
 // locked stage's result is a bug or a hand-edited call, and neither should unlock anything.
-export function recordResult(prog, n, won) {
+export function recordResult(prog, n, won, score = null) {
   if (!canStart(prog, n)) return { prog, accepted: false, unlocked: null, firstClear: false, complete: campaignComplete(prog) };
   const r = prog.record[n] || { w: 0, l: 0 };
-  const record = { ...prog.record, [n]: { w: r.w + (won ? 1 : 0), l: r.l + (won ? 0 : 1) } };
+  const entry = { w: r.w + (won ? 1 : 0), l: r.l + (won ? 0 : 1) };
+  if (Array.isArray(score) && score.length === 2 && score.every((g) => Number.isInteger(g) && g >= 0)) entry.last = [score[0], score[1]];
+  else if (r.last) entry.last = r.last;
+  const record = { ...prog.record, [n]: entry };
   const firstClear = !!won && n === prog.cleared + 1;
   const cleared = firstClear ? n : prog.cleared;
   const next = { v: 1, cleared, record };

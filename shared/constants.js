@@ -37,10 +37,12 @@ export const CEIL_Y = -118 - 15;      // -133: the ball centre turns at -118 (BA
 // 0.41 came from the assumed −130 apex.
 // SIDEWAYS it is slowed in every hit that could be measured (n = 5), by how much depends on the
 // ball's spin (Box2D friction with a spinning ball): 0.71 off a header, 0.34–0.35 off a wall or a
-// rolling ball, ~0 off a boot kicked straight up. Our ball has no physical spin; 0.63 (the first
-// pass, 2026-10-01) stays until that is settled.
+// rolling ball, ~0 off a boot kicked straight up. Our ball has no physical spin; Idan (2026-10-06)
+// set 0.70, a little over the old 0.63 and inside HS's measured range: at 0.63 a ball that went off
+// the top felt like it died up there, and keeping all of it felt too much. The bounce back down
+// stays HS's.
 export let CEIL_BOUNCE = 0.64;
-export let CEIL_KEEP_X = 0.63;
+export let CEIL_KEEP_X = 0.7;
 // The top of the SKY as drawn — where effects lay out a ceiling, rain from, hang a banner. It
 // was the same number as the ball's ceiling until the ceiling moved off-screen; the effects
 // are pictures and stay inside the picture.
@@ -165,14 +167,18 @@ export let CLIMB_V = 64;
 // way up and the way down alike (fit rmse < 0.8px). There is no heavier fall — the FALL_MULT
 // 1.55 that sat here was a platformer's trick, and HS does not use it.
 export let PLAYER_GRAV = 595;
-// HS M4 32.3–33.9 s and 85.4–88.4 s: 228 px/s flat out.
-export let PLAYER_SPEED = 228;
-// IN THE AIR, 241. HS M5 6.46–15.81 s, Idan's jump tests: 8 airborne runs with an arrow held,
-// 229–252 px/s (median 241), against 224–228 on the grass in the same takes (9 runs) and M4's
-// 228. The steering is still instant — let go of the arrow at the top and the body stops dead
+// HS's BASE body (level 0, no upgrades): M12 (2026-10-06, both players on base stats), 195 px/s
+// flat out — 12-frame grass runs, 198 for the left player with an arrow lit, 191 for the right
+// (docs/hs-clips/M12-base-stats.json). It was 228, off M4 32.3–33.9 s and 85.4–88.4 s, which
+// was Idan's account with ~3 speed bars already bought (241 by M7).
+export let PLAYER_SPEED = 195;
+// IN THE AIR, 210 at base: M12, 8-frame airborne runs, 211 (left, arrow lit) and 210 (right). It
+// was 241, HS M5 6.46–15.81 s, Idan's jump tests on his upgraded account (the same reader gives
+// 241 there): 8 airborne runs with an arrow held, 229–252 px/s, against 224–228 on the grass in
+// the same takes (9 runs). The air is ~8% over the grass at both. The steering is still instant — let go of the arrow at the top and the body stops dead
 // mid-air, press the other and it reverses that frame. Box2D would do exactly this: the stick
 // sets the velocity, and the grass's friction takes a few percent back off it every step.
-export let PLAYER_AIR_SPEED = 241;
+export let PLAYER_AIR_SPEED = 210;
 // AND THERE IS NO ACCELERATION. HS M4: full speed within 3 frames of the arrow lighting, stopped
 // within 3 frames of it going dark, and a reversal at full speed turns in the same 3 — so the
 // body takes the stick's velocity on the tick it is pressed. The air is the same (HS M5's jump
@@ -185,17 +191,15 @@ export let PLAYER_AIR_SPEED = 241;
 // number, so against HS's 228 it is 1226, and ice still takes as long to get going as it did.
 export const PLAYER_FRICTION = 0.80;
 export let SLIP_ACCEL = 1226;
-// HS M4 21.05–29.4 s: every jump 45.8px, hold or tap — one fixed impulse, no variable height.
-// Takeoff 235 px/s against 595 px/s² gives the 46px apex (v²/2g = 46.4). The constant is 240
-// because the sim steps velocity before position (semi-implicit), and that puts every sampled
-// frame on a parabola launched at JUMP_V − g·dt/2 = 235 — which is what a camera on this sim
-// measures, and what the parity harness does.
+// HS's BASE jump (M12, level 0): the face rises 39.3px, 0.74s in the air (28 jumps, both players).
+// One fixed impulse, hold or tap (HS M4 21.05–29.4 s). Takeoff 216 px/s against 595 px/s² gives
+// the 39px apex (v²/2g = 39.2). The constant is 221 because the sim steps velocity before position
+// (semi-implicit), and that puts every sampled frame on a parabola launched at JUMP_V − g·dt/2 =
+// 216 — which is what a camera on this sim measures, and what the parity harness does. It lands
+// 2·216/595 = 0.73s after takeoff (HS 0.74).
 //
-// The same parabola lands 2·235/595 = 0.79s after takeoff. HS's own tracker read 0.74s off the
-// same jumps (0.70 in M3), which no single parabola with that apex and that gravity can do:
-// the three HS numbers disagree with each other, and apex and gravity are the two with the
-// tighter fits. See the airtime rows in test-hs-parity.
-export let JUMP_V = 240;
+// It was 240 (apex 45.8, 0.79s), off M4 — Idan's account with ~3 jump bars (45.9 by M7).
+export let JUMP_V = 221;
 export const MAX_JUMPS = 1;          // HS: no double jump
 // HOLD JUMP AND YOU KEEP JUMPING. HS M4 23.81–26.25 s: with JUMP held the head leaves the grass
 // again 0.05s (3 frames) after every landing, on its own. A fresh press still takes off on the
@@ -216,10 +220,16 @@ export const DASH_BUFFER = 0.15;      // s a refused second tap waits
 // 0.067s (4 frames) and ~120px above the half-way speed, then straight back to a walk. Those are
 // what the tracker READS, and it reads speed off a 3-frame fit that smears each edge of a burst
 // by half a frame. Run through the same fit, a burst of 5 ticks at 1790 reads exactly 4 frames
-// and 120px (4 x 29.8), and 4 ticks reads 3 frames and 95px — so the dash is 5 ticks, 0.083s,
-// 149px end to end. Written a hair under 5/60 so the countdown cannot round up into a sixth.
-export let DASH_V = 1790;
-export let DASH_TIME = 0.082;
+// and 120px (4 x 29.8), and 4 ticks reads 3 frames and 95px — so that dash was 5 ticks, 0.083s,
+// 149px end to end. That was Idan's account, and the smear was the fit's, not HS's.
+//
+// HS's BASE dash (M12, level 0), frame by frame off the raw track: a clean box of 4 frames at
+// 27–29 px a frame — 1680 px/s, 112px — then straight back to a walk (P1 32.12, 56.74, 57.79 s,
+// P0 20.23 s; 10 ground dashes, 109–114px). An upgraded dash is FASTER, not longer: Idan's 4
+// bars (M7 60.79, M9 34.01 s) are the same 4 frames at 33 px. Written a hair under 4/60 so the
+// countdown cannot round up into a fifth.
+export let DASH_V = 1680;
+export let DASH_TIME = 0.0666;
 // HS M4 57.93 → 58.34 s, the two closest dashes while mashing: at least 0.42s apart.
 export const DASH_COOLDOWN = 0.42;
 
@@ -404,8 +414,12 @@ export let HIT_STOP_TACKLE = 0;
 // through cut-ins. (It used to be 1/13 of wall clock plus a 2 s lead — a fit to a refill
 // timed from the FIRE, 13.0 s, which had the press-to-fire 5.4 s cut off its front.)
 // M3 (another character) climbs at the same 17.4 px/s and stops at its goals too.
-// Per-character fill (the Power stat) comes with the arcade's stats; this is the starter's.
-export let GAUGE_PASSIVE = 1 / 15;   // fraction of the gauge per second of play
+// Per-character fill (the Power stat) comes with the arcade's stats.
+//
+// THAT 15s WAS AN UPGRADED BAR. HS's BASE (level 0), M12: both bars climb 8.89 px/s in a straight
+// line (rms 0.6px through kicks, headers and hits) and are full at 163px — 18.5s, three fills in a
+// row on the right. Every arcade CPU fills at that same rate, 0.5★ to 5★ (M5, M7–M11).
+export let GAUGE_PASSIVE = 1 / 18.5; // fraction of the gauge per second of play
 // Conceding a goal adds this much to the conceder's gauge when the ball drops (HS M4 43.5 s: +0.32).
 export let GAUGE_CONCEDE = 1 / 3;
 export let GAUGE_LEAD = 0;           // s of play after the kickoff before the gauge starts

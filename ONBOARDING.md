@@ -103,7 +103,7 @@ chromeless window is otherwise a black screen with no clue.
 injected as `window.SALTIZ_CARDS` before the page boots, and it decides which heads they may
 play. Outside the app there is no album, and that deliberately means *no gate at all* so the game
 stays testable in a browser. Those are two different code paths and only `--album` reaches the
-second one without a real app build. If you touch the pick screen, test both.
+second one without a real app build. If you touch Player Select or the card popup, test both.
 
 ---
 
@@ -205,7 +205,9 @@ shared/                   everything both sides run — this is the game
   skills.js  spectacle.js the flashy layer
   net.js  rooms.js        wire format and lobby
 public/
-  game.js                 the client: pick screen, rendering, input. The biggest file here
+  game.js                 the client: the match (rendering, input) and the menus' wiring. The biggest file here
+  menus.js  menus.css     the menus: HS's screens and flow in the Saltiz colours (docs/HS-MENUS.md)
+  reel.js  symbol.js      Player Select's reels; the Saltiz symbol, drawn as SVG
   head-crop.js            the card-art → face-circle maths, the single copy of it
   stages.js  audio.js     backgrounds and sound
   champ-vfx.js  vfx/      how the 45 champion powers look and sound (six phases each)

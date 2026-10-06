@@ -1,0 +1,186 @@
+{
+  "clip": "M12",
+  "src": "hs-video/M12-base-stats.mp4",
+  "recorded": "2026-10-06, WhatsApp 848x384 @60, day stadium, Korea vs Korea, 1:00 match",
+  "who": "Both players on HS BASE stats (level 0, no upgrades, Idan). P0 = left (the human, YOU marker), P1 = right.",
+  "tracks": "docs/hs-clips/M12.raw.json (node _hs-track-match.mjs M12)",
+  "units": "world px (1060 wall to wall, shoe line 435), the same scale as M1-M11: game x 70..781, shoe line y 322.5, s = 1.4909",
+  "method": "Faces and ball from _hs-track-match.mjs, read with _hs-match-events.mjs load() and tools/hs-fit-lib.mjs (jumps, launch, polyfit). Run = 12-frame straight-line windows on the grass (residual < 2.5 px); P0 also only while the L/R plaque is lit. Jump = full parabolas off the stand line. Dash = a ground burst over 700 px/s (3-frame speed), +-1 frame. Power = the HUD bar's fill edge, column by column on rows y 29..34 (left bar fills leftward from x 299, right bar rightward from x 549).",
+  "level0": {
+    "run_px_s": {
+      "value": 195,
+      "P0": 198,
+      "P1": 191,
+      "n_windows": [
+        672,
+        1175
+      ],
+      "evidence_s": [
+        "P0 4.36-4.74 200",
+        "P0 13.29-13.68 198",
+        "P0 17.16-17.54 199",
+        "P1 6.97-7.36 190",
+        "P1 24.53-24.91 195",
+        "P1 51.59-51.97 192"
+      ]
+    },
+    "jump": {
+      "apex_px": 39.3,
+      "airtime_s": 0.74,
+      "g_px_s2": 560,
+      "n": [
+        11,
+        17
+      ],
+      "evidence_s": [
+        "P0 23.78 39.4/0.74",
+        "P0 31.00 39.2/0.75",
+        "P0 36.59 38.8/0.75",
+        "P1 8.52 39.8/0.75",
+        "P1 14.69 39.6/0.75",
+        "P1 37.94 39.6/0.75"
+      ]
+    },
+    "dash_ground_px": {
+      "value": 112,
+      "duration_s": "0.08-0.10 (frame-quantised)",
+      "peak_px_s": 1700,
+      "n": 10,
+      "evidence_s": [
+        "P0 20.23 114",
+        "P0 20.90 110",
+        "P1 32.12 111",
+        "P1 32.52 109",
+        "P1 56.74 114",
+        "P1 57.19 113",
+        "P1 57.79 114",
+        "P1 58.32 111"
+      ],
+      "raw_profile": "a box of 4 frames at 27-29 px a frame (1680 px/s): P1 32.12 s -29 -28 -26 -25, 56.74 s 28 28 27 28, P0 20.23 s 28 28 27 28. Idan with 4 dash bars (M7 60.79, M9 34.01 s): the same 4 frames at 33 px; an upgrade is FASTER, not longer",
+      "parity_reader": "burst() half-way speed to half-way speed: 109 px, 0.067 s, peak 1694 (n 8)"
+    },
+    "power_fill": {
+      "rate_bar_px_s": 8.89,
+      "full_bar_px": 163,
+      "full_s": 18.5,
+      "rms_px": 0.6,
+      "note": "a straight line through kicks, headers and hits: the bar fills on TIME only",
+      "evidence_s": [
+        "L 4.87 (zero) -> 23.3 full",
+        "R 4.53 -> 23.3 full",
+        "R 24.60 -> 43.2 full",
+        "R 44.65 -> 57.5 (118 px, then the goal)"
+      ]
+    },
+    "kick": {
+      "n_clean": 1,
+      "evidence_s": [
+        "P0 14.08: a near-still grass ball, P0 running at 193 px/s -> 741 px/s at 27 deg"
+      ],
+      "note": "too few clean boots to fit a kick level"
+    },
+    "air_run_px_s": {
+      "value": 210,
+      "P0": 211,
+      "P1": 210,
+      "n_windows": [
+        98,
+        449
+      ],
+      "note": "8-frame airborne runs; the same reader gives 241 on M5 (Idan, the old PLAYER_AIR_SPEED)"
+    }
+  },
+  "same_method_older_clips": {
+    "Idan_3bars_M7_M9": {
+      "bars": "speed 3, jump 3, kick 3, dash 4, power 3 (M7 player select)",
+      "run": 241,
+      "jump_apex": 45.9,
+      "airtime": 0.8,
+      "dash_ground": 132,
+      "power_bar_px_s": "13.0-13.6 (HS-CPU-RESEARCH-CC 5)"
+    },
+    "Idan_M5_earlier_account": {
+      "run": 226,
+      "jump_apex": 40.0,
+      "airtime": 0.745,
+      "power_bar_px_s": 11.6
+    },
+    "Korea_CPU_0.5star_M5": {
+      "run": 191,
+      "jump_apex": 39.8,
+      "airtime": 0.746,
+      "dash_ground": 128
+    },
+    "Cameroon_1star_M11": {
+      "run": 218,
+      "jump_apex": 42,
+      "airtime": 0.77,
+      "source": "HS-CPU-RESEARCH-CC 5"
+    },
+    "Russia_3star_M10": {
+      "run": 260,
+      "jump_apex": 50,
+      "airtime": 0.83
+    },
+    "Italy_4star_M7": {
+      "run": 260,
+      "jump_apex": 53,
+      "airtime": 0.9
+    },
+    "Germany_5star_M9": {
+      "run": 289,
+      "jump_apex": "58-60 (HS-CPU-RESEARCH-CC 5; this method 52, g fit 485)",
+      "airtime": 0.9,
+      "dash_ground": "200 (n 4: 164, 198, 202, 203)"
+    },
+    "every_CPU_power_bar_px_s": "8.92-9.03 at 0.5 to 5 stars = level 0"
+  },
+  "ours_before_same_detectors": {
+    "run": 228,
+    "jump_apex": 46.4,
+    "airtime": 0.79,
+    "dash_ground": 149,
+    "gauge_full_s": 15.0
+  },
+  "ours_now_same_detectors": {
+    "run": 195,
+    "air_run": 210,
+    "jump_apex": 39.2,
+    "airtime": 0.726,
+    "dash_ground": 112,
+    "dash_profile": "4 ticks at 1680",
+    "gauge_full_s": 18.5,
+    "kick": "unchanged (not measurable at level 0)"
+  },
+  "M13": {
+    "src": "hs-video/M13-base-kicks.mp4 (2026-10-06 16.16.40): Idan on base stats again vs the stage-1 Korea CPU, sunset stadium, 106 KICK presses",
+    "run_px_s": {
+      "P0_arrow_lit": 198,
+      "P1": 194,
+      "note": "confirms M12"
+    },
+    "kick": {
+      "reader": "KICK press -> ball low (<50 px) and slow (<400 px/s) -> fastest 5-frame flight right within 0.3 s",
+      "level0_M12_M13_px_s": [
+        365,
+        363,
+        379,
+        387,
+        454,
+        630,
+        798,
+        1284
+      ],
+      "kick3_M7_M11_px_s": [
+        233,
+        416,
+        486,
+        841,
+        1753,
+        1757
+      ],
+      "verdict": "not measurable: 8 vs 6 kicks spread 230-1760 either way; most presses were boots at the CPU or at a high ball. The tracker also loses the faces in this stadium (a fixed blob at x~425)."
+    },
+    "note": "The other upload (2026-10-03 00.12.35) is byte-identical to M11."
+  }
+}

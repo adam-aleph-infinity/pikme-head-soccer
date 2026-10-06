@@ -1,0 +1,20 @@
+<!doctype html>
+<!-- Dev page: the drawn symbol (public/symbol.js) next to the JPEG it was measured from. -->
+<meta charset="utf-8">
+<style>
+  html, body { margin: 0; background: #000; }
+  .row { display: flex; }
+  .row > * { width: 900px; height: 900px; display: block; }
+  #svg svg { width: 900px; height: 900px; display: block; }
+</style>
+<div class="row"><img src="img/saltiz.jpg" alt=""><div id="svg"></div></div>
+<script type="module">
+  import { symbolSVG } from './symbol.js';
+  const host = document.getElementById('svg');
+  host.innerHTML = symbolSVG();
+  // the JPEG's hexagon spans 614px across its 900: scale the drawing to the same size
+  const svg = host.querySelector('svg');
+  const k = 614 / (2 * 43.30), vb = 900 / k;
+  svg.setAttribute('viewBox', `${-449 / k} ${-436 / k} ${vb} ${vb}`);   // its centre sits at (449, 436)
+  document.title = 'ready';
+</script>

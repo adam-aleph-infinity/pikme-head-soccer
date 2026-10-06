@@ -36,6 +36,18 @@ export const CLIPS = {
   M9: { crowd: true, hairId: true, start: 4.5, src: 'hs-video/M9-germany-5star.mp4', W: 848, H: 384, x0: 70, x1: 781, ground: 322.5 },
   M10: { crowd: true, hairId: true, start: 5.5, src: 'hs-video/M10-russia-3star.mp4', W: 848, H: 384, x0: 70, x1: 781, ground: 322.5 },
   M11: { crowd: true, hairId: true, skinId: true, start: 3.5, src: 'hs-video/M11-cameroon-1star.mp4', W: 848, H: 384, x0: 70, x1: 781, ground: 322.5, darkSkin: true },
+  // M12 (2026-10-06): Korea against Korea, both on HS's BASE stats (a fresh account, level 0, no
+  // upgrades) — the reference for our level 0. Day stadium like M7–M11; both Korea, so no hair id.
+  M12: { crowd: true, start: 4, src: 'hs-video/M12-base-stats.mp4', W: 848, H: 384, x0: 70, x1: 781, ground: 322.5 },
+  // M13 (2026-10-06): Idan on base stats again (level 0), kicking more, Korea vs the stage-1 Korea CPU,
+  // sunset stadium. Opens on the pause menu.
+  M13: { crowd: true, start: 9.5, src: 'hs-video/M13-base-kicks.mp4', W: 848, H: 384, x0: 70, x1: 781, ground: 322.5 },
+  // M14 (2026-10-05 18.09, uploaded 10-06): Idan on LEVEL 8 stats against the stage-1 Korea CPU. The phone
+  // fills its wider screen by stretching HS's box (848x392, ~120 fps), so the file here is the upload
+  // squeezed back to 711x384, padded to M12's 848 and resampled to 60 fps: HUD, goals and boards then sit
+  // on M12's pixels exactly. Idan plays a pink-haired card (a pig hat until it falls off), the CPU is
+  // the black-haired Korea: `hairCpu` tells them apart.
+  M14: { crowd: true, hairCpu: true, start: 4, src: 'hs-video/M14-level8.mp4', W: 848, H: 384, x0: 70, x1: 781, ground: 322.5 },
 };
 
 async function track(name) {
@@ -219,6 +231,12 @@ async function track(name) {
       if (next[0] && next[1] && next[1].hair > next[0].hair + 0.08) [next[0], next[1]] = [next[1], next[0]];
       else if (!next[1] && next[0] && next[0].hair < (cfg.skinId ? 0.4 : 0.03)) { next[1] = next[0]; next[0] = null; }
       else if (!next[0] && next[1] && next[1].hair > (cfg.skinId ? 0.5 : 0.12)) { next[0] = next[1]; next[1] = null; }
+    }
+    if (cfg.hairCpu) {
+      // the other way round: the CPU (Korea) is the black-haired one, the human is not
+      if (next[0] && next[1] && next[0].hair > next[1].hair + 0.08) [next[0], next[1]] = [next[1], next[0]];
+      else if (!next[1] && next[0] && next[0].hair > 0.12) { next[1] = next[0]; next[0] = null; }
+      else if (!next[0] && next[1] && next[1].hair < 0.03) { next[0] = next[1]; next[1] = null; }
     }
     for (let q = 0; q < 2; q++) {
       if (next[q]) { faces[q] = next[q]; faceHist[q].push({ x: next[q].x, y: next[q].y, i }); faceHist[q] = faceHist[q].slice(-3); }

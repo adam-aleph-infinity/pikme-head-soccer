@@ -161,9 +161,11 @@ const ladder = (hi, lo, n, seed0) => {
   // 64 (seeds 7000–15000) read +0.55 +1.00 +1.52 +1.45 +1.69 — the pair's real gap is ~+1.2.
   const mid = ladder(4, 1, 80, 7000);
   ok('tier 4 beats tier 1', mid.diff > 0.8, `${mid.diff.toFixed(2)} goals a match, ${mid.wins}W ${mid.losses}L over 160`);
-  const near = ladder(3, 2, 16, 9000);
-  ok('even neighbouring tiers keep their order on average (3 over 2)', near.diff > -0.3,
-     `${near.diff.toFixed(2)} goals a match, ${near.wins}W ${near.losses}L over 32`);
+  // 160 too, for the same reason: on HS's level-0 body (2026-10-06) five blocks of 32 read
+  // -0.44 +0.38 +0.38 +1.66 +0.38 (main's old body: +1.25 +0.63 +1.19 -0.41 +0.53).
+  const near = ladder(3, 2, 80, 9000);
+  ok('even neighbouring tiers keep their order on average (3 over 2)', near.diff > 0,
+     `${near.diff.toFixed(2)} goals a match, ${near.wins}W ${near.losses}L over 160`);
 }
 // …and the power-shot exchange: KICKING the other bot's shot away (the block, HS §4) instead of
 // standing in it and being hit is skill too. The hard bot blocks a larger share than the easy one.

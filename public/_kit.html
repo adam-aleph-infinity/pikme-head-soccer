@@ -1,0 +1,55 @@
+<!doctype html>
+<!-- Dev page: every piece of the menu kit (menus.css) on one screen, for screenshots at phone
+     and desktop sizes (node _page-shot.mjs /_kit.html out.png 844 390). Not linked from the game. -->
+<html lang="he" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Rubik:wght@500;700;900&display=swap">
+<link rel="stylesheet" href="style.css">
+<link rel="stylesheet" href="menus.css">
+<style>
+  .kit { position: fixed; inset: 0; display: grid; grid-template-columns: 1fr 1.3fr; gap: calc(var(--u) * 3); padding: calc(var(--u) * 3) calc(var(--u) * 4); }
+  .col { display: flex; flex-direction: column; gap: calc(var(--u) * 2.6); align-items: flex-start; position: relative; z-index: 1; }
+  .row { display: flex; gap: calc(var(--u) * 2); align-items: center; flex-wrap: wrap; }
+  .panel-demo { width: 100%; height: calc(var(--u) * 52); display: flex; align-items: center; justify-content: space-around; }
+</style>
+</head>
+<body>
+<section class="screen m-screen kit">
+  <i class="m-rays"></i>
+  <div class="col">
+    <div class="row"><span class="m-sym glow" id="sym" style="width:calc(var(--u)*16)"></span>
+      <div><b class="m-title flame">סלטיז</b><br><b class="m-title chrome sm">ראשים</b></div></div>
+    <b class="m-title">בחר שחקן</b>
+    <div class="row">
+      <button class="m-pill glint"><b>שחק</b></button>
+      <button class="m-pill is-pressed"><b>שחק</b></button>
+      <button class="m-pill red"><b>חנות</b></button>
+      <button class="m-pill" disabled><b>🔒 נעול</b></button>
+    </div>
+    <div class="row">
+      <button class="m-pill sm"><b>המשך</b></button>
+      <span class="m-orb">🔊</span><span class="m-orb off">🎵</span>
+      <span class="m-tag">אתה</span><span class="m-tag foe">אלוף</span>
+    </div>
+    <div class="row">
+      <span class="m-chip">👤 אגדי</span><span class="m-chip foe">ליגה 👤</span>
+      <span class="m-bars"><i class="on"></i><i class="on"></i><i class="on"></i><i class="next"></i><i></i><i></i><i></i><i></i><i></i><i></i></span>
+    </div>
+  </div>
+  <div class="col">
+    <div class="m-panel panel-demo">
+      <div class="m-hex m-flash"><div class="m-face" style="background:radial-gradient(circle,#f5c9a0,#c98a5a)"></div><span class="m-badge" style="--c:#3ad1ff;left:2%;top:4%">⚡</span></div>
+      <div class="m-hex" style="--s:calc(var(--u)*24)"><div class="m-face" style="background:radial-gradient(circle,#d9b08a,#8a5a3a)"></div><i class="m-cage"></i><b class="m-plate">לא באלבום</b></div>
+      <div class="m-tip" style="left:30%;top:6%">נצח את התותחן</div>
+    </div>
+    <button class="m-back" style="position:relative;left:0;top:0"><i></i>חזרה</button>
+  </div>
+</section>
+<script type="module">
+  import { symbolSVG } from './symbol.js';
+  document.getElementById('sym').innerHTML = symbolSVG();
+</script>
+</body>
+</html>

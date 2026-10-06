@@ -18,6 +18,12 @@ const PORT = Number(process.env.PORT ?? 3020);
 // HS_RULES=1 — run the Head Soccer ruleset (C.HS, shared/constants.js), so a LAN dev server
 // can host online matches under it. Pair with ?hs=1 on the clients: both sides must agree.
 if (process.env.HS_RULES === '1') C.setHS(true);
+// MATCH_SECONDS=8 — short matches, for the two-tab online harness (_online-flow.mjs) that
+// plays a room through to its result. Production never sets it.
+if (process.env.MATCH_SECONDS) C.tune({ MATCH_DURATION: Number(process.env.MATCH_SECONDS) });
+// TEST_SCORE=0:2 — every room match kicks off at that score, so the harness gets a decided
+// result without having to score through the physics. Production never sets it.
+const TEST_SCORE = process.env.TEST_SCORE ? process.env.TEST_SCORE.split(':').map(Number) : null;
 
 const TYPES = {
   '.html': 'text/html; charset=utf-8',
@@ -122,6 +128,7 @@ function startMatch(room) {
   const [a, b] = room.members;
   room.phase = 'match';
   room.match = createMatch(a.card, b.card, {});
+  if (TEST_SCORE) room.match.score = TEST_SCORE.slice(0, 2);
   room.tick = 0;
   room.acc = 0;
   room.lastInput = [0, 0];

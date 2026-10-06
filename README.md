@@ -70,7 +70,7 @@ buttons is green rather than a hole. Nothing down there is simulated or reachabl
 
 ## The faces
 
-Every head — the two on the pitch, the three cards under it, the slots on the pick screen — is
+Every head — the two on the pitch, the three cards under it, the faces on Player Select — is
 the card art as a background, scaled so the face fills a circle. The offsets come from
 `public/data/head-anchors.json`, which was measured **automatically**, and one card in five was
 measured wrong: twenty ask for a window that runs off the edge of the card (a browser obliges,
@@ -121,16 +121,16 @@ left-to-right, so the right-hand bar looked like the left-hand player's.
 
 ## Two ways to play
 
-Pick your card, press **שחק**, and the next screen asks how: **👥 רב משתתפים** (the private-room
-1v1 below — a share link, or join a 4-char code) or **🏆 שחקן יחיד (ארקייד)**, the 45-champion
-campaign. It used to be a bot/1v1 toggle on the pick bar; the arcade is what "play the computer"
-grew into, and the old free match against the bot — your card, the יריב slot, the difficulty
-slider — is still there, as **אימון חופשי** at the foot of the arcade board.
+The menus follow Head Soccer's (docs/HS-MENUS.md): a title screen, then the main menu — a looping
+carousel of **ארקייד** (the 45-champion campaign), **רב משתתפים** (the private-room 1v1 below — a
+share link, or join a 4-char code) and **אימון** (a free match against the bot at a difficulty you
+pick). Arcade and practice open **Player Select**: your card on the left, the champion on the
+right, each a reel you swipe; SHOP and PLAY along the bottom.
 
 ## The arcade — 45 champions
 
 The 45 **אגדי** cards are the 45 champions, in card-number order: stage *n* is legendary *n*,
-because that is the only order the pick screen has ever shown them in. Beat a champion and the
+because that is the order the album has always shown them in. Beat a champion and the
 next one opens. Lose and you play them again. Nothing else is unlocked and nothing is skipped.
 Structure taken from Head Soccer's arcade, where opponents open one at a time down a fixed
 catalogue and the star rating climbs. The names, powers and art are ours.
@@ -759,7 +759,7 @@ shared/arcade.js       arcade progress: locked / open / beaten, load and save. P
 public/champ-vfx.js    how a power shot looks: aura, cut-in, comet, ailments (public/vfx/families.js, ailments.js)
 shared/rooms.js        private-room registry: codes, join, leave. Pure, no sockets.
 shared/net.js          wire format + the ordered input FIFO. Pure.
-public/                pick screen, lobby, renderer, input, tuner
+public/                menus (menus.js), lobby, renderer, input, tuner
 public/hud.js          the scoreboard's arithmetic — the clock's M:SS. Pure, runs in node.
 public/net.js          client socket, prediction, rollback reconciliation
 server.js              static host + ws host + one 60Hz loop over all rooms

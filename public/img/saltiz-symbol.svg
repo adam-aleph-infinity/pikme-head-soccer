@@ -1,0 +1,47 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Generated from public/symbol.js (symbolSVG). Edit that, not this. -->
+<svg xmlns="http://www.w3.org/2000/svg" class="sz " viewBox="-56 -56 112 112" role="img" aria-label="סלטיז" focusable="false">
+<defs>
+  <clipPath id="sz1c"><polygon points="0,-50 43.3,-25 43.3,25 0,50 -43.3,25 -43.3,-25"/></clipPath>
+  <linearGradient id="sz1rl" x1="0" x2="1"><stop offset="0" stop-color="#ff4b3c"/><stop offset=".35" stop-color="#ff0f36"/><stop offset="1" stop-color="#e3002f"/></linearGradient>
+  <linearGradient id="sz1rr" x1="1" x2="0"><stop offset="0" stop-color="#ff3a33"/><stop offset=".4" stop-color="#fe0034"/><stop offset="1" stop-color="#d9002c"/></linearGradient>
+  <linearGradient id="sz1rd" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#ff4a38"/><stop offset=".5" stop-color="#fe0034"/><stop offset="1" stop-color="#cc0029"/></linearGradient>
+  <linearGradient id="sz1g" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#fff07a"/><stop offset=".3" stop-color="#ffdd01"/><stop offset=".8" stop-color="#ffc400"/><stop offset="1" stop-color="#ff9a00"/></linearGradient>
+  <linearGradient id="sz1gs" x1="0" x2="1"><stop offset="0" stop-color="#ffe95a"/><stop offset=".45" stop-color="#ffdd01"/><stop offset=".85" stop-color="#ffbf00"/><stop offset="1" stop-color="#ff9200"/></linearGradient>
+  <linearGradient id="sz1k" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#17121a"/><stop offset="1" stop-color="#060607"/></linearGradient>
+  <!-- the JPEG's "pillow": each colour's edges sink into a darker shade of itself, and what
+       lies on top casts a soft shadow onto what is under it -->
+  <filter id="sz1pr" x="-10%" y="-10%" width="120%" height="120%">
+    <feGaussianBlur in="SourceAlpha" stdDeviation="2.1" result="b"/>
+    <feComposite in="SourceAlpha" in2="b" operator="arithmetic" k2="1" k3="-1" result="e"/>
+    <feFlood flood-color="#5e000e" flood-opacity=".85"/><feComposite in2="e" operator="in" result="s"/>
+    <feDropShadow in="SourceAlpha" dx="0" dy="0" stdDeviation="1.1" flood-color="#000" flood-opacity=".8" result="d"/>
+    <feMerge><feMergeNode in="d"/><feMergeNode in="SourceGraphic"/><feMergeNode in="s"/></feMerge>
+  </filter>
+  <filter id="sz1pg" x="-10%" y="-10%" width="120%" height="120%">
+    <feGaussianBlur in="SourceAlpha" stdDeviation="2.1" result="b"/>
+    <feComposite in="SourceAlpha" in2="b" operator="arithmetic" k2="1" k3="-1" result="e"/>
+    <feFlood flood-color="#c45300" flood-opacity=".85"/><feComposite in2="e" operator="in" result="s"/>
+    <feDropShadow in="SourceAlpha" dx="0" dy="0" stdDeviation="1.1" flood-color="#000" flood-opacity=".8" result="d"/>
+    <feMerge><feMergeNode in="d"/><feMergeNode in="SourceGraphic"/><feMergeNode in="s"/></feMerge>
+  </filter>
+</defs>
+<polygon class="sz-rim" points="0,-50 43.3,-25 43.3,25 0,50 -43.3,25 -43.3,-25" fill="none" stroke="#000" stroke-opacity=".85" stroke-width="5" stroke-linejoin="round"/>
+<g clip-path="url(#sz1c)">
+  <polygon class="sz-core" points="0,-50 43.3,-25 43.3,25 0,50 -43.3,25 -43.3,-25" fill="url(#sz1k)"/>
+  <g class="sz-under" filter="url(#sz1pg)">
+    <polygon class="sz-gold sz-gold-ll" points="0,50 -43.3,25 -30.75,17.75 0,35.51" fill="url(#sz1g)"/>
+  </g>
+  <g class="sz-c" filter="url(#sz1pr)">
+    <polygon class="sz-red sz-red-l" points="-43.3,25 -43.3,-25 -30.75,-17.75 -30.75,17.75" fill="url(#sz1rl)"/>
+    <polygon class="sz-red sz-red-tl" points="-43.3,-25 0,-50 0,-35.51 -30.75,-17.75" fill="url(#sz1rl)"/>
+    <polygon class="sz-red sz-red-d" points="2,-8.4 -45.3,18.91 -45.3,33.4 2,6.09" fill="url(#sz1rd)"/>
+    <polygon class="sz-red sz-red-r" points="43.3,-25 43.3,25 30.75,17.75 30.75,-17.75" fill="url(#sz1rr)"/>
+  </g>
+  <g class="sz-s" filter="url(#sz1pg)">
+    <polygon class="sz-gold sz-gold-lr" points="43.3,25 0,50 0,35.51 30.75,17.75" fill="url(#sz1g)"/>
+    <path class="sz-gold sz-spine" d="M0,-52 L0,-21 C0,-7 8.5,5 17,10 L52,30.6" fill="none" stroke="url(#sz1gs)" stroke-width="12.55" pathLength="100"/>
+    <polygon class="sz-gold sz-gold-tr" points="0,-50 43.3,-25 30.75,-17.75 0,-35.51" fill="url(#sz1g)"/>
+  </g>
+</g>
+</svg>

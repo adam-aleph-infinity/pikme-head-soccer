@@ -1,10 +1,10 @@
-// Client: pick screen, input, fixed-step loop, renderer, live tuner.
+// Client: the match — input, fixed-step loop, renderer, live tuner — and the menus' wiring (menus.js).
 // Everything that decides the game lives in /shared; this file only draws it and reads keys.
 
 import * as C from '../shared/constants.js';
 import { createMatch, step, headY, headR, NO_FX } from '../shared/sim.js';
 import { createBot, botInput, DIFFICULTIES } from '../shared/bot.js';
-import { shotFor } from '../shared/hs-powers.js';
+import { shotFor, statMult } from '../shared/hs-powers.js';
 import { kickPose } from '../shared/kick.js';
 import { goalBox, goalAt, depthPoint, INSIDE_Z, PLAY_Z, NEAR_DROP, FAR_RISE } from '../shared/goalbox.js';
 import { createEditor, applyLayout, applyOpacity, loadOpacity } from './padlayout.js';
@@ -13,14 +13,17 @@ import { headCrop } from './head-crop.js';
 import { characterFor, kitFor, charUrl, expressionFor, CHAR_BOX, EXPRESSIONS as CHAR_EXPRESSIONS } from './characters.js';
 import { clockText, gaugeView } from './hud.js';
 import { createNet } from './net.js';
-import { playEvent, SFX, setAudioEnabled, audioEnabled, startBed, stopBed } from './audio.js';
+import { playEvent, SFX, setAudioEnabled, audioEnabled, setSfxEnabled, setMusicEnabled, musicEnabled, startBed, stopBed, startMenuMusic, stopMenuMusic } from './audio.js';
 import { STAGES, randomStage, stageById } from './stages.js';
 import { HS_STAGES } from './hs-stadium.js';
 import { DIRECTIONS } from './art-directions.js';
 import { CHAMPIONS, TIERS, stageConfig, championForStage } from '../shared/champions.js';
 import * as ARC from '../shared/arcade.js';
+import * as UPG from '../shared/upgrades.js';
 import { createVfx } from './champ-vfx.js';
 import { createBodyArt, RUN_FRAMES, BOOT_H } from './body-art.js';
+import { createMenus } from './menus.js';
+import * as MN from '../shared/menu.js';
 
 // What a Head Soccer power shot looks like: the aura, the cut-in, the comet, the ailments. It
 // only watches the match (see champ-vfx.js).
@@ -106,7 +109,7 @@ function paintCharPortrait(el, ch, sizePx, opts = {}) {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
-// PICK SCREEN
+// THE PLAYER: album, card, progress
 // ═══════════════════════════════════════════════════════════════════════════
 // THE PLAYER'S ALBUM. The app injects it before the page boots — window.SALTIZ_CARDS, a
 // compact [{ r, n, c, w }] built from their claims — because inside the app the album IS the
@@ -143,332 +146,73 @@ const bestOwned = () => {
   return null;
 };
 
+const STORE = (() => { try { return window.localStorage; } catch { return null; } })();
+const stored = (k) => { try { return STORE ? STORE.getItem(k) : null; } catch { return null; } };
+
 const pick = {
-  // The app injects these before the page boots, exactly as it does for football.
-  name: (typeof window !== 'undefined' && window.SALTIZ_NAME) || new URLSearchParams(location.search).get('name') || 'שחקן',
+  // The app injects these before the page boots, exactly as it does for football. Outside the
+  // app the name is the one typed into the multiplayer box last time (HS: "AUTO SAVE").
+  name: MN.cleanName((typeof window !== 'undefined' && window.SALTIZ_NAME) || new URLSearchParams(location.search).get('name') || stored(MN.NAME_KEY)),
   me: bestOwned() || { rarity: 'legendary', number: 1 },   // the first two cards have drawn HS-style characters
   foe: { rarity: 'legendary', number: 2 },
-  target: 'me',
-  rarity: (bestOwned() || { rarity: 'legendary' }).rarity,
   level: 3,
 };
 
-function renderGrid() {
-  const grid = $('#cardGrid');
-  grid.innerHTML = '';
-  const frag = document.createDocumentFragment();
-  for (let n = 1; n <= CARDS_PER_RARITY; n++) {
-    const el = document.createElement('button');
-    el.className = 'card';
-    el.style.backgroundImage = `url("${cardUrl(pick.rarity, n)}")`;
-    el.innerHTML = `<b>${n}</b>`;
-    const chosen = pick[pick.target];
-    if (chosen.rarity === pick.rarity && chosen.number === n) el.classList.add('sel');
-    // A card you do not own is shown, not hidden — seeing what the album could hold is half
-    // the reason to go and get it — but it cannot be picked as YOUR head. The opponent slot
-    // is unrestricted: choosing who to play against is not a claim to own them.
-    const mine = pick.target === 'me';
-    const locked = mine && !owns(pick.rarity, n);
-    el.classList.toggle('locked', locked);
-    if (locked) el.title = 'לא באלבום שלך';
-    el.onclick = () => {
-      if (locked) return;
-      pick[pick.target] = { rarity: pick.rarity, number: n };
-      renderGrid();
-      renderSlots();
-    };
-    frag.appendChild(el);
-  }
-  grid.appendChild(frag);
-}
-
-function renderSlots() {
-  for (const who of ['me', 'foe']) {
-    const slot = $(who === 'me' ? '#slotMe' : '#slotFoe');
-    const c = pick[who];
-    // sized from the element: phone layouts shrink the slot to 34-38px, and a crop worked out
-    // for 72 there shows only the top of the hair
-    const art = slot.querySelector('.slot-art');
-    paintHead(art, c.rarity, c.number, art.clientWidth || 72, { flip: who === 'me' });   // RTL: you are on the right, facing the VS
-    const shot = shotFor(c);
-    slot.querySelector('.slot-shot').textContent = shot.name;
-    slot.classList.toggle('active', pick.target === who);
-  }
-}
-
-$('#slotMe').onclick = () => { pick.target = 'me'; renderSlots(); renderGrid(); };
-$('#slotFoe').onclick = () => { pick.target = 'foe'; renderSlots(); renderGrid(); };
-
-// ── SCREENS ───────────────────────────────────────────────────────────────
-// Exactly one is up at a time. Every navigation goes through here, so a new screen cannot be
-// left showing behind another one.
-const SCREENS = ['pick', 'modeSel', 'arcade', 'lobby', 'match'];
-function show(id) { for (const sId of SCREENS) $('#' + sId).classList.toggle('hidden', sId !== id); }
-
-// ── THE TWO MODES ──────────────────────────────────────────────────────────
-// Asked AFTER the card, on a screen of its own: «רב משתתפים» is the private-room 1v1 exactly
-// as it was (the same two buttons, the same lobby, the same wire), and «שחקן יחיד (ארקייד)» is
-// the 45-champion campaign. This used to be a bot/duo toggle on the pick bar; the arcade is
-// what "play the computer" grew into, and the old free match lives on inside it.
-function openModes(multi = false) {
-  show('modeSel');
-  $('#multiRow').classList.toggle('hidden', !multi);
-  $('#modeMulti').classList.toggle('on', multi);
-  $('#modeArcadeSub').textContent = ARC.campaignComplete(PROG)
-    ? '45 אלופים · הושלם ✓'
-    : `אלופים · שלב ${ARC.currentStage(PROG)}/45`;
-}
-$('#playBtn').onclick = () => openModes();
-$('#modeBack').onclick = () => show('pick');
-$('#modeMulti').onclick = () => openModes(true);
-$('#modeArcade').onclick = () => openArcade();
-
-// ── THE ARCADE BOARD ──────────────────────────────────────────────────────
-// Progress is shared/arcade.js; this only draws it and refuses to start a locked stage.
-const STORE = (() => { try { return window.localStorage; } catch { return null; } })();
+// Progress is shared/arcade.js and the stats shared/upgrades.js; the menus only draw them.
 let PROG = ARC.loadProgress(STORE);
+// The player's five stat levels and Arcade Points (shared/upgrades.js), one set for every card.
+let STATS = UPG.loadStats(STORE);
 let ARC_SEL = ARC.currentStage(PROG);
 let ARCADE = null;                       // { stage } while an arcade match is being played
 
-const STATUS_TXT = { locked: 'נעול', available: 'זמין', completed: 'הושלם' };
-const STATUS_CLS = { locked: 'locked', available: 'open', completed: 'done' };
-const starText = (n) => '★'.repeat(Math.floor(n)) + (n % 1 ? '½' : '') + '☆'.repeat(5 - Math.ceil(n));
+// SOUND and MUSIC, HS's two switches, remembered on the device.
+const AUDIO = MN.parseAudio(stored(MN.AUDIO_KEY));
+setSfxEnabled(AUDIO.sfx);
+setMusicEnabled(AUDIO.music);
+const saveAudio = () => { try { STORE?.setItem(MN.AUDIO_KEY, JSON.stringify({ sfx: audioEnabled(), music: musicEnabled() })); } catch { /* private mode */ } };
+// A browser lets a page make sound only after the player has touched it. HS's title plays its
+// music from launch; here it starts at the first tap (the title's own "tap to start").
+let GESTURE = false;
+const onGesture = () => {
+  if (GESTURE) return;
+  GESTURE = true;
+  if (MENU.screen && MENU.screen !== 'match') startMenuMusic();
+};
+addEventListener('pointerdown', onGesture, true);
+addEventListener('keydown', onGesture, true);
 
-function openArcade() {
-  show('arcade');
-  layoutArcade();
-  renderArcade();
-}
-$('#arcBack').onclick = () => openModes();
-
-// Tile size off the height the screen has: the strip scrolls sideways, so only its height is
-// fixed, and the face crop needs a real pixel size (paintHead positions the art in px).
-let TILE_PX = 0;
-// The reel's big hexagon: as large as its column allows with the neighbours still showing
-// above and below. REEL_STEP is the distance between two champions' centres.
-let REEL_H = 0, REEL_STEP = 0;
-function layoutArcade() {
-  const reel = $('#arcReel');
-  const h = Math.max(56, Math.round(Math.min(reel.clientHeight / 2.5, reel.clientWidth * 0.8, 220)));
-  if (h !== REEL_H) {
-    REEL_H = h; REEL_STEP = Math.round(h * 0.78);
-    reel.style.setProperty('--h', h + 'px');
-    reel.style.setProperty('--step', REEL_STEP + 'px');
-    for (const f of reel.querySelectorAll('.f')) f.dataset.card = '';
-  }
-  const tile = Math.max(36, Math.min(60, Math.round(Math.min(innerHeight * 0.11, innerWidth * 0.1))));
-  if (tile === TILE_PX) return;
-  TILE_PX = tile;
-  const g = $('#arcGrid');
-  g.style.setProperty('--tile', tile + 'px');
-  for (const f of g.querySelectorAll('.f')) f.dataset.card = '';
-}
-
-// Lay the reel out around a (possibly fractional, mid-drag) position: each champion sits
-// `d` steps from the middle, shrinking and fading with distance. Only the few near the middle
-// are shown; the rest wait off the reel.
-let REEL_POS = 0;
-function placeReel(pos) {
-  REEL_POS = pos;
-  for (const el of $('#arcReel').children) {
-    const d = +el.dataset.stage - pos, a = Math.abs(d);
-    const s = a < 1 ? 1 - 0.45 * a : Math.max(0.3, 0.55 - 0.15 * (a - 1));
-    el.style.setProperty('--d', d.toFixed(3));
-    el.style.setProperty('--s', s.toFixed(3));
-    el.style.opacity = a > 2.4 ? 0 : a < 1 ? 1 : Math.max(0, 0.75 - 0.35 * (a - 1)).toFixed(2);
-    el.style.zIndex = String(10 - Math.round(a));
-    el.style.visibility = a > 3 ? 'hidden' : '';
-    el.tabIndex = -1;
-  }
-}
-
-// The stat bars under the pitch: Head Soccer's own five 1–10 stats, straight from the champion
-// map (docs/HS-CHAMPION-MAP.md) — speed, jump, kick, dash, power.
-const STAT_ROWS = [
-  ['מהירות', (c) => c.hs.stats.speed], ['קפיצה', (c) => c.hs.stats.jump], ['בעיטה', (c) => c.hs.stats.kick],
-  ['דאש', (c) => c.hs.stats.dash], ['כוח', (c) => c.hs.stats.power],
-];
-function renderStats(c) {
-  const box = $('#arcStats');
-  if (!box.children.length) {
-    box.innerHTML = STAT_ROWS.map(([name]) => `<div class="arc-stat"><span>${name}</span><i>${'<s></s>'.repeat(10)}</i></div>`).join('');
-  }
-  STAT_ROWS.forEach(([, f], k) => {
-    const n = f(c);
-    [...box.children[k].querySelectorAll('s')].forEach((seg, i) => seg.classList.toggle('on', i < n));
-  });
-}
-
-let ARC_SHOWN = 0;                       // the stage the strip last scrolled to
-function renderArcade() {
-  const grid = $('#arcGrid');
-  if (grid.children.length !== CHAMPIONS.length) {
-    grid.innerHTML = '';
-    for (const c of CHAMPIONS) {
-      const el = document.createElement('button');
-      el.dataset.stage = c.stage;
-      el.dataset.tier = c.tier;
-      const first = c.stage === 1 || CHAMPIONS[c.stage - 2].tier !== c.tier;
-      el.innerHTML = `<i class="f"></i><b>${c.stage}</b><em></em>${first ? `<u>${TIERS[c.tier]}</u>` : ''}`;
-      el.onclick = () => selectStage(c.stage);
-      grid.appendChild(el);
-    }
-  }
-  for (const el of grid.children) {
-    const n = +el.dataset.stage;
-    const st = ARC.stageStatus(PROG, n);
-    const first = el.querySelector('u') ? ' tier1st' : '';
-    el.className = `arc-tile ${STATUS_CLS[st]}${first}${n === ARC_SEL ? ' sel' : ''}`;
-    el.title = `${CHAMPIONS[n - 1].title} · ${STATUS_TXT[st]}`;
-    const f = el.firstElementChild;
-    const px = Math.round(TILE_PX * 0.84);
-    if (TILE_PX && f.dataset.card !== String(px)) { paintHead(f, 'legendary', n, px); f.dataset.card = String(px); }
-  }
-  if (ARC_SHOWN !== ARC_SEL) {
-    ARC_SHOWN = ARC_SEL;
-    // By hand, not scrollIntoView: that also scrolls the (overflow: hidden) screen itself, and
-    // on a small phone the whole arcade slid sideways off the glass.
-    const t = grid.children[ARC_SEL - 1], gr = grid.getBoundingClientRect(), tr = t.getBoundingClientRect();
-    if (gr.width) grid.scrollBy({ left: (tr.left + tr.width / 2) - (gr.left + gr.width / 2), behavior: 'smooth' });
-  }
-  $('#arcProg').textContent = `${PROG.cleared} / ${ARC.STAGE_COUNT}`;
-  $('#arcBar').style.width = (PROG.cleared / ARC.STAGE_COUNT * 100).toFixed(1) + '%';
-
-  const c = championForStage(ARC_SEL);
-  const st = ARC.stageStatus(PROG, ARC_SEL);
-  const pw = { icon: c.icon, name: c.powerName, color: c.color, desc: c.desc };
-  // The reel: built once, then only its classes and its faces change.
-  const reel = $('#arcReel');
-  if (reel.children.length !== CHAMPIONS.length) {
-    reel.innerHTML = '';
-    for (const c of CHAMPIONS) {
-      const el = document.createElement('button');
-      el.className = 'arc-slot';
-      el.dataset.stage = c.stage;
-      el.innerHTML = `<b class="fb">${c.stage}</b><i class="f"></i><span class="lk">🔒</span>`;
-      el.onclick = () => { if (!reelDragged) selectStage(c.stage); };
-      reel.appendChild(el);
-    }
-  }
-  for (const el of reel.children) {
-    const n = +el.dataset.stage, f = el.children[1];
-    el.className = `arc-slot ${STATUS_CLS[ARC.stageStatus(PROG, n)]}${n === ARC_SEL ? ' sel' : ''}`;
-    el.title = CHAMPIONS[n - 1].title;
-    // Painted at full size once; the reel's scale does the shrinking. Only near the middle, so
-    // opening the board does not fetch all 45 cards at once.
-    const px = Math.round(REEL_H * 0.82);
-    if (REEL_H && Math.abs(n - ARC_SEL) <= 3 && f.dataset.card !== String(px)) { paintHead(f, 'legendary', n, px, { flip: true }); f.dataset.card = String(px); }
-  }
-  if (!reel.classList.contains('dragging')) placeReel(ARC_SEL);
-  $('#arcCount').textContent = `${c.stage} / ${ARC.STAGE_COUNT}`;
-  $('#arcStage').textContent = `שלב ${c.stage} · ${TIERS[c.tier]}`;
-  $('#arcTitle').textContent = c.title;
-  $("#arcStars").textContent = starText(c.hs.stars);
-  const badge = $('#arcStatus');
-  badge.textContent = st === 'locked' ? '🔒 נעול' : st === 'completed' ? '✓ הושלם' : '⚡ מחכה לך';
-  badge.className = `arc-status ${STATUS_CLS[st]}`;
-  $('#arcPower').textContent = `${pw.icon} ${pw.name}`;
-  $('#arcPower').style.setProperty('--pc', pw.color);
-  $('#arcDesc').textContent = st === 'locked' ? 'נצח את האלוף הקודם כדי לפתוח את השלב הזה.' : pw.desc;
-  $('#arcPrev').disabled = ARC_SEL <= 1;
-  $('#arcNext').disabled = ARC_SEL >= ARC.STAGE_COUNT;
-  renderStats(c);
-  // Who you are bringing: your card, and the power its ultimate has in the arcade.
-  const mine = CHAMPIONS.find((x) => x.card.rarity === pick.me.rarity && x.card.number === pick.me.number);
-  paintHead($('#arcYouFace'), pick.me.rarity, pick.me.number, $('#arcYouFace').clientWidth || 64);
-  $('#arcYou').textContent = mine
-    ? `${mine.title} ${mine.icon}`
-    : shotFor(pick.me).name;
-  const play = $('#arcPlay');
-  play.disabled = st === 'locked';
-  play.textContent = st === 'locked' ? '🔒 נעול' : st === 'completed' ? 'שחק שוב ▶' : 'שחק ▶';
-}
-// Every way of moving the reel lands here, clamped to 1..45; the reel's transition does the roll.
-function selectStage(n) {
-  n = Math.max(1, Math.min(ARC.STAGE_COUNT, n));
-  if (n === ARC_SEL) { placeReel(n); return; }
-  ARC_SEL = n;
-  renderArcade();
-}
-$('#arcPrev').onclick = () => selectStage(ARC_SEL - 1);
-$('#arcNext').onclick = () => selectStage(ARC_SEL + 1);
-$('#arcPlay').onclick = () => startArcadeStage(ARC_SEL);
-
-// Drag (mouse) or swipe (touch) the reel: it follows the finger, then snaps to the nearest
-// champion. Up brings the next one in from below. Past the ends it only gives a little.
-let reelDrag = null, reelDragged = false;
-const reelEl = $('#arcReel');
-reelEl.addEventListener('pointerdown', (e) => {
-  reelDrag = { y: e.clientY, pos: ARC_SEL, id: e.pointerId };
-  reelDragged = false;
+// ═══════════════════════════════════════════════════════════════════════════
+// THE MENUS (menus.js): title, main menu, Player Select, shop, options, how to, multiplayer
+// ═══════════════════════════════════════════════════════════════════════════
+const MENU = createMenus({
+  pick, owns, cardUrl, paintHead, characterFor, shotFor, statMult, ARC, UPG, SFX, store: STORE,
+  perRarity: CARDS_PER_RARITY, champions: CHAMPIONS, tiers: TIERS, difficulties: DIFFICULTIES,
+  state: {
+    get prog() { return PROG; },
+    get stats() { return STATS; },
+    get sel() { return ARC_SEL; },
+    set sel(n) { ARC_SEL = n; },
+  },
+  setStats: (st) => { STATS = st; UPG.saveStats(STORE, STATS); },
+  play: { arcade: (n) => startArcadeStage(n), practice: () => startMatch() },
+  lobby: (mode, code) => openLobby(mode, code),
+  sfxOn: audioEnabled, musicOn: musicEnabled,
+  setSfx: (v) => { setSfxEnabled(v); saveAudio(); if (v) SFX.whistle(); },
+  setMusic: (v) => { setMusicEnabled(v); saveAudio(); if (v && running && !paused) startBed(); else if (v && !running) startMenuMusic(); },
+  sfx: (name) => { if (GESTURE && audioEnabled()) SFX[name]?.(); },
+  menuMusic: () => { if (GESTURE && !running) startMenuMusic(); },
+  refreshOnline: () => showOnline(ONLINE_N),
+  onFirstTap: () => { /* the title's tap is the gesture that unlocks audio on iOS */ },
 });
-reelEl.addEventListener('pointermove', (e) => {
-  if (!reelDrag || e.pointerId !== reelDrag.id) return;
-  const dy = e.clientY - reelDrag.y;
-  if (!reelDragged && Math.abs(dy) < 8) return;
-  if (!reelDragged) { reelDragged = true; reelEl.classList.add('dragging'); reelEl.setPointerCapture(e.pointerId); }
-  let pos = reelDrag.pos - dy / (REEL_STEP || 80);
-  if (pos < 1) pos = 1 - (1 - pos) * 0.3;
-  if (pos > ARC.STAGE_COUNT) pos = ARC.STAGE_COUNT + (pos - ARC.STAGE_COUNT) * 0.3;
-  placeReel(pos);
-});
-const endReelDrag = () => {
-  if (!reelDrag) return;
-  reelDrag = null;
-  if (!reelDragged) return;
-  reelEl.classList.remove('dragging');
-  // A quarter of a step is enough to mean «the next one»; further than that rounds as usual.
-  const from = ARC_SEL, off = REEL_POS - from;
-  selectStage(Math.abs(off) < 0.25 ? from : off > 0 ? Math.max(from + 1, Math.round(REEL_POS)) : Math.min(from - 1, Math.round(REEL_POS)));
-  setTimeout(() => { reelDragged = false; }, 0);   // the click that ends a drag is not a tap
-};
-reelEl.addEventListener('pointerup', endReelDrag);
-reelEl.addEventListener('pointercancel', endReelDrag);
-// The wheel rolls one champion per notch, however fast a trackpad fires.
-let wheelAt = 0;
-reelEl.addEventListener('wheel', (e) => {
-  e.preventDefault();
-  const now = performance.now();
-  if (Math.abs(e.deltaY) < 4 || now - wheelAt < 140) return;
-  wheelAt = now;
-  selectStage(ARC_SEL + Math.sign(e.deltaY));
-}, { passive: false });
-
-// Keys on the board: ↑/↓ roll the reel the way it looks, Home/End jump to the ends,
-// Enter plays, Esc goes back. Left alone while a control that owns those keys has focus.
-addEventListener('keydown', (e) => {
-  if ($('#arcade').classList.contains('hidden')) return;
-  if (e.repeat && e.code.endsWith('Enter')) return;
-  const t = e.target, inField = t && t.tagName === 'INPUT';
-  const onButton = t && t.tagName === 'BUTTON';
-  let act = null;
-  if (!inField && e.code === 'ArrowDown') act = () => selectStage(ARC_SEL + 1);
-  else if (!inField && e.code === 'ArrowUp') act = () => selectStage(ARC_SEL - 1);
-  else if (!inField && e.code === 'Home') act = () => selectStage(1);
-  else if (!inField && e.code === 'End') act = () => selectStage(ARC.STAGE_COUNT);
-  else if ((e.code === 'Enter' || e.code === 'NumpadEnter') && !onButton) act = () => startArcadeStage(ARC_SEL);
-  else if (e.code === 'Escape') act = () => openModes();
-  if (!act) return;
-  e.preventDefault();
-  e.stopImmediatePropagation();          // not also a game key held into the match
-  act();
-}, true);
-$('#freeBtn').onclick = () => startMatch();
-addEventListener('resize', () => { if (!$('#arcade').classList.contains('hidden')) { layoutArcade(); renderArcade(); } });
-
-$('#rarityTabs').onclick = (e) => {
-  const b = e.target.closest('button');
-  if (!b) return;
-  pick.rarity = b.dataset.r;
-  for (const t of $('#rarityTabs').children) t.classList.toggle('on', t === b);
-  renderGrid();
-};
-
-$('#diff').oninput = (e) => {
-  pick.level = +e.target.value;
-  $('#diffName').textContent = DIFFICULTIES[pick.level].name;
-};
-$('#diffName').textContent = DIFFICULTIES[pick.level].name;
+// Exactly one screen is up at a time; every navigation goes through the menus' router.
+const show = (id) => MENU.show(id);
+// The names the harnesses and the console have always used.
+const openArcade = () => MENU.openSelect('arcade');
+const openModes = () => MENU.openMenu();
+const selectStage = (n) => MENU.selectStage(n);
+// The title first — unless the page was opened for something (a room link, ?play, ?arcade),
+// which boot() goes straight to.
+if (!['room', 'play', 'arcade', 'unlockall', 'resetarcade'].some((k) => new URLSearchParams(location.search).has(k))) MENU.openTitle();
 
 // ═══════════════════════════════════════════════════════════════════════════
 // INPUT
@@ -576,9 +320,11 @@ const walkStamp = { left: 0, right: 0 };
 let walkClock = 0;
 const WALK = new Set(['left', 'right']);
 
+// A key typed into a field (the room code has A, D and J in it) is text, not a move.
+const typing = (e) => !!e.target?.closest?.('input,textarea,[contenteditable]');
 addEventListener('keydown', (e) => {
   const k = KEYMAP[e.code];
-  if (!k) return;
+  if (!k || typing(e)) return;
   e.preventDefault();
   if (!keyDown[k] && WALK.has(k)) walkStamp[k] = ++walkClock;   // auto-repeat is not a new press
   keyDown[k] = true;
@@ -586,7 +332,7 @@ addEventListener('keydown', (e) => {
 });
 addEventListener('keyup', (e) => {
   const k = KEYMAP[e.code];
-  if (!k) return;
+  if (!k || typing(e)) return;
   e.preventDefault();
   keyDown[k] = false;
   syncHeld();
@@ -898,10 +644,8 @@ function net() {
   if (NET) return NET;
   NET = createNet({
     onStatus: (st) => {
-      const d = $('#netdot');
-      d.classList.toggle('on', st === 'online');
-      d.classList.toggle('busy', st === 'connecting');
-      d.title = { online: 'מחובר', connecting: 'מתחבר…', offline: 'לא מחובר' }[st] || st;
+      document.body.dataset.net = st;
+      if (st === 'online') $('#mpConn')?.classList.add('hidden');
     },
     onOnline: showOnline,
     onRoom: renderLobby,
@@ -929,7 +673,9 @@ function net() {
 }
 
 // «🟢 N מחוברים עכשיו» — everyone with the game open, arcade and online alike.
+let ONLINE_N = 0;
 function showOnline(n) {
+  ONLINE_N = n;
   for (const el of document.querySelectorAll('.online-count')) {
     el.textContent = n > 0 ? `🟢 ${n} מחוברים עכשיו` : '';
   }
@@ -944,6 +690,8 @@ function openLobby(mode, code) {
   $('#seats').innerHTML = '';
   $('#lobbyHint').textContent = mode === 'host' ? 'שלח את הקישור לחבר' : 'הכנס את הקוד שקיבלת';
   $('#readyBtn').disabled = true;
+  $('#mpConn').classList.toggle('hidden', n.connected);
+  paintHead($('#connFace'), pick.me.rarity, pick.me.number, $('#connFace').clientWidth || 40);
 
   const go = () => {
     n.hello(pick.name || 'שחקן', pick.me);
@@ -972,6 +720,7 @@ function renderLobby(room) {
     if (m) paintHead(el.querySelector('.face'), m.card.rarity, m.card.number, 64);
     seats.appendChild(el);
   }
+  $('#mpConn').classList.add('hidden');
   const full = room.members.length === 2;
   $('#readyBtn').disabled = !full;
   $('#lobbyHint').textContent = full ? 'שניכם כאן — לחצו מוכן' : 'שלח את הקישור לחבר';
@@ -979,6 +728,7 @@ function renderLobby(room) {
 
 function startOnlineMatch(msg) {
   ONLINE = true;
+  MODE = 'online';
   STAGE = PIN_STAGE || pickStage();
   bgAt = -1e9;                        // new stage, so the baked backdrop is stale
   M = NET.match;
@@ -999,32 +749,34 @@ function startOnlineMatch(msg) {
   raf = requestAnimationFrame(frame);
 }
 
-$('#hostBtn').onclick = () => openLobby('host');
-$('#joinBtn').onclick = () => openLobby('join');
 $('#joinGo').onclick = () => {
   const code = $('#codeInput').value.trim().toUpperCase();
   if (code.length === 4) net().join(code);
 };
 $('#codeInput').oninput = (e) => { e.target.value = e.target.value.toUpperCase(); };
 $('#readyBtn').onclick = () => { net().ready(true); $('#readyBtn').disabled = true; $('#lobbyHint').textContent = 'ממתין ליריב…'; };
-$('#lobbyBack').onclick = () => { net().leave(); openModes(true); };
+$('#lobbyBack').onclick = () => { net().leave(); MENU.openMenu(); };
 $('#copyLink').onclick = async () => {
   const code = $('#roomCode').textContent;
   const txt = shareLink(code);
-  try { await navigator.clipboard.writeText(txt); $('#copyLink').textContent = 'הועתק ✓'; }
+  const label = $('#copyLink b');
+  try { await navigator.clipboard.writeText(txt); label.textContent = 'הועתק ✓'; }
   catch { $('#lobbyHint').textContent = txt; }
-  setTimeout(() => ($('#copyLink').textContent = 'העתק קישור'), 1600);
+  setTimeout(() => (label.textContent = 'העתק קישור'), 1600);
 };
 
 // ═══════════════════════════════════════════════════════════════════════════
 // MATCH
 // ═══════════════════════════════════════════════════════════════════════════
 let M = null, BOT = null, raf = 0, acc = 0, last = 0, running = false, paused = false, introT = 0;
+// Where the match came from, and so where its buttons go: 'arcade' | 'practice' | 'online'.
+let MODE = 'practice';
 
 // The free match against the bot: your card, the יריב slot, the difficulty slider. Unchanged
 // from before the arcade, and still what ?play=1 and the screenshot harnesses start.
 function startMatch() {
   ARCADE = null;
+  MODE = 'practice';
   STAGE = PIN_STAGE || pickStage();
   beginLocal(pick.me, pick.foe, {}, createBot(pick.level));
 }
@@ -1034,8 +786,9 @@ function startMatch() {
 // ladder), and that both legendary cards fire their champion power instead of the power shot.
 function startArcadeStage(n) {
   if (!ARC.canStart(PROG, n)) return false;          // a locked stage does not start. Ever.
-  const cfg = stageConfig(n);
+  const cfg = stageConfig(n, STATS.lv);
   ARCADE = { stage: n };
+  MODE = 'arcade';
   ARC_SEL = n;
   // Each champion has a home ground, drawn from HS's stadiums in turn — the same ones a free
   // match rolls (Idan: the arcade was on the old backdrops).
@@ -1072,65 +825,103 @@ function beginLocal(me, foe, opts, bot) {
 
 // What a player's power shot is called (its champion's theme, or its family's name).
 
-function endMatch() {
+// HS's RESULT (M4 90-93 s): RESULT, then YOU WIN / YOU LOSE spelled out a letter at a time over
+// the two heads and the score, the points it paid and the total, and one button — NEXT MATCH
+// after a win, NEXT after a loss — back to Player Select. Online keeps two: play again (the
+// room) and leave. `forfeit`: GIVE UP from the pause menu, a loss whatever the score.
+let NEXT_SELECT = null;                  // the stage Player Select reopens on (arcade)
+function endMatch({ forfeit = false } = {}) {
   running = false;
   stopBed();
   const [a, b] = M.score;
-  const iWon = a > b;
-  $('#overTitle').textContent = iWon ? 'ניצחת!' : 'הפסדת';
-  $('#overTitle').hidden = !ARCADE;          // HS says it in gold (#ovSpell); the arcade adds its news
-  $('#overTitle').style.color = iWon ? 'var(--hot)' : 'var(--p1)';
-  // HS M3 92.6 s: the scores in gold either side of a gold VS, on a green pitch panel
+  const me = ONLINE ? (NET?.you ?? 0) : 0;
+  const mine = M.score[me], theirs = M.score[1 - me];
+  const draw = !forfeit && mine === theirs;
+  const iWon = !forfeit && mine > theirs;
+  // HS M3 92.6 s: the scores in gold either side of a gold VS, on the panel
   $('#overScore').innerHTML = `<b class="gold">${a}</b><b class="gold ov-vs">VS</b><b class="gold">${b}</b>`;
-  // HS's lettering: a gold RESULT, then YOU WIN / YOU LOSE spelled out a letter at a time.
-  // HS: a small YOU over the big word, LOSE in red (WIN in gold), spelled a letter at a time
-  const word = a === b ? 'DRAW' : iWon ? 'WIN' : 'LOSE';
-  $('#ovSpell').className = 'ov-spell ' + (a === b ? 'draw' : iWon ? 'win' : 'lose');
-  $('#ovSpell').innerHTML = (a === b ? '' : '<small>YOU</small>') +
-    '<em>' + [...word].map((c, i) => `<span style="animation-delay:${0.35 + i * 0.1}s">${c}</span>`).join('') + '</em>';
-  const sub = $('#overSub');
-  sub.hidden = true;
-  $('#again').textContent = 'עוד פעם';
-  $('#back').textContent = 'קלפים';
-  if (ARCADE) arcadeResult(iWon);
-  $('#over').classList.remove('hidden');
-  // The two heads either side of the score: the winner happy, the loser sad and greyed (HS).
+  const word = draw ? 'DRAW' : iWon ? 'WIN' : 'LOSE';
+  $('#ovSpell').className = 'ov-spell ' + (draw ? 'draw' : iWon ? 'win' : 'lose');
+  $('#ovSpell').innerHTML = (draw ? '' : '<small>YOU</small>') +
+    '<em>' + [...word].map((c, k) => `<span style="animation-delay:${0.35 + k * 0.1}s">${c}</span>`).join('') + '</em>';
+  $('#ovNews').classList.add('hidden');
+  $('#ovPts').classList.toggle('hidden', MODE !== 'arcade');
+  NEXT_SELECT = null;
+  if (ARCADE) arcadeResult(iWon, [mine, theirs]);
+  const plan = MN.afterResult({ mode: MODE, won: iWon, stage: ARCADE?.stage || 1, last: ARC.STAGE_COUNT });
+  if (plan.select) NEXT_SELECT = plan.select;
+  $('#again').innerHTML = `<b>${plan.buttons[0].label}</b>`;
+  $('#back').classList.toggle('hidden', plan.buttons.length < 2);
+  $('.ov-btns').classList.toggle('lost', MODE !== 'online' && !iWon && !draw);   // HS: NEXT bottom-right after a loss
+  if (plan.buttons[1]) $('#back').innerHTML = `<b>${plan.buttons[1].label}</b>`;
+  const over = $('#over');
+  over.classList.remove('out');
+  over.classList.remove('hidden');
+  // The two heads either side of the score, the loser greyed (HS turns it to char); under each
+  // the badge HS's flag stands for: the champion's tier, or the card's rarity.
   for (let i = 0; i < 2; i++) {
     const el = $('#ovFace' + i), won = M.score[i] > M.score[1 - i], { rarity, number } = M.players[i].char;
     el.classList.toggle('char-face', !!characterFor(rarity, number));   // a character portrait is bigger (style.css): measure it at that size
     paintHead(el, rarity, number, el.clientWidth || 84, { expr: 'normal', flip: i === 1, fill: 1 });
-    el.classList.toggle('lost', !won && a !== b);
+    const lost = forfeit ? i === me : (!won && a !== b);
+    el.classList.toggle('lost', lost);
+    el.parentElement.classList.toggle('lost', lost);
+    const gem = $('#ovGem' + i), champ = MODE !== 'online' && i === 1 ? CHAMPIONS.find((c) => c.card.rarity === rarity && c.card.number === number) : null;
+    gem.textContent = champ ? TIERS[champ.tier] : MN.RARITY_NAME[rarity];
+    gem.style.setProperty('--c', champ ? champ.color : MN.RARITY_COLOR[rarity]);
   }
 }
 
-// A stage was won or lost: record it, save it, and say what it means.
-function arcadeResult(won) {
+// A stage was won or lost: record it (with its score, for Player Select's pill), pay for it,
+// and say what it unlocked.
+function arcadeResult(won, score) {
   const n = ARCADE.stage;
-  const r = ARC.recordResult(PROG, n, won);
+  const r = ARC.recordResult(PROG, n, won, score);
   if (r.accepted) { PROG = r.prog; ARC.saveProgress(STORE, PROG); }
-  const champ = championForStage(n);
-  const sub = $('#overSub');
-  sub.hidden = false;
-  $('#back').textContent = 'שלבים';
-  if (won) {
-    const last = n === ARC.STAGE_COUNT;
-    $('#overTitle').textContent = last ? '🏆 אלוף הארקייד!' : 'ניצחון!';
-    sub.textContent = last
-      ? 'ניצחת את כל 45 האלופים'
-      : r.unlocked ? `${champ.title} הובס · שלב ${n + 1} נפתח` : `${champ.title} הובס · שלב ${n} הושלם`;
-    ARCADE.next = last ? null : n + 1;
-    $('#again').textContent = last ? 'שחק שוב' : 'השלב הבא';
-    ARC_SEL = last ? n : n + 1;
-  } else {
-    sub.textContent = `${champ.title} מחכה לך · שלב ${n}`;
-    ARCADE.next = n;
-    $('#again').textContent = 'נסה שוב';
-  }
+  // Arcade Points: a win over champion n pays 100 × n, a loss nothing (and only a real stage pays).
+  const pay = r.accepted ? UPG.award(STATS, n, won) : { st: STATS, gained: 0 };
+  if (pay.gained) { STATS = pay.st; UPG.saveStats(STORE, STATS); }
+  countUp($('#ovReward'), 0, pay.gained);
+  countUp($('#ovTotal'), STATS.points - pay.gained, STATS.points);
+  const news = $('#ovNews');
+  if (won && n === ARC.STAGE_COUNT) news.textContent = '🏆 ניצחתם את כל 45 האלופים!';
+  else if (r.unlocked) news.textContent = `🔓 שלב ${r.unlocked} נפתח · ${championForStage(r.unlocked).title}`;
+  else news.textContent = '';
+  news.classList.toggle('hidden', !news.textContent);
+  ARCADE.next = won && n < ARC.STAGE_COUNT ? n + 1 : n;
+  ARC_SEL = ARCADE.next;
+}
+// A number that counts up to its value (the points on the result), as HS's do.
+function countUp(el, from, to) {
+  const fmt = (v) => Math.round(v).toLocaleString('en-US');
+  if (from === to || matchMedia('(prefers-reduced-motion: reduce)').matches) { el.textContent = fmt(to); return; }
+  const t0 = performance.now() + 600;              // after the panel is up and YOU WIN is spelled
+  const tick = (t) => {
+    const k = Math.max(0, Math.min(1, (t - t0) / 700));
+    el.textContent = fmt(from + (to - from) * (1 - (1 - k) ** 3));
+    if (k < 1) requestAnimationFrame(tick);
+  };
+  el.textContent = fmt(from);
+  requestAnimationFrame(tick);
 }
 
+function stopMatchLoop() {
+  if (paused) { paused = false; $('#pause').classList.add('hidden'); }
+  stopBed();
+  running = false;
+  cancelAnimationFrame(raf);
+}
+// NEXT MATCH / NEXT: back to Player Select, through a quick fade (HS M4 92 s). Online: back to
+// the room, which the server has already reset to the lobby.
 $('#again').onclick = () => {
-  if (ARCADE) startArcadeStage(ARCADE.next || ARCADE.stage);
-  else startMatch();
+  if (MODE === 'online') { stopMatchLoop(); show('lobby'); if (NET?.room) renderLobby(NET.room); return; }
+  const mode = MODE === 'arcade' ? 'arcade' : 'practice', stage = NEXT_SELECT;
+  $('#over').classList.add('out');
+  setTimeout(() => {
+    stopMatchLoop();
+    ARCADE = null;
+    MENU.openSelect(mode, { stage });
+  }, 260);
 };
 // ---- fullscreen, landscape (HS is both) -----------------------------------------
 // On the first touch of a match, a phone goes fullscreen and (where the browser allows it,
@@ -1144,7 +935,9 @@ addEventListener('pointerdown', () => {
 }, { passive: true });
 
 // ---- the VS intro ---------------------------------------------------------------
-const VS_INTRO = 1.5;
+// HS M16 (with nothing touched): band 0.3 s, heads 0.3 s, the VS, then "TOUCH TO KICK OFF" under
+// it — about 2 s in all. A tap cuts it short (M2: 1.25 s).
+const VS_INTRO = 2.0, VS_SKIP = 0.22;
 function startIntro() {
   if (ONLINE || window.SIM_HOLD || new URLSearchParams(location.search).has('nointro')) return;
   const vs = $('#vs');
@@ -1153,25 +946,55 @@ function startIntro() {
     el.classList.toggle('char-face', !!characterFor(rarity, number));
     paintHead(el, rarity, number, el.clientWidth || 150, { expr: 'normal', flip: i === 1, fill: 1 });
   }
-  vs.classList.remove('hidden');
+  vs.classList.remove('hidden', 'skip');
   vs.style.animation = 'none'; void vs.offsetWidth; vs.style.animation = '';   // restart the CSS
   introT = VS_INTRO;
 }
+// TOUCH TO KICK OFF: a tap (or Enter / Space) during the VS lets the match start now.
+function skipIntro() {
+  if (!(introT > VS_SKIP) || VS_INTRO - introT < 0.35) return;   // not the tap that pressed PLAY
+  introT = VS_SKIP;
+  $('#vs').classList.add('skip');
+}
+addEventListener('pointerdown', () => { if (running) skipIntro(); });
+addEventListener('keydown', (e) => { if (running && (e.code === 'Enter' || e.code === 'Space' || e.code === 'NumpadEnter')) skipIntro(); });
 
 // ---- pause (HS: the gold II, top right) ---------------------------------------
 function setPaused(on) {
   paused = on;
   $('#pause').classList.toggle('hidden', !on);
-  $('#retry').hidden = !!ONLINE;
+  $('#pause').classList.remove('closing');
+  if (on) MENU.syncSound();
   if (on) { releaseAll(); stopBed(); playEvent('pause'); }   // HS pips the whistle on pause (Pause2.ogg)
   else { acc = 0; last = performance.now(); startBed(); }
 }
 $('#pauseBtn').onclick = () => { if (running) setPaused(true); };
-$('#resume').onclick = () => setPaused(false);
-// the sound toggle lives in the pause menu (HS keeps its pitch clear of it)
-$('#pSnd').onclick = () => { $('#sndBtn').onclick(); $('#pSnd').textContent = audioEnabled() ? '🔊 צליל' : '🔇 צליל'; };
-$('#retry').onclick = () => { setPaused(false); $('#again').onclick(); };
-addEventListener('keydown', (e) => { if (e.key === 'Escape' && running) setPaused(!paused); });
+// The pause's pills slide back out before the match (or the menu) comes back — HS M16 25.75 s.
+function closePause(then) {
+  const p = $('#pause');
+  if (p.classList.contains('hidden')) { then(); return; }
+  p.classList.add('closing');
+  setTimeout(() => { p.classList.remove('closing'); then(); }, 180);
+}
+$('#resume').onclick = () => closePause(() => setPaused(false));
+// HS's pause keeps SOUND, MUSIC and How to on its left (the pitch stays clear of them)
+$('#pSnd').onclick = () => { setSfxEnabled(!audioEnabled()); saveAudio(); MENU.syncSound(); };
+$('#pMus').onclick = () => { setMusicEnabled(!musicEnabled()); saveAudio(); MENU.syncSound(); };
+$('#pHow').onclick = () => MENU.openHowTo('pause');
+// GIVE UP: the match is lost, there and then (HS: "Give up … will give your opponent a Win"),
+// and — HS M16 25.75 s — no result screen: the pills slide away and Player Select is back.
+// Online it is leaving the room; the server hands the friend a bot.
+$('#pGive').onclick = () => closePause(() => {
+  if (MODE === 'online') { toMenu(); return; }
+  if (ARCADE) {
+    const r = ARC.recordResult(PROG, ARCADE.stage, false, [M.score[0], M.score[1]]);
+    if (r.accepted) { PROG = r.prog; ARC.saveProgress(STORE, PROG); }
+  }
+  const mode = MODE === 'arcade' ? 'arcade' : 'practice', stage = ARCADE?.stage;
+  stopMatchLoop();
+  ARCADE = null;
+  MENU.openSelect(mode, { stage });
+});addEventListener('keydown', (e) => { if (e.key === 'Escape' && running) { if (paused) closePause(() => setPaused(false)); else setPaused(true); } });
 // A phone that takes a call or leaves the app comes back to the pause menu, not a lost match.
 document.addEventListener('visibilitychange', () => { if (document.hidden && running && !ONLINE) setPaused(true); });
 // The tuner is a developer's tool: ?dev=1 shows it. HS has nothing like it.
@@ -1196,16 +1019,17 @@ if (new URLSearchParams(location.search).has('dev')) {
   }, 1000);
 }
 
-$('#back').onclick = $('#quit').onclick = () => {
-  if (paused) setPaused(false);
-  stopBed();
-  running = false;
-  cancelAnimationFrame(raf);
-  // Leaving an arcade match early records nothing: a quit is neither a win nor a loss.
-  if (ARCADE) { ARCADE = null; openArcade(); }
-  else show('pick');
-};
-
+// TITLE (pause) and leave (online result): to the main menu — HS M15, TITLE lands on the menu.
+function toMenu() {
+  stopMatchLoop();
+  // Online, leaving the result (or quitting) leaves the room too, or the friend waits forever.
+  if (MODE === 'online') { net().leave(); ONLINE = false; }
+  // Leaving an arcade match early records nothing: a quit is neither a win nor a loss (GIVE UP is).
+  ARCADE = null;
+  MENU.openMenu();
+}
+$('#back').onclick = toMenu;
+$('#quit').onclick = () => closePause(toMenu);
 // ---- banner ----------------------------------------------------------------
 let bannerT = 0;
 // WHO PLAYED WHAT. A card was the loudest thing a player could do and it happened in silence:
@@ -2564,7 +2388,7 @@ function trackTrail(p, now) {
   const tr = TRAIL[p.index];
   tr.hist.push({ now, x: p.x, y: p.y, onGround: p.onGround, vx: p.vx, kickT: p.kickT });
   while (tr.hist.length > 2 && now - tr.hist[0].now > 0.2) tr.hist.shift();
-  const dashing = !(p.stunned > 0) && (p.dashT > 0 || Math.abs(p.vx) > C.PLAYER_SPEED * 1.8);
+  const dashing = !(p.stunned > 0) && (p.dashT > 0 || Math.abs(p.vx) > C.PLAYER_SPEED * (p.stats?.speed ?? 1) * 1.8);
   if (dashing) tr.until = now + 0.12;
 }
 // The ghost poses for player i right now: [{x, y, ..., alpha}], empty when there is no trail.
@@ -3152,7 +2976,7 @@ function syncHud() {
 // ═══════════════════════════════════════════════════════════════════════════
 const RANGES = {
   // Absolute per-second values now — the PACE dial that used to rescale them is gone — so the
-  // ranges sit round Head Soccer's measured numbers (PLAYER_SPEED 228, JUMP_V 240, DASH_V 1790).
+  // ranges sit round Head Soccer's measured numbers (PLAYER_SPEED 195, JUMP_V 221, DASH_V 1680 — HS's level 0).
   PLAYER_SPEED: [80, 600], SLIP_ACCEL: [200, 5000],
   PLAYER_GRAV: [200, 2000], JUMP_V: [120, 600], JUMP_REJUMP: [0, .3], DASH_V: [300, 3000], DASH_TIME: [.016, .3],
   BOOT_R: [4, 20], BOOT_BOUNCE: [0, 1], BOOT_GRIP: [0, 1], KICK_REACH: [20, 130], KICK_R: [10, 60],
@@ -3266,14 +3090,25 @@ $('#tunerCopy').onclick = async () => {
   // left as links that quietly do nothing.)
   // (?pace= used to run the whole match in slow motion. The PACE dial is gone — every constant
   // is Head Soccer's own per-second number now — so the flag went with it.)
-  if (q.has('diff')) {
-    pick.level = Math.max(0, Math.min(5, +q.get('diff')));
-    $('#diff').value = pick.level;
-    $('#diffName').textContent = DIFFICULTIES[pick.level].name;
+  // ?points=N / ?points=inf / ?resetstats — testing links for the upgrade shop: N Arcade Points
+  // more, as good as endless (9,999,999,999 — every stat to 10 costs 2,557,500), or a fresh player on
+  // level 0 with none. A dev machine or the local network only, like ?unlockall.
+  // ?lv=power:0 (or speed:3,kick:10) sets those stat levels, points untouched.
+  if (DEV_HOST && (q.has('points') || q.has('resetstats') || q.has('lv'))) {
+    if (q.has('resetstats')) STATS = UPG.freshStats();
+    for (const part of (q.get('lv') || '').split(',')) {
+      const [k, v] = part.split(':');
+      if (UPG.STAT_KEYS.includes(k) && v !== undefined) STATS = { ...STATS, lv: { ...STATS.lv, [k]: Math.max(0, Math.min(10, Math.floor(Number(v)) || 0)) } };
+    }
+    if (q.get('points') === 'inf') STATS = { ...STATS, points: 9999999999 };
+    else {
+      const add = Math.max(0, Math.floor(Number(q.get('points')) || 0));
+      if (add) STATS = { ...STATS, points: Math.min(9999999999, STATS.points + add) };
+    }
+    UPG.saveStats(STORE, STATS);
   }
+  if (q.has('diff')) pick.level = Math.max(0, Math.min(5, +q.get('diff')));
 
-  renderSlots();
-  renderGrid();
   buildTuner();
   if (q.has('solo')) window.BOT_OFF = true;
   // ?stage=japan|harbor|china|airbase|jungle|temple|factory pins one, for screenshots.
@@ -3319,7 +3154,7 @@ Object.defineProperty(window, 'ARCADE_PROGRESS', { get: () => PROG });
 Object.defineProperty(window, '__ANCHORS', { get: () => ANCHORS });
 Object.assign(window, { headCrop });
 // The real-face characters, for _charfaces.mjs: re-render the pick slots, end a match on demand.
-Object.assign(window, { renderSlots, endMatch, characterFor });
+Object.assign(window, { endMatch, characterFor, MENU });
 Object.defineProperty(window, 'MATCH', { get: () => M });
 Object.defineProperty(window, 'HELD', { get: () => held });
 Object.defineProperty(window, 'EVENTS', { get: () => EVENT_LOG });

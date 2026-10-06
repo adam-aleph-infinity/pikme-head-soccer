@@ -10,15 +10,27 @@
 // the first frame, and it survives the WebView with no asset pipeline at all.
 
 let AC = null;
+// Two switches, as in HS's pause menu (SOUND, MUSIC): every effect goes through `master`, the
+// match's music and crowd through `music`, and both into `out`, the one volume.
+let out = null;
 let master = null;
-let enabled = true;
+let music = null;
+let enabled = true;        // sound effects
+let musicOn = true;        // the match bed
+let route = null;          // where env() sends a voice: the effects unless the bed is playing it
 
 function ctx() {
   if (!AC) {
     AC = new (window.AudioContext || window.webkitAudioContext)({ latencyHint: 'interactive' });   // the lowest output delay the device offers
+    out = AC.createGain();
+    out.gain.value = 0.32;
+    out.connect(AC.destination);
     master = AC.createGain();
-    master.gain.value = 0.32;
-    master.connect(AC.destination);
+    master.gain.value = enabled ? 1 : 0;
+    master.connect(out);
+    music = AC.createGain();
+    music.gain.value = musicOn ? 1 : 0;
+    music.connect(out);
   }
   // iOS/WKWebView start every context suspended until a gesture; nudging it on each sound
   // is cheaper than tracking whether the unlock already happened.
@@ -48,7 +60,7 @@ function env(node, t0, peak, attack, decay) {
   g.gain.exponentialRampToValueAtTime(Math.max(0.0001, peak), t0 + attack);
   g.gain.exponentialRampToValueAtTime(0.0001, t0 + attack + decay);
   node.connect(g);
-  g.connect(master);
+  g.connect(route || master);
   return g;
 }
 
@@ -344,6 +356,11 @@ function whoosh({ lo = 400, hi = 9000, peak = 0.2, at = 0.1, dur = 0.2, t = 0, b
 }
 
 export const SFX = {
+  // THE MENUS (HS M16, with sound): every button press is a short bright tap; turning the
+  // carousel a softer tick; leaving the title a rising swish. Original, synthesised, small.
+  tap()       { blip({ freq: 1320, type: 'triangle', peak: 0.16, dur: 0.045 }); blip({ freq: 1980, type: 'sine', peak: 0.07, dur: 0.035, t: 0.012 }); thud({ freq: 900, q: 1.4, peak: 0.08, decay: 0.04 }); },
+  tick()      { blip({ freq: 980, type: 'triangle', peak: 0.09, dur: 0.03 }); },
+  swish()     { sweep({ from: 260, to: 1400, type: 'sine', peak: 0.1, dur: 0.22 }); thud({ freq: 3200, q: 0.6, peak: 0.07, decay: 0.2, attack: 0.05 }); },
   // THE BOOT ON THE BALL (uploaded-images/Kick.ogg, measured): a deep boom — nearly all of it at
   // 30–60 Hz, peaking 30 ms in and down 20 dB by 90 ms, gone by 150 ms — with a hollow knock at
   // 430–1200 Hz on the front and a faint click above.
@@ -447,6 +464,15 @@ export const SFX = {
     src.loop = true; src.connect(lp); env(lp, t0, 0.35, 0.3, 1.4); src.start(t0); src.stop(t0 + 1.8);
   },
   reset()     { blip({ freq: 880, type: 'sine', peak: 0.18, dur: 0.1 }); },
+  // AN UPGRADE BOUGHT: a coin's tick and two soft bell notes a fourth apart (E6 → A6), each with a
+  // quiet octave over it for the bell — short and clean, no till. The tenth level adds a third.
+  buy(top = false) {
+    thud({ freq: 3200, q: 4, peak: 0.12, decay: 0.035 });
+    const bell = (f, t, peak) => { blip({ freq: f, type: 'sine', peak, dur: 0.32, t }); blip({ freq: f * 2, type: 'sine', peak: peak * 0.22, dur: 0.16, t }); };
+    bell(1318.5, 0.015, 0.2);
+    bell(1760, 0.085, 0.22);
+    if (top) bell(2637, 0.17, 0.18);
+  },
 
   // ── the sounds HS has that this kit did not (HS-GAP-AUDIT V7) ──
   // The ball on the grass: a soft low thump, as loud as the bounce was hard.
@@ -528,6 +554,10 @@ const STAB = [[440, 523, 659], [392, 494, 587], [349, 440, 523], [392, 494, 587]
 let bed = null;
 function bedTick() {
   const a = ctx();
+  route = music;
+  try { bedVoices(a); } finally { route = null; }
+}
+function bedVoices(a) {
   while (bed.next < a.currentTime + 0.25) {
     const t = bed.next - a.currentTime, i = bed.step % 16, bar = Math.floor(bed.step / 4) % 4;
     thud({ freq: 90, q: 1, peak: 0.34, decay: 0.12, t });                                   // kick
@@ -539,14 +569,15 @@ function bedTick() {
 }
 export function startBed() {
   loadTakes();
-  if (bed || !enabled) return;
+  stopMenuMusic();
+  if (bed || !musicOn) return;
   const a = ctx();
   // the crowd: a looped murmur, band-limited so it sits under everything else
   const src = noise(); src.loop = true;
   const bp = a.createBiquadFilter(); bp.type = 'bandpass'; bp.frequency.value = 650; bp.Q.value = 0.5;
   const lp = a.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 1800;
   const g = a.createGain(); g.gain.value = 0.07;
-  src.connect(bp); bp.connect(lp); lp.connect(g); g.connect(master);
+  src.connect(bp); bp.connect(lp); lp.connect(g); g.connect(music);
   src.start();
   bed = { next: a.currentTime + 0.1, step: 0, crowd: src, timer: setInterval(() => { try { bedTick(); } catch { /* never worth a frame */ } }, 100) };
 }
@@ -557,12 +588,56 @@ export function stopBed() {
   bed = null;
 }
 
-export function setAudioEnabled(v) {
-  enabled = v;
-  if (!v) stopBed();
-  if (master) master.gain.value = v ? 0.32 : 0;
+// ── THE MENU MUSIC (HS M16: music under the title, the menu and Player Select, without a
+// break, until the match starts) ── Original: a bright four-chord loop in F major (F C Dm B♭),
+// 120 BPM — a kick on 1 and 3, a bass note a beat, a plucked arpeggio in eighths, a light hat —
+// quieter than the match's, so a tap still cuts through. Scheduled ahead like the match bed.
+const MBPM = 120, MBEAT = 60 / MBPM;
+const MBASS = [87.31, 130.81, 146.83, 116.54];
+const MARP = [[349.2, 440, 523.3, 698.5], [392, 523.3, 659.3, 784], [293.7, 349.2, 440, 587.3], [349.2, 466.2, 587.3, 698.5]];
+let menu = null;
+function menuVoices(a) {
+  while (menu.next < a.currentTime + 0.25) {
+    const t = menu.next - a.currentTime, beat = menu.step % 4, bar = Math.floor(menu.step / 4) % 4;
+    if (beat % 2 === 0) thud({ freq: 85, q: 1, peak: 0.2, decay: 0.11, t });
+    blip({ freq: MBASS[bar], type: 'triangle', peak: 0.15, dur: MBEAT * 0.85, t });
+    const arp = MARP[bar];
+    blip({ freq: arp[(beat * 2) % 4], type: 'triangle', peak: 0.06, dur: 0.13, t });
+    blip({ freq: arp[(beat * 2 + 1) % 4], type: 'triangle', peak: 0.05, dur: 0.12, t: t + MBEAT / 2 });
+    thud({ freq: 7500, q: 5, peak: 0.045, decay: 0.025, t: t + MBEAT / 2 });
+    menu.next += MBEAT; menu.step++;
+  }
+}
+function menuTick() {
+  const a = ctx();
+  route = music;
+  try { menuVoices(a); } finally { route = null; }
+}
+export function startMenuMusic() {
+  if (menu || bed || !musicOn) return;
+  const a = ctx();
+  menu = { next: a.currentTime + 0.08, step: 0, timer: setInterval(() => { try { menuTick(); } catch { /* never worth a frame */ } }, 100) };
+}
+export function stopMenuMusic() {
+  if (!menu) return;
+  clearInterval(menu.timer);
+  menu = null;
+}
+export const menuMusicPlaying = () => !!menu;
+
+// Both at once (the old single switch).
+export function setAudioEnabled(v) { setSfxEnabled(v); setMusicEnabled(v); }
+export function setSfxEnabled(v) {
+  enabled = !!v;
+  if (master) master.gain.value = enabled ? 1 : 0;
+}
+export function setMusicEnabled(v) {
+  musicOn = !!v;
+  if (!musicOn) { stopBed(); stopMenuMusic(); }
+  if (music) music.gain.value = musicOn ? 1 : 0;
 }
 export const audioEnabled = () => enabled;
+export const musicEnabled = () => musicOn;
 
 // A champion power's own sound, as data: [{ k: 'thud' | 'sweep' | 'blip' | 'crowd', …params }].
 // The same four primitives the kit above is built from — see public/champ-vfx.js.

@@ -1,0 +1,28 @@
+{
+  "clip": "M14",
+  "src": "hs-video/M14-level8.mp4 (from uploaded-images/WhatsApp Video 2026-10-05 at 18.09.09.mp4)",
+  "who": "Idan on LEVEL 8 stats (pink-haired card, pig hat at first) vs the stage-1 Korea CPU, 1:00 match",
+  "video": "848x392 at ~120 fps: the phone stretches HS's box to fill the screen. Squeezed to 711x384 and padded to 848, every HUD and pitch landmark lands on M12's pixels; M14-level8.mp4 is that, resampled to 60 fps.",
+  "method": "The face tracker swaps the players here (hat, hair, red board), so a body tracker was used on BOTH M12 and M14: background subtraction on the pitch band, Idan = the crimson blob, the CPU = the other. Run = 12-frame straight ground windows. Jump = parabola fit to the feet. Dash = the body's leading edge (HS draws a ghost behind it), read on the native 120 fps file. Power = M12's HUD reader. Scripts are in the 2026-10-06 session scratchpad (body.mjs, meas.mjs, jfit.mjs).",
+  "level0_M12_vs_level8_M14": {
+    "run_px_s": [197, 314, 1.59],
+    "jump_apex_px_feet": [42.3, 65.2, 1.54],
+    "jump_airtime_s": [0.76, 0.95, 1.25],
+    "gravity_px_s2": [586, 573, "same"],
+    "dash": ["112 px in 4 frames at 60 fps (67 ms)", "111-117 px in 6 frames at 120 fps (50 ms)", "distance x1.0, speed x1.33"],
+    "power_bar_px_s": [8.8, 22.3, 2.53],
+    "power_full_s": [18.5, 7.5],
+    "kick": "not measured"
+  },
+  "controls": {
+    "CPU_run_px_s_M12_M14": [190, 193],
+    "CPU_power_bar_px_s_M14": "6-10, the level-0 rate: same clock in both clips",
+    "CPU_jump_apex_M12_M14": [42.4, 45.9]
+  },
+  "per_level_if_linear": {
+    "speed": "+7.4%/level (Idan's 3 bars on M7: +8%)",
+    "jump_height": "+6.8%/level (3 bars: +5.7%)",
+    "power_rate": "+19%/level (3 bars: +17%)",
+    "L10_projection": "speed ~1.74, jump ~1.68, power ~2.9"
+  }
+}

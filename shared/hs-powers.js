@@ -169,19 +169,39 @@ function makeShot(family, o = {}) {
 }
 
 // ── stats ───────────────────────────────────────────────────────────────────────
-// HS's 1–10 stat levels → multipliers (estimated spread: level 1 runs 25% and kicks 40% under an
-// average body and jumps ~14% under, level 10 as far over). DASH is how long a dash lasts at its
-// measured 1790 px/s — HS's "the further your character will move" — estimated with speed's spread,
-// ±25% (Idan, 2026-10-04: the dash stat alone sets it, not speed). Only an arcade champion has
-// levels; everyone else is EQUAL.
+// HS's five stats, each a level 0–10 (docs/HS-STATS.md). Level 0 is HS's base, measured (M12):
+// the constants in constants.js ARE level 0, so a body on EQUAL_STATS is a fresh account's.
+// Every level multiplies its stat by its own curve, an even step a level, fitted to HS's clips
+// (M12 level 0, M7 Idan's 3 bars, M14 level 8; docs/HS-STATS.md):
+//   speed  run (and air) speed       +7.5%   195 → 341 px/s  (HS: L3 ×1.24, L8 ×1.59)
+//   jump   the jump's HEIGHT         +6.5%   39 → 65 px      (HS: L3 ×1.17, L8 ×1.54)
+//   kick   the boot's drive          +7.5%   (not measurable on the clips: as speed)
+//   dash   the dash's SPEED over the same 4 ticks, so as much FURTHER
+//                                    +4.5%   112 → 162 px    (HS: Idan's 4 bars, 4 frames at 33 px
+//          against 28 = 132 px; M14's 120 fps phone dashes differently and is not used)
+//   power  the gauge's fill rate     +17.5%  18.5 → 6.7 s    (HS: L3 ×1.51, L8 ×2.53; Idan,
+//          2026-10-06: 2.75 at the top, HS's ~2.9 felt too fast)
+// Online and 2-player play everyone on level 0 (Idan).
 export const EQUAL_STATS = Object.freeze({ speed: 1, jump: 1, kick: 1, dash: 1 });
-const lvl = (L, lo, hi) => lo + (hi - lo) * (Math.max(1, Math.min(10, L || 5.5)) - 1) / 9;
+const curve = (perLevel) => Object.freeze(Array.from({ length: 11 }, (_, L) => Math.round((1 + perLevel * L) * 1000) / 1000));
+export const CURVES = Object.freeze({ speed: curve(0.075), jump: curve(0.065), kick: curve(0.075), dash: curve(0.045), power: curve(0.175) });
+export const MAX_LEVEL = 10;
+export const levelOf = (L) => Math.max(0, Math.min(MAX_LEVEL, Math.round(Number(L) || 0)));
+// The multiplier one stat has at level L (the shop shows it).
+export const statMult = (k, L) => CURVES[k][levelOf(L)];
+// The take-off speed that makes the jump m times as HIGH as it is sampled (the sim steps velocity
+// before position, so every frame sits on a parabola launched at JUMP_V − g·dt/2 — see JUMP_V).
+function jumpMult(m) {
+  if (m === 1) return 1;
+  const h = C.PLAYER_GRAV * C.TICK / 2;
+  return (Math.sqrt(m) * (C.JUMP_V - h) + h) / C.JUMP_V;
+}
 export function statsFor(levels) {
   if (!levels) return EQUAL_STATS;
-  return { speed: lvl(levels.speed, 0.75, 1.25), jump: lvl(levels.jump, 0.86, 1.14), kick: lvl(levels.kick, 0.6, 1.4), dash: lvl(levels.dash, 0.75, 1.25) };
+  return { speed: statMult('speed', levels.speed), jump: jumpMult(statMult('jump', levels.jump)), kick: statMult('kick', levels.kick), dash: statMult('dash', levels.dash) };
 }
-// The POWER stat is how fast the gauge fills: level 5–6 is the starter's 15s, 10 is 25% faster.
-export const meterRateFor = (L) => (L ? 0.8 + (Math.max(1, Math.min(10, L)) - 1) * 0.05 : 1);
+// The POWER stat is how fast the gauge fills.
+export const meterRateFor = (L) => statMult('power', L);
 
 // ── the Up-and-Down wave: a literal quarter-sine, 33 entries, linearly interpolated ──────
 const QSIN = [0, 0.0491, 0.098, 0.1467, 0.1951, 0.243, 0.2903, 0.3369, 0.3827, 0.4276, 0.4714, 0.5141,

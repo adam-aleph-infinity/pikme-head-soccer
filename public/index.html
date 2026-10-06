@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
-<link rel="icon" href="img/saltiz-sm.jpg">
+<link rel="icon" href="img/saltiz-symbol.svg" type="image/svg+xml">
 <link rel="apple-touch-icon" href="img/saltiz-sm.jpg">
 <!-- HS is landscape-only and fullscreen (HS-GAP-AUDIT U10/U14) -->
 <link rel="manifest" href="manifest.webmanifest">
@@ -12,168 +12,170 @@
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Rubik:wght@500;700;900&display=swap">
 <title>סלטיז ראשים · Head Soccer mock</title>
 <link rel="stylesheet" href="style.css">
+<link rel="stylesheet" href="menus.css">
 </head>
 <body>
 
-<!-- ═══ PICK ═══ choose a card for each head ══════════════════════════════ -->
-<section id="pick" class="screen">
-  <div class="pick-top">
-  <header class="pick-head">
-    <h1>סלטיז <span>ראשים</span></h1>
-    <p class="sub">בחר את הקלף שיילחם בשבילך</p>
-    <b class="netdot" id="netdot" title="חיבור"></b>
-  </header>
+<!-- ═══ THE MENUS ═══ HS's screens and flow in the Saltiz colours (docs/HS-MENUS.md, menus.css,
+     menus.js). TITLE → MENU → SELECT ⇄ SHOP → VS → MATCH → RESULT → SELECT; the lobby off the menu.
+     The geometry is HS's (BACK top-left, SHOP left, PLAY right); the words are Hebrew. -->
 
-  <div class="slots">
-    <button class="slot" id="slotMe"  data-who="me">
-      <div class="slot-art"></div>
-      <div class="slot-cap">אני</div>
-      <div class="slot-shot">—</div>
-    </button>
-    <div class="vs">VS</div>
-    <button class="slot" id="slotFoe" data-who="foe">
-      <div class="slot-art"></div>
-      <div class="slot-cap">יריב</div>
-      <div class="slot-shot">—</div>
-    </button>
+<!-- TITLE · HS: the logo, "TOUCH TO KICK OFF !" -->
+<section id="title" class="screen m-screen hidden" aria-label="סלטיז ראשים">
+  <i class="m-rays" aria-hidden="true"></i>
+  <div class="t-sparks" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div>
+  <div class="t-stage">
+    <span class="m-sym glow t-sym" id="tSym"></span>
+    <h1 class="t-word"><b class="m-title flame">סלטיז</b><b class="m-title chrome">ראשים</b></h1>
   </div>
+  <p class="t-tap">לחצו כדי להתחיל</p>
+  <small class="t-foot">© סלטיז · בהשראת Head Soccer</small>
+</section>
 
-  <nav class="rarity-tabs" id="rarityTabs">
-    <button data-r="legendary" class="on">אגדי</button>
-    <button data-r="epic">אדיר</button>
-    <button data-r="rare">נדיר</button>
-    <button data-r="common">רגיל</button>
+<!-- MAIN MENU · HS M15: logo top-left, icons top-right, the big hero art, a looping carousel of modes -->
+<section id="menu" class="screen m-screen hidden">
+  <i class="m-rays" aria-hidden="true"></i>
+  <!-- HS's menu is one big, loud cartoon: its stadium, its stars mid-play. Ours: HS's daylight
+       stadium with the Saltiz blimp over it, the champions cheering, and you heading the ball. -->
+  <div class="mn-scene" aria-hidden="true">
+    <canvas class="mn-stadium" id="mnStadium"></canvas>
+    <i class="mn-beam l"></i><i class="mn-beam r"></i>
+    <div class="mn-blimp"><span class="m-sym" id="mnBlimpSym"></span><b>סלטיז ראשים</b><i class="mn-flag"></i></div>
+    <div class="mn-confetti"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div>
+    <div class="mn-cast" id="mnCast"></div>
+    <div class="mn-hero">
+      <i class="mn-shine"></i>
+      <i class="mn-face" id="mnFace"></i>
+      <i class="mn-pow">!</i>
+      <i class="mn-ball"></i>
+    </div>
+    <i class="mn-fade"></i>
+  </div>
+  <header class="mn-logo m-drop"><span class="m-sym" id="mnLogo"></span><span class="mn-word"><b class="m-title flame sm">סלטיז</b><b class="m-title chrome sm">ראשים</b></span></header>
+  <div class="mn-top m-drop">
+    <span class="m-points" title="נקודות סולטיז"><i class="coin"></i><b id="mnPts">0</b></span>
+    <button class="m-orb" id="mnOpt" aria-label="הגדרות">⚙</button>
+  </div>
+  <nav class="mn-car m-rise" aria-label="מצבי משחק">
+    <button class="m-chev prev" id="mnPrev" aria-label="הקודם"></button>
+    <div class="mn-track" id="mnTrack"></div>
+    <button class="m-chev next" id="mnNext" aria-label="הבא"></button>
   </nav>
-  </div>
-
-  <div class="grid" id="cardGrid"></div>
-
-  <!-- One way forward from the album: «שחק». HOW to play is the next screen's question —
-       it used to be a two-way toggle down here, and the game now has two different answers
-       to it (a friend, or the 45-champion arcade), each with its own screen behind it. -->
-  <div class="pick-bar">
-  <footer class="pick-foot">
-    <span class="pick-hint">בחר קלף ולחץ שחק</span>
-    <button class="play" id="playBtn">שחק</button>
-  </footer>
-  </div>
 </section>
 
-<!-- ═══ MODE ═══ the card is chosen: who do you play? ════════════════════ -->
-<!-- .salt = the Saltiz look: the red-and-yellow hexagon, its rays and its hex floor. -->
-<section id="modeSel" class="screen hidden salt">
-  <i class="salt-rays" aria-hidden="true"></i>
-  <button class="salt-back" id="modeBack">‹ חזרה</button>
-  <header class="mode-brand">
-    <span class="salt-logo"><img src="img/saltiz-sm.jpg" alt="סלטיז"></span>
-    <div>
-      <span class="salt-kicker">סלטיז ראשים</span>
-      <h2 class="salt-h">בחר מצב משחק</h2>
+<!-- PLAYER SELECT · HS: two reels (you left, the CPU right), MATCH n, the last score, the stats, SHOP / PLAY -->
+<section id="select" class="screen m-screen hidden">
+  <i class="m-rays" aria-hidden="true"></i>
+  <button class="m-back m-drop" id="selBack"><i></i>חזרה</button>
+  <h1 class="sel-h m-drop"><b class="m-title" id="selH">בחר שחקן</b></h1>
+  <div class="m-panel sel-panel">
+    <div class="sel-tab"><small id="selTabK">שלב</small><b id="selTabV">1</b></div>
+    <div class="sel-row">
+      <button class="m-chip" id="selRar" aria-label="החלף נדירות"></button>
+      <span class="sel-score" id="selScore">0 : 0</span>
+      <span class="m-chip foe" id="selTier"></span>
     </div>
-  </header>
-  <div class="mode-cards">
-    <button class="mode-card red" id="modeMulti">
-      <span class="mode-hex"><i>👥</i></span>
-      <b>רב משתתפים</b>
-      <span class="mode-sub">1 על 1 עם חבר · קישור או קוד</span>
-      <span class="online-count"></span>
-      <em class="mode-tag">🔥 אונליין</em>
-    </button>
-    <button class="mode-card gold" id="modeArcade">
-      <span class="mode-hex"><i>🏆</i></span>
-      <b>שחקן יחיד</b>
-      <span class="mode-sub" id="modeArcadeSub">אלופים · שלב 1/45</span>
-      <em class="mode-tag">⭐ ארקייד</em>
-    </button>
+    <div class="sel-reel me" id="reelMe" aria-label="הקלף שלך"></div>
+    <div class="sel-reel foe" id="reelFoe" aria-label="היריב"></div>
+    <div class="sel-mid">
+      <div class="sel-side"><span class="m-tag">אתה</span><i class="m-gem" id="selGem"></i></div>
+      <b class="sel-vs" aria-hidden="true">VS</b>
+      <div class="sel-side"><span class="m-tag foe" id="selFoeTag">אלוף</span><i class="m-gem" id="selFoeGem"></i><span class="m-stars" id="selStars"></span></div>
+    </div>
+    <div class="sel-diff hidden" id="selDiff"><button class="m-chev sm prev" id="diffDown" aria-label="קל יותר"></button><b id="diffName"></b><button class="m-chev sm next" id="diffUp" aria-label="קשה יותר"></button></div>
+    <button class="sel-power" id="selPower"></button>
+    <div class="m-tip hidden" id="selTip"></div>
   </div>
-  <!-- Multiplayer is the existing private-room flow, unchanged: the same two buttons, the
-       same lobby behind them. -->
-  <div class="multi-row hidden" id="multiRow">
-    <button class="play" id="hostBtn">🔗 צור קישור</button>
-    <button class="ghost" id="joinBtn">הצטרף לקוד</button>
-  </div>
-</section>
-
-<!-- ═══ ARCADE ═══ 45 champions, beaten in order ═════════════════════════ -->
-<!-- Laid out like Head Soccer's PLAYER SELECT: you on one side, the champion on the other,
-     VS between, the 45 champions as a strip underneath, the stats and PLAY along the bottom. -->
-<section id="arcade" class="screen hidden salt">
-  <i class="salt-rays" aria-hidden="true"></i>
-  <header class="arc-head">
-    <button class="salt-back" id="arcBack">‹ חזרה</button>
-    <div class="arc-brand">
-      <h2 class="salt-h">בחר אלוף</h2>
-    </div>
-    <div class="arc-prog"><span>🏆</span><div class="arc-bar"><i id="arcBar"></i></div><b id="arcProg">0 / 45</b></div>
-  </header>
-
-  <div class="arc-pitch">
-    <div class="arc-side you">
-      <span class="arc-tag">אתה</span>
-      <div class="hexframe"><i class="arc-you-face" id="arcYouFace"></i></div>
-      <b class="arc-name" id="arcYou">—</b>
-    </div>
-
-    <div class="arc-mid">
-      <span class="salt-logo arc-logo"><img src="img/saltiz-sm.jpg" alt="סלטיז"></span>
-      <span class="arc-stage" id="arcStage">שלב 1</span>
-      <div class="arc-vs">VS</div>
-      <span class="arc-stars" id="arcStars"></span>
-      <span class="arc-status" id="arcStatus"></span>
-      <div class="arc-power"><b id="arcPower">—</b><p id="arcDesc">—</p></div>
-    </div>
-
-    <div class="arc-side foe">
-      <span class="arc-tag">אלוף</span>
-      <!-- The reel, Head Soccer style: the champions stacked vertically, the chosen one big in
-           the middle, the ones before and after shrinking away above and below. ▲/▼, the
-           arrow keys, the wheel, a drag or a tap on a neighbour all roll it. -->
-      <button class="arc-step up" id="arcPrev" aria-label="הקודם">▲</button>
-      <div class="arc-reel" id="arcReel" role="group" aria-roledescription="carousel" aria-label="אלופים"></div>
-      <button class="arc-step down" id="arcNext" aria-label="הבא">▼</button>
-      <b class="arc-name arc-title" id="arcTitle" aria-live="polite">—</b>
-      <span class="arc-count" id="arcCount">1 / 45</span>
-    </div>
-
-    <div class="arc-grid" id="arcGrid"></div>
-  </div>
-
-  <footer class="arc-foot">
-    <div class="arc-free">
-      <button class="salt-btn red" id="freeBtn">אימון חופשי</button>
-      <!-- The old «נגד המחשב» match, kept: your card against the יריב slot at a chosen level. -->
-      <label class="diff">
-        <span>רמה</span>
-        <input type="range" id="diff" min="0" max="5" step="1" value="3">
-        <b id="diffName">קשה</b>
-      </label>
-    </div>
-    <div class="arc-stats" id="arcStats"></div>
-    <button class="salt-btn gold" id="arcPlay">שחק</button>
+  <footer class="sel-bar m-rise">
+    <button class="m-pill red" id="selShop"><b>חנות</b></button>
+    <div class="sel-stats" id="selStats"></div>
+    <button class="m-pill big glint" id="selPlay"><b>שחק</b></button>
   </footer>
 </section>
 
-<!-- ═══ LOBBY ═══ private room, joined by a 4-char code ═══════════════════ -->
-<section id="lobby" class="screen hidden">
-  <button class="lobby-back" id="lobbyBack">‹ חזרה</button>
-  <h2>חדר פרטי</h2>
-
-  <div class="code-box" id="codeBox">
-    <span class="code-label">הקוד שלך</span>
-    <b id="roomCode">····</b>
-    <button class="ghost" id="copyLink">העתק קישור</button>
+<!-- SHOP · HS: BACK, folder tabs, a row per stat (price, ten dots, Buy), MY POINT at the bottom -->
+<section id="shop" class="screen m-screen hidden">
+  <i class="m-rays" aria-hidden="true"></i>
+  <button class="m-back m-drop" id="shopBack"><i></i>חזרה</button>
+  <nav class="shop-tabs m-drop"><b class="shop-tab on" id="upgTitle">שדרוג</b></nav>
+  <div class="m-panel shop-panel">
+    <div class="shop-rows" id="upgRows"></div>
+    <div class="shop-you"><span class="m-hex"><i class="m-face" id="shopFace"></i></span><b id="shopName"></b><small>השדרוגים חלים על כל הקלפים שלך</small></div>
   </div>
+  <footer class="shop-bar m-rise"><span class="m-points big" id="upgPtsBox"><small>נקודות סולטיז</small><i class="coin"></i><b id="upgPts">0</b></span></footer>
+</section>
 
-  <div class="join-box" id="joinBox">
-    <span class="code-label">הכנס קוד חבר</span>
-    <input id="codeInput" maxlength="4" inputmode="latin" autocapitalize="characters" placeholder="ABCD">
-    <button class="ghost" id="joinGo">הצטרף</button>
+<!-- HOW TO · HS: numbered card pages that swipe sideways, ‹ › at the bottom corners -->
+<section id="howto" class="screen m-screen hidden">
+  <i class="m-rays" aria-hidden="true"></i>
+  <button class="m-back m-drop" id="howBack"><i></i>חזרה</button>
+  <h1 class="how-h m-drop"><b class="m-title">איך משחקים</b></h1>
+  <div class="how-view" id="howView"><div class="how-track" id="howTrack"></div></div>
+  <button class="m-chev prev how-prev" id="howPrev" aria-label="הקודם"></button>
+  <button class="m-chev next how-next" id="howNext" aria-label="הבא"></button>
+</section>
+
+<!-- OPTIONS · HS M15: the pause screen's design over the menu — the symbol in the middle, pills round it -->
+<div class="m-pop ring-pop hidden" id="optPop" role="dialog" aria-modal="true" aria-label="הגדרות">
+  <!-- HS's OPTION: its ball in the middle, spinning, the pills spaced evenly round it -->
+  <div class="orbit">
+    <div class="ring-mid"><span class="m-sym glow" id="oSym"></span><b class="m-title">הגדרות</b></div>
+    <button class="m-pill ring-btn ob o1" id="oSnd"><i class="m-orb">🔊</i><b>צליל</b></button>
+    <button class="m-pill ring-btn ob o2" id="oMus"><i class="m-orb">🎵</i><b>מוזיקה</b></button>
+    <button class="m-pill ring-btn ob o3" id="oHow"><i class="m-orb">❔</i><b>איך משחקים</b></button>
+    <button class="m-pill ring-btn ob o4" id="oStats"><i class="m-orb">📊</i><b>סטטיסטיקה</b></button>
+    <button class="m-pill ring-btn ob o5" id="oBack"><b>חזרה</b></button>
   </div>
+</div>
 
-  <div class="seats" id="seats"></div>
-  <p class="online-count"></p>
-  <p class="lobby-hint" id="lobbyHint">שלח את הקישור לחבר</p>
-  <button class="play" id="readyBtn" disabled>מוכן</button>
+<!-- STATS · HS: SINGLE / VICTORY / … -->
+<div class="m-pop hidden" id="statsPop" role="dialog" aria-modal="true" aria-label="סטטיסטיקה">
+  <div class="m-panel plain stats-panel"><button class="m-x" id="statsX" aria-label="סגור">✕</button>
+    <b class="m-title sm">סטטיסטיקה</b><dl class="stats-list" id="statsList"></dl></div>
+</div>
+
+<!-- YOUR CARD: the whole album, a tap on your frame away -->
+<div class="m-pop hidden" id="cardsPop" role="dialog" aria-modal="true" aria-label="בחר קלף">
+  <div class="m-panel plain cards-panel"><button class="m-x" id="cardsX" aria-label="סגור">✕</button>
+    <b class="m-title sm cards-h">בחר קלף</b>
+    <nav class="cards-tabs" id="cardsTabs"></nav>
+    <div class="cards-grid" id="cardGrid"></div></div>
+</div>
+
+<!-- MULTIPLAYER · HS M15: your name ("MAX 10 · AUTO SAVE") and two big ways in -->
+<div class="m-pop hidden" id="mpPop" role="dialog" aria-modal="true" aria-label="רב משתתפים">
+  <div class="m-panel plain mp-panel"><button class="m-x" id="mpX" aria-label="סגור">✕</button>
+    <div class="mp-half me">
+      <label class="mp-label" for="mpName">שם · עד 10 תווים · נשמר אוטומטית</label>
+      <input id="mpName" maxlength="10" autocomplete="nickname" spellcheck="false">
+      <button class="mp-card" id="mpCard"><span class="m-hex"><i class="m-face" id="mpFace"></i></span><span class="mp-card-t"><small>הקלף שלך</small><b id="mpCardName"></b></span></button>
+      <span class="online-count mp-online"></span>
+    </div>
+    <div class="mp-half go">
+      <button class="mp-big" id="hostBtn"><i>⚡</i><b>צור חדר</b><small>שלחו קישור לחבר</small></button>
+      <button class="mp-big join" id="joinBtn"><i>🔑</i><b>הצטרף עם קוד</b><small>4 תווים מחבר</small></button>
+    </div>
+  </div>
+</div>
+
+<!-- a phone held upright is asked to turn, on every screen (HS is landscape only) -->
+<div class="rotate m-rotate" id="rotateMenu" aria-hidden="true"><b>⟳</b><span>סובבו את הטלפון</span></div>
+
+<!-- ═══ LOBBY ═══ a private room, joined by a 4-character code (HS's FRIENDLY) ═════════ -->
+<section id="lobby" class="screen m-screen hidden">
+  <i class="m-rays" aria-hidden="true"></i>
+  <button class="m-back m-drop" id="lobbyBack"><i></i>חזרה</button>
+  <h1 class="lob-h m-drop"><b class="m-title">חדר פרטי</b></h1>
+  <div class="m-panel lob-panel">
+    <div class="lob-code" id="codeBox"><small>הקוד שלכם</small><b id="roomCode" dir="ltr">····</b><button class="m-pill sm" id="copyLink"><b>העתק קישור</b></button></div>
+    <div class="lob-join" id="joinBox"><small>הכניסו את הקוד של החבר</small><input id="codeInput" maxlength="4" inputmode="latin" autocapitalize="characters" autocomplete="off" spellcheck="false" placeholder="ABCD" dir="ltr"><button class="m-pill sm" id="joinGo"><b>הצטרף</b></button></div>
+    <div class="lob-seats" id="seats"></div>
+    <!-- HS's "Connecting..": two devices and the dashes between them, here two hexagons -->
+    <div class="mp-conn hidden" id="mpConn"><span class="m-hex sm"><i class="m-face" id="connFace"></i></span><i class="mp-dash"></i><span class="m-hex sm"><i class="m-face"></i></span><b>מתחבר…</b></div>
+    <p class="lob-hint" id="lobbyHint">שלחו את הקישור לחבר</p>
+    <p class="online-count lob-online"></p>
+  </div>
+  <footer class="lob-bar m-rise"><button class="m-pill big glint" id="readyBtn" disabled><b>מוכן</b></button></footer>
 </section>
 
 <!-- ═══ MATCH ═══════════════════════════════════════════════════════════ -->
@@ -275,15 +277,25 @@
     <button class="pauseBtn" id="pauseBtn" aria-label="הפסקה">II</button>
   </div>
 
-  <div class="over hidden" id="over">
+  <!-- HS's RESULT: the title, YOU WIN spelled out, both heads and the score on the panel, the
+       points it paid, one button back to Player Select (online: two) -->
+  <div class="m-result hidden" id="over">
     <div class="ov-res gold">RESULT</div>
-    <div class="ov-spell gold" id="ovSpell"></div>
-    <h2 id="overTitle"></h2>
-    <div class="over-faces"><i class="ov-face" id="ovFace0"></i><p id="overScore"></p><i class="ov-face" id="ovFace1"></i></div>
-    <p class="over-sub" id="overSub" hidden></p>
-    <div class="over-btns">
-      <button id="again">עוד פעם</button>
-      <button id="back">קלפים</button>
+    <div class="m-panel ov-panel">
+      <div class="ov-spell gold" id="ovSpell"></div>
+      <div class="over-faces">
+        <div class="ov-side"><i class="ov-face" id="ovFace0"></i><i class="ov-bub">?!</i><i class="m-gem" id="ovGem0"></i></div>
+        <p id="overScore"></p>
+        <div class="ov-side"><i class="ov-face" id="ovFace1"></i><i class="ov-bub">?!</i><i class="m-gem" id="ovGem1"></i></div>
+      </div>
+      <div class="ov-pts" id="ovPts"><span><small>פרס</small><b><i class="coin"></i><i id="ovReward">0</i></b></span><span><small>סה״כ נקודות סולטיז</small><b><i class="coin"></i><i id="ovTotal">0</i></b></span></div>
+      <p class="ov-news hidden" id="ovNews"></p>
+      <h2 id="overTitle" hidden></h2>
+      <p class="over-sub" id="overSub" hidden></p>
+    </div>
+    <div class="ov-btns">
+      <button class="m-pill red hidden" id="back"><b>יציאה</b></button>
+      <button class="m-pill big glint" id="again"><b>המשחק הבא</b></button>
     </div>
   </div>
 
@@ -294,21 +306,30 @@
   <div class="vs hidden" id="vs" aria-hidden="true">
     <div class="vs-band"></div>
     <i class="vs-face" id="vsFace0"></i>
-    <div class="vs-mid"><span class="vs-badge"><img src="img/saltiz.jpg" alt=""></span><b class="vs-txt gold">VS</b></div>
+    <div class="vs-mid"><span class="vs-badge m-sym" id="vsSym"></span><i class="vs-bolt l"></i><i class="vs-bolt r"></i><b class="vs-txt gold">VS</b></div>
     <i class="vs-face" id="vsFace1"></i>
+    <b class="vs-hint">לחצו כדי להתחיל</b>
   </div>
 
-  <!-- HS's pause: the gold II at the top right stops the match; resume, retry or quit -->
-  <div class="over pause hidden" id="pause">
-    <h2>הפסקה</h2>
-    <div class="over-btns">
-      <button id="resume">המשך</button>
-      <button id="retry">מההתחלה</button>
-      <button id="quit">יציאה</button>
+  <!-- HS's PAUSE (M6, M15): the match dims, a big centre piece (HS's ball, our symbol) with the
+       word across it; SOUND / MUSIC / How to on one side, RESUME / GIVE UP / TITLE on the other -->
+  <div class="m-pop ring-pop in-match hidden" id="pause" role="dialog" aria-label="הפסקה">
+    <div class="ring">
+      <div class="ring-col">
+        <button class="m-pill ring-btn" id="pSnd"><i class="m-orb">🔊</i><b>צליל</b></button>
+        <button class="m-pill ring-btn" id="pMus"><i class="m-orb">🎵</i><b>מוזיקה</b></button>
+        <button class="m-pill ring-btn" id="pHow"><i class="m-orb">❔</i><b>איך משחקים</b></button>
+      </div>
+      <div class="ring-mid"><span class="m-sym glow" id="pSym"></span><b class="m-title">הפסקה</b></div>
+      <div class="ring-col">
+        <button class="m-pill ring-btn" id="resume"><b>המשך</b></button>
+        <button class="m-pill ring-btn" id="pGive"><b>ויתור</b></button>
+        <button class="m-pill ring-btn" id="quit"><b>תפריט ראשי</b></button>
+      </div>
     </div>
-    <div class="over-btns"><button id="pSnd">🔊 צליל</button></div>
   </div>
 </section>
+
 
 
 <!-- ═══ TUNER ═══ live feel dials ════════════════════════════════════════ -->

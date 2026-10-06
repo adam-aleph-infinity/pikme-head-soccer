@@ -133,10 +133,11 @@ function botInputRaw(bot, m, index, dt) {
       // Deny when I will get there first (or nothing else works); otherwise stand in the path.
       const spot = bot.foeSpot != null && !iAmFirst ? bot.foeSpot - p.side * 6
         : Math.max(C.GOAL_W + 24, Math.min(C.W - C.GOAL_W - 24, b.x - p.side * 26));
-      steer(bot, p, out, spot);
+      steer(bot, p, out, holdShort(p, b, spot));
       out.kick = adx < C.KICK_REACH + C.KICK_R && (b.x - p.x) * p.side > -10 && p.kickCd <= 0 && !bot.lastKick;
       bot.lastKick = out.kick;
-      out.jump = false;
+      out.jump = overTheBall(p, b, out) && !bot.lastJump;
+      bot.lastJump = out.jump;
       out.power = armNow(m, p, b);          // its own bar filling: armed as always, never as a shield
       return out;
     }
@@ -476,6 +477,36 @@ const jumpVOf = (p) => C.JUMP_V * (p?.stats?.jump ?? 1);
 const jumpRise = (t, v = C.JUMP_V) => Math.max(0, v * t - 0.5 * C.PLAYER_GRAV * t * t);
 const JUMP_APEX = (v = C.JUMP_V) => (v * v) / (2 * C.PLAYER_GRAV);
 
+// OVER THE BALL, NOT THROUGH IT (an upgraded body). Running home past a ball that is between me
+// and my own goal, a body faster than the ball catches it from behind — boots, body or head — and
+// shoves it in: on level 10 (536 px/s) that was the commonest goal against a champion, most of
+// them with the other player never touching it, and most while denying an armed player the touch
+// (2026-10-06). Jump it instead, at the moment the boots will be over it when I get there — and
+// when no jump can clear it in time (a ball at head height on a short approach), hold short of it
+// and let it run on alone: a run into its back is the one sure way to put it in. A level-0 body
+// (195 px/s) cannot catch such a ball, and plays exactly as it always has.
+//   chase(p, b, dir) — dir: the way I am going (+1/−1) — null, or how the catch would go.
+function chase(p, b, dir) {
+  const speed = C.PLAYER_SPEED * (p.stats?.speed ?? 1);
+  if (!p.onGround || speed <= C.PLAYER_SPEED || b.power) return null;
+  const home = -p.side;                                           // the way to my own goal
+  const lead = (b.x - p.x) * home;                                // the ball's lead on me, homeward
+  const crown = p.y - C.BODY_H - 2 * C.HEAD_R;
+  if (dir !== home || lead <= 0 || b.y + C.BALL_R < crown || b.y >= p.y) return null;
+  const closing = speed - b.vx * home;
+  if (closing <= 60) return null;                                 // it is getting away: no catch
+  const tReach = Math.max(0, (lead - C.BODY_W / 2 - C.BALL_R) / closing);
+  if (tReach > 0.6) return null;
+  const clear = p.y - (b.y + b.vy * tReach) + C.BALL_R + 4;      // the boots over its top then
+  return { over: jumpRise(tReach, jumpVOf(p)) >= clear };
+}
+const overTheBall = (p, b, out) => !!chase(p, b, (out.right ? 1 : 0) - (out.left ? 1 : 0))?.over;
+// The steering target, held short of a ball I would only run into the back of.
+function holdShort(p, b, target) {
+  const c = chase(p, b, Math.sign(target - p.x));
+  return c && !c.over ? p.x : target;
+}
+
 function steer(bot, p, out, target) {
   // Hysteresis: start moving at 12px off the target, stop inside 4px. Without it a bot parked on
   // its spot flickers left/right/left — and two presses of one arrow inside DASH_WINDOW are a
@@ -488,7 +519,13 @@ function steer(bot, p, out, target) {
   // …and never a TAP of an arrow unless a dash is meant: the sim opens the dash window on the
   // release of a press shorter than DASH_TAP_MAX, so a press is held at least that long (a
   // reversal still turns at once). Then no later press can be the second half of a double tap.
-  if (bot.dir && dir !== bot.dir && dir !== -bot.dir && bot.t - (bot.pressT?.[bot.dir] ?? -9) < C.DASH_TAP_MAX + C.TICK) dir = bot.dir;
+  // (An UPGRADED body may let go early instead — at level 10 the 0.2 s hold is 107px, and it could
+  // not stop within a stride and a half of its spot; the early release is then treated like a
+  // reversal: that arrow stays off for DASH_WINDOW, so it is never half of a double tap.)
+  const quick = (p.stats?.speed ?? 1) > 1;
+  if (bot.dir && dir !== bot.dir && dir !== -bot.dir && bot.t - (bot.pressT?.[bot.dir] ?? -9) < C.DASH_TAP_MAX + C.TICK) {
+    if (quick) (bot.shortT ??= {})[bot.dir] = bot.t; else dir = bot.dir;
+  }
   if (bot.dir && dir === -bot.dir && bot.t - (bot.pressT?.[bot.dir] ?? -9) < C.DASH_TAP_MAX + C.TICK) { (bot.shortT ??= {})[bot.dir] = bot.t; }
   if (dir !== 0 && dir !== bot.dir && bot.t - (bot.shortT?.[dir] ?? -9) < C.DASH_WINDOW + C.TICK) dir = 0;
   if (dir !== 0 && dir !== bot.dir) (bot.pressT ??= {})[dir] = bot.t;
@@ -507,7 +544,7 @@ function openPlay(bot, m, p, foe, b, out, d, dt) {
   // as time in hand. Picked at its full speed, it went for earlier, higher, longer-read touches and
   // played WORSE for being faster (2026-10-04: the same brain, +2 speed, lost by 0.6 goals a match
   // to itself on the old body; planning at the tuned speed, level).
-  const planSpeed = C.PLAYER_SPEED * Math.min(1, p.stats?.speed ?? 1), planDash = 60 * Math.min(1, p.stats?.dash ?? 1);
+  const planSpeed = C.PLAYER_SPEED * Math.min(1, p.stats?.speed ?? 1), planDash = 0.4 * C.DASH_V * Math.ceil(C.DASH_TIME / C.TICK - 1e-9) * C.TICK * Math.min(1, p.stats?.dash ?? 1);
   const foeSpeed = C.PLAYER_SPEED * (foe.stats?.speed ?? 1);
   const jumpV = C.JUMP_V * (p.stats?.jump ?? 1);
   const apex = (jumpV * jumpV) / (2 * C.PLAYER_GRAV);
@@ -651,7 +688,7 @@ function openPlay(bot, m, p, foe, b, out, d, dt) {
     if (low && ahd > 0 && ahd < 30 + closing * MEET_T && b.vx * p.side < 150) bot.aim = b.x + p.side * 40;
   }
   // ---- steering ----
-  steer(bot, p, out, bot.aim);
+  steer(bot, p, out, holdShort(p, b, bot.aim));
   // Dashing is a double tap: off, on, off, on — two rising edges inside DASH_WINDOW.
   if (bot.wantDash && bot.dashPulse == null && p.dashCd <= 0 && (out.left || out.right)) {
     bot.dashPulse = 0; bot.pulseDir = out.right ? 1 : -1;
@@ -690,6 +727,11 @@ function openPlay(bot, m, p, foe, b, out, d, dt) {
       // head, the body or the boot standing, and jumping for it lifts the player over it — the ball
       // rolled under and on behind him (2026-10-04: a third of the top tier's bumps on ground balls).
       if (q.y >= hy - 6) continue;
+      // An UPGRADED jump heads only a ball in front of the head's centre, defending too: its crown
+      // comes up far faster (366 px/s at level 10 against 216) and a ball met behind the centre
+      // loops back over the shoulder — on level 10 two goals a match went in off the champion's
+      // own head that way (2026-10-06).
+      if (jumpV > C.JUMP_V && (q.x - hx) * side < 0) continue;
       if (dd < C.HEAD_R + C.BALL_R + 3 && ((q.x - hx) * side > -C.HEAD_R * 0.3 || toMyGoal)) { chance = true; break; }
     }
     // A chance is taken or passed on ONCE (per approach), on skill — a weak tier misses the
@@ -704,7 +746,9 @@ function openPlay(bot, m, p, foe, b, out, d, dt) {
         bot.rng() < 0.08 + 0.2 * s) jump = true;
     // THE HOP: the HS CPU is in the air every 1.6–2.3 s, and not only for a header it has
     // lined up — a ball dropping in over it, close in front, gets a jump to meet it early.
-    if (!jump && b.y < hy - C.HEAD_R && Math.abs(dxb) < 150 && bot.rng() < HOP) jump = true;
+    // (An upgraded jump hops only for a ball in front: its crown comes up so fast that one met
+    // behind the head's centre is fired back over the shoulder at its own goal.)
+    if (!jump && b.y < hy - C.HEAD_R && Math.abs(dxb) < 150 && (jumpV <= C.JUMP_V || ahead > C.HEAD_R) && bot.rng() < HOP) jump = true;
     // SOLID BODIES: the other player is between me and where I am going, on the grass. Jump:
     // a jump does not clear a head, it lands ON it (HS: standing on heads), and from there the
     // walk carries on over the top.
@@ -712,6 +756,7 @@ function openPlay(bot, m, p, foe, b, out, d, dt) {
     const foeAhead = (foe.x - p.x) * goingTo;
     if (!jump && goingTo !== 0 && foeAhead > 0 && foeAhead < C.HEAD_R * 2 + 14 && Math.abs(bot.aim - p.x) > foeAhead + 20 &&
         foe.onGround && Math.abs(foe.y - p.y) < 4 && bot.rng() < 0.05 + 0.1 * s) jump = true;
+    if (!jump && overTheBall(p, b, out)) jump = true;
   }
   out.jump = jump && !bot.lastJump;           // an edge: HOLDING jump re-jumps on every landing
   bot.lastJump = out.jump;

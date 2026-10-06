@@ -12,14 +12,14 @@
 //   the bot's own dials — reaction time, misread, aim, counters, how long it sits on a full
 //     meter. Stage 1 is the bot's easiest tier (קל מאוד) and stage 45 just short of its hardest
 //     (אגדי). This is what a PERSON feels: a bot that turns up late and misreads the ball.
-//   the champion's body — Head Soccer's five 1–10 stats (speed, jump, kick, dash, power), which
-//     climb a little every stage from level 1 at stage 1 to the five-star body at stage 10, and stay
-//     there (the map; Idan, 2026-10-05). Bot against bot the dials
+//   the champion's body — Head Soccer's five stats (speed, jump, kick, dash, power, docs/HS-STATS.md):
+//     champion n on level n, from level 1 at stage 1 to level 10 — "fully upgraded" — at stage 10 and
+//     every one after, its power held at 1–4 (the map; Idan, 2026-10-06). Bot against bot the dials
 //     above barely move a scoreline while the body does — 10% off the jump cost 50 goals over 64
 //     matches — so the body is the ladder's other half. The POWER stat is how fast the gauge fills.
 //
 // The shots climb alongside it: the plain families first, Critical, Grab, Multi-Ball and Delay
-// late. The player's own card always plays on equal stats.
+// late. The player plays on the levels they have bought (shared/upgrades.js), level 0 to begin with.
 
 import { HS_MAP } from './hs-champion-map.js';
 import { FAMILIES, AILMENTS } from './hs-powers.js';
@@ -143,17 +143,18 @@ export function botProfile(champ) {
   };
 }
 
-// Everything the client needs to start a stage.
-export function stageConfig(stage) {
+// Everything the client needs to start a stage. `playerLevels` is the player's own five stat
+// levels (shared/upgrades.js); left out, the player is on level 0 — HS's base.
+export function stageConfig(stage, playerLevels = null) {
   const champ = championForStage(stage);
   if (!champ) return null;
   return {
     stage, champ,
     bot: botProfile(champ),
-    // Player 0 is the human (equal stats, always); player 1 is the champion on its HS stats.
+    // Player 0 is the human on the levels they have bought; player 1 the champion on its own.
     matchOpts: {
       champions: true,
-      stats: [null, champ.hs.stats],
+      stats: [playerLevels, champ.hs.stats],
     },
   };
 }
