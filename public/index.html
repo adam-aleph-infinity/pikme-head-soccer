@@ -66,6 +66,8 @@
 <!-- PLAYER SELECT · HS: two reels (you left, the CPU right), MATCH n, the last score, the stats, SHOP / PLAY -->
 <section id="select" class="screen m-screen hidden">
   <i class="m-rays" aria-hidden="true"></i>
+  <i class="cup-rays" aria-hidden="true"></i>
+  <div class="mn-confetti cup-only" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div>
   <button class="m-back m-drop" id="selBack"><i></i>חזרה</button>
   <h1 class="sel-h m-drop"><b class="m-title" id="selH">בחר שחקן</b></h1>
   <div class="m-panel sel-panel">
@@ -84,6 +86,12 @@
     </div>
     <div class="sel-diff hidden" id="selDiff"><button class="m-chev sm prev" id="diffDown" aria-label="קל יותר"></button><b id="diffName"></b><button class="m-chev sm next" id="diffUp" aria-label="קשה יותר"></button></div>
     <button class="sel-power" id="selPower"></button>
+    <!-- the tournament's side of Player Select: what you are entering (HS M15 44 s) -->
+    <!-- HS M15 44 s: in the tournament you pick only yourself, from a sideways reel -->
+    <div class="sel-reel cup-reel" id="reelCup" aria-label="הקלף שלך"></div>
+    <div class="sel-cup" id="selCup">
+      <ul class="cup-prizes"><li><span>רבע גמר</span><b><i class="coin"></i>100</b></li><li><span>חצי גמר</span><b><i class="coin"></i>700</b></li><li><span>גמר</span><b><i class="coin"></i>1,700</b></li></ul>
+    </div>
     <div class="m-tip hidden" id="selTip"></div>
   </div>
   <footer class="sel-bar m-rise">
@@ -103,6 +111,36 @@
     <div class="shop-you"><span class="m-hex"><i class="m-face" id="shopFace"></i></span><b id="shopName"></b><small>השדרוגים חלים על כל הקלפים שלך</small></div>
   </div>
   <footer class="shop-bar m-rise"><span class="m-points big" id="upgPtsBox"><small>נקודות סולטיז</small><i class="coin"></i><b id="upgPts">0</b></span></footer>
+</section>
+
+<!-- TOURNAMENT · HS M15 46 s: TOURNAMENT, BACK, the bracket on the panel — the eight along the
+     bottom, a YOU tag, the winners climbing the lines to the top — and KICK OFF !! -->
+<section id="bracket" class="screen m-screen cup-bg hidden">
+  <i class="cup-rays" aria-hidden="true"></i>
+  <div class="mn-confetti" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div>
+  <button class="m-back m-drop" id="brBack"><i></i>חזרה</button>
+  <h1 class="sel-h m-drop"><b class="m-title">טורניר</b></h1>
+  <div class="m-panel br-panel">
+    <div class="br-top"><span class="m-sym br-sym" id="brSym"></span><i class="br-cup">🏆</i></div>
+    <b class="br-round" id="brRound">רבע גמר</b>
+    <svg class="br-lines" id="brLines" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true"></svg>
+    <div class="br-nodes" id="brNodes"></div>
+  </div>
+  <footer class="sel-bar m-rise">
+    <span class="m-points" id="brEarnedBox" title="נקודות סולטיז שנצברו בטורניר"><small>נצברו</small><i class="coin"></i><b id="brEarned">0</b></span>
+    <p class="br-msg" id="brMsg"></p>
+    <button class="m-pill big glint" id="brGo"><b>שחק!</b></button>
+  </footer>
+  <!-- the champion: HS's VICTORY, a trophy with a sunburst -->
+  <div class="br-win hidden" id="brWin">
+    <i class="br-sun"></i>
+    <div class="br-win-card">
+      <b class="m-title">אלופי הטורניר!</b>
+      <span class="br-win-cup">🏆<i class="br-win-face" id="brWinFace"></i></span>
+      <span class="m-points big"><i class="coin"></i><b id="brWinPts">0</b></span>
+      <button class="m-pill big glint" id="brWinOk"><b>יש!</b></button>
+    </div>
+  </div>
 </section>
 
 <!-- HOW TO · HS: numbered card pages that swipe sideways, ‹ › at the bottom corners -->

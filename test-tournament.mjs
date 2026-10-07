@@ -4,7 +4,8 @@ import * as T from './shared/tournament.js';
 let pass = 0, fail = 0;
 const ok = (name, cond, extra = '') => { if (cond) pass++; else { fail++; console.log(`  ✗ ${name}${extra ? '  — ' + extra : ''}`); } };
 // a seeded die, so every run plays the same tournaments
-const seeded = (s) => () => { s = (s * 1664525 + 1013904223) >>> 0; return s / 4294967296; };
+const seeded = (seed) => { let a = (seed * 2654435761) >>> 0;   // mulberry32: neighbouring seeds, unrelated rolls
+  return () => { a = (a + 0x6d2b79f5) >>> 0; let t = a; t = Math.imul(t ^ (t >>> 15), t | 1); t ^= t + Math.imul(t ^ (t >>> 7), t | 61); return ((t ^ (t >>> 14)) >>> 0) / 4294967296; }; };
 const store = () => { const d = new Map(); return { d, getItem: (k) => d.get(k) ?? null, setItem: (k, v) => d.set(k, String(v)), removeItem: (k) => d.delete(k) }; };
 const ME = { rarity: 'legendary', number: 3 };
 
@@ -20,6 +21,7 @@ ok('200 draws: seven different champions each, never your own, the road getting 
 const t0 = T.createTournament(ME, seeded(7));
 ok('eight slots, you in slot 6 (HS: second from the right)', t0.entrants.length === 8 && t0.entrants[6].you && t0.entrants[6].card.number === 3);
 ok('round one: four matches, you against slot 7', t0.rounds[0].length === 4 && T.yourMatch(t0).foe === 7);
+ok('HS: the other three are already played before you press PLAY — only yours waits', t0.rounds[0].filter((m) => m.winner !== null).length === 3 && t0.rounds[0][3].winner === null);
 ok('prizes are HS\'s: 100, 700, 1,700', T.PRIZE.join() === '100,700,1700');
 
 // ── win it all ──
@@ -27,7 +29,7 @@ let r = T.recordMatch(t0, true, [3, 1], seeded(11));
 ok('a quarter-final won pays 100 and moves you to the semi', r.prize === 100 && r.t.round === 1 && !r.out);
 ok('…the other quarter-finals are decided, each with a winner and a score', r.t.rounds[0].every((m) => m.winner !== null && m.score && m.score[0] !== m.score[1]));
 ok('…and the winner\'s score is the bigger one', r.t.rounds[0].every((m) => (m.winner === m.a) === (m.score[0] > m.score[1])));
-ok('…the semis are drawn up from the winners', r.t.rounds[1].length === 2 && r.t.rounds[1].every((m) => m.winner === null));
+ok('…the semis are drawn up from the winners: the other one already played, yours waiting', r.t.rounds[1].length === 2 && r.t.rounds[1][0].winner !== null && r.t.rounds[1][1].winner === null);
 ok('your quarter-final shows your score from your side', r.t.rounds[0][3].score.join() === '3,1' && r.t.rounds[0][3].winner === 6);
 ok('the input is never changed', t0.round === 0 && t0.rounds[0][3].winner === null);
 r = T.recordMatch(r.t, true, [2, 0], seeded(12));
@@ -53,11 +55,13 @@ let strongWins = 0, n = 0;
 for (let s = 1; s <= 400; s++) {
   const t = T.createTournament(ME, seeded(s));
   const rr = T.recordMatch(t, true, [1, 0], seeded(s + 9999));
-  const m = rr.t.rounds[0][0], sa = t.entrants[m.a].stage, sb = t.entrants[m.b].stage;
-  if (Math.min(5, sa / 2) === Math.min(5, sb / 2)) continue;
-  n++; if ((Math.min(5, sa / 2) > Math.min(5, sb / 2)) === (m.winner === m.a)) strongWins++;
+  for (const m of rr.t.rounds[0].slice(0, 3)) {
+    const sa = t.entrants[m.a].stage, sb = t.entrants[m.b].stage;
+    if (Math.abs(sa - sb) < 8) continue;
+    n++; if ((sa > sb) === (m.winner === m.a)) strongWins++;
+  }
 }
-ok('the stronger champion wins its match more often than not', strongWins / n > 0.5 && strongWins / n < 0.8, `${strongWins}/${n}`);
+ok('the champion higher on the ladder wins more often than not', n > 100 && strongWins / n > 0.55 && strongWins / n < 0.8, `${strongWins}/${n}`);
 
 // ── saved ──
 const s1 = store();

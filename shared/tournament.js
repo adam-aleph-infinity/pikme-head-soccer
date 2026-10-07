@@ -6,7 +6,7 @@
 // second from the right). The other seven are champions, drawn so the road gets harder: your
 // quarter-final against an early champion, the semi from the middle of the ladder, the final
 // from its top half. The matches you are not in are decided by the dice, the stronger champion
-// (more stars) more likely to go through, with a plausible score.
+// (higher on the ladder) more likely to go through, with a plausible score.
 //
 // Prizes, HS's own (wiki: 100 / 700 / 1,700): נקודות סולטיז for each round you WIN.
 
@@ -31,11 +31,14 @@ export function createTournament(me, rng = Math.random) {
   const entrants = POOLS.map((p, i) => (i === YOU ? { you: true, card: { rarity: me.rarity, number: me.number } } : { stage: roll(rng, p, taken) }));
   // rounds[r] = the matches of round r, each { a, b, winner, score } (a, b: slot numbers)
   const rounds = [[0, 1], [2, 3], [4, 5], [6, 7]].map(([a, b]) => ({ a, b, winner: null, score: null }));
-  return { v: 1, entrants, rounds: [rounds, [], []], round: 0, out: false, champion: false, earned: 0 };
+  const t = { v: 1, entrants, rounds: [rounds, [], []], round: 0, out: false, champion: false, earned: 0 };
+  playOthers(t, rng);
+  return t;
 }
 
-// How strong a slot is, for the dice: a champion's stars (stage/2, 5 at most), you a solid 4.
-const strength = (t, slot) => (t.entrants[slot].you ? 4 : Math.min(5, t.entrants[slot].stage * 0.5));
+// How strong a slot is, for the dice: its place on the 45-champion ladder (stars stop at 5 by
+// stage 10, so they cannot tell two finalists apart), scaled to 0–5. You count as about stage 36.
+const strength = (t, slot) => (t.entrants[slot].you ? 4 : t.entrants[slot].stage / 9);
 
 // A match you are not in: the stronger side wins about two times in three, by a goal or three.
 function decide(t, m, rng) {
@@ -45,6 +48,12 @@ function decide(t, m, rng) {
   const w = 1 + Math.floor(rng() * 4), l = Math.floor(rng() * w);
   m.winner = aWins ? m.a : m.b;
   m.score = aWins ? [w, l] : [l, w];
+}
+
+// HS: the round's other matches are already played when you reach the bracket — their winners
+// climb, their scores show — and only yours waits for PLAY.
+function playOthers(t, rng) {
+  for (const x of t.rounds[t.round]) if (x.winner === null && x.a !== YOU && x.b !== YOU) decide(t, x, rng);
 }
 
 /** The match you play this round: { a, b, foe (slot), stage (the champion's) } — or null. */
@@ -78,6 +87,7 @@ export function recordMatch(t0, won, score, rng = Math.random) {
     t.rounds[t.round + 1] = [];
     for (let i = 0; i < w.length; i += 2) t.rounds[t.round + 1].push({ a: w[i], b: w[i + 1], winner: null, score: null });
     t.round++;
+    playOthers(t, rng);
   }
   // once you are out, the rest of the bracket plays itself out to its champion
   if (t.out) {

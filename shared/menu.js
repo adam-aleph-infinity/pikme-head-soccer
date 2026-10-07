@@ -6,10 +6,11 @@
 // Select, and online keeps two (play again / leave).
 
 // ── THE CAROUSEL ──────────────────────────────────────────────────────────
-// The modes on the main menu, in HS's order (ARCADE first, MULTIPLAYER after the single-player
-// modes). Practice is ours: HS has no free match against the computer outside its modes.
+// The modes on the main menu, in HS's order (ARCADE, TOURNAMENT, …, MULTIPLAYER after the
+// single-player modes). Practice is ours: HS has no free match against the computer.
 export const MODES = [
   { id: 'arcade', name: 'ארקייד' },
+  { id: 'tournament', name: 'טורניר' },
   { id: 'multi', name: 'רב משתתפים' },
   { id: 'practice', name: 'אימון' },
 ];
@@ -88,17 +89,21 @@ export const levelStars = (level) => [0.5, 1, 2, 3, 4, 5][Math.max(0, Math.min(5
 // HS has one button on its result screen — NEXT MATCH after a win, NEXT after a loss — and both
 // go back to Player Select (M4 90-93 s). Online there is no Player Select to go back to: the
 // room is, so it keeps two.
-//   mode: 'arcade' | 'practice' | 'online'; stage: the arcade stage just played (1..45)
-//   → { buttons: [{ id, label }], select: the stage Player Select opens on (arcade), or null }
+//   mode: 'arcade' | 'tournament' | 'practice' | 'online'; stage: the arcade stage just played
+//   → { buttons: [{ id, label }], select: the stage Player Select opens on (arcade), or null,
+//       to: where NEXT goes — 'select', 'bracket' (tournament) or 'lobby' (online) }
 export function afterResult({ mode, won, stage = 1, last = 45 }) {
+  if (mode === 'tournament') {
+    return { buttons: [{ id: 'next', label: won ? 'המשחק הבא' : 'הבא' }], select: null, to: 'bracket' };
+  }
   if (mode === 'online') {
-    return { buttons: [{ id: 'again', label: 'משחק חוזר' }, { id: 'leave', label: 'יציאה' }], select: null };
+    return { buttons: [{ id: 'again', label: 'משחק חוזר' }, { id: 'leave', label: 'יציאה' }], select: null, to: 'lobby' };
   }
   if (mode === 'arcade') {
     const next = won && stage < last ? stage + 1 : stage;
-    return { buttons: [{ id: 'next', label: won ? 'המשחק הבא' : 'הבא' }], select: next };
+    return { buttons: [{ id: 'next', label: won ? 'המשחק הבא' : 'הבא' }], select: next, to: 'select' };
   }
-  return { buttons: [{ id: 'next', label: won ? 'המשחק הבא' : 'הבא' }], select: null };
+  return { buttons: [{ id: 'next', label: won ? 'המשחק הבא' : 'הבא' }], select: null, to: 'select' };
 }
 
 // ── SOUND AND MUSIC ───────────────────────────────────────────────────────

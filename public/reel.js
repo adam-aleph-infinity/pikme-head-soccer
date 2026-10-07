@@ -17,13 +17,16 @@ import { reelLook, rubber, reelSnap } from '../shared/menu.js';
  * @param {(i:number, item:HTMLElement)=>void} o.paint
  * @param {(i:number)=>void} [o.onSelect]   a new item reached the middle
  * @param {(i:number)=>void} [o.onTap]      the middle item was tapped (not dragged)
+ * @param {'y'|'x'} [o.axis]                 'x': a sideways reel (HS's tournament select)
  */
-export function createReel(el, { count, index = 0, paint, onSelect, onTap }) {
+export function createReel(el, { count, index = 0, paint, onSelect, onTap, axis = 'y' }) {
+  const X = axis === 'x';
+  el.classList.toggle('rl-x', X);
   let n = count, sel = clamp(index), pos = sel, painted = new Set();
   let drag = null, dragged = false, wheelAt = 0;
 
   function clamp(i) { return Math.max(0, Math.min(n - 1, i | 0)); }
-  const step = () => parseFloat(getComputedStyle(el).getPropertyValue('--step')) || el.clientHeight * 0.36 || 80;
+  const step = () => parseFloat(getComputedStyle(el).getPropertyValue('--step')) || (X ? el.clientWidth * 0.3 : el.clientHeight * 0.36) || 80;
 
   function build() {
     el.innerHTML = '';
@@ -66,12 +69,12 @@ export function createReel(el, { count, index = 0, paint, onSelect, onTap }) {
 
   // ── drag / swipe ──
   el.addEventListener('pointerdown', (e) => {
-    drag = { y: e.clientY, from: sel, id: e.pointerId };
+    drag = { y: X ? e.clientX : e.clientY, from: sel, id: e.pointerId };
     dragged = false;
   });
   el.addEventListener('pointermove', (e) => {
     if (!drag || e.pointerId !== drag.id) return;
-    const dy = e.clientY - drag.y;
+    const dy = (X ? e.clientX : e.clientY) - drag.y;
     if (!dragged && Math.abs(dy) < 8) return;
     if (!dragged) { dragged = true; el.classList.add('dragging'); try { el.setPointerCapture(e.pointerId); } catch { /* gone */ } }
     place(rubber(drag.from - dy / step(), 0, n - 1));
@@ -92,9 +95,10 @@ export function createReel(el, { count, index = 0, paint, onSelect, onTap }) {
   el.addEventListener('wheel', (e) => {
     e.preventDefault();
     const t = performance.now();
-    if (Math.abs(e.deltaY) < 4 || t - wheelAt < 140) return;
+    const d = Math.abs(e.deltaX) > Math.abs(e.deltaY) ? e.deltaX : e.deltaY;
+    if (Math.abs(d) < 4 || t - wheelAt < 140) return;
     wheelAt = t;
-    select(sel + Math.sign(e.deltaY));
+    select(sel + Math.sign(d));
   }, { passive: false });
 
   build();

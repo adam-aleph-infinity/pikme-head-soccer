@@ -583,6 +583,25 @@ All of it is on branch `hs/menus`, uncommitted. The full plan was approved in Ph
 - **Result:** one NEXT MATCH / NEXT button and the REWARD / TOTAL POINT strip.
 - **VS intro:** retimed to HS's ~1.25 s, with the symbol and lightning.
 
+### Tournament (added 2026-10-07, Idan)
+- **Where:** the carousel's second mode, in HS's order: ארקייד · טורניר · רב משתתפים · אימון.
+- **Player Select:** your reel, plus a trophy panel listing the prizes. The button says הבא (HS's NEXT).
+- **Choosing your player:** like HS, only you, on a sideways reel.
+- **The bracket screen:** 8 players, with you in slot 6 (HS M15 46 s).
+  - Each round's **other matches are played before you press שחק!**: one after another, each winner jumps up its line to the next node.
+  - Each score shows under the winner, the loser's goals in red and the winner's in blue ("red - blue").
+  - The שחק! button waits until they have all landed.
+- **The look:** blue-to-purple sky, rainbow rays, confetti, the Saltiz symbol spinning behind the cup, and the bracket on HS's green pitch.
+- **Your matches:** played against champions with their own bot and powers. The road gets harder: the quarter-final opponent comes from stages 1–15, the semi from 10–30, the final from 20–45.
+- **Matches you're not in:** decided by dice (at the start of each round), with the higher-ranked champion more likely to win.
+- **Prizes, HS's own:** 100 / 700 / 1,700 נקודות סולטיז per round won.
+- **Losing:**
+  - One loss and you're out; the rest of the bracket plays itself out.
+  - GIVE UP counts as a loss.
+- **Winning it all:** the "אלופי הטורניר!" trophy screen.
+- **Saving:** stored as `hs.tour.v1`, so a tournament survives closing the app.
+- **Code:** rules in `shared/tournament.js`, tests in `test-tournament.mjs`.
+
 ### Removed
 - **The old screens:** `#pick`, `#modeSel` and `#arcade`, with 344 CSS rules.
 - **Restart in pause:** HS has none.

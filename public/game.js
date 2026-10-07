@@ -24,6 +24,7 @@ import { createVfx } from './champ-vfx.js';
 import { createBodyArt, RUN_FRAMES, BOOT_H } from './body-art.js';
 import { createMenus } from './menus.js';
 import * as MN from '../shared/menu.js';
+import * as TOUR from '../shared/tournament.js';
 
 // What a Head Soccer power shot looks like: the aura, the cut-in, the comet, the ailments. It
 // only watches the match (see champ-vfx.js).
@@ -164,6 +165,9 @@ let PROG = ARC.loadProgress(STORE);
 let STATS = UPG.loadStats(STORE);
 let ARC_SEL = ARC.currentStage(PROG);
 let ARCADE = null;                       // { stage } while an arcade match is being played
+// The tournament under way, if any (shared/tournament.js), saved so it survives closing the app.
+let TOURNEY = TOUR.loadTournament(STORE);
+const addPoints = (n) => { if (n > 0) { STATS = { ...STATS, points: Math.min(9999999999, STATS.points + n) }; UPG.saveStats(STORE, STATS); } };
 
 // SOUND and MUSIC, HS's two switches, remembered on the device.
 const AUDIO = MN.parseAudio(stored(MN.AUDIO_KEY));
@@ -194,7 +198,12 @@ const MENU = createMenus({
     set sel(n) { ARC_SEL = n; },
   },
   setStats: (st) => { STATS = st; UPG.saveStats(STORE, STATS); },
-  play: { arcade: (n) => startArcadeStage(n), practice: () => startMatch() },
+  play: { arcade: (n) => startArcadeStage(n), practice: () => startMatch(), tournament: () => startTournamentMatch() },
+  tour: {
+    get: () => TOURNEY,
+    start: (me) => { TOURNEY = TOUR.createTournament(me); TOUR.saveTournament(STORE, TOURNEY); },
+    clear: () => { TOURNEY = null; TOUR.saveTournament(STORE, null); },
+  },
   lobby: (mode, code) => openLobby(mode, code),
   sfxOn: audioEnabled, musicOn: musicEnabled,
   setSfx: (v) => { setSfxEnabled(v); saveAudio(); if (v) SFX.whistle(); },
@@ -784,6 +793,32 @@ function startMatch() {
 // AN ARCADE STAGE. The same match on the same sim with the same controls — the differences are
 // all data: who the opponent is (the stage's champion), how its bot plays (its stage on the
 // ladder), and that both legendary cards fire their champion power instead of the power shot.
+// A TOURNAMENT MATCH: your match this round, against its champion — the champion's own bot and
+// powers, the same as meeting it in the arcade, but nothing on the arcade ladder changes.
+function startTournamentMatch() {
+  const ym = TOURNEY && TOUR.yourMatch(TOURNEY);
+  if (!ym) return false;
+  const cfg = stageConfig(ym.stage, STATS.lv);
+  ARCADE = null;
+  MODE = 'tournament';
+  STAGE = PIN_STAGE || HS_STAGES[cfg.champ.arena % HS_STAGES.length];
+  beginLocal(TOURNEY.entrants[TOUR.YOU].card, cfg.champ.card, cfg.matchOpts, createBot(0, Math.random, cfg.bot));
+  return true;
+}
+// Your tournament match is over: into the bracket, paid for, saved; the result says how far.
+function tournamentResult(won, score) {
+  const r = TOUR.recordMatch(TOURNEY, won, score);
+  TOURNEY = r.t;
+  TOUR.saveTournament(STORE, TOURNEY);
+  addPoints(r.prize);
+  countUp($('#ovReward'), 0, r.prize);
+  countUp($('#ovTotal'), STATS.points - r.prize, STATS.points);
+  const news = $('#ovNews');
+  const done = TOUR.reached(TOURNEY, TOUR.YOU);
+  news.textContent = r.champion ? '🏆 זכיתם בטורניר!' : won ? `עליתם ל${TOUR.ROUNDS[done]}!` : `הודחתם ב${TOUR.ROUNDS[done]}`;
+  news.classList.remove('hidden');
+}
+
 function startArcadeStage(n) {
   if (!ARC.canStart(PROG, n)) return false;          // a locked stage does not start. Ever.
   const cfg = stageConfig(n, STATS.lv);
@@ -845,9 +880,10 @@ function endMatch({ forfeit = false } = {}) {
   $('#ovSpell').innerHTML = (draw ? '' : '<small>YOU</small>') +
     '<em>' + [...word].map((c, k) => `<span style="animation-delay:${0.35 + k * 0.1}s">${c}</span>`).join('') + '</em>';
   $('#ovNews').classList.add('hidden');
-  $('#ovPts').classList.toggle('hidden', MODE !== 'arcade');
+  $('#ovPts').classList.toggle('hidden', MODE !== 'arcade' && MODE !== 'tournament');
   NEXT_SELECT = null;
   if (ARCADE) arcadeResult(iWon, [mine, theirs]);
+  else if (MODE === 'tournament' && TOURNEY) tournamentResult(iWon, [mine, theirs]);
   const plan = MN.afterResult({ mode: MODE, won: iWon, stage: ARCADE?.stage || 1, last: ARC.STAGE_COUNT });
   if (plan.select) NEXT_SELECT = plan.select;
   $('#again').innerHTML = `<b>${plan.buttons[0].label}</b>`;
@@ -915,12 +951,13 @@ function stopMatchLoop() {
 // the room, which the server has already reset to the lobby.
 $('#again').onclick = () => {
   if (MODE === 'online') { stopMatchLoop(); show('lobby'); if (NET?.room) renderLobby(NET.room); return; }
-  const mode = MODE === 'arcade' ? 'arcade' : 'practice', stage = NEXT_SELECT;
+  const mode = MODE === 'arcade' ? 'arcade' : 'practice', stage = NEXT_SELECT, toBracket = MODE === 'tournament';
   $('#over').classList.add('out');
   setTimeout(() => {
     stopMatchLoop();
     ARCADE = null;
-    MENU.openSelect(mode, { stage });
+    if (toBracket) MENU.openBracket();       // the round just played draws itself in
+    else MENU.openSelect(mode, { stage });
   }, 260);
 };
 // ---- fullscreen, landscape (HS is both) -----------------------------------------
@@ -986,6 +1023,14 @@ $('#pHow').onclick = () => MENU.openHowTo('pause');
 // Online it is leaving the room; the server hands the friend a bot.
 $('#pGive').onclick = () => closePause(() => {
   if (MODE === 'online') { toMenu(); return; }
+  // a tournament given up is a match lost: out, and back to the bracket to see who won it
+  if (MODE === 'tournament' && TOURNEY) {
+    TOURNEY = TOUR.recordMatch(TOURNEY, false, [M.score[0], M.score[1]]).t;
+    TOUR.saveTournament(STORE, TOURNEY);
+    stopMatchLoop();
+    MENU.openBracket();
+    return;
+  }
   if (ARCADE) {
     const r = ARC.recordResult(PROG, ARCADE.stage, false, [M.score[0], M.score[1]]);
     if (r.accepted) { PROG = r.prog; ARC.saveProgress(STORE, PROG); }
@@ -3147,7 +3192,8 @@ Object.assign(window, { goalBox, goalAt, depthPoint, INSIDE_Z });
 Object.assign(window, { drawBody, HEAD_CROP, HEAD_W, HEAD_H });
 Object.assign(window, { C, startMatch, pick, paintHead, callout, VFXR, drainEvents });
 // The arcade, for the harness: the same entry points the buttons use, and the live progress.
-Object.assign(window, { startArcadeStage, openArcade, openModes, selectStage, CHAMPIONS });
+Object.assign(window, { startArcadeStage, startTournamentMatch, openArcade, openModes, selectStage, CHAMPIONS });
+Object.defineProperty(window, 'TOURNEY', { get: () => TOURNEY });
 Object.defineProperty(window, 'ARCADE', { get: () => ARCADE });
 Object.defineProperty(window, 'ARCADE_PROGRESS', { get: () => PROG });
 // The measured head anchors, for the crop tools — see head-crop.js and test-heads.mjs.

@@ -13,9 +13,10 @@ import { symbolSVG } from './symbol.js';
 import { createReel } from './reel.js';
 import * as MN from '../shared/menu.js';
 import { HS_STAGES } from './hs-stadium.js';
+import * as TOUR from '../shared/tournament.js';
 
 const $ = (s) => document.querySelector(s);
-export const SCREENS = ['title', 'menu', 'select', 'shop', 'howto', 'lobby', 'match'];
+export const SCREENS = ['title', 'menu', 'select', 'shop', 'bracket', 'howto', 'lobby', 'match'];
 const POPS = ['cardsPop', 'statsPop', 'optPop', 'mpPop'];      // the order Esc closes them in
 const fmt = (n) => Number(n || 0).toLocaleString('en-US');
 
@@ -44,14 +45,14 @@ export function createMenus(ctx) {
   let carIdx = 0;                       // the carousel's centred mode
   let selMode = 'arcade';               // Player Select: 'arcade' | 'practice'
   let meRarity = pick.me.rarity, meList = [];
-  let reelMe = null, reelFoe = null;
+  let reelMe = null, reelFoe = null, reelCup = null;
   let practiceFoe = 1;                  // practice: which champion's card you play against
   let howFrom = 'menu', howPage = 0;
   let cardsFor = 'select';              // who opened the card popup
   let shownPts = null, ptsAnim = 0;
 
   // The symbol, everywhere HS has its own art.
-  for (const id of ['tSym', 'mnBlimpSym', 'mnLogo', 'oSym', 'pSym', 'vsSym']) { const el = document.getElementById(id); if (el) el.innerHTML = symbolSVG(); }
+  for (const id of ['tSym', 'mnBlimpSym', 'mnLogo', 'oSym', 'pSym', 'vsSym', 'brSym']) { const el = document.getElementById(id); if (el) el.innerHTML = symbolSVG(); }
 
   // ── SCREENS AND POPUPS ──────────────────────────────────────────────────
   function show(id) {
@@ -116,7 +117,7 @@ export function createMenus(ctx) {
   // HS M15: the logo top-left, its icons top-right, a big piece of art, and a looping carousel
   // of modes along the bottom — the centred one bigger, with its mascot popping up above it.
   const track = $('#mnTrack');
-  const MODE_ICON = { arcade: '🏆', multi: '⚡', practice: '🎯' };
+  const MODE_ICON = { arcade: '👑', tournament: '🏆', multi: '⚡', practice: '🎯' };
   track.innerHTML = MN.MODES.map((m, i) => `<button class="mn-mode" data-i="${i}" data-mode="${m.id}">
       <span class="mn-masc"></span><b class="mn-pill"><i class="mn-ico">${MODE_ICON[m.id]}</i><span>${m.name}</span></b><small class="mn-sub"></small></button>`).join('');
   for (const b of track.children) {
@@ -148,6 +149,11 @@ export function createMenus(ctx) {
       const [a, c] = m.querySelectorAll('.mm-face');
       ctx.paintHead(a, pick.me.rarity, pick.me.number, a.clientWidth || 50);
       ctx.paintHead(c, 'legendary', 2, c.clientWidth || 50, { flip: true });
+    } else if (id === 'tournament') {
+      m.innerHTML = '<i class="mm-face a"></i><b class="mm-deco cup">🏆</b><i class="mm-face b"></i>';
+      const [a, c] = m.querySelectorAll('.mm-face');
+      ctx.paintHead(a, 'legendary', 3, a.clientWidth || 50);
+      ctx.paintHead(c, 'legendary', 5, c.clientWidth || 50, { flip: true });
     } else {
       m.innerHTML = '<i class="mm-face"></i><b class="mm-deco cone">🎯</b>';
       ctx.paintHead(m.querySelector('.mm-face'), pick.me.rarity, pick.me.number, m.querySelector('.mm-face').clientWidth || 60);
@@ -156,14 +162,18 @@ export function createMenus(ctx) {
   function enterMode(id) {
     if (id === 'arcade') openSelect('arcade');
     else if (id === 'practice') openSelect('practice');
+    // a tournament under way goes straight back to its bracket
+    else if (id === 'tournament') { if (ctx.tour.get() && !TOUR.finished(ctx.tour.get())) openBracket(); else openSelect('tournament'); }
     else openMp();
   }
   function openMenu() {
     show('menu');
-    const subs = track.querySelectorAll('.mn-sub');
-    subs[0].textContent = ARC.campaignComplete(state.prog) ? 'כל 45 האלופים ✓' : `שלב ${ARC.currentStage(state.prog)}/${ARC.STAGE_COUNT}`;
-    subs[1].innerHTML = 'עם חבר <span class="online-count"></span>';
-    subs[2].textContent = 'נגד המחשב';
+    const sub = (id) => track.querySelector(`[data-mode="${id}"] .mn-sub`);
+    sub('arcade').textContent = ARC.campaignComplete(state.prog) ? 'כל 45 האלופים ✓' : `שלב ${ARC.currentStage(state.prog)}/${ARC.STAGE_COUNT}`;
+    const t = ctx.tour.get();
+    sub('tournament').textContent = t && !TOUR.finished(t) ? `בתהליך · ${TOUR.ROUNDS[t.round]}` : '8 שחקנים · גביע';
+    sub('multi').innerHTML = 'עם חבר <span class="online-count"></span>';
+    sub('practice').textContent = 'נגד המחשב';
     ctx.refreshOnline?.();
     $('#mnPts').textContent = fmt(state.stats.points);
     paintScene();
@@ -250,7 +260,10 @@ export function createMenus(ctx) {
   const champs = ctx.champions;
   const foeStage = () => (selMode === 'arcade' ? state.sel : practiceFoe);
   const powerOf = (card) => ctx.shotFor(card, { arcade: selMode === 'arcade' });
-  const meCard = () => meList[reelMe ? reelMe.index : 0];
+  // your reel: the vertical one, or in the tournament HS's sideways one
+  const meReel = () => (selMode === 'tournament' && reelCup ? reelCup : reelMe);
+  const meCard = () => meList[meReel() ? meReel().index : 0];
+  const resetMe = (count, i) => { reelMe?.reset(count, i); reelCup?.reset(count, i); };
 
   function hexHTML({ caged = false, plate = '', badge = '', color = '#fe0034', done = false } = {}) {
     return `<span class="m-hex"><i class="m-face"></i>${caged ? '<i class="m-cage"></i>' : ''}${plate ? `<b class="m-plate">${plate}</b>` : ''}` +
@@ -274,6 +287,10 @@ export function createMenus(ctx) {
     const iMe = pick.me.rarity === meRarity ? pick.me.number - 1 : (MN.firstOwned(meRarity, ctx.owns, ctx.perRarity) || 1) - 1;
     if (!reelMe) reelMe = createReel($('#reelMe'), { count: meList.length, index: iMe, paint: paintMe, onSelect: onMe, onTap: () => openCards('select') });
     else reelMe.reset(meList.length, iMe);
+    if (selMode === 'tournament') {
+      if (!reelCup) reelCup = createReel($('#reelCup'), { count: meList.length, index: iMe, paint: paintMe, onSelect: onMe, onTap: () => openCards('select'), axis: 'x' });
+      else reelCup.reset(meList.length, iMe);
+    }
     const iFoe = foeStage() - 1;
     if (!reelFoe) reelFoe = createReel($('#reelFoe'), { count: champs.length, index: iFoe, paint: paintFoe, onSelect: onFoe });
     else reelFoe.reset(champs.length, iFoe);
@@ -296,6 +313,7 @@ export function createMenus(ctx) {
     meRarity = pick.me.rarity;
     show('select');
     $('#select').classList.toggle('practice', mode === 'practice');
+    $('#select').classList.toggle('tournament', mode === 'tournament');
     buildReels();
     renderSelect();
   }
@@ -306,10 +324,10 @@ export function createMenus(ctx) {
   function renderSelect() {
     const n = reelFoe.index + 1, c = champs[n - 1];
     const st = selMode === 'arcade' ? ARC.stageStatus(state.prog, n) : 'available';
-    const arcade = selMode === 'arcade';
-    $('#selH').textContent = arcade ? 'בחר שחקן' : 'אימון חופשי';
-    $('#selTabK').textContent = arcade ? 'שלב' : 'אימון';
-    $('#selTabV').textContent = arcade ? `${n}/${ARC.STAGE_COUNT}` : ctx.difficulties[pick.level].name;
+    const arcade = selMode === 'arcade', cup = selMode === 'tournament';
+    $('#selH').textContent = arcade ? 'בחר שחקן' : cup ? 'טורניר' : 'אימון חופשי';
+    $('#selTabK').textContent = arcade ? 'שלב' : cup ? 'בחרו שחקן' : 'אימון';
+    $('#selTabV').textContent = arcade ? `${n}/${ARC.STAGE_COUNT}` : cup ? 'לטורניר' : ctx.difficulties[pick.level].name;
     const sc = arcade ? ARC.lastScore(state.prog, n) : null;
     $('#selScore').textContent = sc ? `${sc[0]} : ${sc[1]}` : '';
     $('#selScore').classList.toggle('hidden', !sc);
@@ -325,7 +343,7 @@ export function createMenus(ctx) {
     fg.style.setProperty('--c', c.color);
     $('#selFoeTag').textContent = arcade ? 'אלוף' : 'יריב';
     stars($('#selStars'), arcade ? c.hs.stars : MN.levelStars(pick.level));
-    $('#selDiff').classList.toggle('hidden', arcade);
+    $('#selDiff').classList.toggle('hidden', arcade || cup);
     $('#diffName').textContent = ctx.difficulties[pick.level].name;
     $('#diffDown').disabled = pick.level <= 0;
     $('#diffUp').disabled = pick.level >= 5;
@@ -336,7 +354,7 @@ export function createMenus(ctx) {
     pb.dataset.desc = pw.desc || '';
     // HS's tooltip over a caged opponent: what it takes
     const tip = $('#selTip');
-    if (st === 'locked') {
+    if (st === 'locked' && !cup) {
       const prev = champs[n - 2];
       tip.textContent = `🔒 נצחו קודם את ${prev ? prev.title : 'האלוף הקודם'}`;
       tip.classList.remove('hidden');
@@ -348,7 +366,7 @@ export function createMenus(ctx) {
     const play = $('#selPlay');
     const why = st === 'locked' ? '🔒 נעול' : !me.owned ? 'לא באלבום' : '';
     play.disabled = !!why;
-    play.innerHTML = `<b>${why || 'שחק'}</b>`;
+    play.innerHTML = `<b>${why || (cup ? 'הבא' : 'שחק')}</b>`;     // HS's tournament select says NEXT
   }
   const barHTML = (lv, next = -1) => Array.from({ length: 10 }, (_, i) => `<i class="${i < lv ? 'on' : i === next ? 'next' : ''}"></i>`).join('');
   tap('#selBack', () => openMenu());
@@ -357,6 +375,7 @@ export function createMenus(ctx) {
   function play() {
     if ($('#selPlay').disabled) return;
     if (selMode === 'arcade') ctx.play.arcade(reelFoe.index + 1);
+    else if (selMode === 'tournament') { ctx.tour.start({ ...pick.me }); seen.clear(); openBracket(); }
     else ctx.play.practice();
   }
   on('#selRar', () => {
@@ -364,7 +383,7 @@ export function createMenus(ctx) {
     const first = MN.firstOwned(meRarity, ctx.owns, ctx.perRarity);
     if (first) pick.me = { rarity: meRarity, number: first };
     meList = MN.cardReel(meRarity, ctx.owns, ctx.perRarity);
-    reelMe.reset(meList.length, (first || 1) - 1);
+    resetMe(meList.length, (first || 1) - 1);
     renderSelect();
   });
   on('#selPower', (e, el) => {
@@ -377,6 +396,126 @@ export function createMenus(ctx) {
   });
   on('#diffDown', () => { pick.level = Math.max(0, pick.level - 1); renderSelect(); });
   on('#diffUp', () => { pick.level = Math.min(5, pick.level + 1); renderSelect(); });
+
+  // ── THE TOURNAMENT'S BRACKET ───────────────────────────────────────────
+  // HS: before you press PLAY the round's other matches are already played — each winner JUMPS
+  // up its line to the next node, one match after another, and its score shows under it: the
+  // loser's goals in red, the winner's in blue ("red - blue"). Your own result climbs the same
+  // way when you come back from the match. The eight start along the bottom, YOU tagged.
+  const LEAF_Y = 82, NODE_Y = [62, 45, 29];
+  const leafX = (i) => 6.25 + 12.5 * i;
+  const NODE_X = [[12.5, 37.5, 62.5, 87.5], [25, 75], [50]];
+  const seen = new Set();                    // matches whose climb has been shown
+  let flyTimers = [];
+  function headOf(t, slot) {
+    const e = t.entrants[slot];
+    return e.you ? e.card : { rarity: 'legendary', number: e.stage };
+  }
+  function openBracket() {
+    show('bracket');
+    renderBracket();
+  }
+  function renderBracket() {
+    const t = ctx.tour.get();
+    if (!t) { openSelect('tournament'); return; }
+    flyTimers.forEach(clearTimeout); flyTimers = [];
+    const svg = $('#brLines'), nodes = $('#brNodes'), panel = $('.br-panel');
+    const W = panel.clientWidth, H = panel.clientHeight;
+    // the matches to climb now: decided, not yet shown — round by round, yours first in a round
+    const fresh = [];
+    for (let r = 0; r < 3; r++) {
+      const ms = t.rounds[r].map((m, k) => ({ m, k, r })).filter(({ m, k }) => m.winner !== null && !seen.has(`${r}:${k}`));
+      ms.sort((x, y) => (y.m.winner === TOUR.YOU) - (x.m.winner === TOUR.YOU) || ((y.m.a === TOUR.YOU || y.m.b === TOUR.YOU) - (x.m.a === TOUR.YOU || x.m.b === TOUR.YOU)));
+      fresh.push(...ms);
+    }
+    const STEP = 0.55;                        // seconds between two climbs
+    const delayOf = new Map(fresh.map((f, n) => [`${f.r}:${f.k}`, 0.35 + n * STEP]));
+    let paths = '', html = '';
+    // where a match's two sides come from
+    const childPos = (r, k, side) => (r === 0
+      ? [leafX(t.rounds[0][k][side]), LEAF_Y]
+      : [NODE_X[r - 1][k * 2 + (side === 'a' ? 0 : 1)], NODE_Y[r - 1]]);
+    // the leaves
+    for (let i = 0; i < 8; i++) {
+      const e = t.entrants[i], c = e.you ? null : champs[e.stage - 1];
+      const m0 = t.rounds[0].find((m) => m.a === i || m.b === i), k0 = t.rounds[0].indexOf(m0);
+      const lost = m0.winner !== null && m0.winner !== i;
+      const d = delayOf.get(`0:${k0}`);
+      html += `<div class="br-leaf${e.you ? ' you' : ''}${lost ? ' out' : ''}${lost && d !== undefined ? ' late' : ''}" style="left:${leafX(i)}%;top:${LEAF_Y}%;--c:${c ? c.color : '#3aa0ff'};--dl:${(d ?? 0) + 0.35}s" data-slot="${i}">
+        <span class="m-hex"><i class="m-face"></i></span>${e.you ? '<b class="br-you">אתה</b>' : `<small>${c.title}</small>`}</div>`;
+    }
+    for (let r = 0; r < 3; r++) {
+      const rows = t.rounds[r].length ? t.rounds[r] : NODE_X[r].map(() => null);
+      rows.forEach((m, k) => {
+        const px = NODE_X[r][k], py = NODE_Y[r];
+        const d = delayOf.get(`${r}:${k}`);
+        if (m) {
+          for (const side of ['a', 'b']) {
+            const [cx, cy] = childPos(r, k, side);
+            const won = m.winner !== null && m.winner === m[side];
+            const top = r === 0 ? cy - 9 : cy - 3, join = (top + py) / 2 + 2;
+            paths += `<path class="${won ? 'won' : ''}${won && d !== undefined ? ' fresh' : ''}" style="--dl:${(d ?? 0) + 0.3}s" d="M${cx} ${top} V${join} H${px} V${py + 3}"/>`;
+          }
+        }
+        if (m && m.winner !== null) {
+          // the winner's head starts on its own spot and jumps up to this node
+          const side = m.winner === m.a ? 'a' : 'b', [cx, cy] = childPos(r, k, side);
+          const dx = ((cx - px) / 100) * W, dy = ((cy - py) / 100) * H;
+          const wg = m.score[side === 'a' ? 0 : 1], lg = m.score[side === 'a' ? 1 : 0];
+          html += `<div class="br-node won${d !== undefined ? ' fly' : ''}${m.winner === TOUR.YOU ? ' you' : ''}" style="left:${px}%;top:${py}%;--dx:${dx.toFixed(1)}px;--dy:${dy.toFixed(1)}px;--dl:${d ?? 0}s" data-w="${m.winner}">
+            <span class="m-hex"><i class="m-face"></i></span><span class="br-score" dir="ltr"><b class="l">${lg}</b>-<b class="w">${wg}</b></span></div>`;
+        } else {
+          const mine = m && (m.a === TOUR.YOU || m.b === TOUR.YOU) && !t.out;
+          html += `<div class="br-node${mine ? ' next' : ''}" style="left:${px}%;top:${py}%"><b>?</b></div>`;
+        }
+      });
+    }
+    svg.innerHTML = paths;
+    nodes.innerHTML = html;
+    for (const el of nodes.querySelectorAll('.br-leaf')) {
+      const h = headOf(t, +el.dataset.slot), f = el.querySelector('.m-face');
+      ctx.paintHead(f, h.rarity, h.number, f.clientWidth || 44, { flip: +el.dataset.slot % 2 === 1 });
+    }
+    for (const el of nodes.querySelectorAll('.br-node.won')) {
+      const h = headOf(t, +el.dataset.w), f = el.querySelector('.m-face');
+      ctx.paintHead(f, h.rarity, h.number, f.clientWidth || 36);
+    }
+    // a hop sound as each lands, and PLAY waits until the round has played out (HS)
+    const go = $('#brGo');
+    fresh.forEach((f, n) => flyTimers.push(setTimeout(() => ctx.sfx?.('tick'), (0.35 + n * STEP + 0.35) * 1000)));
+    fresh.forEach((f) => seen.add(`${f.r}:${f.k}`));
+    const busy = fresh.length ? (0.35 + fresh.length * STEP + 0.3) * 1000 : 0;
+    go.disabled = !!busy;
+    if (busy) flyTimers.push(setTimeout(() => { go.disabled = false; }, busy));
+    $('#brEarned').textContent = fmt(t.earned);
+    $('#brRound').textContent = t.champion ? 'אלופים!' : t.out ? 'הטורניר הסתיים' : TOUR.ROUNDS[t.round];
+    const ym = TOUR.yourMatch(t);
+    if (ym) {
+      $('#brMsg').innerHTML = `${TOUR.ROUNDS[t.round]} · נגד <b>${champs[ym.stage - 1].title}</b>`;
+      go.innerHTML = '<b>שחק!</b>';
+    } else {
+      const r = TOUR.reached(t, TOUR.YOU);
+      $('#brMsg').innerHTML = t.champion ? '🏆 זכיתם בטורניר!' : `הודחתם ב${TOUR.ROUNDS[r]}. ננסה שוב?`;
+      go.innerHTML = '<b>טורניר חדש</b>';
+    }
+    if (t.champion && fresh.some((f) => f.r === 2)) flyTimers.push(setTimeout(showChampion, busy + 300));
+  }
+  function showChampion() {
+    const t = ctx.tour.get();
+    if (!t?.champion || screen !== 'bracket') return;
+    $('#brWinPts').textContent = '+' + fmt(t.earned);
+    $('#brWin').classList.remove('hidden');       // shown first: the face is sized off its real box
+    const f = $('#brWinFace'), me = ctx.tour.get().entrants[TOUR.YOU].card;
+    ctx.paintHead(f, me.rarity, me.number, f.clientWidth || 80, { expr: 'happy' });
+    ctx.sfx?.('swish');
+  }
+  tap('#brGo', () => {
+    const t = ctx.tour.get();
+    if (TOUR.yourMatch(t)) ctx.play.tournament();
+    else { ctx.tour.clear(); seen.clear(); openSelect('tournament'); }
+  });
+  tap('#brBack', () => openMenu());           // the tournament waits: the menu's pill says so
+  tap('#brWinOk', () => $('#brWin').classList.add('hidden'));
 
   // ── YOUR CARD: the album, in a popup ───────────────────────────────────
   let cardsRarity = meRarity;
@@ -402,7 +541,7 @@ export function createMenus(ctx) {
         pick.me = { rarity: cardsRarity, number: n };
         closePop('cardsPop');
         if (cardsFor === 'mp') renderMp();
-        else { meRarity = cardsRarity; meList = MN.cardReel(meRarity, ctx.owns, ctx.perRarity); reelMe.reset(meList.length, n - 1); renderSelect(); }
+        else { meRarity = cardsRarity; meList = MN.cardReel(meRarity, ctx.owns, ctx.perRarity); resetMe(meList.length, n - 1); renderSelect(); }
       };
       grid.appendChild(b);
     }
@@ -578,15 +717,19 @@ export function createMenus(ctx) {
       else if (k === 'ArrowRight') act = () => spin(carIdx + 1);
       else if ((k === 'Enter' || k === 'NumpadEnter') && !t?.closest?.('button:not(.mn-mode)')) act = () => enterMode(MN.MODES[carIdx].id);
     } else if (screen === 'select') {
-      const reel = e.shiftKey ? reelMe : reelFoe;
-      if (k === 'ArrowDown') act = () => reel.step(1);
-      else if (k === 'ArrowUp') act = () => reel.step(-1);
+      const reel = selMode === 'tournament' ? reelCup : e.shiftKey ? reelMe : reelFoe;
+      if (k === 'ArrowDown' || (selMode === 'tournament' && k === 'ArrowRight')) act = () => reel.step(1);
+      else if (k === 'ArrowUp' || (selMode === 'tournament' && k === 'ArrowLeft')) act = () => reel.step(-1);
       else if (k === 'Home') act = () => reel.select(0);
-      else if (k === 'End') act = () => reel.select(reel === reelMe ? meList.length - 1 : champs.length - 1);
+      else if (k === 'End') act = () => reel.select(reel === reelFoe ? champs.length - 1 : meList.length - 1);
       else if ((k === 'Enter' || k === 'NumpadEnter') && !(t?.tagName === 'BUTTON')) act = play;
       else if (k === 'Escape') act = () => openMenu();
     } else if (screen === 'shop') {
       if (k === 'Escape') act = () => { show('select'); renderSelect(); };
+    } else if (screen === 'bracket') {
+      if (!$('#brWin').classList.contains('hidden')) { if (k === 'Escape' || k === 'Enter') act = () => $('#brWin').classList.add('hidden'); }
+      else if (k === 'Enter' || k === 'NumpadEnter') act = () => $('#brGo').click();
+      else if (k === 'Escape') act = () => openMenu();
     } else if (screen === 'howto') {
       if (k === 'ArrowLeft') act = () => howGo(-1);
       else if (k === 'ArrowRight') act = () => howGo(1);
@@ -602,13 +745,13 @@ export function createMenus(ctx) {
 
   // ── A RESIZE repaints the faces at their new size ──
   addEventListener('resize', () => {
-    if (screen === 'select') { reelMe?.repaint(); reelFoe?.repaint(); }
+    if (screen === 'select') { reelMe?.repaint(); reelFoe?.repaint(); reelCup?.repaint(); }
     if (screen === 'menu') openMenu();
   });
 
   return {
     show, get screen() { return screen; },
-    openTitle, openMenu, openSelect, openShop, openHowTo, openOptions, openMp,
+    openTitle, openMenu, openSelect, openShop, openHowTo, openOptions, openMp, openBracket,
     get selMode() { return selMode; },
     closePops: () => POPS.forEach(closePop),
     syncSound, renderPoints,

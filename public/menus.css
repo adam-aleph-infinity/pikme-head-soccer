@@ -852,3 +852,112 @@
 @keyframes symRoll { to { transform: rotate(1turn); } }
 @media (prefers-reduced-motion: reduce) { .ring-mid .m-sym > svg, .orbit .ob { animation: none !important; } }
 #optPop { background: #000000c8; backdrop-filter: blur(2px); }   /* the bright menu stays behind, quiet */
+
+/* ─── TOURNAMENT ────────────────────────────────────────────────────────── */
+/* the tournament's colour on the carousel: royal blue (HS's TOURNAMENT is cyan) */
+.mn-mode[data-mode="tournament"] .mn-pill { background: linear-gradient(180deg, #9ad8ff, #3aa0ff 18%, #1667e0 50%, #0f4fb8 80%, #082a6a); }
+.mm-deco.cup { align-self: center; font-size: calc(var(--u) * 7); }
+
+/* THE TOURNAMENT'S OWN SKY (Idan: colourful, for kids): bright blue into purple, rainbow rays
+   turning, confetti, the Saltiz symbol spinning behind the cup */
+.cup-bg, #select.tournament {
+  background: radial-gradient(ellipse 90% 80% at 50% 18%, #6fe3ff 0%, #2a8cf0 30%, #4b2bd0 65%, #2a0a6a 100%);
+}
+.cup-rays { display: none; position: absolute; z-index: 0; pointer-events: none; width: 240vmax; height: 240vmax; left: 50%; top: 22%; margin: -120vmax 0 0 -120vmax;
+  background: repeating-conic-gradient(#ffd40030 0 7deg, transparent 7deg 15deg, #ff3b8a26 15deg 22deg, transparent 22deg 30deg, #2ee6a626 30deg 37deg, transparent 37deg 45deg);
+  -webkit-mask: radial-gradient(circle, #000 0, #0009 20%, transparent 45%); mask: radial-gradient(circle, #000 0, #0009 20%, transparent 45%);
+  animation: mSpin 40s linear infinite; }
+.cup-bg .cup-rays, #select.tournament .cup-rays { display: block; }
+.cup-bg > .mn-confetti i, #select.tournament > .mn-confetti i { z-index: 0; }
+.mn-confetti.cup-only { display: none; }
+#select.tournament .mn-confetti.cup-only { display: block; }
+#select.tournament > .m-rays { display: none; }
+
+/* HS's tournament select: only you, on a SIDEWAYS reel — the chosen one big, its neighbours either side */
+#reelCup { display: none; }
+#select.tournament #reelMe, #select.tournament #reelFoe, #select.tournament .sel-mid, #select.tournament #selTier, #select.tournament #selScore,
+#select.tournament #selPower, #select.tournament #selTip { display: none !important; }
+#select.tournament #reelCup { display: block; }
+.sel-reel.cup-reel { --hexw: calc(var(--u) * 34); --step: calc(var(--u) * 36); left: 0; right: 0; top: calc(var(--u) * 6); bottom: calc(var(--u) * 13); width: auto;
+  -webkit-mask: linear-gradient(90deg, transparent, #000 12%, #000 88%, transparent); mask: linear-gradient(90deg, transparent, #000 12%, #000 88%, transparent); }
+.rl-x .rl-item { transform: translate(-50%, -50%) translateX(calc(var(--d, 0) * var(--step))) scale(var(--s, 1)); }
+#select.tournament .m-panel { background:
+    linear-gradient(90deg, transparent calc(50% - 1px), #ffffff55 calc(50% - 1px) calc(50% + 1px), transparent calc(50% + 1px)),
+    repeating-linear-gradient(90deg, #3fae3a 0 12.5%, #4cc046 12.5% 25%); background-clip: padding-box; }
+.sel-cup { display: none; }
+#select.tournament .sel-cup { display: flex; position: absolute; z-index: 3; left: 0; right: 0; bottom: calc(var(--u) * 2); justify-content: center; }
+.cup-prizes { list-style: none; margin: 0; padding: 0; display: flex; gap: calc(var(--u) * 2); }
+.cup-prizes li { display: flex; align-items: center; gap: calc(var(--u) * 1.2); padding: calc(var(--u) * .6) calc(var(--u) * 2.4); border-radius: 999px; background: #0b2a6bcc; border: calc(var(--u) * .4) solid #fff; }
+.cup-prizes span { font-size: calc(var(--u) * 2.8); color: #fff; font-weight: 700; }
+.cup-prizes b { display: flex; align-items: center; gap: .3em; font-size: calc(var(--u) * 3.4); color: var(--m-gold); font-weight: 900; direction: ltr; }
+.cup-prizes li:last-child { background: linear-gradient(180deg, #ffe46a, #ffb300); border-color: #fff; }
+.cup-prizes li:last-child span, .cup-prizes li:last-child b { color: #3a0008; }
+
+/* THE BRACKET on HS's green pitch, white lines, the winners' path gold */
+.br-panel { position: absolute; left: calc(var(--safe-l) + var(--u) * 5); right: calc(var(--safe-r) + var(--u) * 5); top: calc(var(--safe-t) + var(--u) * 15); bottom: calc(var(--safe-b) + var(--u) * 17.5);
+  background:
+    radial-gradient(circle at 50% 50%, transparent calc(var(--u) * 13), #ffffff40 calc(var(--u) * 13) calc(var(--u) * 13.5), transparent calc(var(--u) * 13.5)),
+    linear-gradient(90deg, transparent calc(50% - 1px), #ffffff40 calc(50% - 1px) calc(50% + 1px), transparent calc(50% + 1px)),
+    repeating-linear-gradient(90deg, #3fae3a 0 6.25%, #4cc046 6.25% 12.5%);
+  background-clip: padding-box; border-color: #fff;
+  box-shadow: 0 0 0 calc(var(--u) * .9) #fff, 0 0 0 calc(var(--u) * 1.6) #1a3a8a, 0 calc(var(--u) * 2) calc(var(--u) * 5) #0008; }
+.br-top { position: absolute; left: 50%; top: calc(var(--u) * -1.5); width: calc(var(--u) * 15); height: calc(var(--u) * 15); transform: translateX(-50%); z-index: 3; display: grid; place-items: center; pointer-events: none; }
+.br-sym { position: absolute; inset: 0; filter: drop-shadow(0 0 calc(var(--u) * 2.4) #fff8); }
+.br-sym > svg { animation: symRoll 6s linear infinite; }
+.br-cup { position: relative; font-style: normal; font-size: calc(var(--u) * 7.5); filter: drop-shadow(0 calc(var(--u) * .6) 0 #0008); animation: cupBob 2.2s ease-in-out infinite; }
+@keyframes cupBob { 50% { transform: translateY(calc(var(--u) * -1.2)) rotate(-5deg); } }
+.br-round { position: absolute; z-index: 3; right: calc(var(--u) * 2); top: calc(var(--u) * 1.6); padding: calc(var(--u) * .4) calc(var(--u) * 2.4); border-radius: 999px;
+  font-weight: 900; font-size: calc(var(--u) * 3.4); color: #3a0008; background: linear-gradient(180deg, #fff6a0, var(--m-gold) 50%, #ffb000); border: calc(var(--u) * .4) solid #fff; box-shadow: 0 calc(var(--u) * .5) 0 #0006; }
+.br-lines { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; }
+.br-lines path { fill: none; stroke: #ffffffd0; stroke-width: calc(var(--u) * .7); vector-effect: non-scaling-stroke; stroke-linejoin: round; }
+.br-lines path.won { stroke: var(--m-gold); stroke-width: calc(var(--u) * 1.3); filter: drop-shadow(0 0 3px #fff6a0); }
+.br-lines path.fresh { animation: brLight .5s ease-out var(--dl, 0s) both; }
+@keyframes brLight { 0% { stroke: #ffffffd0; stroke-width: calc(var(--u) * .7); } 50% { stroke: #fff; filter: drop-shadow(0 0 8px #fff); } 100% { stroke: var(--m-gold); } }
+.br-nodes { position: absolute; inset: 0; }
+.br-leaf, .br-node { position: absolute; transform: translate(-50%, -50%); display: flex; flex-direction: column; align-items: center; gap: calc(var(--u) * .4); }
+.br-leaf .m-hex { --s: calc(var(--u) * 14.5); }
+.br-leaf .m-hex::after { background: linear-gradient(180deg, color-mix(in srgb, var(--c) 70%, #fff), var(--c) 50%, color-mix(in srgb, var(--c) 55%, #000)); }
+.br-leaf small { padding: 0 calc(var(--u) * 1.2); border-radius: 999px; font-size: calc(var(--u) * 2.3); font-weight: 900; color: #fff; white-space: nowrap; max-width: calc(var(--u) * 20); overflow: hidden; text-overflow: ellipsis;
+  background: color-mix(in srgb, var(--c) 75%, #000); border: 1px solid #fff9; }
+.br-leaf.out { filter: grayscale(1) brightness(.6); }
+.br-leaf.out.late { animation: brOut .4s ease-out var(--dl, 0s) both; }
+@keyframes brOut { from { filter: none; } to { filter: grayscale(1) brightness(.6); } }
+.br-you { padding: 0 calc(var(--u) * 1.8); border-radius: 999px; font-size: calc(var(--u) * 2.8); font-weight: 900; color: #fff; background: linear-gradient(180deg, #4f86ff, #1b3fbf); border: 1px solid #fff; }
+.br-leaf.you .m-hex { filter: drop-shadow(0 0 calc(var(--u) * 2) #fff6a0); }
+.br-node .m-hex { --s: calc(var(--u) * 11.5); }
+.br-node > b { display: grid; place-items: center; width: calc(var(--u) * 7.5); height: calc(var(--u) * 7.5); border-radius: 50%; font-weight: 900; font-size: calc(var(--u) * 3.8);
+  color: #fff; background: #0006; border: calc(var(--u) * .45) dashed #fff; }
+.br-node.next > b { color: #3a0008; background: var(--m-gold); border-style: solid; animation: brNext 1s ease-in-out infinite; }
+@keyframes brNext { 50% { transform: scale(1.18); box-shadow: 0 0 calc(var(--u) * 2.4) #fff6a0; } }
+.br-node.won.you .m-hex { filter: drop-shadow(0 0 calc(var(--u) * 2) #fff6a0); }
+/* the climb: from its own spot up to the node, a hop with a squash on landing */
+.br-node.fly { animation: brFly .5s cubic-bezier(.3, .1, .3, 1) var(--dl, 0s) both; }
+@keyframes brFly {
+  0% { transform: translate(calc(-50% + var(--dx)), calc(-50% + var(--dy))) scale(1.25); }
+  55% { transform: translate(calc(-50% + var(--dx) * .4), calc(-50% + var(--dy) * .4 - var(--u) * 7)) scale(1.35); }
+  85% { transform: translate(-50%, -50%) scale(1.1, .85); }
+  100% { transform: translate(-50%, -50%) scale(1); }
+}
+.br-node.fly .br-score { animation: mPop .3s cubic-bezier(.2, 1.6, .4, 1) calc(var(--dl, 0s) + .45s) both; }
+/* the score under the winner: the loser's goals red, the winner's blue (HS) */
+.br-score { position: absolute; top: 100%; left: 50%; transform: translate(-50%, calc(var(--u) * .3)); display: flex; align-items: center; gap: calc(var(--u) * .5);
+  font-weight: 900; font-size: calc(var(--u) * 3.2); color: #fff; padding: 0 calc(var(--u) * 1.4); border-radius: 999px; background: #fff; box-shadow: 0 calc(var(--u) * .4) 0 #0005; white-space: nowrap; }
+.br-score .l { color: #e8102e; }
+.br-score .w { color: #1b5fe0; }
+.br-msg { flex: 1; margin: 0; text-align: center; font-weight: 900; font-size: calc(var(--u) * 4); color: #fff; text-shadow: 0 2px 0 #0008; }
+.br-msg b { color: var(--m-gold); }
+#brGo:disabled { filter: grayscale(.6) brightness(.8); }
+/* the champion: a trophy with a sunburst (HS's VICTORY) */
+.br-win { position: absolute; inset: 0; z-index: 20; display: grid; place-items: center; background: #000c; overflow: hidden; animation: mFade .2s both; }
+.br-sun { position: absolute; width: 220vmax; height: 220vmax; left: 50%; top: 50%; margin: -110vmax 0 0 -110vmax;
+  background: repeating-conic-gradient(#ffd40055 0 10deg, transparent 10deg 20deg); -webkit-mask: radial-gradient(circle, #000, transparent 40%); mask: radial-gradient(circle, #000, transparent 40%); animation: mSpin 20s linear infinite; }
+.br-win-card { position: relative; display: flex; flex-direction: column; align-items: center; gap: calc(var(--u) * 2.4); animation: mPop .4s cubic-bezier(.2, 1.5, .4, 1) both; }
+.br-win-card .m-title { font-size: calc(var(--u) * 10); }
+.br-win-card { gap: calc(var(--u) * 1.4); }
+.br-win-cup { margin-top: calc(var(--u) * 3); }
+.br-win-card .m-title { position: relative; z-index: 1; }
+/* you, holding the cup up: your head over the trophy */
+.br-win-cup { position: relative; display: flex; flex-direction: column; align-items: center; font-size: calc(var(--u) * 20); line-height: 1; filter: drop-shadow(0 0 calc(var(--u) * 4) #ffd400); }
+.br-win-face { order: -1; display: block; width: calc(var(--u) * 20); height: calc(var(--u) * 20); margin-bottom: calc(var(--u) * -1); position: relative; z-index: 1; background-repeat: no-repeat; border-radius: 50%; animation: mnJump 1.1s ease-in-out infinite; }
+.br-win-cup { font-size: calc(var(--u) * 17); }
+.br-win-face.char-face { border-radius: 0; }

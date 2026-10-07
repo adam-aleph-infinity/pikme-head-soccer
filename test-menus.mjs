@@ -12,10 +12,10 @@ const ok = (name, cond, extra = '') => {
 };
 
 // ── the carousel ──
-ok('three modes, arcade first', M.MODES.map((m) => m.id).join() === 'arcade,multi,practice');
+ok('four modes in HS\'s order: arcade, tournament, multiplayer — then practice', M.MODES.map((m) => m.id).join() === 'arcade,tournament,multi,practice');
 ok('wrap keeps an index on the ring', M.wrap(-1, 3) === 2 && M.wrap(3, 3) === 0 && M.wrap(7, 3) === 1);
-ok('arcade centred: multi to its right, practice to its left', M.carouselOffsets(0, 3).join() === '0,1,-1');
-ok('multi centred: practice right, arcade left', M.carouselOffsets(1, 3).join() === '-1,0,1');
+ok('arcade centred: tournament to its right, practice to its left', M.carouselOffsets(0, 4).join() === '0,1,2,-1');
+ok('three modes: each neighbour one either side', M.carouselOffsets(1, 3).join() === '-1,0,1');
 ok('every mode is somewhere, one of them in the middle', [0, 1, 2].every((c) => M.carouselOffsets(c, 3).filter((d) => d === 0).length === 1));
 ok('five modes spread two either side', M.carouselOffsets(0, 5).join() === '0,1,2,-2,-1');
 
@@ -59,7 +59,10 @@ ok('beating the last champion stays on it', M.afterResult({ mode: 'arcade', won:
 const pr = M.afterResult({ mode: 'practice', won: false });
 ok('practice: one button, no stage', pr.buttons.length === 1 && pr.select === null);
 const on = M.afterResult({ mode: 'online', won: true });
-ok('online keeps two: play again (the room) and leave', on.buttons.map((b) => b.id).join() === 'again,leave');
+ok('online keeps two: play again (the room) and leave', on.buttons.map((b) => b.id).join() === 'again,leave' && on.to === 'lobby');
+const tw = M.afterResult({ mode: 'tournament', won: true }), tl = M.afterResult({ mode: 'tournament', won: false });
+ok('tournament: one button back to the bracket, NEXT MATCH or NEXT', tw.to === 'bracket' && tl.to === 'bracket' && tw.buttons[0].label === 'המשחק הבא' && tl.buttons[0].label === 'הבא');
+ok('arcade and practice go back to Player Select', aw.to === 'select' && pr.to === 'select');
 
 // ── sound and music ──
 ok('a new device has both on', JSON.stringify(M.parseAudio(null)) === '{"sfx":true,"music":true}');
