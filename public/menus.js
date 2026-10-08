@@ -10,13 +10,14 @@
 // `ctx`) and gets back the screens to open. One screen is up at a time (show), and a pill is
 // pressed — HS's dark pressed state — a beat before its screen opens (press).
 import { symbolSVG } from './symbol.js';
+import * as ICON from './home-icons.js';
 import { createReel } from './reel.js';
 import * as MN from '../shared/menu.js';
 import { HS_STAGES } from './hs-stadium.js';
 import * as TOUR from '../shared/tournament.js';
 
 const $ = (s) => document.querySelector(s);
-export const SCREENS = ['title', 'menu', 'select', 'shop', 'bracket', 'howto', 'lobby', 'match'];
+export const SCREENS = ['title', 'menu', 'modes', 'select', 'shop', 'bracket', 'howto', 'lobby', 'match'];
 const POPS = ['cardsPop', 'statsPop', 'optPop', 'mpPop'];      // the order Esc closes them in
 const fmt = (n) => Number(n || 0).toLocaleString('en-US');
 
@@ -42,9 +43,9 @@ const HOW = [
 export function createMenus(ctx) {
   const { pick, ARC, UPG, state } = ctx;
   let screen = null;
-  let carIdx = 0;                       // the carousel's centred mode
+  let shopFrom = 'select';              // where the shop's BACK goes: 'menu' | 'select'
   let selMode = 'arcade';               // Player Select: 'arcade' | 'practice'
-  let meRarity = pick.me.rarity, meList = [];
+  let meList = [];                     // the characters list (MN.charReel)
   let reelMe = null, reelFoe = null, reelCup = null;
   let practiceFoe = 1;                  // practice: which champion's card you play against
   let howFrom = 'menu', howPage = 0;
@@ -52,7 +53,7 @@ export function createMenus(ctx) {
   let shownPts = null, ptsAnim = 0;
 
   // The symbol, everywhere HS has its own art.
-  for (const id of ['tSym', 'mnBlimpSym', 'mnLogo', 'oSym', 'pSym', 'vsSym', 'brSym']) { const el = document.getElementById(id); if (el) el.innerHTML = symbolSVG(); }
+  for (const id of ['tSym', 'hmPodSym', 'mnLogo', 'oSym', 'pSym', 'vsSym', 'brSym']) { const el = document.getElementById(id); if (el) el.innerHTML = symbolSVG(); }
 
   // ── SCREENS AND POPUPS ──────────────────────────────────────────────────
   function show(id) {
@@ -119,33 +120,77 @@ export function createMenus(ctx) {
   }
   on('#title', leaveTitle);
 
-  // ── MAIN MENU ───────────────────────────────────────────────────────────
-  // HS M15: the logo top-left, its icons top-right, a big piece of art, and a looping carousel
-  // of modes along the bottom — the centred one bigger, with its mascot popping up above it.
-  const track = $('#mnTrack');
+  // ── HOME ────────────────────────────────────────────────────────────────
+  // Ours: you, standing on a podium under a spotlight on a dark stage; your profile and
+  // trophies top-left, the wallet along the top, settings top-right; characters and shop on the
+  // left, the battle pass bottom-left; friends and the leaderboard on the right, PLAY bottom-right.
+  // Money and trophies are not in the game yet: they read 0 until they are.
+  function openMenu() {
+    show('menu');
+    paintHome();
+    ctx.onHome?.();
+  }
+  // the tiles' drawn icons (home-icons.js), once
+  const ICONS = { trophy: ICON.TROPHY, gear: ICON.GEAR, shop: '<img src="img/shop-icon.png" alt="">', friends: ICON.FRIENDS, board: ICON.BOARD, pass: ICON.PASS, quests: ICON.QUESTS };
+  for (const el of document.querySelectorAll('#menu [data-ico]')) el.innerHTML = ICONS[el.dataset.ico] || '';
+  function paintHome() {
+    $('#hmName').textContent = pick.name || MN.cleanName('');
+    $('#mnPts').textContent = fmt(state.stats.points);
+    $('#hmMoney').textContent = fmt(state.stats.money || 0);
+    $('#hmCups').textContent = fmt(ctx.trophies?.() ?? state.stats.trophies ?? 0);
+    const av = $('#hmAvatar');
+    av.classList.toggle('photo', !ctx.characterFor?.(pick.me.rarity, pick.me.number));
+    ctx.paintHead(av, pick.me.rarity, pick.me.number, av.clientWidth || 60, { fill: 1.05 });
+    ctx.paintStanding?.($('#hmHero'), pick.me);
+    paintTeam();
+    ctx.paintArenaHome?.();
+    // the Characters tile: two of the drawn champions peeking out of it
+    const [fa, fb] = document.querySelectorAll('#hmChars .hm-cf');
+    ctx.paintHead(fa, 'legendary', 3, fa.clientWidth || 40, { fill: 1.05 });
+    ctx.paintHead(fb, 'legendary', 2, fb.clientWidth || 40, { fill: 1.05, flip: true });
+  }
+  // YOUR TEAM (team.js): its chip under your trophies, its colour round your face
+  function paintTeam() {
+    const t = ctx.team?.(), chip = $('#hmTeam'), av = $('#hmAvatar');
+    chip.classList.toggle('hidden', !t);
+    av.classList.toggle('team', !!t);
+    if (!t) return;
+    for (const el of [chip, av]) { el.style.setProperty('--tc', t.color); el.style.setProperty('--td', t.dark); }
+    $('#hmTBdg').innerHTML = ctx.badgeSVG(t);
+    $('#hmTName').textContent = t.title;
+    $('#hmTStat').textContent = ctx.teamStatus?.() || '';
+  }
+  // "Coming soon", for the buttons whose screens are not built yet.
+  let toastT = 0;
+  function toast(text) {
+    const t = $('#hmToast');
+    t.textContent = text;
+    t.classList.remove('on'); void t.offsetWidth; t.classList.add('on');
+    clearTimeout(toastT);
+    toastT = setTimeout(() => t.classList.remove('on'), 1600);
+  }
+  // PLAY is the arena (arena.js); the other modes are the button beside it
+  tap('#hmPlay', () => (ctx.playArena ? ctx.playArena() : openModes()));
+  tap('#hmModes', () => openModes());
+  on('#hmCupsBox', () => { ctx.sfx?.('tap'); ctx.openRoad?.(); });
+  tap('#hmBoard', () => (ctx.openBoard ? ctx.openBoard() : toast('בקרוב!')));
+  tap('#hmChars', () => openCards('menu'));
+  tap('#hmShop', () => openShop('menu'));
+  tap('#hmProfile', () => openStats({ profile: true }));
+  tap('#hmTeam', () => ctx.openTeam?.());
+  for (const id of ['#hmPass', '#hmQuests', '#hmFriends', '#hmMoneyPlus']) tap(id, () => toast('בקרוב!'));
+  tap('#hmPtsPlus', () => openShop('menu'));          // more points: the shop is where they are spent
+  tap('#mnOpt', () => openOptions());
+
+  // ── GAME MODES ──────────────────────────────────────────────────────────
+  // What PLAY opens: every mode (shared/menu.js MODES) as a big card, its mascot over it.
+  const row = $('#mdRow');
   const MODE_ICON = { arcade: '👑', tournament: '🏆', multi: '⚡', practice: '🎯' };
-  track.innerHTML = MN.MODES.map((m, i) => `<button class="mn-mode" data-i="${i}" data-mode="${m.id}">
+  row.innerHTML = MN.MODES.map((m) => `<button class="mn-mode" data-mode="${m.id}">
       <span class="mn-masc"></span><b class="mn-pill"><i class="mn-ico">${MODE_ICON[m.id]}</i><span>${m.name}</span></b><small class="mn-sub"></small></button>`).join('');
-  for (const b of track.children) {
-    b.addEventListener('click', () => {
-      const i = +b.dataset.i;
-      if (i === carIdx) press(b.querySelector('.mn-pill'), () => enterMode(MN.MODES[i].id));
-      else spin(i);
-    });
-  }
-  function spin(i) { carIdx = MN.wrap(i, MN.MODES.length); ctx.sfx?.('tick'); placeCarousel(); }
-  function placeCarousel() {
-    const offs = MN.carouselOffsets(carIdx, MN.MODES.length);
-    [...track.children].forEach((b, i) => {
-      b.style.setProperty('--o', offs[i]);
-      b.classList.toggle('on', offs[i] === 0);
-      b.tabIndex = offs[i] === 0 ? 0 : -1;
-    });
-    paintMascot();
-  }
-  function paintMascot() {
-    for (const b of track.children) b.querySelector('.mn-masc').innerHTML = '';
-    const b = track.children[carIdx], m = b.querySelector('.mn-masc'), id = MN.MODES[carIdx].id;
+  for (const b of row.children) b.addEventListener('click', () => press(b.querySelector('.mn-pill'), () => enterMode(b.dataset.mode)));
+  function paintMascot(b) {
+    const m = b.querySelector('.mn-masc'), id = b.dataset.mode;
     if (id === 'arcade') {
       m.innerHTML = '<i class="mm-face"></i><b class="mm-deco crown">👑</b>';
       const n = ARC.currentStage(state.prog);
@@ -172,90 +217,18 @@ export function createMenus(ctx) {
     else if (id === 'tournament') { if (ctx.tour.get() && !TOUR.finished(ctx.tour.get())) openBracket(); else openSelect('tournament'); }
     else openMp();
   }
-  function openMenu() {
-    show('menu');
-    const sub = (id) => track.querySelector(`[data-mode="${id}"] .mn-sub`);
+  function openModes() {
+    show('modes');
+    const sub = (id) => row.querySelector(`[data-mode="${id}"] .mn-sub`);
     sub('arcade').textContent = ARC.campaignComplete(state.prog) ? 'כל 45 האלופים ✓' : `שלב ${ARC.currentStage(state.prog)}/${ARC.STAGE_COUNT}`;
     const t = ctx.tour.get();
     sub('tournament').textContent = t && !TOUR.finished(t) ? `בתהליך · ${TOUR.ROUNDS[t.round]}` : '8 שחקנים · גביע';
     sub('multi').innerHTML = 'עם חבר <span class="online-count"></span>';
     sub('practice').textContent = 'נגד המחשב';
     ctx.refreshOnline?.();
-    $('#mnPts').textContent = fmt(state.stats.points);
-    paintScene();
-    placeCarousel();
+    for (const b of row.children) paintMascot(b);
   }
-  // THE SCENE. HS's day stadium (hs-stadium.js, the same painter as the match) once, with our
-  // own boards and grass under it; then the cast: you, big, heading the ball — the drawn
-  // champions around you, cheering. A card without a drawn character plays its photo in a ring.
-  let stadiumDone = false;
-  function paintStadium() {
-    if (stadiumDone) return;
-    stadiumDone = true;
-    // SKY of open sky above the stadium (HS's title art has its sky): the blimp flies in it
-    const cv = $('#mnStadium'), K = 1.5, W = 1060, SKY = 150, H = 560 + SKY, gy = 435;
-    cv.width = W * K; cv.height = H * K;
-    const g = cv.getContext('2d');
-    g.scale(K, K);
-    const sk = g.createLinearGradient(0, 0, 0, SKY + 100);
-    sk.addColorStop(0, '#0f8fe0'); sk.addColorStop(0.7, '#2cc3f5'); sk.addColorStop(1, '#12a6ec');
-    g.fillStyle = sk; g.fillRect(0, 0, W, SKY + 100);
-    g.fillStyle = '#ffffffd9';
-    for (const [x, y, r] of [[120, 60, 34], [165, 52, 44], [215, 64, 30], [560, 40, 28], [600, 34, 38], [640, 44, 26], [880, 74, 36], [925, 66, 46], [975, 78, 30]]) {
-      g.beginPath(); g.ellipse(x, y, r * 1.5, r * 0.8, 0, 0, Math.PI * 2); g.fill();
-    }
-    g.translate(0, SKY);
-    try { HS_STAGES[0].draw(g, { W, t: 0, horizon: gy * 0.6, crowdTop: gy * 0.61, crowdBot: gy * 0.81 - 8, gy }); } catch { /* the sky colour stands in */ }
-    // the hoardings: Saltiz boards in the logo's colours and the crowd's
-    const top = gy * 0.82, bot = gy * 0.95, n = 6, bw = W / n;
-    const BOARDS = [['#e8102e', '#ffd400', 'SALTIZ'], ['#ffd400', '#c4001f', 'סלטיז ראשים'], ['#1b6fe0', '#fff', 'GOAL!'],
-      ['#16a34a', '#fff', 'סלטיז'], ['#8a3ffc', '#ffd400', 'HEAD'], ['#ff7a00', '#fff', '⚽ ⚽ ⚽']];
-    BOARDS.forEach(([bg, fg, txt], i) => {
-      const x = i * bw;
-      const gr = g.createLinearGradient(0, top, 0, bot);
-      gr.addColorStop(0, bg); gr.addColorStop(1, '#0006');
-      g.fillStyle = bg; g.fillRect(x, top, bw, bot - top);
-      g.fillStyle = gr; g.globalAlpha = 0.35; g.fillRect(x, top, bw, bot - top); g.globalAlpha = 1;
-      g.fillStyle = '#0005'; g.fillRect(x, top, 2, bot - top);
-      g.fillStyle = fg; g.font = '900 30px Rubik, Arial, sans-serif'; g.textAlign = 'center'; g.textBaseline = 'middle';
-      g.fillText(txt, x + bw / 2, (top + bot) / 2 + 1);
-    });
-    // the grass: HS's bright stripes, the halfway line, the centre circle
-    const floor = H - SKY;
-    for (let i = 0; i < 12; i++) { g.fillStyle = i % 2 ? '#3fae3a' : '#4cc046'; g.fillRect(i * W / 12, bot, W / 12 + 1, floor - bot); }
-    g.strokeStyle = '#ffffffcc'; g.lineWidth = 4;
-    g.beginPath(); g.moveTo(W / 2, bot); g.lineTo(W / 2, floor); g.stroke();
-    g.beginPath(); g.ellipse(W / 2, (bot + floor) / 2 + 20, 120, 40, 0, 0, Math.PI * 2); g.stroke();
-  }
-  function paintScene() {
-    paintStadium();
-    const face = $('#mnFace');
-    const mine = ctx.characterFor?.(pick.me.rarity, pick.me.number);
-    ctx.paintHead(face, pick.me.rarity, pick.me.number, face.clientWidth || 240, { expr: 'kick', fill: 1.05 });
-    face.classList.toggle('photo', !mine);
-    // the cheering champions: every drawn character but yours, happy
-    const cast = [1, 2, 3, 4, 5].filter((k) => !(pick.me.rarity === 'legendary' && pick.me.number === k)).slice(0, 4);
-    const box = $('#mnCast');
-    if (box.dataset.cast !== cast.join()) {
-      box.dataset.cast = cast.join();
-      box.innerHTML = cast.map((k, i) => `<i class="mn-fan f${i}"><i class="mn-fan-face"></i></i>`).join('');
-    }
-    box.querySelectorAll('.mn-fan-face').forEach((el, i) => ctx.paintHead(el, 'legendary', cast[i], el.clientWidth || 90, { expr: i % 2 ? 'happy' : 'kick', flip: i % 2 === 1, fill: 1.05 }));
-  }
-  on('#mnPrev', () => spin(carIdx - 1));
-  on('#mnNext', () => spin(carIdx + 1));
-  tap('#mnOpt', () => openOptions());
-  // a swipe along the carousel turns it
-  {
-    let x0 = null;
-    const car = $('.mn-car');
-    car.addEventListener('pointerdown', (e) => { x0 = e.clientX; });
-    car.addEventListener('pointerup', (e) => {
-      if (x0 === null) return;
-      const dx = e.clientX - x0; x0 = null;
-      if (Math.abs(dx) > 40) spin(carIdx + (dx < 0 ? 1 : -1));
-    });
-  }
+  tap('#mdBack', () => openMenu());
 
   // ── PLAYER SELECT ──────────────────────────────────────────────────────
   // HS: your character on the left, the CPU's on the right, each a vertical reel; the match
@@ -279,18 +252,21 @@ export function createMenus(ctx) {
     const c = meList[i], shot = powerOf(c);
     item.innerHTML = hexHTML({ caged: !c.owned, plate: c.owned ? '' : 'לא באלבום', badge: shot.icon || '⚡', color: MN.RARITY_COLOR[c.rarity] });
     const f = item.querySelector('.m-face');
-    ctx.paintHead(f, c.rarity, c.number, f.clientWidth || 120, { fill: 1.05 });
+    ctx.paintHead(f, c.rarity, c.number, f.clientWidth || 120, { h: f.clientHeight || undefined, fill: 0.86 });   // the whole champion, hat to chin, inside the hexagon
   }
   function paintFoe(i, item) {
     const c = champs[i], st = selMode === 'arcade' ? ARC.stageStatus(state.prog, c.stage) : 'available';
     item.innerHTML = hexHTML({ caged: st === 'locked', badge: c.icon, color: c.color, done: st === 'completed' });
     item.classList.add('foe');
     const f = item.querySelector('.m-face');
-    ctx.paintHead(f, 'legendary', c.stage, f.clientWidth || 120, { flip: true, fill: 1.05 });
+    ctx.paintHead(f, 'legendary', c.stage, f.clientWidth || 120, { h: f.clientHeight || undefined, flip: true, fill: 0.86 });
   }
   function buildReels() {
-    meList = MN.cardReel(meRarity, ctx.owns, ctx.perRarity);
-    const iMe = pick.me.rarity === meRarity ? pick.me.number - 1 : (MN.firstOwned(meRarity, ctx.owns, ctx.perRarity) || 1) - 1;
+    meList = MN.charReel(ctx.owns);
+    // a card no longer in the list (another rarity, saved before there was one list) gives way to
+    // the first one you can play: your starter
+    let iMe = MN.charIndex(meList, pick.me);
+    if (iMe < 0 || !meList[iMe].owned) { iMe = Math.max(0, meList.findIndex((c) => c.owned)); pick.me = { rarity: meList[iMe].rarity, number: meList[iMe].number }; }
     if (!reelMe) reelMe = createReel($('#reelMe'), { count: meList.length, index: iMe, paint: paintMe, onSelect: onMe, onTap: () => openCards('select') });
     else reelMe.reset(meList.length, iMe);
     if (selMode === 'tournament') {
@@ -313,10 +289,8 @@ export function createMenus(ctx) {
   }
   function openSelect(mode, { stage } = {}) {
     selMode = mode;
-    carIdx = MN.MODES.findIndex((m) => m.id === mode);
     if (mode === 'arcade' && stage) state.sel = stage;
     if (mode === 'practice') pick.foe = { ...champs[practiceFoe - 1].card };
-    meRarity = pick.me.rarity;
     show('select');
     $('#select').classList.toggle('practice', mode === 'practice');
     $('#select').classList.toggle('tournament', mode === 'tournament');
@@ -337,16 +311,9 @@ export function createMenus(ctx) {
     const sc = arcade ? ARC.lastScore(state.prog, n) : null;
     $('#selScore').textContent = sc ? `${sc[0]} : ${sc[1]}` : '';
     $('#selScore').classList.toggle('hidden', !sc);
-    $('#selRar').innerHTML = `<i class="pp"></i>${MN.RARITY_NAME[meRarity]} ▾`;
-    $('#selRar').style.setProperty('--rc', MN.RARITY_COLOR[meRarity]);
-    $('#selTier').innerHTML = `${ctx.tiers[c.tier]}<i class="pp"></i>`;
+    // no rarity and no tier on this screen (Idan): one list of characters, and the opponent's
+    // league is not written under it
     const me = meCard();
-    const gem = $('#selGem');
-    gem.textContent = MN.RARITY_NAME[me.rarity];
-    gem.style.setProperty('--c', MN.RARITY_COLOR[me.rarity]);
-    const fg = $('#selFoeGem');
-    fg.textContent = ctx.tiers[c.tier];
-    fg.style.setProperty('--c', c.color);
     $('#selFoeTag').textContent = arcade ? 'אלוף' : 'יריב';
     stars($('#selStars'), arcade ? c.hs.stars : MN.levelStars(pick.level));
     $('#selDiff').classList.toggle('hidden', arcade || cup);
@@ -375,7 +342,7 @@ export function createMenus(ctx) {
     play.innerHTML = `<b>${why || (cup ? 'הבא' : 'שחק')}</b>`;     // HS's tournament select says NEXT
   }
   const barHTML = (lv, next = -1) => Array.from({ length: 10 }, (_, i) => `<i class="${i < lv ? 'on' : i === next ? 'next' : ''}"></i>`).join('');
-  tap('#selBack', () => openMenu());
+  tap('#selBack', () => openModes());
   tap('#selShop', () => openShop());
   tap('#selPlay', () => play());
   function play() {
@@ -384,14 +351,6 @@ export function createMenus(ctx) {
     else if (selMode === 'tournament') { ctx.tour.start({ ...pick.me }); seen.clear(); openBracket(); }
     else ctx.play.practice();
   }
-  on('#selRar', () => {
-    meRarity = MN.nextRarity(meRarity);
-    const first = MN.firstOwned(meRarity, ctx.owns, ctx.perRarity);
-    if (first) pick.me = { rarity: meRarity, number: first };
-    meList = MN.cardReel(meRarity, ctx.owns, ctx.perRarity);
-    resetMe(meList.length, (first || 1) - 1);
-    renderSelect();
-  });
   on('#selPower', (e, el) => {
     const tip = $('#selTip');
     if (!el.dataset.desc) return;
@@ -520,51 +479,53 @@ export function createMenus(ctx) {
     if (TOUR.yourMatch(t)) ctx.play.tournament();
     else { ctx.tour.clear(); seen.clear(); openSelect('tournament'); }
   });
-  tap('#brBack', () => openMenu());           // the tournament waits: the menu's pill says so
+  tap('#brBack', () => openModes());           // the tournament waits: the menu's pill says so
   tap('#brWinOk', () => $('#brWin').classList.add('hidden'));
 
   // ── YOUR CARD: the album, in a popup ───────────────────────────────────
-  let cardsRarity = meRarity;
   function openCards(from) {
     cardsFor = from;
-    cardsRarity = pick.me.rarity;
     renderCards();
     openPop('cardsPop');
   }
   function renderCards() {
-    $('#cardsTabs').innerHTML = MN.RARITY_ORDER.map((r) => `<button class="m-chip${r === cardsRarity ? ' on' : ''}" data-r="${r}" style="--rc:${MN.RARITY_COLOR[r]}">${MN.RARITY_NAME[r]}</button>`).join('');
+    // the same one list as Player Select's reel: your starter, then the legendary cards
     const grid = $('#cardGrid');
     grid.innerHTML = '';
-    for (let n = 1; n <= ctx.perRarity; n++) {
-      const owned = ctx.owns(cardsRarity, n);
+    MN.charReel(ctx.owns).forEach(({ rarity, number: n, owned }, i) => {
       const b = document.createElement('button');
-      b.className = 'cd' + (owned ? '' : ' locked') + (pick.me.rarity === cardsRarity && pick.me.number === n ? ' sel' : '');
-      b.style.backgroundImage = `url("${ctx.cardUrl(cardsRarity, n)}")`;
-      b.innerHTML = `<b>${n}</b>`;
+      b.className = 'cd' + (owned ? '' : ' locked') + (pick.me.rarity === rarity && pick.me.number === n ? ' sel' : '');
+      b.style.backgroundImage = `url("${ctx.cardUrl(rarity, n)}")`;
+      if (rarity === 'mythic') {                                   // a portrait, not a card: shown whole
+        b.classList.add('myth');
+        b.style.backgroundImage += ', radial-gradient(circle at 50% 42%, #ff5fd266, #2a1030 72%)';
+      }
+      b.innerHTML = rarity === 'mythic' ? '' : `<b>${n}</b>`;
       if (!owned) b.title = 'לא באלבום שלך';
       b.onclick = () => {
         if (!owned) return;
-        pick.me = { rarity: cardsRarity, number: n };
+        pick.me = { rarity, number: n };
         closePop('cardsPop');
         if (cardsFor === 'mp') renderMp();
-        else { meRarity = cardsRarity; meList = MN.cardReel(meRarity, ctx.owns, ctx.perRarity); resetMe(meList.length, n - 1); renderSelect(); }
+        else if (cardsFor === 'menu') paintHome();
+        else { meList = MN.charReel(ctx.owns); resetMe(meList.length, i); renderSelect(); }
       };
       grid.appendChild(b);
-    }
+    });
   }
-  on('#cardsTabs', (e) => { const b = e.target.closest('button'); if (!b) return; cardsRarity = b.dataset.r; renderCards(); });
   on('#cardsX', () => closePop('cardsPop'));
 
   // ── SHOP ────────────────────────────────────────────────────────────────
   // HS: BACK, the folder tabs, a row per stat — name, price, ten dots, Buy — and MY POINT at
   // the bottom. One tab: we have no costumes, pets or bodies.
-  function openShop() {
+  function openShop(from = 'select') {
+    shopFrom = from;
     shownPts = state.stats.points;
     show('shop');
     renderShop();
     const f = $('#shopFace');
     ctx.paintHead(f, pick.me.rarity, pick.me.number, f.clientWidth || 100);
-    $('#shopName').textContent = MN.RARITY_NAME[pick.me.rarity] + ' #' + pick.me.number;
+    $('#shopName').textContent = MN.charName(pick.me);
   }
   function renderShop(bought = null) {
     const box = $('#upgRows');
@@ -622,7 +583,8 @@ export function createMenus(ctx) {
     };
     ptsAnim = requestAnimationFrame(tick);
   }
-  tap('#shopBack', () => { show('select'); renderSelect(); });
+  const leaveShop = () => { if (shopFrom === 'menu') openMenu(); else { show('select'); renderSelect(); } };
+  tap('#shopBack', leaveShop);
 
   // ── OPTIONS · STATS ─────────────────────────────────────────────────────
   // HS M15: OPTION is its pause screen's design over the dimmed menu.
@@ -638,16 +600,27 @@ export function createMenus(ctx) {
   tap('#oStats', () => openStats());
   tap('#oBack', () => closePop('optPop'));
   on('#optPop', (e, el) => { if (e.target === el) closePop('optPop'); });
-  function openStats() {
+  function openStats({ profile = false } = {}) {
+    $('#statsH').textContent = profile ? 'הפרופיל שלי' : 'סטטיסטיקה';
+    $('#stNameRow').hidden = !profile;
+    $('#stName').value = pick.name || '';
     const p = state.prog, rec = Object.values(p.record);
     const w = rec.reduce((s, r) => s + r.w, 0), l = rec.reduce((s, r) => s + r.l, 0);
     const lv = Object.values(state.stats.lv).reduce((s, v) => s + v, 0);
     const rows = [['אלופים שהובסו', `${p.cleared} / ${ARC.STAGE_COUNT}`], ['ניצחונות בארקייד', w], ['הפסדים בארקייד', l],
       ['נקודות סולטיז', `<i class="coin"></i> ${fmt(state.stats.points)}`], ['רמות שדרוג', `${lv} / 50`]];
+    // the team and the arena (team.js, arena.js), first
+    if (profile && ctx.profileRows) rows.unshift(...ctx.profileRows());
     $('#statsList').innerHTML = rows.map(([k, v]) => `<dt>${k}</dt><dd>${v}</dd>`).join('');
     openPop('statsPop');
   }
   on('#statsX', () => closePop('statsPop'));
+  // the same name the multiplayer popup keeps ("MAX 10 · AUTO SAVE")
+  $('#stName').addEventListener('input', (e) => {
+    pick.name = MN.cleanName(e.target.value);
+    try { ctx.store?.setItem(MN.NAME_KEY, pick.name); } catch { /* private mode */ }
+    $('#hmName').textContent = pick.name;
+  });
 
   // ── HOW TO ──────────────────────────────────────────────────────────────
   // HS: card pages that slide sideways, the next one peeking in; its number and name on a
@@ -692,7 +665,7 @@ export function createMenus(ctx) {
     $('#mpName').value = pick.name;
     const f = $('#mpFace');
     ctx.paintHead(f, pick.me.rarity, pick.me.number, f.clientWidth || 60);
-    $('#mpCardName').textContent = `${MN.RARITY_NAME[pick.me.rarity]} #${pick.me.number}`;
+    $('#mpCardName').textContent = MN.charName(pick.me);
   }
   $('#mpName').addEventListener('input', (e) => {
     pick.name = MN.cleanName(e.target.value);
@@ -710,6 +683,7 @@ export function createMenus(ctx) {
   addEventListener('keydown', (e) => {
     if (!screen || screen === 'match') return;
     if (document.body.classList.contains('tut-on')) return;      // the tutorial has the keys (tutorial.js guard)
+    if (document.body.classList.contains('st-on')) return;       // …and the starter pick has them before it (starter.js)
     const t = e.target, inField = t?.closest?.('input,textarea,[contenteditable]');
     const k = e.code;
     let act = null;
@@ -721,9 +695,9 @@ export function createMenus(ctx) {
     } else if (screen === 'title') {
       if (k === 'Enter' || k === 'NumpadEnter' || k === 'Space') act = leaveTitle;
     } else if (screen === 'menu') {
-      if (k === 'ArrowLeft') act = () => spin(carIdx - 1);
-      else if (k === 'ArrowRight') act = () => spin(carIdx + 1);
-      else if ((k === 'Enter' || k === 'NumpadEnter') && !t?.closest?.('button:not(.mn-mode)')) act = () => enterMode(MN.MODES[carIdx].id);
+      if ((k === 'Enter' || k === 'NumpadEnter') && !(t?.tagName === 'BUTTON')) act = () => openModes();
+    } else if (screen === 'modes') {
+      if (k === 'Escape') act = () => openMenu();
     } else if (screen === 'select') {
       const reel = selMode === 'tournament' ? reelCup : e.shiftKey ? reelMe : reelFoe;
       if (k === 'ArrowDown' || (selMode === 'tournament' && k === 'ArrowRight')) act = () => reel.step(1);
@@ -731,13 +705,13 @@ export function createMenus(ctx) {
       else if (k === 'Home') act = () => reel.select(0);
       else if (k === 'End') act = () => reel.select(reel === reelFoe ? champs.length - 1 : meList.length - 1);
       else if ((k === 'Enter' || k === 'NumpadEnter') && !(t?.tagName === 'BUTTON')) act = play;
-      else if (k === 'Escape') act = () => openMenu();
+      else if (k === 'Escape') act = () => openModes();
     } else if (screen === 'shop') {
-      if (k === 'Escape') act = () => { show('select'); renderSelect(); };
+      if (k === 'Escape') act = leaveShop;
     } else if (screen === 'bracket') {
       if (!$('#brWin').classList.contains('hidden')) { if (k === 'Escape' || k === 'Enter') act = () => $('#brWin').classList.add('hidden'); }
       else if (k === 'Enter' || k === 'NumpadEnter') act = () => $('#brGo').click();
-      else if (k === 'Escape') act = () => openMenu();
+      else if (k === 'Escape') act = () => openModes();
     } else if (screen === 'howto') {
       if (k === 'ArrowLeft') act = () => howGo(-1);
       else if (k === 'ArrowRight') act = () => howGo(1);
@@ -754,12 +728,16 @@ export function createMenus(ctx) {
   // ── A RESIZE repaints the faces at their new size ──
   addEventListener('resize', () => {
     if (screen === 'select') { reelMe?.repaint(); reelFoe?.repaint(); reelCup?.repaint(); }
-    if (screen === 'menu') openMenu();
+    if (screen === 'menu') paintHome();
+    if (screen === 'modes') openModes();
   });
 
   return {
+    paintTeam,
+    paintHome: () => { if (screen === 'menu') paintHome(); },
+    toast,
     show, get screen() { return screen; },
-    openTitle, openMenu, openSelect, openShop, openHowTo, openOptions, openMp, openBracket,
+    openTitle, openMenu, openModes, openSelect, openShop, openHowTo, openOptions, openMp, openBracket,
     get selMode() { return selMode; },
     closePops: () => POPS.forEach(closePop),
     syncSound, renderPoints,

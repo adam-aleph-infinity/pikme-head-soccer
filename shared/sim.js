@@ -8,7 +8,7 @@ import { walkBounds, barY, barCeiling, goalBox, ballInGoal, keepOutOfGoal } from
 import { championFor } from './champions.js';
 import {
   shotFor, statsFor, meterRateFor, releaseX, releaseY, launch as launchPower, stepPower, contact as powerContact,
-  skipContact, earlyBlock, onArm, tickAilment, ailMods, ailInput, headless, EQUAL_STATS,
+  skipContact, onArm, tickAilment, ailMods, ailInput, headless, EQUAL_STATS,
 } from './hs-powers.js';
 
 // A player's geometry, derived (never stored) so nothing can drift out of sync.
@@ -680,7 +680,6 @@ function stepPlayer(m, p, input, dt, fx) {
     // you see out in front is the leg that can touch the ball. Facing is the walk, not the aim.
     p.kickDir = p.side;
     m.events.push({ type: 'kick', player: p.index });
-    tryCounter(m, p, fx);
   }
   // THE TACKLE RUNS THE WHOLE SWING, not just the press: an opponent who jumps into the boot
   // after it went out is kicked too (one hit per swing — a connect spends kickT).
@@ -1324,14 +1323,9 @@ function bounceOffPost(b, px, py, fx) {
 }
 
 // ---------------------------------------------------------------------------
-// THE KICK-BLOCK, pressed a hair early. Head Soccer has no unarmed counter — a kick that used to
-// flip a power ball back from 130px away was ours. An unarmed kick into the ball BLOCKS it
-// (docs/HS-POWER-SHOTS.md §4: it grinds on the boot and fires back); this only lets the boot's
-// reach count as well as the body, so the press need not wait for the ball to be in the torso.
-// The counter proper is an ARMED touch (fireUltimateOnContact).
-function tryCounter(m, p, fx) {
-  earlyBlock(m, p, KIT, fx);
-}
+// (THE KICK-BLOCK used to count a press a hair early — earlyBlock, the ball merely near the boot's
+// reach. Idan, 2026-10-08: "touching just with your boot, like HS": only the boot meeting the
+// ball blocks now, on the swing up (the boot contact in collide, C.BLOCK_SWING).)
 
 // Kicking the OPPONENT instead of the ball: knockback, and a count toward the knockout (see
 // tryTackle, kickDamage). It pays NO gauge — Head Soccer's meter fills on the clock alone (chargeGauge).
@@ -1518,7 +1512,9 @@ function resolveBallPlayers(m, fx, alpha = 1) {
         // "right before it hits you", Counter_Attacks). Only the boot itself — a power ball that
         // meets the head or the body while the leg is out is a hit, not a block (it used to be a
         // block: the whole 0.26 s of the swing and any part of the silhouette — far too easy).
-        if (b.power && b.power.owner !== p.index && !(p.armed > 0)) { p.bootOn = true; hitByPowerShot(m, p, b, fx); p.bootOn = false; return; }
+        // …and only on the swing UP (C.BLOCK_SWING, Idan: "good timing"): the leg held out at the
+        // top takes it like the body does — a hit.
+        if (b.power && b.power.owner !== p.index && !(p.armed > 0)) { p.bootOn = k <= C.BLOCK_SWING; hitByPowerShot(m, p, b, fx); p.bootOn = false; return; }
         if (!b.power) {
           // ARMED: this touch is the one that spends it (see the note above the boot).
           if (p.armed > 0 && fireUltimateOnContact(m, p, b, fx)) { p.kickT = 0; return; }

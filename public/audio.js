@@ -534,6 +534,18 @@ const CP_VOICE = {
     whoosh({ lo: 260, hi: 3200, peak: 0.42, at: 0.12, dur: 0.55, t, body: 3 });
     whoosh({ lo: 420, hi: 5200, peak: 0.26, at: 0.08, dur: 0.4, t: t + 0.18, body: 2 });
   },
+  // the Mythic Gem: a bright crystal chime rising over the rush (ours, not HS's)
+  mythicgem(t) {
+    whoosh({ lo: 900, hi: 9000, peak: 0.3, at: 0.03, dur: 0.32, t, body: 2 });
+    [1568, 2093, 2637, 3136, 4186].forEach((f, i) => blip({ freq: f, type: 'sine', peak: 0.2 - i * 0.025, dur: 0.38, t: t + i * 0.035 }));
+    sweep({ from: 1200, to: 3800, type: 'triangle', peak: 0.1, dur: 0.25, t });
+  },
+};
+// The gem shattering: a glassy crack and a shower of tinkles falling away.
+SFX.gemShatter = () => {
+  thud({ freq: 5200, q: 0.5, peak: 0.55, decay: 0.09 });
+  thud({ freq: 2400, q: 0.9, peak: 0.4, decay: 0.14, t: 0.005 });
+  for (let i = 0; i < 10; i++) blip({ freq: 2600 + Math.random() * 3400 - i * 120, type: 'sine', peak: 0.16 - i * 0.011, dur: 0.06 + Math.random() * 0.1, t: 0.02 + i * 0.022 + Math.random() * 0.015 });
 };
 const basePowershot = SFX.powershot;
 SFX.powershot = (e) => {

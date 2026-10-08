@@ -14,6 +14,8 @@
 <link rel="stylesheet" href="style.css">
 <link rel="stylesheet" href="menus.css">
 <link rel="stylesheet" href="tutorial.css">
+<link rel="stylesheet" href="team.css">
+<link rel="stylesheet" href="arena.css">
 </head>
 <body>
 
@@ -22,15 +24,25 @@
      The geometry is HS's (BACK top-left, SHOP left, PLAY right); the words are Hebrew. -->
 
 <!-- TITLE = THE LOADING SCREEN (loader.js) · Head Ball 2's first frame: a floodlit night stadium,
-     two big heads squaring up from the edges, the logo between them, and a status line over a
+     the four Mythic starters lined up either side of the logo, and a status line over a
      "Loading n%" pill. At 100% the pill turns into HS's "TOUCH TO KICK OFF !". -->
 <section id="title" class="screen m-screen ld hidden" aria-label="סלטיז ראשים">
   <canvas class="ld-stadium" id="ldStadium" aria-hidden="true"></canvas>
   <i class="ld-beam l" aria-hidden="true"></i><i class="ld-beam r" aria-hidden="true"></i>
   <i class="ld-vignette" aria-hidden="true"></i>
   <div class="t-sparks" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div>
-  <div class="ld-hero l" aria-hidden="true"><i class="ld-face" id="ldFace0"></i><i class="ld-body red"></i></div>
-  <div class="ld-hero r" aria-hidden="true"><i class="ld-face" id="ldFace1"></i><i class="ld-body blue"></i></div>
+  <!-- the four Mythic starters (shared/mythics.js), whole, as the artist drew them, 2v2: שובל and
+       אורי against נוה and פז, the front pair face to face across a VS (loader.js) -->
+  <i class="ld-side l" aria-hidden="true"></i><i class="ld-side r" aria-hidden="true"></i>
+  <div class="ld-team l" aria-hidden="true">
+    <div class="ld-hero back" data-n="1" data-img="1"><i class="ld-spot"></i><img class="ld-fig" alt=""></div>
+    <div class="ld-hero front" data-n="2" data-img="2-3q"><i class="ld-spot"></i><img class="ld-fig" alt=""></div>
+  </div>
+  <div class="ld-team r" aria-hidden="true">
+    <div class="ld-hero back" data-n="4" data-img="4-3q"><i class="ld-spot"></i><img class="ld-fig" alt=""></div>
+    <div class="ld-hero front" data-n="3" data-img="3-3q"><i class="ld-spot"></i><img class="ld-fig" alt=""></div>
+  </div>
+  <div class="ld-vs" aria-hidden="true"><b class="vs-txt gold">VS</b></div>
   <div class="t-stage">
     <span class="m-sym glow t-sym" id="tSym"></span>
     <h1 class="t-word"><b class="m-title flame">סלטיז</b><b class="m-title chrome">ראשים</b></h1>
@@ -45,33 +57,97 @@
 
 <!-- MAIN MENU · HS M15: logo top-left, icons top-right, the big hero art, a looping carousel of modes -->
 <section id="menu" class="screen m-screen hidden">
-  <i class="m-rays" aria-hidden="true"></i>
-  <!-- HS's menu is one big, loud cartoon: its stadium, its stars mid-play. Ours: HS's daylight
-       stadium with the Saltiz blimp over it, the champions cheering, and you heading the ball. -->
-  <div class="mn-scene" aria-hidden="true">
-    <canvas class="mn-stadium" id="mnStadium"></canvas>
-    <i class="mn-beam l"></i><i class="mn-beam r"></i>
-    <div class="mn-blimp"><span class="m-sym" id="mnBlimpSym"></span><b>סלטיז ראשים</b><i class="mn-flag"></i></div>
-    <div class="mn-confetti"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div>
-    <div class="mn-cast" id="mnCast"></div>
-    <div class="mn-hero">
-      <i class="mn-shine"></i>
-      <i class="mn-face" id="mnFace"></i>
-      <i class="mn-pow">!</i>
-      <i class="mn-ball"></i>
+  <!-- THE HOME SCREEN (ours): you in the middle, on a podium under a spotlight on a dark
+       stage; your profile and trophies top-left, the wallet along the top, settings top-right;
+       characters and shop on the left, the battle pass bottom-left; friends and the leaderboard on
+       the right, PLAY bottom-right (it opens the game modes). -->
+  <div class="hm-stage" aria-hidden="true">
+    <!-- the sunset stadium, back to front (menus.css "HOME"): sky and sun on #menu itself, three
+         layers of drifting clouds, the baked bowl/crowd/boards/pitch (tools/home-bg/build.mjs),
+         two floodlights, the pitch's lines, a shade for the UI's sake, then you on the podium -->
+    <div class="hm-clouds">
+      <div class="hm-cl-far"><i class="a"></i><i class="b"></i><i class="c"></i><i class="d"></i></div>
+      <div class="hm-cl-mid"><i class="a"></i><i class="b"></i><i class="c"></i></div>
+      <div class="hm-cl-near"><i class="a"></i><i class="b"></i></div>
     </div>
-    <i class="mn-fade"></i>
+    <i class="hm-bowl"></i>
+    <svg class="hm-flood l" viewBox="0 0 100 160"><use href="#hmFlood"/></svg>
+    <svg class="hm-flood r" viewBox="0 0 100 160"><use href="#hmFlood"/></svg>
+    <svg width="0" height="0" style="position:absolute">
+      <defs>
+        <radialGradient id="hmFloodGlow"><stop offset="0" stop-color="#fff8e0"/><stop offset=".3" stop-color="#ffe9b0" stop-opacity=".55"/><stop offset="1" stop-color="#ffd890" stop-opacity="0"/></radialGradient>
+        <linearGradient id="hmFloodCone" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#fff4d0" stop-opacity=".9"/><stop offset="1" stop-color="#fff4d0" stop-opacity="0"/></linearGradient>
+        <g id="hmFlood">
+          <path d="M44 58h12l4 102H40z" fill="#1d1440"/>
+          <path d="M46 66l8 18-8 18 8 18-8 18 8 18" fill="none" stroke="#3d2a72" stroke-width="2"/>
+          <circle cx="50" cy="34" r="46" fill="url(#hmFloodGlow)"/>
+          <rect x="18" y="14" width="64" height="44" rx="5" fill="#2a1a55" stroke="#120b2c" stroke-width="3"/>
+          <g fill="#fffbea"><circle cx="30" cy="25" r="5"/><circle cx="43" cy="25" r="5"/><circle cx="57" cy="25" r="5"/><circle cx="70" cy="25" r="5"/>
+            <circle cx="30" cy="42" r="5"/><circle cx="43" cy="42" r="5"/><circle cx="57" cy="42" r="5"/><circle cx="70" cy="42" r="5"/></g>
+          <path d="M18 14h64" stroke="#ff9a6a" stroke-width="2"/>
+        </g>
+      </defs>
+    </svg>
+    <i class="hm-cone l"></i><i class="hm-cone r"></i>
+    <div class="hm-lines">
+      <i class="hm-half"></i>
+      <svg class="hm-boxes" viewBox="0 0 100 100" preserveAspectRatio="none">
+        <path d="M-5 18H20.1L10.9 80H-5M105 18H79.9L89.1 80H105"/>
+      </svg>
+      <i class="hm-ring"></i>
+    </div>
+    <i class="hm-shade"></i>
+    <div class="hm-spot">
+      <div class="hm-podium"><i class="hm-pod-side"></i><i class="hm-pod-top"></i><span class="m-sym hm-pod-sym" id="hmPodSym"></span></div>
+      <div class="hm-hero" id="hmHero"></div>
+    </div>
   </div>
-  <header class="mn-logo m-drop"><span class="m-sym" id="mnLogo"></span><span class="mn-word"><b class="m-title flame sm">סלטיז</b><b class="m-title chrome sm">ראשים</b></span></header>
-  <div class="mn-top m-drop">
-    <span class="m-points" title="נקודות סולטיז"><i class="coin"></i><b id="mnPts">0</b></span>
-    <button class="m-orb" id="mnOpt" aria-label="הגדרות">⚙</button>
+  <!-- the HUD and the tiles (round 2, after the references: Brawl Stars' square tiles and
+       trophies, Head Ball 2's money bars); the icons are drawn in home-icons.js -->
+  <div class="hm-tl m-drop">
+    <button class="hm-profile" id="hmProfile" aria-label="הפרופיל שלך">
+      <i class="hm-avatar" id="hmAvatar"></i>
+      <span class="m-sym hm-badge" id="mnLogo"></span>
+      <b class="hm-name" id="hmName">שחקן</b>
+    </button>
+    <div class="hm-cups" id="hmCupsBox" title="גביעים" role="button" tabindex="0" aria-label="דרך הגביעים">
+      <span class="hm-ico" data-ico="trophy"></span>
+      <b id="hmCups">0</b>
+      <i class="hm-bar"><i></i></i>
+    </div>
   </div>
-  <nav class="mn-car m-rise" aria-label="מצבי משחק">
-    <button class="m-chev prev" id="mnPrev" aria-label="הקודם"></button>
-    <div class="mn-track" id="mnTrack"></div>
-    <button class="m-chev next" id="mnNext" aria-label="הבא"></button>
+  <!-- your team (team.js): its badge, its name, how its week is going; a tap opens the team screen -->
+  <button class="hm-team m-drop hidden" id="hmTeam" aria-label="הקבוצה שלי"><span class="hm-tbdg" id="hmTBdg"></span><span class="hm-tname"><b id="hmTName"></b><small id="hmTStat"></small></span></button>
+  <div class="hm-wallet m-drop">
+    <span class="hm-cur" title="כסף"><i class="hm-cash">$</i><b id="hmMoney">0</b><button class="hm-plus" id="hmMoneyPlus" aria-label="עוד כסף">+</button></span>
+    <span class="hm-cur" title="נקודות סולטיז"><i class="coin hm-coin"></i><b id="mnPts">0</b><button class="hm-plus" id="hmPtsPlus" aria-label="עוד נקודות סולטיז">+</button></span>
+  </div>
+  <button class="hm-tile sq hm-opt m-drop" id="mnOpt" aria-label="הגדרות"><span class="hm-ico" data-ico="gear"></span></button>
+  <nav class="hm-side hm-left m-rise">
+    <button class="hm-tile" id="hmChars"><span class="hm-ico hm-faces"><i class="hm-cf a"></i><i class="hm-cf b"></i></span><b>דמויות</b></button>
+    <button class="hm-tile gold" id="hmShop"><span class="hm-ico" data-ico="shop"></span><b>חנות</b></button>
+    <button class="hm-tile" id="hmQuests"><span class="hm-ico" data-ico="quests"></span><b>משימות</b></button>
   </nav>
+  <nav class="hm-side hm-right m-rise">
+    <button class="hm-tile" id="hmFriends"><span class="hm-ico" data-ico="friends"></span><b>חברים</b></button>
+    <button class="hm-tile" id="hmBoard"><span class="hm-ico" data-ico="board"></span><b>דירוג</b></button>
+  </nav>
+  <button class="hm-tile wide pink hm-pass m-rise" id="hmPass"><span class="hm-ico" data-ico="pass"></span>
+    <span class="hm-pass-txt"><b>BATTLE PASS</b><i class="hm-bar"><i></i></i></span></button>
+  <!-- PLAY is an arena battle (arena.js; Idan: Clash Royale's Battle button): the arena you are in over
+       it, the day's three win stars on it, and the other modes beside it -->
+  <div class="hm-arena m-rise" id="hmArena"></div>
+  <button class="hm-modes m-rise" id="hmModes" aria-label="מצבי משחק"><i>🎮</i><b>מצבים</b></button>
+  <button class="hm-play m-rise" id="hmPlay"><span class="hm-stars" id="hmStars"></span><b>שחק</b></button>
+  <div class="hm-toast" id="hmToast" role="status" aria-live="polite"></div>
+</section>
+
+<!-- GAME MODES · what PLAY opens: every mode as a big card -->
+<section id="modes" class="screen m-screen hidden">
+  <i class="m-rays" aria-hidden="true"></i>
+  <button class="m-back m-drop" id="mdBack"><i></i>חזרה</button>
+  <h1 class="sel-h m-drop"><b class="m-title">בחר מצב משחק</b></h1>
+  <nav class="md-row m-rise" id="mdRow" aria-label="מצבי משחק"></nav>
 </section>
 
 <!-- PLAYER SELECT · HS: two reels (you left, the CPU right), MATCH n, the last score, the stats, SHOP / PLAY -->
@@ -84,16 +160,16 @@
   <div class="m-panel sel-panel">
     <div class="sel-tab"><small id="selTabK">שלב</small><b id="selTabV">1</b></div>
     <div class="sel-row">
-      <button class="m-chip" id="selRar" aria-label="החלף נדירות"></button>
+      <span class="m-chip" id="selRar">דמויות</span>
       <span class="sel-score" id="selScore">0 : 0</span>
-      <span class="m-chip foe" id="selTier"></span>
+      <span class="m-chip foe" id="selTier" style="visibility:hidden" aria-hidden="true"></span>
     </div>
     <div class="sel-reel me" id="reelMe" aria-label="הקלף שלך"></div>
     <div class="sel-reel foe" id="reelFoe" aria-label="היריב"></div>
     <div class="sel-mid">
-      <div class="sel-side"><span class="m-tag">אתה</span><i class="m-gem" id="selGem"></i></div>
+      <div class="sel-side"><span class="m-tag">אתה</span></div>
       <b class="sel-vs" aria-hidden="true">VS</b>
-      <div class="sel-side"><span class="m-tag foe" id="selFoeTag">אלוף</span><i class="m-gem" id="selFoeGem"></i><span class="m-stars" id="selStars"></span></div>
+      <div class="sel-side"><span class="m-tag foe" id="selFoeTag">אלוף</span><span class="m-stars" id="selStars"></span></div>
     </div>
     <div class="sel-diff hidden" id="selDiff"><button class="m-chev sm prev" id="diffDown" aria-label="קל יותר"></button><b id="diffName"></b><button class="m-chev sm next" id="diffUp" aria-label="קשה יותר"></button></div>
     <button class="sel-power" id="selPower"></button>
@@ -181,14 +257,15 @@
 <!-- STATS · HS: SINGLE / VICTORY / … -->
 <div class="m-pop hidden" id="statsPop" role="dialog" aria-modal="true" aria-label="סטטיסטיקה">
   <div class="m-panel plain stats-panel"><button class="m-x" id="statsX" aria-label="סגור">✕</button>
-    <b class="m-title sm">סטטיסטיקה</b><dl class="stats-list" id="statsList"></dl></div>
+    <b class="m-title sm" id="statsH">סטטיסטיקה</b>
+    <label class="pf-name" id="stNameRow"><span>שם · עד 10 תווים</span><input id="stName" maxlength="10" autocomplete="nickname" spellcheck="false"></label>
+    <dl class="stats-list" id="statsList"></dl></div>
 </div>
 
 <!-- YOUR CARD: the whole album, a tap on your frame away -->
 <div class="m-pop hidden" id="cardsPop" role="dialog" aria-modal="true" aria-label="בחר קלף">
   <div class="m-panel plain cards-panel"><button class="m-x" id="cardsX" aria-label="סגור">✕</button>
     <b class="m-title sm cards-h">בחר קלף</b>
-    <nav class="cards-tabs" id="cardsTabs"></nav>
     <div class="cards-grid" id="cardGrid"></div></div>
 </div>
 
@@ -334,9 +411,9 @@
     <div class="m-panel ov-panel">
       <div class="ov-spell gold" id="ovSpell"></div>
       <div class="over-faces">
-        <div class="ov-side"><i class="ov-face" id="ovFace0"></i><i class="ov-bub">?!</i><i class="m-gem" id="ovGem0"></i></div>
+        <div class="ov-side"><i class="ov-face" id="ovFace0"></i><i class="ov-bub">?!</i></div>
         <p id="overScore"></p>
-        <div class="ov-side"><i class="ov-face" id="ovFace1"></i><i class="ov-bub">?!</i><i class="m-gem" id="ovGem1"></i></div>
+        <div class="ov-side"><i class="ov-face" id="ovFace1"></i><i class="ov-bub">?!</i></div>
       </div>
       <div class="ov-pts" id="ovPts"><span><small>פרס</small><b><i class="coin"></i><i id="ovReward">0</i></b></span><span><small>סה״כ נקודות סולטיז</small><b><i class="coin"></i><i id="ovTotal">0</i></b></span></div>
       <p class="ov-news hidden" id="ovNews"></p>
@@ -391,6 +468,26 @@
   <div id="tunerBody"></div>
   <footer><button id="tunerReset">אתחל</button><button id="tunerCopy">העתק JSON</button></footer>
 </aside>
+
+<!-- THE STARTER PICK (starter.js): a new player's first champion, for good, before the tutorial -->
+<div class="st hidden" id="starter" role="dialog" aria-modal="true" aria-label="בחירת האלוף הראשון">
+  <div class="st-sky"><span class="m-sym st-mark" id="stMark"></span><i class="st-beam l"></i><i class="st-beam r"></i><div class="st-stars" id="stStars"></div></div>
+  <header class="st-top">
+    <div class="st-head"><span class="m-sym glow st-sym" id="stSym"></span><h1 class="st-h">בחרו אלוף, והצטרפו לקבוצה שלו!</h1></div>
+    <p class="st-sub"><b>האלוף הראשון שלכם, וגם הקבוצה שלכם במשחק!</b><span>לכולם אותו כוח מיוחד. כל שבוע 4 הקבוצות מתחרות על פרסים</span></p>
+  </header>
+  <div class="st-row" id="stRow"></div>
+  <button class="m-pill big glint st-go" id="stGo" disabled><b>בחירה</b></button>
+  <div class="st-confirm hidden" id="stConfirm">
+    <div class="m-panel plain st-cbox">
+      <span class="st-stage big"><i class="st-light"></i><span class="st-pod"></span><i class="st-pic" id="stCFace"></i></span>
+      <b class="st-cq" id="stCQ"></b>
+      <b class="st-cteam" id="stCTeam"></b>
+      <p class="st-cn">האלוף והקבוצה שלכם לכל המשחק.<br>אפשר להחליף קבוצה (ואלוף) רק פעם אחת, בחינם.</p>
+      <div class="st-cbtns"><button class="m-pill red" id="stNo"><b>עוד רגע</b></button><button class="m-pill big glint" id="stYes"></button></div>
+    </div>
+  </div>
+</div>
 
 <script type="module" src="game.js"></script>
 </body>

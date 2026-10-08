@@ -55,6 +55,8 @@ if (flag('list')) {
   process.exit(0);
 }
 
+// --path=/?teamsim — open the game on a page other than / (the team screen's dev buttons, ?fresh…)
+const PATH = String(flag('path', '/'));
 const key = String(flag('device', 'iphone'));
 const dev = DEVICES[key];
 if (!dev) { console.error(`unknown --device=${key}. try --list`); process.exit(1); }
@@ -124,7 +126,7 @@ async function phone({ x, label }) {
     '--autoplay-policy=no-user-gesture-required', '--hide-scrollbars',
     `--window-size=${dev.w},${dev.h}`, `--window-position=${x},80`,
     ...(devtools ? ['--auto-open-devtools-for-tabs'] : []),
-    `--app=http://localhost:${PORT}/`,
+    `--app=http://localhost:${PORT}${PATH}`,
   ];
   const ch = spawn(CHROME, args, { stdio: 'ignore' });
 
@@ -184,7 +186,7 @@ console.log('');
 console.log(`  📱 ${dev.label} — ${dev.w}x${dev.h} @${dev.dpr}x, touch on, iOS UA`);
 console.log(`  album: ${albumN ? `${albumN} cards injected (gate ON)` : 'none (gate OFF — full deck)'}`);
 if (duo) console.log('  two windows: open a room on the left, join the code on the right');
-console.log(`  url:  http://localhost:${PORT}/`);
+console.log(`  url:  http://localhost:${PORT}${PATH}`);
 console.log('  Ctrl-C to close everything.');
 console.log('');
 

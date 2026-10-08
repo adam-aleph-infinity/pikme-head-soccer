@@ -44,7 +44,8 @@ for (const [key, ch] of Object.entries(CHARACTERS)) {
     n++;
   }
   assert.ok(total < 250 * 1024, `${key}: all faces under 250 KB (${total})`);   // the card props (worms, coins, tools) are the detail
-  assert.ok(Array.isArray(ch.nose) && ch.nose.every((v) => v > 0.3 && v < 0.8), `${key}: nose for the bruise`);
+  // (a Mythic's head fills the whole drawn-head box, so its nose sits nearer the front: up to 0.9)
+  assert.ok(Array.isArray(ch.nose) && ch.nose.every((v) => v > 0.3 && v < 0.9), `${key}: nose for the bruise`);
   // nothing left over from the drawn-cartoon era
   assert.deepEqual(readdirSync(`${import.meta.dirname}/public/img/chars/${ch.dir}`).filter((f) => !f.endsWith('.webp')), []);
 }

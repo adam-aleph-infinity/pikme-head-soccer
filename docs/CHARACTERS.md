@@ -144,3 +144,25 @@ for art pixel) | HS select and result portraits.
   read grey); the gold rim wider on the pitch sprite and carried down the back of the cheek, as
   HS's in-match heads show it; the loser portrait sunk into HS's dark warm grey instead of flat
   grey; the WebPs brought under the budget (q84, the sprites lossless < 1 KB).
+
+## The Mythic starters (2026-10-08)
+
+Four cards of a rarity of their own, `mythic` 1–4: שובל, אורי, נוה, פז (`shared/mythics.js`). A new player picks one free before the tutorial; they are not in the Saltiz app's album.
+
+Unlike #1–#5 they are not painted by the rig. **They are the artist's own drawings**, traced from the reference sheets in `uploaded-images/champ_A–D` (read only, never written). Idan picked option A for all four from three options per character (`public/_mythics.html`, kept as the archive of the options not chosen).
+
+| Step | Tool | What it does |
+|---|---|---|
+| Trace | `tools/chars/mythic_trace.py` | Cuts each head out of each sheet panel along the sheet's white outline (neck lines, hand boxes and Ori's hair outline are per panel, read off a grid). Then makes it a cartoon: the drawing's dark line work kept crisp over 7 flat colours (9 for Ori), with the roster's heavy keyline and gold rim. Writes `public/mythic-concepts/heads/*.svg` and `heads.json`. |
+| Build | `tools/chars/mythic_build.py` | Renders the three-quarter view (mirrored when the sheet faced left) into the shared 144 x 142 frame, and prints the `characters.js` lines (nose, eyes, fit). The head, hair included but not hair that hangs below it, is stretched onto exactly the drawn-head box every character fills (`CHAR_FIT`). So it stands over **the same hitbox** as #1–#5 (Idan: "exactly the same hit box like the original"). Ori gets her own cut (`blg`) so her long hair ends inside the frame. |
+
+```sh
+python tools/chars/mythic_trace.py                       # venv with numpy scipy pillow vtracer
+python tools/chars/mythic_build.py --chrome "<chrome>"   # then copy the printed lines into characters.js
+```
+
+- The artist drew one face, so every expression file is that face; in play every character keeps the normal face anyway.
+- Kits (`KITS` in `characters.js`): the sheet's shirt colour on the suit, the white yoke as the collar, the gold hexagon badge.
+- They have no stats of their own: they play on the player's upgrade levels like every card.
+- The four share one power, the Mythic Gem (`MYTHIC_POWER`, shared/champion-powers/mythic.js; drawn by public/vfx/powers/mythic.js), each in their own gem's colour (`MYTHIC_GEMS`): Shoval a red ruby, Ori a pink diamond, Naveh a yellow topaz, Paz a green emerald. The ball turns into a gem and flies fast (1.1× the comet) and flat at the goal. A timed kick blocks it and fires it back; a counter answers it as any power. Met with the head or the body it shatters: a stop, but whoever it met is stuck in a gem crust for 1.3 s and the ball pops loose over him toward his goal, for the shooter to race onto. (A first version flew three shards on at the goal and scored 100% against every CPU. Now, with the shooter following up, it scores about 34–42% against arcade champions 1–23 and 9–14% from 24 on, where they kick every shot back; Idan asked for it a bit weaker than the 40–50% of the step before.) Photos: `node _gem-shots.mjs`.
+- Checks: `node test-mythics.mjs` and `node test-characters.mjs`.

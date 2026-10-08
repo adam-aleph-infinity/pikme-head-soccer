@@ -32,7 +32,7 @@ Idan's choices:
 
 | Clip | Ours |
 |---|---|
-| Loading key art | HS's night stadium tinted purple, Shoval and Naveh as the two heads, the Saltiz symbol over סלטיז / ראשים. The bar is real: it counts the drawn faces, the anchors, the crowd audio, the font and your card. It holds for at least 2.4 s. A tap made while it loads goes through when it is done. |
+| Loading key art | HS's night stadium in Saltiz red, gold and black, the Saltiz symbol over סלטיז / ראשים, and the four Mythic starters 2v2, head to head (Idan, 2026-10-08): שובל and אורי on the left in red light, נוה and פז on the right in blue, the front pair (אורי, נוה) face to face across a gold VS. They stand WHOLE, as the artist drew them, on their gold podiums (`public/img/mythic-full/`, cut out by `tools/chars/mythic_full.py`; the sheets themselves are read, never changed): the three-quarter views of the three who face the right way, שובל's front view (his faces the wrong way, and mirrored his 24 would read backwards). The white sticker outline is cut off and the stadium lights them (a rim in the team's light, a shade, a shadow on the grass), so they stand in the scene rather than look pasted on; no goals at the edges (they read as a second pitch). The bar is real: it counts the drawn faces, the anchors, the crowd audio, the font and your card. It holds for at least 2.4 s. A tap made while it loads goes through when it is done. |
 | Drills | The same order, plus **the dash** (double-tap ▶): right, left, jump, dash, high shot, ground shot. Buttons arrive one by one, ringed, and POWER is held back for the match. A shot drill hands out a fresh ball when the last one dies; after 3 balls any clean kick passes. |
 | Practice talk, VS roulette | Our VS with a face roulette over it, then straight into KICK OFF. Our own YOU bubble stands in for HB2's arrow. |
 | Power lesson | At kick-off, play stops with your bar full. The dim has a hole cut round POWER (a clip-path; a box-shadow would not paint over the match canvases), with the ring and the glove. The press arms it and the next touch fires it. |
@@ -73,11 +73,25 @@ After changing a line in `shared/tutorial.js`, run it with `--only` for that lin
 
 ## Who gets it
 
-`shared/tutorial.js` `shouldRun`:
-- Only a player with no arcade progress, no points and no upgrades gets it.
-- `?tutorial` forces it. `?nointro`, which the harnesses use, and deep links skip it.
-- Anyone who has already played is marked done at boot.
-- A replay pays nothing and never spends points.
+`shared/tutorial.js` `shouldRun`, changed on 2026-10-08 with the Mythic starters (`shared/mythics.js`, `public/starter.js`).
+
+**Everyone does it once, new player or not** (Idan). It uses a new key, `hs.tutorial.v2`; the old `v1`, which marked anyone with progress as done, is no longer read.
+
+- **First launch:** the title tap opens the **starter pick** first. The player picks one of the four Mythics and confirms ("for good"). The choice is saved at once to `hs.mythic.v1`, and the tutorial then plays with that Mythic.
+- **Closing the game:**
+  - Before confirming: the next launch asks again.
+  - After confirming: the next launch goes straight back into the tutorial with the same Mythic. The choice is never offered twice.
+- **Ownership:** only the starter is playable. The other three are locked ("🔒 נעול"): there is no way to win them in the game, and buying them comes later. The app's album has no say over Mythics.
+- **The 500 points:** paid once, and recorded right away (`paid`), so closing the game and running it again never pays twice.
+  - The guided first buy is level-1 speed, which those 500 pay for.
+  - A player who already has speed (one who played before) is only shown the shop and keeps the 500. None of their own points are spent.
+- **Progress, points and upgrades are never touched.**
+- **Links:**
+  - A friend's **room link** opened before the first launch shows the title. The starter pick and the whole tutorial come first, then the player goes to the room (Idan).
+  - `?tutorial` forces it.
+  - `?nointro`, the harnesses' flag, skips the whole first launch. `?notutorial` skips only the tutorial; the starter pick still comes first.
+  - The testing links (`?play`, `?arcade`…) skip it.
+- **Replays:** OPTIONS → הדרכה replays it without a new pick. A replay pays nothing and never spends points.
 
 ## Files and checks
 
@@ -88,4 +102,5 @@ After changing a line in `shared/tutorial.js`, run it with `--only` for that lin
 
 Checks:
 - `node test-tutorial.mjs`: the rules, plus the counter lesson played in the sim against every possible opponent.
-- `node _tutorial-shots.mjs`: plays the whole tutorial in headless Chrome with real keys and screenshots every step to `.shots/tutorial`. Set `SIZE=667x375` for other screens.
+- `node _tutorial-shots.mjs`: the first launch in headless Chrome with real keys and a screenshot of every step (`.shots/tutorial`). It covers the starter pick (closed before confirming, then mid-tutorial), the whole tutorial, the locked Mythics, an existing player and a room link. Set `SIZE=667x375` for other screens.
+- `node test-mythics.mjs`: the Mythic cards, their power and the starter's save rules.

@@ -42,6 +42,7 @@ const AIL_TEXT = {
   reverse: 'left and right swapped (???)', shock: 'half speed, no jump, no dash', freeze: 'turned into a snowman (wiki: Switzerland), no control',
   beheaded: 'no head and no control for a moment: no header, the ball passes where it was', burn: 'cannot kick, 0.8× speed', stars: 'dazed, no control',
   thrown: 'flung up out of the screen by a Grab, back down in a blue whirlwind, no control (only the Grab sets it)',
+  gem: 'stuck in a crust of gem crystals where he stands, no control (only the Mythic Gem\'s shatter sets it)',
 };
 const AURA_TEXT = {
   none: '—', stun: `stuns (${HS.AURA_STUN}s, stars)`, push: `pushes away (${HS.AURA_PUSH} px/s)`,

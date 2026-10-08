@@ -9,6 +9,12 @@
 // draw(g, p, s): s = { t, hx, hy (head centre on screen), r (head radius), fy (feet line) }.
 
 import { drawStars, headPath, blit, auraTex, bolts, boltBlit, rng } from './fx-kit.js';
+import { gemPalette, sparkle } from './powers/mythic.js';
+import { GEM } from '../../shared/champion-powers/mythic.js';
+
+// The Mythic Gem's crust: [x off, height, half width, lean] in head radii, tallest first.
+// The tall ones stand at his sides and the ones in front stay under the chin, so the face shows.
+const GEM_CRUST = [[-1.25, 2.7, 0.4, -0.1], [1.25, 2.5, 0.38, 0.1], [-0.78, 1.55, 0.3, -0.18], [0.82, 1.65, 0.3, 0.2], [-1.75, 1.3, 0.26, -0.3], [1.75, 1.15, 0.26, 0.3], [0.05, 0.42, 0.3, 0], [-0.42, 0.5, 0.22, -0.12], [0.46, 0.38, 0.22, 0.12]];
 
 const TAU = Math.PI * 2;
 
@@ -50,6 +56,50 @@ export const AILMENT_VFX = {
   // grass after — HS's own daze, not a whirlwind of his own.
   twister: {
     draw(g, p, s) { drawStars(g, s.hx, s.hy - s.r * 1.12, s.r, s.t); },
+  },
+  // Stuck in the Mythic Gem's crust (shared/champion-powers/mythic.js): a cluster of its crystals
+  // grown up round him from the grass — two tall ones at his sides to the crown, smaller ones at
+  // his feet and shoulders — over a faint shell of its colour, glints twinkling on them. In the
+  // colour of the gem that broke on him (s.col); it grows in fast and fades as he breaks out.
+  gem: {
+    draw(g, p, s) {
+      const P = gemPalette(s.col || '#ff4fc8'), r = s.r;
+      const age = Number.isFinite(p.ailT) ? Math.max(0, GEM.CRUST - p.ailT) : 0.5;
+      const grow = Math.min(1, age / 0.12), out = Number.isFinite(p.ailT) ? Math.min(1, p.ailT / 0.12) : 1;
+      const top = s.hy - r * 1.15, bot = s.fy + 3;
+      g.save(); g.lineJoin = 'round';
+      // the shell
+      g.globalAlpha = 0.24 * out;
+      const sg = g.createLinearGradient(s.hx - r, top, s.hx + r, bot);
+      sg.addColorStop(0, P.pale); sg.addColorStop(1, P.base);
+      g.fillStyle = sg;
+      g.beginPath(); g.ellipse(s.hx, (top + bot) / 2, r * 1.25, (bot - top) / 2, 0, 0, TAU); g.fill();
+      // the crystals: [x off, height, width, lean] in head radii, tallest first
+      for (const [dx, hh, w, lean] of GEM_CRUST) {
+        const h = hh * r * grow, bx = s.hx + dx * r, W = w * r;
+        if (h < 2) continue;
+        const tx = bx + lean * h, ty = bot - h;
+        g.globalAlpha = 0.82 * out;
+        // the lit face and the dark face, a ridge between
+        g.fillStyle = P.light;
+        g.beginPath(); g.moveTo(bx - W, bot); g.lineTo(bx - W + lean * h * 0.85, bot - h * 0.82); g.lineTo(tx, ty); g.lineTo(bx + lean * h * 0.1, bot); g.closePath(); g.fill();
+        g.fillStyle = P.dark;
+        g.beginPath(); g.moveTo(bx + lean * h * 0.1, bot); g.lineTo(tx, ty); g.lineTo(bx + W + lean * h * 0.85, bot - h * 0.82); g.lineTo(bx + W, bot); g.closePath(); g.fill();
+        g.strokeStyle = P.pale; g.lineWidth = 1.2;
+        g.beginPath(); g.moveTo(bx + lean * h * 0.1, bot); g.lineTo(tx, ty); g.stroke();
+        g.strokeStyle = P.deep; g.lineWidth = 1.4;
+        g.beginPath(); g.moveTo(bx - W, bot); g.lineTo(bx - W + lean * h * 0.85, bot - h * 0.82); g.lineTo(tx, ty); g.lineTo(bx + W + lean * h * 0.85, bot - h * 0.82); g.lineTo(bx + W, bot); g.stroke();
+      }
+      // the glints
+      g.fillStyle = '#ffffff';
+      for (let i = 0; i < 4; i++) {
+        const k = (s.t * 2.2 + i * 0.27) % 1;
+        g.globalAlpha = Math.sin(k * Math.PI) * out;
+        const [dx, hh] = GEM_CRUST[i];
+        sparkle(g, s.hx + dx * r, bot - hh * r * grow * 0.8, 3 + 5 * Math.sin(k * Math.PI), k * 2);
+      }
+      g.restore();
+    },
   },
   // Frozen in Russia's block of ice (wiki: "frozen in a block of ice"): a translucent blue cube
   // round the head and body, the head showing through it, a bevel, glints, a crack, frost at the foot.

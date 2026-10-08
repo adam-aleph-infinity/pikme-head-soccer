@@ -26,6 +26,7 @@
 import * as C from './constants.js';
 import { HS_MAP } from './hs-champion-map.js';
 import { championPower, cpLaunch, cpStep, cpSkip, cpContact } from './champion-powers.js';
+import { MYTHIC, MYTHIC_POWER, mythicGem } from './mythics.js';
 
 // ── the families ─────────────────────────────────────────────────────────────
 // speed   × POWER_SHOT_SPEED (2150 px/s, the measured comet — §3)
@@ -75,6 +76,9 @@ export const AILMENTS = Object.freeze({
   // able to be kicked and dashed into the goal"): no control, and slippery — pushed, it slides on.
   // Only the Ice Shot sets it (shared/champion-powers/stage-06.js).
   iced:     { id: 'iced',     name: 'קרח',    dur: 2.5,  color: '#bfefff' },
+  // Stuck in the Mythic Gem's crust (shared/champion-powers/mythic.js): no control, where he stands.
+  // Only the gem's shatter sets it; drawn in the shooter's gem colour.
+  gem:      { id: 'gem',      name: 'אבן',    dur: 1.3,  color: '#ff5fd2' },
 });
 export const AILMENT_ORDER = Object.freeze(Object.keys(AILMENTS));
 export const AURA_ORDER = Object.freeze(['none', 'stun', 'push', 'reverse', 'freeze']);
@@ -125,6 +129,12 @@ export const championRow = (char) => (char && char.rarity === 'legendary' ? MAP_
 // everywhere else (online, free play) every shot plays at the same middle intensity, so a card's
 // family is its identity and never its advantage — the same reason stats are equal online.
 export function shotFor(char, { arcade = false } = {}) {
+  // the four Mythic starters share one power, the Mythic Gem, each in its own gem's colour, the
+  // same everywhere (shared/mythics.js, shared/champion-powers/mythic.js)
+  if (char && char.rarity === MYTHIC) {
+    const P = MYTHIC_POWER, G = mythicGem(char.number);
+    return makeShot(P.family, { name: P.name, icon: P.icon, color: G.color, glow: G.glow, cp: P.cp, speed: P.speed, aura: 'none' });
+  }
   const row = championRow(char);
   // A champion whose own Head Soccer power is built (shared/champion-powers.js) fires it — in the
   // arcade only.
@@ -161,7 +171,7 @@ function makeShot(family, o = {}) {
     intensity: o.intensity ?? 0.5,
     gentle: !!o.gentle,
     name: o.name || F.name, icon: o.icon || null,
-    color: F.color, glow: F.glow,
+    color: o.color || F.color, glow: o.glow || F.glow,
     // a champion's own power (champion-powers.js): its id, its speed (× the comet, replacing the
     // family's and the intensity's) and how long its ailment lasts
     cp: o.cp || '', speed: o.speed || 0, ailSec: o.ailSec || 0,
@@ -669,6 +679,7 @@ export function ailMods(p) {
     case 'stars': o.dead = true; o.noDash = true; break;
     case 'thrown': o.dead = true; o.noDash = true; o.grav = 5; break;
     case 'twister': o.dead = true; o.noDash = true; o.grav = p.onGround ? 1 : 5; break;   // flung like the Grab's throw
+    case 'gem': o.dead = true; o.noJump = true; o.noDash = true; break;
     case 'iced': o.dead = true; o.noJump = true; o.noDash = true; o.friction = 0.975; o.canArm = true; break;
     case 'beheaded': o.dead = true; o.noDash = true; break;   // (and sim.js drops the head's contacts)
     default: break;

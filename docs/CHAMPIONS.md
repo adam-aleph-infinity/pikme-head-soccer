@@ -85,6 +85,7 @@ How a power shot plays (docs/HS-POWER-SHOTS.md): fill the gauge, press POWER to 
 | thrown (מושלך) | flung up out of the screen by a Grab, back down in a blue whirlwind, no control (only the Grab sets it) | 1.25s at intensity 0.5 (×0.6–1.4 with intensity) |
 | twister (סחרור) | undefined | 3s at intensity 0.5 (×0.6–1.4 with intensity) |
 | iced (קרח) | undefined | 2.5s at intensity 0.5 (×0.6–1.4 with intensity) |
+| gem (אבן) | stuck in a crust of gem crystals where he stands, no control (only the Mythic Gem's shatter sets it) | 1.3s at intensity 0.5 (×0.6–1.4 with intensity) |
 
 | Aura | On the press, an opponent within the radius |
 |---|---|

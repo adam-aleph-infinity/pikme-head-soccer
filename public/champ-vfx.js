@@ -51,6 +51,7 @@ const DARK_RGB = '4,3,10';
 // USA's invisible ball is "translucent to whoever uses the shot").
 // A champion's OWN power (shared/champion-powers.js, a `cp` on the ball's power) is drawn by its
 // renderer in public/vfx/powers/ instead of its family's comet; a block's rebound is the plain shot.
+const EVENT_VFX = Object.values(POWER_VFX).filter((P) => typeof P.event === 'function');
 const powerVfx = (pw) => (pw && pw.cp && !pw.rb ? POWER_VFX[pw.cp] || null : null);
 // Paint every texture ahead of time, a piece per idle slice, so the first press or shot never
 // stalls a frame (each is a one-off per-pixel paint of a few ms).
@@ -83,6 +84,8 @@ export function createVfx({ now = () => performance.now() / 1000, drawBall: pain
   const track = new Map();               // ball → { hist, t0 (release, on the SIM clock m.t), ph, ghost }
   const drops = [];                      // the hit's red droplets (§4)
   const shards = [];                     // the block's spark shards (§4 M4 61.5–62.1 s)
+  const bursts = [];                     // a champion power's one-off bursts (the Mythic Gem's shatter)
+  const ailCol = [];                     // per player: the colour of what crusted him (the gem's)
   const stats = { balls: 0, drops: 0 };  // what was drawn (tests)
   const lastCut = { by: -1, at: 0 };     // the cut-in that just ended, for the dark's fade-out
 
@@ -124,6 +127,8 @@ export function createVfx({ now = () => performance.now() / 1000, drawBall: pain
         blit(g, sp, s.x, s.y, s.len * (1 - 0.4 * f), 20, Math.atan2(s.vy, s.vx), (1 - f * f), true, 1, 0.5);
       }
     }
+    // a power's own bursts (its renderer's `event` made them)
+    for (const fx of bursts) fx.draw(g, fx.t);
     // the hit's droplets: soft red blobs thrown up and falling (§4 M4 43.33, 80.85 s)
     if (drops.length) {
       const gl = glow('#ff2a14', 0.05);
@@ -237,7 +242,7 @@ export function createVfx({ now = () => performance.now() / 1000, drawBall: pain
   function cutExtras(g) {
     for (const b of balls()) {
       const P = powerVfx(b.power);
-      if (P && P.cutin && M.cutin > C.POWER_RELEASE) { const o = depthPoint(b.power.x0, b.power.y0); P.cutin(g, { pw: b.power, now: now(), fx: o.x, fy: o.y, r: b.r, ball: ballAt }); }
+      if (P && P.cutin && M.cutin > C.POWER_RELEASE) { const o = depthPoint(b.power.x0, b.power.y0); P.cutin(g, { pw: b.power, now: now(), cut: C.POWER_CUTIN - M.cutin, fx: o.x, fy: o.y, r: b.r, ball: ballAt }); }
     }
   }
   // THE PRESS (§1): see fx-kit drawArmedGlow. With layers the silhouette glow goes UNDER the
@@ -275,13 +280,13 @@ export function createVfx({ now = () => performance.now() / 1000, drawBall: pain
       if (!p.ail || !AILMENT_VFX[p.ail]) continue;
       if (p.ail === 'stars' && stars) continue;
       const h = depthPoint(p.x, headY(p)), f = depthPoint(p.x, p.y);
-      AILMENT_VFX[p.ail].draw(g, p, { t, hx: h.x, hy: h.y, r: headR(M, p), fy: f.y });
+      AILMENT_VFX[p.ail].draw(g, p, { t, hx: h.x, hy: h.y, r: headR(M, p), fy: f.y, col: ailCol[p.index] });
     }
   }
 
   return {
     stats, track, drops, shards,
-    reset() { track.clear(); drops.length = 0; shards.length = 0; },
+    reset() { track.clear(); drops.length = 0; shards.length = 0; bursts.length = 0; ailCol.length = 0; },
     bind(m) { if (m !== M) { M = m; this.reset(); } },
     // game.js has given us the two full-resolution layers (drawUnder / drawTop).
     useLayers(on = true) { layered = !!on; },
@@ -291,11 +296,14 @@ export function createVfx({ now = () => performance.now() / 1000, drawBall: pain
 
     onEvent(e) {
       if (!M) return;
+      // a champion power's own one-off burst (the Mythic Gem's shatter), and the colour it leaves
+      for (const P of EVENT_VFX) { const fx = P.event(e, depthPoint); if (fx) bursts.push(fx); }
+      if (e.type === 'gemShatter') ailCol[e.player] = e.color;
       if (e.type === 'powershot') {
         for (const b of balls()) if (b.power) { const r = rec(b); r.hist.length = 0; r.t0 = M.t + (M.cutin > 0 ? Math.max(0, M.cutin - C.POWER_RELEASE) : 0); r.ph = b.power.ph; r.touch = now(); }
       } else if (e.type === 'rebound' || e.type === 'delayGo') {
         const r = rec(M.ball); r.hist.length = 0; r.t0 = M.t;
-      } else if (e.type === 'powerHit' && e.how !== 'pass') {
+      } else if (e.type === 'powerHit' && e.how !== 'pass' && e.how !== 'shatter') {
         // §4 M4 43.33: red droplets burst at the impact…
         const x = e.x ?? M.ball.x, y = e.y ?? M.ball.y;
         for (let i = 0; i < 7; i++) {
@@ -335,6 +343,12 @@ export function createVfx({ now = () => performance.now() / 1000, drawBall: pain
         if (!h.length || Math.hypot(h[0].x - d.x, h[0].y - d.y) > 0.5) { h.unshift({ x: d.x, y: d.y }); if (h.length > HIST) h.length = HIST; }
       }
       for (const b of [...track.keys()]) if (!live.has(b)) track.delete(b);
+      for (let i = bursts.length - 1; i >= 0; i--) {
+        const fx = bursts[i];
+        fx.t += dt;
+        if (fx.t >= fx.life) { bursts.splice(i, 1); continue; }
+        if (fx.step) fx.step(dt);
+      }
       for (let i = drops.length - 1; i >= 0; i--) {
         const p = drops[i];
         p.t += dt;

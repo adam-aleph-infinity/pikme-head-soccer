@@ -339,9 +339,10 @@ function kickInto(m, i, reach = 130, ticks = 90) {
   let pressed = false;
   const log = [];
   for (let t = 0; t < ticks; t++) {
-    // pressed at a real counter's timing: the boot is up 0.12–0.27 s after the press (HS: the KICK
-    // press ~0.16 s before the ball, M4's three kick-blocks), so a fast shot is met further out
-    const near = !pressed && m.ball.power && m.ball.power.owner !== i && Math.abs(m.ball.x - q.x) < Math.max(reach, Math.abs(m.ball.vx) * 0.18);
+    // pressed at a real counter's timing: the boot swings up through head height 0.12–0.15 s
+    // after the press, and only the swing up blocks (C.BLOCK_SWING) — HS: the KICK press ~0.16 s
+    // before the ball, M4's three kick-blocks — so a fast shot is met further out
+    const near = !pressed && m.ball.power && m.ball.power.owner !== i && Math.abs(m.ball.x - q.x) - 20 < Math.max(reach, Math.abs(m.ball.vx) * 0.135);
     if (near) pressed = true;
     const inputs = [{}, {}]; inputs[i] = { kick: near };
     step(m, inputs);

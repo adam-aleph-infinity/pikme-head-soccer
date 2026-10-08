@@ -288,10 +288,10 @@
 }
 
 /* ─── SMALL PARTS ───────────────────────────────────────────────────────── */
-/* נקודות סולטיז: the currency's mark is the Saltiz symbol itself (Idan), not a coin */
+/* נקודות סולטיז: the currency is the Saltiz coin (images_up/solties_coin.svg) */
 .coin {
   display: inline-block; width: 1.2em; height: 1.2em; vertical-align: -.22em; flex: none; font-style: normal;
-  background: url("img/saltiz-symbol.svg") center / contain no-repeat;
+  background: url("img/saltiz-coin.svg") center / contain no-repeat;
   filter: drop-shadow(0 .05em .06em #000a);
 }
 /* HS's MY POINT readout: a dark pill, the number in gold */
@@ -383,46 +383,244 @@
 .t-sparks i:nth-child(7) { left: 86%; animation-delay: 2.7s; } .t-sparks i:nth-child(8) { left: 94%; animation-delay: 4.6s; }
 @keyframes tSpark { 0% { transform: translateY(0) rotate(0); opacity: 0; } 15% { opacity: .7; } 100% { transform: translateY(-110vh) rotate(1turn); opacity: 0; } }
 
-/* ─── MAIN MENU ─────────────────────────────────────────────────────────── */
-#menu { --rx: 66%; --ry: 42%; }
-#menu > .m-rays { display: none; }   /* the stadium is the backdrop here */
-.mn-logo { position: absolute; z-index: 3; left: calc(var(--safe-l) + var(--u) * 2.5); top: calc(var(--safe-t) + var(--u) * 2); display: flex; align-items: center; gap: calc(var(--u) * 1.6); }
-.mn-logo .m-sym { width: calc(var(--u) * 15); filter: drop-shadow(0 0 calc(var(--u) * 1.5) #fff) drop-shadow(0 calc(var(--u) * .6) calc(var(--u) * 1.2) #000a); }
-.mn-logo::before { content: ''; position: absolute; inset: -40% -30% -40% -40%; z-index: -1; background: radial-gradient(ellipse at 40% 50%, #0a0306b3, transparent 70%); }
-.mn-word { display: flex; flex-direction: column; gap: calc(var(--u) * .4); }
-.mn-word .m-title.flame { font-size: calc(var(--u) * 8); }
-.mn-word .m-title.chrome { font-size: calc(var(--u) * 5.4); -webkit-text-stroke-width: calc(var(--u) * .7); margin-inline-start: calc(var(--u) * 2); }
-.mn-top { position: absolute; z-index: 3; right: calc(var(--safe-r) + var(--u) * 2.5); top: calc(var(--safe-t) + var(--u) * 2.5); display: flex; align-items: center; gap: calc(var(--u) * 2); }
-.mn-top .m-orb { --s: calc(var(--u) * 9.5); }
-/* THE SCENE (HS M15: its menu is one big loud cartoon — the stadium, a giant head mid-header,
-   the keeper, the crowd). Ours: HS's daylight stadium, tilted like HS's title art, the Saltiz
-   blimp over it, floodlight beams, confetti, the champions cheering, and YOU heading the ball. */
-.mn-scene { position: absolute; inset: 0; overflow: hidden; pointer-events: none; }
-.mn-stadium { position: absolute; left: -6%; top: -6%; width: 112%; height: 116%; object-fit: cover; object-position: 50% 30%;
-  transform: rotate(-3deg); filter: saturate(1.2) brightness(1.04); }
-/* the bottom darkens under the carousel so its pills read */
-.mn-fade { position: absolute; left: 0; right: 0; bottom: 0; height: 42%; background: linear-gradient(180deg, transparent, #12040899 45%, #0a0306e6); }
-/* floodlight beams sweeping the sky */
-.mn-beam { position: absolute; top: -12%; width: 26%; height: 120%; transform-origin: 50% 0;
-  background: linear-gradient(180deg, #fffbe0aa, #fff6c033 40%, transparent 75%); clip-path: polygon(46% 0, 54% 0, 100% 100%, 0 100%); mix-blend-mode: screen; opacity: .55; }
-.mn-beam.l { left: 2%; animation: mnBeamL 7s ease-in-out infinite; }
-.mn-beam.r { right: 2%; animation: mnBeamR 8s ease-in-out infinite; }
-@keyframes mnBeamL { 0%, 100% { transform: rotate(-28deg); } 50% { transform: rotate(8deg); } }
-@keyframes mnBeamR { 0%, 100% { transform: rotate(26deg); } 50% { transform: rotate(-10deg); } }
-/* the Saltiz blimp drifting over the stadium (HS floats D&D Dream's banner over its stands) */
-.mn-blimp {
-  position: absolute; top: calc(var(--u) * 7); left: 30%; display: flex; align-items: center; gap: calc(var(--u) * 1.4);
-  height: calc(var(--u) * 11); padding: 0 calc(var(--u) * 5) 0 calc(var(--u) * 1.5); border-radius: 999px;
-  background: radial-gradient(ellipse at 40% 25%, #fff, #e9eef6 45%, #b9c3d2); box-shadow: inset 0 calc(var(--u) * -1.2) 0 #8f9bb0, 0 calc(var(--u) * 1.4) calc(var(--u) * 2) #0004;
-  animation: mnBlimp 26s ease-in-out infinite;
+/* ─── HOME ──────────────────────────────────────────────────────────────── */
+/* Ours: a sunset stadium, you on a small podium at the centre spot, the buttons round
+   the edges. Sizes in --u (1% of a 16:9 screen's height), so the same layout fits every phone;
+   horizontal places in % of the width.
+   The stadium is layers, back to front: the sky and a low sun (here, CSS), three layers of soft
+   clouds drifting (home-cloud-*.svg), the bowl, crowd, boards and mown pitch baked into one
+   picture (home-sunset.webp, made by tools/home-bg/build.mjs — 2.4:1, so `cover` always fits it
+   by height and its bands land at the same screen heights on 4:3 … 20:9), two floodlights at 9%
+   and 91%, the pitch's lines (the centre circle is tied to the podium, not to the picture), a
+   shade that keeps the UI readable, and you. The colours are tokens, for a day or night later. */
+#menu {
+  --sky-1: #2b1a5e; --sky-2: #6a2c91; --sky-3: #d94a86; --sky-4: #ff8a4c; --sky-5: #ffc766;
+  --sun: #fff6d0; --sun-glow: #ffb35a; --flood: #fff4d0; --line: #ffffffd9;
+  background:
+    radial-gradient(circle at 50% 25%, var(--sun) 0, #ffe08a calc(var(--u) * 4), color-mix(in srgb, var(--sun-glow) 60%, transparent) calc(var(--u) * 9),
+      color-mix(in srgb, var(--sky-4) 22%, transparent) calc(var(--u) * 24), transparent calc(var(--u) * 42)),
+    linear-gradient(180deg, var(--sky-1) 0, var(--sky-2) 8%, var(--sky-3) 15%, var(--sky-4) 20%, var(--sky-5) 25%);
+  background-color: var(--sky-5);
 }
-.mn-blimp .m-sym { width: calc(var(--u) * 9); }
-.mn-blimp b { font-weight: 900; font-size: calc(var(--u) * 4); color: var(--m-red); white-space: nowrap; transform: skewX(-9deg); }
-.mn-blimp::before { content: ''; position: absolute; right: calc(var(--u) * -2.6); top: 50%; width: calc(var(--u) * 4); height: calc(var(--u) * 7); transform: translateY(-50%);
-  background: var(--m-red); clip-path: polygon(0 50%, 100% 0, 100% 100%); }
-.mn-flag { position: absolute; left: 50%; top: 100%; width: 1px; height: calc(var(--u) * 3); background: #fff8; }
-@keyframes mnBlimp { 0%, 100% { transform: translate(0, 0) rotate(-2deg); } 50% { transform: translate(calc(var(--u) * 26), calc(var(--u) * -3)) rotate(2deg); } }
-/* confetti, in the logo's colours and the crowd's */
+.hm-stage { position: absolute; inset: 0; overflow: hidden; pointer-events: none;
+  --hm-base: calc(var(--safe-b) + var(--u) * 9 + 15%); }     /* where the podium meets the grass */
+/* the clouds: only between the side buttons and your head, fading out under the top bar, behind the roof */
+.hm-clouds { position: absolute; left: 0; right: 0; top: 6%; height: 26%;
+  -webkit-mask-image: linear-gradient(90deg, transparent 11%, #000 17%, #000 29%, transparent 37%, transparent 63%, #000 71%, #000 83%, transparent 89%),
+    linear-gradient(180deg, transparent, #000 28%);
+  -webkit-mask-composite: source-in; mask-composite: intersect; }
+.hm-clouds > div { position: absolute; inset: 0; animation: hmDrift 90s ease-in-out infinite alternate; }
+.hm-clouds i { position: absolute; background: center / 100% 100% no-repeat; }
+.hm-cl-far { opacity: .75; animation-duration: 150s !important; }
+.hm-cl-far i { background-image: url(img/home-cloud-far.svg); height: calc(var(--u) * 7); width: calc(var(--u) * 26.7); }
+.hm-cl-mid i { background-image: url(img/home-cloud-mid.svg); height: calc(var(--u) * 11); width: calc(var(--u) * 28.9); }
+.hm-cl-near { animation-duration: 60s !important; }
+.hm-cl-near i { background-image: url(img/home-cloud-near.svg); height: calc(var(--u) * 14); width: calc(var(--u) * 30.8); }
+.hm-cl-far .a { left: 14%; top: 22%; } .hm-cl-far .b { left: 25%; top: 44%; transform: scaleX(-1); }
+.hm-cl-far .c { left: 66%; top: 30%; transform: scaleX(-1); } .hm-cl-far .d { left: 76%; top: 16%; }
+.hm-cl-mid .a { left: 13%; top: 40%; } .hm-cl-mid .b { left: 69%; top: 44%; transform: scaleX(-1); } .hm-cl-mid .c { left: 27%; top: 62%; transform: scaleX(-1); }
+.hm-cl-near .a { left: 17%; top: 60%; } .hm-cl-near .b { left: 63%; top: 64%; transform: scaleX(-1); }
+@keyframes hmDrift { from { transform: translateX(-2.5%); } to { transform: translateX(2.5%); } }
+/* the bowl, the crowd, the boards and the pitch: one baked picture */
+.hm-bowl { position: absolute; inset: 0; background: url(img/home-sunset.webp) 50% 50% / cover no-repeat; }
+/* the floodlights, on at sunset: lit heads on the roof ring, and a faint cone of light each toward the pitch */
+.hm-flood { position: absolute; top: 12%; width: calc(var(--u) * 10); height: calc(var(--u) * 16); overflow: visible; }
+.hm-flood.l { left: 9%; transform: translateX(-50%); }
+.hm-flood.r { right: 9%; transform: translateX(50%) scaleX(-1); }
+.hm-cone { position: absolute; top: calc(12% + var(--u) * 3); width: 44%; height: 66%; opacity: .14; mix-blend-mode: screen;
+  background: linear-gradient(180deg, var(--flood), transparent); filter: blur(calc(var(--u) * 1.2)); }
+.hm-cone.l { left: 9%; clip-path: polygon(0 0, 5% 0, 100% 100%, 35% 100%); }
+.hm-cone.r { right: 9%; clip-path: polygon(95% 0, 100% 0, 65% 100%, 0 100%); }
+/* the pitch's lines: the halfway line, the two boxes at the sides, and the centre circle round your podium */
+.hm-lines { position: absolute; inset: 0; }
+.hm-half { position: absolute; left: 50%; top: 51%; bottom: 0; width: calc(var(--u) * .6); transform: translateX(-50%); background: var(--line); }
+.hm-boxes { position: absolute; left: 0; top: 51%; width: 100%; height: 49%; overflow: visible; }
+.hm-boxes path { fill: none; stroke: var(--line); stroke-opacity: .6; stroke-width: calc(var(--u) * .6); vector-effect: non-scaling-stroke; }
+.hm-ring { position: absolute; left: 17%; width: 66%; height: 15%; bottom: calc(var(--hm-base) + var(--u) * 1.8 - 7.5%);
+  box-sizing: border-box; border: calc(var(--u) * .6) solid var(--line); border-radius: 50%; }
+/* for the UI's sake: darker under the top bar, down the side columns and in the bottom corners */
+.hm-shade { position: absolute; inset: 0;
+  background:
+    linear-gradient(180deg, #120a2a99 0, #120a2a40 9%, transparent 15%),
+    radial-gradient(ellipse 34% 32% at 0 100%, #000a, transparent),
+    radial-gradient(ellipse 34% 32% at 100% 100%, #000a, transparent),
+    linear-gradient(0deg, #04140855, transparent 18%),
+    linear-gradient(90deg, #120a2a55, transparent 13%, transparent 87%, #120a2a55); }
+/* you and the podium, as one: raised off the bottom and a size smaller, round one shared centre */
+.hm-spot { position: absolute; left: 50%; bottom: var(--hm-base); width: calc(var(--u) * 54); height: calc(var(--u) * 70);
+  transform: translateX(-50%) scale(.82); transform-origin: 50% 100%; }
+/* the podium: a short drum in Saltiz red with a gold rim, the symbol on its front, lit from above */
+.hm-podium { position: absolute; left: 50%; bottom: 0; width: calc(var(--u) * 44); height: calc(var(--u) * 17); transform: translateX(-50%); }
+/* its contact shadow on the grass: a soft black ellipse at 35%, a quarter wider than it */
+.hm-podium::before { content: ''; position: absolute; left: -12.5%; right: -12.5%; bottom: calc(var(--u) * -3.6); height: calc(var(--u) * 10); border-radius: 50%;
+  background: radial-gradient(closest-side, #00000059 72%, transparent); filter: blur(calc(var(--u) * .5)); }
+.hm-pod-side { position: absolute; left: 0; right: 0; top: calc(var(--u) * 4.5); bottom: 0; border-radius: 0 0 50% 50% / 0 0 calc(var(--u) * 4.5) calc(var(--u) * 4.5);
+  background: linear-gradient(90deg, #5a0010, var(--m-red-lo) 12%, var(--m-red) 38%, #ff4a5a 50%, var(--m-red) 62%, var(--m-red-lo) 88%, #5a0010);
+  box-shadow: inset 0 calc(var(--u) * -1.2) 0 #3a0009, inset 0 calc(var(--u) * .8) 0 var(--m-gold-lo); }
+.hm-pod-top { position: absolute; left: 0; right: 0; top: 0; height: calc(var(--u) * 9); border-radius: 50%;
+  background: radial-gradient(ellipse at 50% 40%, #fff7d6, var(--m-gold-hi) 30%, var(--m-gold) 55%, var(--m-gold-lo) 85%);
+  box-shadow: 0 0 0 calc(var(--u) * .6) #8a4b00, 0 0 calc(var(--u) * 5) #ffd40066; }
+.hm-pod-sym { position: absolute; left: 50%; bottom: calc(var(--u) * 1.6); width: calc(var(--u) * 7); transform: translateX(-50%); filter: drop-shadow(0 0 calc(var(--u) * 1) #ffd400aa); }
+/* you, on the podium: the match's own body and head (game.js paintStanding), bobbing a little */
+.hm-hero { position: absolute; left: 50%; bottom: calc(var(--u) * 12); width: calc(var(--u) * 54); height: calc(var(--u) * 58);
+  transform: translateX(-50%); animation: hmBob 2.6s ease-in-out infinite; filter: drop-shadow(0 0 calc(var(--u) * 2.5) #fff3c055); }
+/* and the player's own shadow, on the top of the podium, under the boots */
+.hm-hero::before { content: ''; position: absolute; left: 14%; right: 6%; bottom: calc(var(--u) * -2.6); height: calc(var(--u) * 5.2); border-radius: 50%;
+  background: radial-gradient(ellipse, #2a0a0ecc, #2a0a0e66 55%, transparent 72%); }
+.hm-hero > canvas { position: absolute; inset: 0; width: 100%; height: 100%; }
+.hm-hero > .head { will-change: auto; }
+@keyframes hmBob { 0%, 100% { translate: 0 0; } 50% { translate: 0 calc(var(--u) * -1.2); } }
+@media (prefers-reduced-motion: reduce) { .hm-stage *, .hm-hero { animation: none !important; } }
+
+/* THE SALTIZ TILE — every button on the home screen (after the references: Brawl Stars' square
+   tiles, Head Ball 2's money bars). Square-ish, small corners, a dark body with a lighter bevel on
+   top, a thick dark ledge under it; the drawn icon (home-icons.js) breaks out over the top edge;
+   the label at the bottom in white with a dark outline. Pressed, it sinks onto its ledge. */
+.hm-tile {
+  --ink: #0d0a14; --top: #4d4570; --body: #2f2949; --low: #221d38;
+  position: relative; display: flex; flex-direction: column; align-items: center; justify-content: flex-end;
+  width: calc(var(--u) * 17); height: calc(var(--u) * 15); padding: 0 0 calc(var(--u) * 1.4);
+  border-radius: calc(var(--u) * 1.4); border: calc(var(--u) * .45) solid var(--ink); color: #fff; font-family: var(--m-font);
+  background: linear-gradient(180deg, var(--top) 0 16%, var(--body) 16% 100%);
+  box-shadow: 0 calc(var(--u) * 1.1) 0 var(--ink), inset 0 calc(var(--u) * -1.4) 0 var(--low), inset 0 calc(var(--u) * .4) 0 #ffffff26;
+  transform: skewX(-4deg); transition: transform .06s, box-shadow .06s;
+}
+.hm-tile > * { transform: skewX(4deg); }
+.hm-tile .hm-ico { position: absolute; left: 50%; top: -34%; width: 74%; aspect-ratio: 1; transform: translateX(-50%) skewX(4deg); pointer-events: none;
+  filter: drop-shadow(0 calc(var(--u) * .5) 0 #0007); }
+.hm-ico > svg { display: block; width: 100%; height: 100%; overflow: visible; }
+.hm-ico > img { display: block; width: 100%; height: 100%; object-fit: contain; transform: scale(1.45); transform-origin: 50% 62%; }   /* an uploaded picture icon (the shop's bag), scaled past its own margins */
+.hm-tile > b { position: relative; z-index: 1; font-weight: 900; font-size: calc(var(--u) * 3.4); white-space: nowrap; letter-spacing: .02em;
+  -webkit-text-stroke: calc(var(--u) * .7) var(--ink); paint-order: stroke fill; text-shadow: 0 calc(var(--u) * .5) 0 var(--ink); }
+.hm-tile.gold { --top: #ffe46a; --body: #ffc400; --low: #d08a00; }
+.hm-tile.pink { --top: #ff8ae0; --body: #d42fae; --low: #8e1675; }
+.hm-tile.is-pressed, .hm-tile:active { transform: skewX(-4deg) translateY(calc(var(--u) * .8)); box-shadow: 0 calc(var(--u) * .3) 0 var(--ink), inset 0 calc(var(--u) * -1.4) 0 var(--low); filter: brightness(.85); }
+.hm-tile:focus-visible, .hm-profile:focus-visible, .hm-play:focus-visible, .hm-plus:focus-visible { outline: calc(var(--u) * .6) solid #fff; outline-offset: calc(var(--u) * .4); }
+/* a square tile with its icon inside (settings) */
+.hm-tile.sq { width: calc(var(--u) * 12); height: calc(var(--u) * 12); padding: 0; }
+.hm-tile.sq .hm-ico { top: 50%; width: 74%; transform: translate(-50%, -50%) skewX(4deg); }
+/* a thin progress bar (trophies, the battle pass) */
+.hm-bar { display: block; height: calc(var(--u) * 2.2); border-radius: calc(var(--u) * 1); background: #0d0a14; border: calc(var(--u) * .3) solid #0d0a14; overflow: hidden; }
+.hm-bar > i { display: block; height: 100%; width: var(--p, 0%); background: linear-gradient(180deg, #ffd27a, #ff7a00); border-radius: inherit; }
+
+/* TOP-LEFT: your profile tile (a square portrait, the badge on its corner, your name on it), your trophies beside it */
+.hm-tl { position: absolute; z-index: 3; left: calc(var(--safe-l) + var(--u) * 3.5); top: calc(var(--safe-t) + var(--u) * 3); display: flex; align-items: flex-start; gap: calc(var(--u) * 2.4); }
+.hm-profile { position: relative; width: calc(var(--u) * 17); height: calc(var(--u) * 17); border-radius: calc(var(--u) * 1.4); padding: 0;
+  border: calc(var(--u) * .45) solid #0d0a14; background: linear-gradient(180deg, #4d4570 0 14%, #2f2949 14%);
+  box-shadow: 0 calc(var(--u) * 1.1) 0 #0d0a14, inset 0 calc(var(--u) * .4) 0 #ffffff26; color: #fff; transform: skewX(-4deg); }
+.hm-profile:active { transform: skewX(-4deg) translateY(calc(var(--u) * .8)); box-shadow: 0 calc(var(--u) * .3) 0 #0d0a14; }
+.hm-avatar { position: absolute; left: calc(var(--u) * .9); right: calc(var(--u) * .9); top: calc(var(--u) * .9); bottom: calc(var(--u) * 4.6);
+  border-radius: calc(var(--u) * 1); background: radial-gradient(circle at 50% 35%, #6a5aa8, #2a2350) no-repeat; transform: skewX(4deg); }
+.hm-avatar.photo { box-shadow: inset 0 0 0 calc(var(--u) * .4) var(--m-gold); }
+.hm-badge { position: absolute; left: calc(var(--u) * -2.6); top: calc(var(--u) * -2.6); width: calc(var(--u) * 7); transform: skewX(4deg);
+  filter: drop-shadow(0 calc(var(--u) * .4) 0 #0d0a14) drop-shadow(0 0 calc(var(--u) * 1) #ffd40088); }
+.hm-name { position: absolute; left: calc(var(--u) * .6); right: calc(var(--u) * .6); bottom: calc(var(--u) * .7); text-align: center; transform: skewX(4deg);
+  font-weight: 900; font-size: calc(var(--u) * 3.2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  color: var(--m-gold); -webkit-text-stroke: calc(var(--u) * .6) #0d0a14; paint-order: stroke fill; }
+.hm-cups { position: relative; display: flex; flex-direction: column; justify-content: center; gap: calc(var(--u) * .8);
+  height: calc(var(--u) * 12); width: calc(var(--u) * 28); padding: 0 calc(var(--u) * 2) 0 calc(var(--u) * 11.5); margin-top: calc(var(--u) * 1);
+  border-radius: calc(var(--u) * 1.4); border: calc(var(--u) * .45) solid #0d0a14; background: linear-gradient(180deg, #4d4570 0 16%, #2f2949 16%);
+  box-shadow: 0 calc(var(--u) * 1.1) 0 #0d0a14, inset 0 calc(var(--u) * .4) 0 #ffffff26; transform: skewX(-4deg); }
+.hm-cups > * { transform: skewX(4deg); }
+.hm-cups .hm-ico { position: absolute; left: calc(var(--u) * -1.6); top: 50%; width: calc(var(--u) * 13); transform: translateY(-55%) skewX(4deg); filter: drop-shadow(0 calc(var(--u) * .5) 0 #0007); }
+.hm-cups b { font-weight: 900; font-size: calc(var(--u) * 5); line-height: 1; color: var(--m-gold); -webkit-text-stroke: calc(var(--u) * .7) #0d0a14; paint-order: stroke fill; }
+
+/* TOP, right of the spotlight: the wallet — one dark slanted bar per currency (Head Ball 2), its coin
+   over the bar's left end, a green + at its right end */
+.hm-wallet { position: absolute; z-index: 3; left: calc(50% + var(--u) * 10); top: calc(var(--safe-t) + var(--u) * 4.5); display: flex; gap: calc(var(--u) * 4.5); }
+.hm-cur { position: relative; display: flex; align-items: center; width: calc(var(--u) * 27); height: calc(var(--u) * 7.6); padding: 0 calc(var(--u) * .7) 0 calc(var(--u) * 6.5);
+  border-radius: calc(var(--u) * 1.2); border: calc(var(--u) * .4) solid #000; background: linear-gradient(180deg, #2a2440, #120e1e);
+  box-shadow: 0 calc(var(--u) * .7) 0 #000b, inset 0 calc(var(--u) * .4) 0 #ffffff1c; transform: skewX(-12deg); }
+.hm-cur > * { transform: skewX(12deg); }
+.hm-cur > b { flex: 1; text-align: center; font-weight: 900; font-size: calc(var(--u) * 4.4); color: #fff; -webkit-text-stroke: calc(var(--u) * .6) #000; paint-order: stroke fill; }
+.hm-cash, .hm-coin { position: absolute; left: calc(var(--u) * -3.4); top: 50%; width: calc(var(--u) * 9.5); height: calc(var(--u) * 9.5); margin-top: calc(var(--u) * -4.75); }
+.hm-cash { display: grid; place-items: center; border-radius: 50%; font-style: normal; font-weight: 900; font-size: calc(var(--u) * 5.6); color: #0b3d16;
+  background: radial-gradient(circle at 35% 30%, #d8ffc8, #4cd964 50%, #1e8a3a); border: calc(var(--u) * .45) solid #0b2a10; box-shadow: inset 0 calc(var(--u) * -.8) 0 #157a30, 0 calc(var(--u) * .4) 0 #000a; }
+.hm-coin { vertical-align: 0; filter: drop-shadow(0 calc(var(--u) * .4) 0 #000) drop-shadow(0 0 calc(var(--u) * .8) #ffd40066); }
+.hm-plus { flex: none; display: grid; place-items: center; width: calc(var(--u) * 5.8); height: calc(var(--u) * 5.8); border-radius: calc(var(--u) * .8); padding: 0;
+  font: 900 calc(var(--u) * 5.4) / 1 var(--m-font); color: #fff; -webkit-text-stroke: calc(var(--u) * .5) #0b3d16; paint-order: stroke fill;
+  background: linear-gradient(180deg, #9dff7a 0 18%, #3ccf4a 18%, #1f9a35); border: calc(var(--u) * .35) solid #0b3d16; box-shadow: inset 0 calc(var(--u) * -.6) 0 #157a30; }
+.hm-plus.is-pressed, .hm-plus:active { filter: brightness(.75); }
+
+/* TOP-RIGHT: settings, a square tile */
+.hm-opt { position: absolute; z-index: 3; right: calc(var(--safe-r) + var(--u) * 3); top: calc(var(--safe-t) + var(--u) * 3); }
+
+/* LEFT: characters over shop. RIGHT, in the middle: friends over the leaderboard. Room between the
+   two for each icon to break out over its tile. */
+.hm-side { position: absolute; z-index: 3; display: flex; flex-direction: column; gap: calc(var(--u) * 7.5); }
+.hm-left { left: calc(var(--safe-l) + var(--u) * 4); top: calc(var(--safe-t) + var(--u) * 25); gap: calc(var(--u) * 5.5); }
+.hm-right { right: calc(var(--safe-r) + var(--u) * 4); top: 50%; transform: translateY(-38%); }
+/* the Characters tile: two drawn champions peeking out of it */
+.hm-faces { display: flex; align-items: flex-end; justify-content: center; }
+.hm-cf { display: block; flex: none; width: calc(var(--u) * 9); height: calc(var(--u) * 9); background-repeat: no-repeat; border-radius: 50%; }
+.hm-cf.char-face { border-radius: 0; }
+.hm-cf.a { margin-right: calc(var(--u) * -2.6); position: relative; z-index: 1; }
+.hm-cf.b { margin-bottom: calc(var(--u) * 1.4); }
+
+/* BOTTOM-LEFT: the battle pass, a wide tile — the ticket, the name, its progress */
+.hm-pass { position: absolute; z-index: 3; left: calc(var(--safe-l) + var(--u) * 4); bottom: calc(var(--safe-b) + var(--u) * 4.2);
+  width: calc(var(--u) * 48); height: calc(var(--u) * 13); flex-direction: row; justify-content: flex-start; align-items: center; padding: 0 calc(var(--u) * 2.4) 0 calc(var(--u) * 15); }
+.hm-pass .hm-ico { left: calc(var(--u) * -1.4); top: 50%; width: calc(var(--u) * 16); transform: translateY(-58%) rotate(-10deg); }
+.hm-pass-txt { display: flex; flex-direction: column; gap: calc(var(--u) * 1); flex: 1; min-width: 0; }
+.hm-pass-txt b { font-weight: 900; font-size: calc(var(--u) * 4); white-space: nowrap; -webkit-text-stroke: calc(var(--u) * .7) #0d0a14; paint-order: stroke fill; text-shadow: 0 calc(var(--u) * .5) 0 #0d0a14; }
+
+/* BOTTOM-RIGHT: PLAY — a big yellow slanted block on its ledge */
+.hm-play { position: absolute; z-index: 3; right: calc(var(--safe-r) + var(--u) * 4); bottom: calc(var(--safe-b) + var(--u) * 4.2);
+  width: calc(var(--u) * 44); height: calc(var(--u) * 16); padding: 0; border-radius: calc(var(--u) * 1.4); border: calc(var(--u) * .5) solid #0d0a14;
+  background: linear-gradient(180deg, #fff27a 0 14%, #ffd400 14% 72%, #ffbe00 72%);
+  box-shadow: 0 calc(var(--u) * 1.4) 0 #0d0a14, inset 0 calc(var(--u) * -1.6) 0 #e09a00, inset 0 calc(var(--u) * .6) 0 #fffa;
+  transform: skewX(-8deg); overflow: hidden; transition: transform .06s, box-shadow .06s; }
+.hm-play b { display: block; transform: skewX(8deg); font-weight: 900; font-size: calc(var(--u) * 9); line-height: 1; color: #1a1206; letter-spacing: .02em; }
+.hm-play::after { content: ''; position: absolute; top: -20%; bottom: -20%; width: 30%; left: -60%; background: linear-gradient(100deg, transparent, #fffa, transparent);
+  transform: skewX(-20deg); animation: mGlint 3.4s ease-in-out infinite; pointer-events: none; }
+.hm-play.is-pressed, .hm-play:active { transform: skewX(-8deg) translateY(calc(var(--u) * 1)); box-shadow: 0 calc(var(--u) * .4) 0 #0d0a14, inset 0 calc(var(--u) * -1.6) 0 #e09a00; }
+
+/* "coming soon" */
+.hm-toast { position: absolute; z-index: 6; left: 50%; top: 24%; transform: translate(-50%, -50%) scale(.8); opacity: 0; pointer-events: none;
+  padding: calc(var(--u) * 2) calc(var(--u) * 5); border-radius: 999px; background: #000d; border: calc(var(--u) * .45) solid var(--m-gold);
+  font-weight: 900; font-size: calc(var(--u) * 5); color: var(--m-gold); transition: opacity .18s, transform .18s; }
+.hm-toast.on { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+
+/* the profile popup: your name over the stats */
+.pf-name { display: flex; flex-direction: column; gap: calc(var(--u) * .8); margin: calc(var(--u) * 2) 0 calc(var(--u) * 1); font-weight: 700; font-size: calc(var(--u) * 2.8); color: #ffffffb0; }
+.pf-name[hidden] { display: none; }
+.pf-name input { font: 900 calc(var(--u) * 4.4) var(--m-font); color: #fff; background: #0008; border: calc(var(--u) * .4) solid var(--m-gold); border-radius: calc(var(--u) * 1.6);
+  padding: calc(var(--u) * 1) calc(var(--u) * 2); text-align: center; }
+
+/* ─── GAME MODES ────────────────────────────────────────────────────────── */
+/* What PLAY opens: every mode as a big card in a row, its mascot popping over it. */
+#modes { background: radial-gradient(ellipse 80% 70% at 50% 45%, #24183e, #120c22 55%, #07050d 100%); }
+.md-row { position: absolute; z-index: 2; left: calc(var(--safe-l) + var(--u) * 3); right: calc(var(--safe-r) + var(--u) * 3); top: calc(var(--safe-t) + var(--u) * 20); bottom: calc(var(--safe-b) + var(--u) * 6);
+  display: flex; align-items: center; justify-content: center; gap: calc(var(--u) * 3); }
+.mn-mode { width: calc(var(--u) * 39); display: flex; flex-direction: column; align-items: center; gap: calc(var(--u) * 1); transition: transform .12s; }
+.mn-mode:hover { transform: translateY(calc(var(--u) * -1)) scale(1.03); }
+.mn-mode:focus-visible { outline: calc(var(--u) * .6) solid #fff; outline-offset: calc(var(--u) * .6); border-radius: calc(var(--u) * 3); }
+.mn-ico { font-style: normal; font-size: .9em; margin-inline-end: .35em; filter: drop-shadow(0 2px 0 #0008); }
+.mn-pill {
+  display: flex; align-items: center; justify-content: center; width: 100%; height: calc(var(--u) * 12); border-radius: 999px;
+  font-weight: 900; font-size: calc(var(--u) * 4.2); color: #fff; letter-spacing: .01em; white-space: nowrap; text-shadow: 0 calc(var(--u) * .4) 0 #000a;
+  background: linear-gradient(180deg, #ff8a7a, var(--m-red-hi) 16%, var(--m-red) 50%, #b8002a 80%, var(--m-red-lo));
+  border: calc(var(--u) * .7) solid #fff; box-shadow: 0 0 0 calc(var(--u) * .6) #3a0009, 0 calc(var(--u) * 1) 0 calc(var(--u) * .6) #000a, inset 0 calc(var(--u) * .6) 0 #fff6;
+}
+.mn-pill > span { transform: skewX(-9deg); display: inline-block; }
+.mn-mode[data-mode="multi"] .mn-pill { background: linear-gradient(180deg, #ffd08a, #ffa23a 18%, #ff7a00 50%, #e05a00 80%, #8a3000); }
+.mn-mode[data-mode="practice"] .mn-pill { background: linear-gradient(180deg, #b8ffb0, #5fe05a 18%, #22b14c 50%, #16903a 80%, #0b5a22); }
+.mn-pill.is-pressed { filter: brightness(.55); transform: translateY(calc(var(--u) * .5)); }
+.mn-sub { font-weight: 700; font-size: calc(var(--u) * 3); color: #fff; text-shadow: 0 1px 2px #000; white-space: nowrap; }
+.mn-sub .online-count { color: #8dff8a; }
+.mn-masc { height: calc(var(--u) * 18); display: flex; align-items: flex-end; justify-content: center; gap: calc(var(--u) * .5); position: relative; }
+.m-enter .mn-masc { animation: mnPop .35s cubic-bezier(.2, 1.5, .4, 1) both; }
+@keyframes mnPop { from { transform: translateY(40%) scale(.4); opacity: 0; } }
+.mm-face { display: block; width: calc(var(--u) * 16); height: calc(var(--u) * 16); border-radius: 50%; background-repeat: no-repeat; background-color: #2a1015;
+  box-shadow: 0 0 0 calc(var(--u) * .6) var(--m-gold), 0 calc(var(--u) * 1) calc(var(--u) * 2) #000b; }
+.mm-face.char-face { border-radius: 0; box-shadow: none; background-color: transparent; }
+.mm-face.a, .mm-face.b { width: calc(var(--u) * 13); height: calc(var(--u) * 13); }
+.mm-deco { font-size: calc(var(--u) * 6); line-height: 1; filter: drop-shadow(0 2px 0 #000); }
+.mm-deco.crown { position: absolute; top: calc(var(--u) * -3); left: 50%; transform: translateX(-50%) rotate(-12deg); }
+.mm-deco.bolt, .mm-deco.cup { align-self: center; }
+.mm-deco.cone { position: absolute; right: calc(var(--u) * 4); bottom: 0; font-size: calc(var(--u) * 5); }
+
+/* confetti, in the logo's colours and the crowd's (the tournament screens) */
 .mn-confetti i { position: absolute; top: -6%; width: calc(var(--u) * 2); height: calc(var(--u) * 3.4); box-shadow: 0 0 2px #0006; border-radius: 2px; opacity: .9; animation: mnConf 7s linear infinite; }
 .mn-confetti i:nth-child(6n+1) { background: var(--m-red); } .mn-confetti i:nth-child(6n+2) { background: var(--m-gold); }
 .mn-confetti i:nth-child(6n+3) { background: #2ecc71; } .mn-confetti i:nth-child(6n+4) { background: #2e86de; }
@@ -450,79 +648,6 @@
 .mn-confetti i:nth-child(21) { left: 40%; animation-delay: -0.20s; animation-duration: 6.0s; }
 .mn-confetti i:nth-child(22) { left: 77%; animation-delay: -0.91s; animation-duration: 6.8s; }
 @keyframes mnConf { to { transform: translateY(115vh) rotate(720deg) translateX(calc(var(--u) * 8)); } }
-/* the champions, cheering: drawn heads bobbing and jumping at their own beats */
-.mn-cast { position: absolute; inset: 0; }
-.mn-fan { position: absolute; display: block; filter: drop-shadow(0 calc(var(--u) * 1.2) calc(var(--u) * 1.4) #0007); }
-.mn-fan-face { display: block; width: 100%; height: 100%; background-repeat: no-repeat; border-radius: 50%; }
-.mn-fan-face.char-face { border-radius: 0; }
-.mn-fan-face:not(.char-face) { box-shadow: 0 0 0 calc(var(--u) * .6) var(--m-gold); }
-.mn-fan.f0 { width: calc(var(--u) * 24); height: calc(var(--u) * 24); left: 20%; top: calc(var(--u) * 33); animation: mnJump 1.3s ease-in-out infinite; }
-.mn-fan.f1 { width: calc(var(--u) * 20); height: calc(var(--u) * 20); left: 34%; top: calc(var(--u) * 40); animation: mnJump 1.1s ease-in-out .35s infinite; }
-.mn-fan.f2 { width: calc(var(--u) * 17); height: calc(var(--u) * 17); left: 45%; top: calc(var(--u) * 30); animation: mnBob 1.6s ease-in-out .2s infinite; }
-.mn-fan.f3 { width: calc(var(--u) * 19); height: calc(var(--u) * 19); right: 6%; top: calc(var(--u) * 46); animation: mnJump 1.25s ease-in-out .6s infinite; }
-@keyframes mnJump { 0%, 100% { transform: translateY(0) rotate(-4deg); } 45% { transform: translateY(calc(var(--u) * -7)) rotate(5deg); } 55% { transform: translateY(calc(var(--u) * -7)) rotate(5deg); } }
-@keyframes mnBob { 0%, 100% { transform: translateY(0) scale(1); } 50% { transform: translateY(calc(var(--u) * -2.5)) scale(1.05); } }
-/* YOU: big, heading the ball (HS's hero), a burst where they meet */
-.mn-hero { position: absolute; right: max(5%, calc(50% - var(--u) * 80)); top: calc(var(--u) * 16); width: calc(var(--u) * 47); height: calc(var(--u) * 47); }
-.mn-shine { position: absolute; inset: -18%; border-radius: 50%; background: radial-gradient(circle, #fff6b0cc, #ffd40055 35%, transparent 65%); animation: mnShine 2.4s ease-in-out infinite; }
-@keyframes mnShine { 50% { transform: scale(1.12); opacity: .7; } }
-.mn-face { position: absolute; inset: 0; background-repeat: no-repeat; filter: drop-shadow(0 calc(var(--u) * 2) calc(var(--u) * 2.4) #0009); animation: mnHead 1.2s ease-in-out infinite; transform-origin: 50% 80%; }
-.mn-face.photo { border-radius: 50%; inset: 8%; box-shadow: 0 0 0 calc(var(--u) * 1.4) var(--m-gold), 0 0 0 calc(var(--u) * 2.4) var(--m-red), 0 calc(var(--u) * 2) calc(var(--u) * 4) #0009; filter: none; }
-@keyframes mnHead { 0%, 100% { transform: rotate(0); } 40% { transform: rotate(-9deg) translateY(calc(var(--u) * -1.5)); } 60% { transform: rotate(-9deg) translateY(calc(var(--u) * -1.5)); } }
-.mn-ball {
-  position: absolute; width: calc(var(--u) * 16); height: calc(var(--u) * 16); left: calc(var(--u) * -6); top: calc(var(--u) * -4);
-  background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='-50 -50 100 100'%3E%3Cdefs%3E%3CradialGradient id='g' cx='-.3' cy='-.35' r='1.2'%3E%3Cstop offset='0' stop-color='%23fff'/%3E%3Cstop offset='.6' stop-color='%23e8e8e8'/%3E%3Cstop offset='1' stop-color='%23999'/%3E%3C/radialGradient%3E%3C/defs%3E%3Ccircle r='48' fill='url(%23g)' stroke='%23222' stroke-width='3'/%3E%3Cpath d='M0-17 16-5 10 14H-10L-16-5Z' fill='%23222'/%3E%3Cpath d='M0-17V-46M16-5 43-14M10 14 27 38M-10 14-27 38M-16-5-43-14' stroke='%23222' stroke-width='3'/%3E%3Cpath d='M-12-46 0-46 12-46 6-38H-6ZM44-2 40 14 30 6ZM-44-2-40 14-30 6Z' fill='%23222'/%3E%3C/svg%3E") center / contain no-repeat;
-  filter: drop-shadow(0 calc(var(--u) * 1.5) calc(var(--u) * 2) #000a); animation: mnBall 1.2s ease-in-out infinite;
-}
-/* the ball comes in, meets the head at the top of its nod, and flies off — over and over */
-@keyframes mnBall { 0% { transform: translate(calc(var(--u) * -14), calc(var(--u) * -10)) rotate(0); } 45% { transform: translate(calc(var(--u) * 4), calc(var(--u) * 4)) rotate(180deg); }
-  55% { transform: translate(calc(var(--u) * 4), calc(var(--u) * 4)) rotate(200deg); } 100% { transform: translate(calc(var(--u) * -14), calc(var(--u) * -10)) rotate(400deg); } }
-.mn-pow { position: absolute; left: calc(var(--u) * 2); top: calc(var(--u) * 2); width: calc(var(--u) * 13); height: calc(var(--u) * 13); display: grid; place-items: center;
-  font-style: normal; font-weight: 900; font-size: calc(var(--u) * 7); color: var(--m-red); -webkit-text-stroke: 2px #fff;
-  background: radial-gradient(circle, #fff, var(--m-gold) 55%, transparent 56%); clip-path: polygon(50% 0, 61% 30%, 95% 20%, 72% 48%, 100% 70%, 64% 70%, 58% 100%, 44% 72%, 10% 90%, 28% 60%, 0 40%, 34% 34%);
-  animation: mnPow 1.2s ease-out infinite; }
-@keyframes mnPow { 0%, 40% { transform: scale(0); opacity: 0; } 50% { transform: scale(1.15); opacity: 1; } 75%, 100% { transform: scale(.6); opacity: 0; } }
-@media (prefers-reduced-motion: reduce) { .mn-scene * { animation: none !important; } }
-/* the carousel (HS M15): the centred mode big and bright, its neighbours small and dim, gold ‹ › at the edges */
-.mn-car { position: absolute; z-index: 4; left: 0; right: 0; bottom: calc(var(--safe-b) + var(--u) * 2); height: calc(var(--u) * 33); }
-.mn-car > .m-chev { position: absolute; bottom: calc(var(--u) * 7); }
-.mn-car > .m-chev.prev { left: calc(var(--safe-l) + var(--u) * 2); }
-.mn-car > .m-chev.next { right: calc(var(--safe-r) + var(--u) * 2); }
-.mn-track { position: absolute; inset: 0; }
-.mn-mode {
-  --o: 0; position: absolute; left: 50%; bottom: calc(var(--u) * 4); width: calc(var(--u) * 54);
-  display: flex; flex-direction: column; align-items: center; gap: calc(var(--u) * .6);
-  transform: translateX(calc(-50% + var(--o) * var(--u) * 58)) scale(.74); transform-origin: 50% 100%;
-  opacity: .9; filter: saturate(.75) brightness(.85); transition: transform .28s cubic-bezier(.3, 1.3, .5, 1), opacity .2s, filter .2s;
-}
-.mn-mode.on { transform: translateX(-50%) scale(1); opacity: 1; filter: none; z-index: 2; }
-.mn-mode.on .mn-pill { animation: mnPill 1.4s ease-in-out infinite; }
-@keyframes mnPill { 50% { transform: scale(1.05); box-shadow: 0 0 0 calc(var(--u) * .6) #3a0009, 0 0 calc(var(--u) * 4) #ffd400cc, 0 calc(var(--u) * 1) 0 calc(var(--u) * .6) #000a, inset 0 calc(var(--u) * .6) 0 #fff6; } }
-.mn-ico { font-style: normal; font-size: .9em; margin-inline-end: .35em; filter: drop-shadow(0 2px 0 #0008); }
-.mn-pill {
-  display: flex; align-items: center; justify-content: center; width: 100%; height: calc(var(--u) * 12.5); border-radius: 999px;
-  font-weight: 900; font-size: calc(var(--u) * 5.4); color: #fff; letter-spacing: .02em; white-space: nowrap; text-shadow: 0 calc(var(--u) * .4) 0 #000a;
-  background: linear-gradient(180deg, #ff8a7a, var(--m-red-hi) 16%, var(--m-red) 50%, #b8002a 80%, var(--m-red-lo));
-  border: calc(var(--u) * .7) solid #fff; box-shadow: 0 0 0 calc(var(--u) * .6) #3a0009, 0 calc(var(--u) * 1) 0 calc(var(--u) * .6) #000a, inset 0 calc(var(--u) * .6) 0 #fff6;
-}
-.mn-pill > span { transform: skewX(-9deg); display: inline-block; }
-.mn-mode[data-mode="multi"] .mn-pill { background: linear-gradient(180deg, #ffd08a, #ffa23a 18%, #ff7a00 50%, #e05a00 80%, #8a3000); }
-.mn-mode[data-mode="practice"] .mn-pill { background: linear-gradient(180deg, #b8ffb0, #5fe05a 18%, #22b14c 50%, #16903a 80%, #0b5a22); }
-.mn-pill.is-pressed { filter: brightness(.55); transform: translateY(calc(var(--u) * .5)); }
-.mn-sub { font-weight: 700; font-size: calc(var(--u) * 3); color: #fff; text-shadow: 0 1px 2px #000; white-space: nowrap; }
-.mn-sub .online-count { color: #8dff8a; }
-/* the mascot over the centred pill */
-.mn-masc { height: calc(var(--u) * 16); display: flex; align-items: flex-end; justify-content: center; gap: calc(var(--u) * .5); position: relative; }
-.mn-mode.on .mn-masc { animation: mnPop .35s cubic-bezier(.2, 1.5, .4, 1) both; }
-@keyframes mnPop { from { transform: translateY(40%) scale(.4); opacity: 0; } }
-.mm-face { display: block; width: calc(var(--u) * 15); height: calc(var(--u) * 15); border-radius: 50%; background-repeat: no-repeat; background-color: #2a1015;
-  box-shadow: 0 0 0 calc(var(--u) * .6) var(--m-gold), 0 calc(var(--u) * 1) calc(var(--u) * 2) #000b; }
-.mm-face.char-face { border-radius: 0; box-shadow: none; background-color: transparent; }
-.mm-face.a, .mm-face.b { width: calc(var(--u) * 12); height: calc(var(--u) * 12); }
-.mm-deco { font-size: calc(var(--u) * 6); line-height: 1; filter: drop-shadow(0 2px 0 #000); }
-.mm-deco.crown { position: absolute; top: calc(var(--u) * -3); left: 50%; transform: translateX(-50%) rotate(-12deg); }
-.mm-deco.bolt { align-self: center; }
-.mm-deco.cone { position: absolute; right: calc(var(--u) * 4); bottom: 0; font-size: calc(var(--u) * 5); }
 
 /* ─── PLAYER SELECT ─────────────────────────────────────────────────────── */
 .sel-h { position: absolute; z-index: 2; left: 0; right: 0; top: calc(var(--safe-t) + var(--u) * 1.5); margin: 0; text-align: center; }
@@ -717,6 +842,8 @@
 .cd b { position: absolute; left: calc(var(--u) * .6); top: calc(var(--u) * .6); font-size: calc(var(--u) * 2.6); padding: 0 calc(var(--u) * .8); border-radius: 999px; background: #000b; color: #fff; }
 .cd.sel { border-color: var(--m-gold); box-shadow: 0 0 calc(var(--u) * 2.4) var(--m-gold); }
 .cd.locked { filter: grayscale(1) brightness(.45); cursor: default; }
+/* a Mythic has no card picture: its portrait, whole, over the rarity's glow (menus.js sets both) */
+.cd.myth { background-size: 96% auto, cover; background-position: 50% 42%, center; background-repeat: no-repeat; }
 .mp-panel { width: min(calc(100vw - var(--u) * 14), calc(var(--u) * 150)); height: calc(var(--u) * 70); display: grid; grid-template-columns: 1fr 1fr; overflow: visible; padding: 0; }
 .mp-half { display: flex; flex-direction: column; justify-content: center; gap: calc(var(--u) * 2.6); padding: calc(var(--u) * 4); }
 .mp-half.me { border-radius: calc(var(--u) * 3) 0 0 calc(var(--u) * 3); background: linear-gradient(160deg, #ffd40026, transparent 70%); }
@@ -961,3 +1088,135 @@
 .br-win-face { order: -1; display: block; width: calc(var(--u) * 20); height: calc(var(--u) * 20); margin-bottom: calc(var(--u) * -1); position: relative; z-index: 1; background-repeat: no-repeat; border-radius: 50%; animation: mnJump 1.1s ease-in-out infinite; }
 .br-win-cup { font-size: calc(var(--u) * 17); }
 .br-win-face.char-face { border-radius: 0; }
+
+/* ─── THE STARTER PICK (starter.js) ─────────────────────────────────────── */
+/* A new player's first champion: a scene for kids in the artist's own staging (each character on
+   a gold podium under a spotlight, sparkles all round) in Saltiz's own colours — the symbol's red,
+   gold and black, its hexagons on the wall, the symbol by the title and big behind the champions
+   (Idan: "so you can see it's Saltiz's game"). The words are big and outlined so they read on
+   anything. */
+.st {
+  position: fixed; inset: 0; z-index: 60; direction: rtl; overflow: hidden; color: #fff; font-family: var(--m-font);
+  display: flex; flex-direction: column; align-items: center; justify-content: space-evenly;
+  padding: calc(var(--safe-t) + var(--u) * 1.5) calc(var(--safe-r) + var(--u) * 3) calc(var(--safe-b) + var(--u) * 2) calc(var(--safe-l) + var(--u) * 3);
+  background:
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='42' height='75'%3E%3Cpath d='M21 49.5L0 37.5V12L21 0l21 12v25.5L21 49.5zm0 0V75' fill='none' stroke='%23ffd400' stroke-opacity='.09' stroke-width='1.5'/%3E%3C/svg%3E"),
+    radial-gradient(ellipse 85% 70% at 50% 42%, #7a0016f2, #3a0009f5 55%, #0a0204fc 100%);
+  backdrop-filter: blur(4px); -webkit-backdrop-filter: blur(4px);
+  animation: mFade .25s ease-out both;
+}
+.st * { unicode-bidi: plaintext; }
+.st-sky { position: absolute; inset: 0; pointer-events: none; z-index: -1; }
+/* the symbol, big and faint, behind the champions */
+.st-mark { position: absolute; left: 50%; top: 56%; width: calc(var(--u) * 78); transform: translate(-50%, -50%); opacity: .13;
+  filter: drop-shadow(0 0 calc(var(--u) * 6) #fe0034); animation: stMark 12s ease-in-out infinite alternate; }
+@keyframes stMark { from { transform: translate(-50%, -50%) rotate(-6deg) scale(.97); } to { transform: translate(-50%, -50%) rotate(6deg) scale(1.03); } }
+.st-beam { position: absolute; top: -10%; width: 42%; height: 130%; opacity: .45; mix-blend-mode: screen;
+  background: linear-gradient(180deg, #fff3b0aa, #ffdd0133 55%, transparent 85%); filter: blur(6px); }
+.st-beam.l { left: -6%; clip-path: polygon(0 0, 22% 0, 100% 100%, 46% 100%); animation: stSweep 7s ease-in-out infinite alternate; }
+.st-beam.r { right: -6%; clip-path: polygon(78% 0, 100% 0, 54% 100%, 0 100%); animation: stSweep 7s ease-in-out -3.5s infinite alternate-reverse; }
+@keyframes stSweep { from { transform: rotate(-4deg); } to { transform: rotate(4deg); } }
+.st-stars i {
+  position: absolute; width: calc(var(--u) * 2.4 * var(--s)); aspect-ratio: 1; background: #ffe75a;
+  clip-path: polygon(50% 0, 61% 39%, 100% 50%, 61% 61%, 50% 100%, 39% 61%, 0 50%, 39% 39%);
+  filter: drop-shadow(0 0 4px #ffdd01); animation: stTwinkle 3s ease-in-out infinite;
+}
+@keyframes stTwinkle { 0%, 100% { opacity: .15; transform: scale(.6) rotate(0); } 50% { opacity: 1; transform: scale(1) rotate(20deg); } }
+
+.st-top { display: flex; flex-direction: column; align-items: center; gap: calc(var(--u) * 1.2); animation: mDrop .35s cubic-bezier(.2, 1.3, .5, 1) both; }
+.st-head { display: flex; align-items: center; gap: calc(var(--u) * 2.2); }
+.st-sym { width: calc(var(--u) * 10.5); flex: none; animation: stSymIn .6s cubic-bezier(.2, 1.5, .4, 1) .1s both; }
+@keyframes stSymIn { from { transform: scale(0) rotate(-90deg); } to { transform: none; } }
+.st-h {
+  margin: 0; font-weight: 900; line-height: 1.05; font-size: calc(var(--u) * 8.4); white-space: nowrap;
+  color: var(--m-gold); transform: skewX(-7deg);
+  -webkit-text-stroke: calc(var(--u) * 1.2) var(--m-red-deep); paint-order: stroke fill;
+  text-shadow: 0 calc(var(--u) * .9) 0 var(--m-red-deep), 0 0 calc(var(--u) * 3.2) #fe0034cc;
+}
+.st-sub {
+  margin: 0; display: flex; flex-direction: column; align-items: center; gap: calc(var(--u) * .3); text-align: center;
+  padding: calc(var(--u) * .7) calc(var(--u) * 9);
+  background: linear-gradient(90deg, transparent, #0a0a0ce0 14%, #0a0a0ce0 86%, transparent);
+  border-block: calc(var(--u) * .35) solid; border-image: linear-gradient(90deg, transparent, var(--m-gold) 18%, var(--m-gold) 82%, transparent) 1;
+}
+.st-sub b { font-size: calc(var(--u) * 4); font-weight: 900; color: #fff; -webkit-text-stroke: calc(var(--u) * .45) var(--m-red-deep); paint-order: stroke fill; }
+.st-sub span { font-size: calc(var(--u) * 3.3); font-weight: 700; color: var(--m-gold-hi); text-shadow: 0 calc(var(--u) * .3) 0 #000; }
+
+.st-row { display: grid; grid-template-columns: repeat(4, 1fr); gap: calc(var(--u) * 3); width: min(100%, calc(var(--u) * 170)); }
+.st-card {
+  appearance: none; background: none; border: 0; padding: 0; cursor: pointer; color: #fff; font-family: var(--m-font);
+  display: flex; flex-direction: column; align-items: center; gap: calc(var(--u) * .9);
+  transition: opacity .2s, filter .2s; -webkit-tap-highlight-color: transparent;
+}
+/* the stage: a spotlight, a gold podium like the sheets', the whole character standing on it */
+.st-stage { position: relative; display: block; width: calc(var(--u) * 34); height: calc(var(--u) * 33); transition: transform .2s; }
+.st-light {
+  position: absolute; left: 8%; right: 8%; top: -14%; bottom: 8%; opacity: .45; transition: opacity .2s;
+  background: linear-gradient(180deg, #fff8dc00, #fff3c055 40%, #ffe9a088); clip-path: polygon(38% 0, 62% 0, 100% 100%, 0 100%);
+  filter: blur(2px);
+}
+.st-pod {
+  position: absolute; left: 12%; right: 12%; bottom: 0; height: 22%;
+  background: linear-gradient(180deg, #b8740a 0 46%, #8a5206 46%);
+  clip-path: polygon(14% 0, 86% 0, 100% 30%, 100% 62%, 86% 100%, 14% 100%, 0 62%, 0 30%);
+  filter: drop-shadow(0 calc(var(--u) * .6) 0 #0009);
+}
+.st-pod::before {        /* the top face, gold, with the kit's colour inside it */
+  content: ''; position: absolute; left: 0; right: 0; top: 0; height: 62%;
+  background: radial-gradient(ellipse 60% 55% at 50% 50%, var(--kc) 0 46%, transparent 48%), linear-gradient(180deg, #fff3a0, #f6c21c 55%, #d99a00);
+  clip-path: polygon(14% 0, 86% 0, 100% 48%, 86% 100%, 14% 100%, 0 48%);
+}
+.st-pic {
+  position: absolute; left: 0; right: 0; bottom: 9%; height: 86%; background-repeat: no-repeat;
+  filter: drop-shadow(0 calc(var(--u) * .8) calc(var(--u) * .6) #0008);
+  animation: stBob 2.6s ease-in-out var(--bob, 0s) infinite;
+}
+@keyframes stBob { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(calc(var(--u) * -1.2)); } }
+.st-burst { position: absolute; inset: -6%; pointer-events: none; opacity: 0;
+  background: radial-gradient(circle, #ffffff 0 2%, transparent 3%) 20% 30% / 30% 30%, radial-gradient(circle, #ffe9a0 0 2%, transparent 3%) 70% 20% / 26% 26%,
+    radial-gradient(circle, #fe0034 0 2%, transparent 3%) 80% 70% / 28% 28%, radial-gradient(circle, #ffffff 0 2%, transparent 3%) 15% 75% / 24% 24%; background-repeat: no-repeat; }
+.st-name {
+  font-size: calc(var(--u) * 5.4); font-weight: 900; line-height: 1.15; padding: 0 calc(var(--u) * 3.2); border-radius: 999px;
+  background: var(--kc); border: calc(var(--u) * .55) solid var(--kt); color: #fff;
+  -webkit-text-stroke: calc(var(--u) * .5) #120306; paint-order: stroke fill;
+  box-shadow: 0 0 0 calc(var(--u) * .35) var(--m-gold), 0 calc(var(--u) * .7) 0 #000a, inset 0 calc(var(--u) * .5) 0 #ffffff40;
+}
+.st-role {
+  font-size: calc(var(--u) * 2.8); font-weight: 700; line-height: 1.25; text-align: center; color: #fff;
+  max-width: calc(var(--u) * 36); padding: calc(var(--u) * .3) calc(var(--u) * 1.6); border-radius: calc(var(--u) * 1.6);
+  background: #0a0a0cc4; box-shadow: inset 0 0 0 1px #ffdd0155;
+}
+.st-row.has-sel .st-card:not(.sel) { opacity: .75; filter: saturate(.8); }
+.st-card.sel .st-stage { transform: scale(1.08); }
+.st-card.sel .st-light { opacity: 1; }
+.st-card.sel .st-name { box-shadow: 0 0 0 calc(var(--u) * .35) var(--m-gold), 0 calc(var(--u) * .7) 0 #000a, 0 0 calc(var(--u) * 3.4) var(--m-gold); }
+.st-card.pop .st-pic { animation: stJump .55s cubic-bezier(.2, 1.4, .4, 1), stBob 2.6s ease-in-out .55s infinite; }
+.st-card.pop .st-burst { animation: stBurst .7s ease-out both; }
+@keyframes stJump { 0% { transform: translateY(0) scale(1); } 35% { transform: translateY(calc(var(--u) * -5)) scale(1.06, .96); } 100% { transform: none; } }
+@keyframes stBurst { 0% { opacity: 1; transform: scale(.5); } 100% { opacity: 0; transform: scale(1.5); } }
+.st-go:not(:disabled) { animation: stPulse 1.2s ease-in-out infinite; }
+@keyframes stPulse { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.06); } }
+
+/* the question: are you sure, it is for good */
+.st-confirm { position: absolute; inset: 0; z-index: 2; display: grid; place-items: center; background: #0a0204d0; animation: mFade .15s ease-out both; }
+.st-cbox {
+  width: min(86vw, calc(var(--u) * 112)); padding: calc(var(--u) * 4) calc(var(--u) * 5) calc(var(--u) * 5); direction: rtl;
+  display: flex; flex-direction: column; align-items: center; gap: calc(var(--u) * 1.8); animation: mPop .22s cubic-bezier(.2, 1.4, .4, 1) both;
+}
+.st-stage.big { width: calc(var(--u) * 38); height: calc(var(--u) * 36); }
+.st-stage.big .st-light { opacity: 1; }
+.st-cq {
+  font-size: calc(var(--u) * 7); font-weight: 900; color: var(--m-gold); transform: skewX(-7deg);
+  -webkit-text-stroke: calc(var(--u) * 1) var(--m-red-deep); paint-order: stroke fill; text-shadow: 0 calc(var(--u) * .7) 0 var(--m-red-deep), 0 0 calc(var(--u) * 2.6) #fe0034aa;
+}
+.st-cn { margin: 0; font-size: calc(var(--u) * 3.3); font-weight: 700; color: #fff; text-align: center; line-height: 1.3; text-shadow: 0 calc(var(--u) * .3) 0 #000; }
+.st-cbtns { display: flex; gap: calc(var(--u) * 3); align-items: center; }
+
+/* SHADOWS under the home screen's buttons: a soft one on the stadium behind each, on top of the hard edge they already have */
+.hm-side, .hm-tl, .hm-wallet { filter: drop-shadow(0 calc(var(--u) * 1.6) calc(var(--u) * 1.8) #0009); }
+.hm-opt, .hm-pass, .hm-play { filter: drop-shadow(0 calc(var(--u) * 1.6) calc(var(--u) * 1.8) #0009); }
+.hm-tile.is-pressed, .hm-tile:active { filter: brightness(.85) drop-shadow(0 calc(var(--u) * .5) calc(var(--u) * .8) #0009); }
+
+/* the side buttons are a little smaller, so on a phone they never sit on top of each other */
+.hm-side .hm-tile { width: calc(var(--u) * 14); height: calc(var(--u) * 12.2); padding-bottom: calc(var(--u) * 1.1); }
+.hm-side .hm-tile > b { font-size: calc(var(--u) * 3); }

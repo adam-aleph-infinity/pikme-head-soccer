@@ -10,8 +10,10 @@ import { WebSocketServer } from 'ws';
 import * as C from './shared/constants.js';
 import { createMatch, step, serialize } from './shared/sim.js';
 import { createBot, botInput } from './shared/bot.js';
-import { createRegistry, createRoom, joinRoom, leave, setReady, bothReady, roomOf } from './shared/rooms.js';
-import { createInputQueue, ingest, takeNext, unpackInput, encodeSnapshot, PROTOCOL } from './shared/net.js';
+import { createRegistry, createRoom, joinRoom, leave, setReady, bothReady, roomOf, seat } from './shared/rooms.js';
+import { openStore } from './server/store.js';
+import { createLeague } from './server/league.js';
+import { createInputQueue, ingest, takeNext, unpackInput, packInput, encodeSnapshot, PROTOCOL } from './shared/net.js';
 
 const ROOT = path.dirname(fileURLToPath(import.meta.url));
 const PORT = Number(process.env.PORT ?? 3020);
@@ -24,6 +26,19 @@ if (process.env.MATCH_SECONDS) C.tune({ MATCH_DURATION: Number(process.env.MATCH
 // TEST_SCORE=0:2 — every room match kicks off at that score, so the harness gets a decided
 // result without having to score through the physics. Production never sets it.
 const TEST_SCORE = process.env.TEST_SCORE ? process.env.TEST_SCORE.split(':').map(Number) : null;
+// THE LEAGUE'S FILE (server/store.js): on Render the service's disk (render.yaml DATA_DIR=/var/data),
+// here ./data. DATA_DIR=:memory: keeps nothing (the tests).
+const DATA_DIR = process.env.DATA_DIR || path.join(path.dirname(fileURLToPath(import.meta.url)), 'data');
+// DEV_TOOLS=1 — the team screen's dev buttons work (seed teams, end the week now…): `npm start` on
+// this Mac only. Production never sets it.
+const DEV_TOOLS = process.env.DEV_TOOLS === '1';
+// ARENA_LIVE=1 — trophies count. OFF until the arenas are finished (Idan: "players must not get
+// free trophies"): the arena is practice — matches, but no trophies, no road, no team week.
+const ARENA_LIVE = process.env.ARENA_LIVE === '1';
+// QUEUE_BOT_MS / ARENA_VS_MS — how long the arena waits for a human, and the VS card (the harnesses
+// shorten both).
+const QUEUE_BOT_MS = process.env.QUEUE_BOT_MS ? Number(process.env.QUEUE_BOT_MS) : undefined;
+const ARENA_VS_MS = process.env.ARENA_VS_MS ? Number(process.env.ARENA_VS_MS) : undefined;
 
 const TYPES = {
   '.html': 'text/html; charset=utf-8',
@@ -105,11 +120,17 @@ const wss = new WebSocketServer({ server, path: '/ws' });
 let nextId = 1;
 
 const send = (ws, msg) => { if (ws && ws.readyState === 1) ws.send(JSON.stringify(msg)); };
+// THE ARENA AND THE TEAMS' WEEK (server/league.js): trophies, matchmaking, the week's result.
+const store = openStore(DATA_DIR === ':memory:' ? ':memory:' : path.join(DATA_DIR, 'league.sqlite'));
+const league = createLeague({ store, reg, send, startMatch: (room, opts) => startMatch(room, opts), createBot, createRoom, seat, leave,
+  dev: DEV_TOOLS, live: ARENA_LIVE, botAfter: QUEUE_BOT_MS, vsMs: ARENA_VS_MS });
+setInterval(() => league.tick(), 250);
 const DEFAULT_CARD = { rarity: 'legendary', number: 3 };
 
 function sanitizeCard(card) {
-  const rarity = ['common', 'rare', 'epic', 'legendary'].includes(card?.rarity) ? card.rarity : DEFAULT_CARD.rarity;
-  const number = Math.max(1, Math.min(45, Number(card?.number) || DEFAULT_CARD.number));
+  const rarity = ['common', 'rare', 'epic', 'legendary', 'mythic'].includes(card?.rarity) ? card.rarity : DEFAULT_CARD.rarity;
+  // 45 cards a rarity, four Mythics (shared/mythics.js)
+  const number = Math.max(1, Math.min(rarity === 'mythic' ? 4 : 45, Number(card?.number) || DEFAULT_CARD.number));
   return { rarity, number };
 }
 
@@ -124,21 +145,25 @@ function roomView(room) {
 }
 const broadcast = (room, msg) => { for (const m of room.members) send(m.ws, msg); };
 
-function startMatch(room) {
+// opts (the arena, server/league.js): the two cards and names it matched, a CPU in a seat with no
+// player, and anything more the clients need to know (`extra`: the arena and its stadium).
+function startMatch(room, opts = {}) {
   const [a, b] = room.members;
+  const cards = opts.cards || [a.card, b.card], names = opts.names || [a.name, b.name];
   room.phase = 'match';
-  room.match = createMatch(a.card, b.card, {});
+  room.match = createMatch(cards[0], cards[1], {});
   if (TEST_SCORE) room.match.score = TEST_SCORE.slice(0, 2);
   room.tick = 0;
   room.acc = 0;
   room.lastInput = [0, 0];
   for (const m of room.members) m.queue = createInputQueue();
-  room.bots = [null, null];
+  room.bots = opts.bots || [null, null];
   broadcast(room, {
     type: 'start',
-    chars: [a.card, b.card],
-    names: [a.name, b.name],
+    chars: cards,
+    names,
     duration: C.MATCH_DURATION,
+    ...(opts.extra || {}),
   });
 }
 
@@ -163,6 +188,10 @@ function stepRoom(room, dt) {
       if (room.bots[i] || !member) {
         if (!room.bots[i]) seatBot(room, i);
         inputs[i] = botInput(room.bots[i], m, i, C.TICK);
+        // what the CPU pressed travels in the snapshots like a player's (the client predicts the
+        // opponent by holding its last input: without this it held "nothing", and the CPU jumped
+        // ~2 ticks of walking 30 times a second — the arena's "low fps" opponent, 2026-10-09)
+        room.lastInput[i] = packInput(inputs[i]);
       } else {
         const packed = takeNext(member.queue);
         room.lastInput[i] = packed;
@@ -174,6 +203,8 @@ function stepRoom(room, dt) {
 
     if (m.phase === 'over') {
       broadcast(room, { type: 'over', score: [m.score[0], m.score[1]] });
+      // an arena match: the league pays it and closes the room (no rematch lobby)
+      if (room.arena) { league.over(room, [m.score[0], m.score[1]]); return; }
       room.phase = 'lobby';
       room.match = null;
       room.ready.clear();
@@ -183,7 +214,7 @@ function stepRoom(room, dt) {
     // 30Hz on the wire: the client sims at 60 and rolls forward between snapshots.
     if (room.tick % 2 === 0) {
       for (const member of room.members) {
-        send(member.ws, encodeSnapshot(m, room.tick, room.lastInput[1 - member.index]));
+        send(member.ws, encodeSnapshot(m, room.tick, room.lastInput[1 - member.index], member.queue.played));
       }
     }
   }
@@ -226,8 +257,21 @@ wss.on('connection', (ws) => {
         member.name = String(msg.name || 'שחקן').slice(0, 24);
         member.card = sanitizeCard(msg.card);
         member.v = Number.isInteger(msg.v) ? msg.v : 0;
-        if (room) broadcast(room, roomView(room));
+        if (room && !room.arena) broadcast(room, roomView(room));
+        league.hello(member, msg);
         break;
+      // THE ARENA (server/league.js)
+      case 'queue':
+        if (member.v !== PROTOCOL) { send(ws, { type: 'error', code: 'stale' }); break; }
+        if (msg.card) member.card = sanitizeCard(msg.card);
+        league.enqueue(member);
+        break;
+      case 'unqueue': league.unqueue(member); break;
+      case 'profile': league.profile(member); break;
+      case 'road': league.road(member, msg); break;
+      case 'switchTeam': league.switchTeam(member, msg); break;
+      case 'ack': league.ack(member, msg); break;
+      case 'dev': league.dev(member, msg); break;
 
       case 'create': {
         // A stale build is turned away at the door, before it holds a room or a seat. The
@@ -253,11 +297,11 @@ wss.on('connection', (ws) => {
 
       case 'card':
         member.card = sanitizeCard(msg.card);
-        if (room && room.phase === 'lobby') broadcast(room, roomView(room));
+        if (room && room.phase === 'lobby' && !room.arena) broadcast(room, roomView(room));
         break;
 
       case 'ready': {
-        if (!room || room.phase !== 'lobby') break;
+        if (!room || room.phase !== 'lobby' || room.arena) break;
         setReady(reg, member.id, !!msg.v);
         broadcast(room, roomView(room));
         if (bothReady(room)) startMatch(room);
@@ -269,7 +313,9 @@ wss.on('connection', (ws) => {
         break;
 
       case 'leave': {
+        league.unqueue(member);
         if (!room) break;
+        if (room.arena) { league.left(room, member); break; }
         const wasMatch = room.phase === 'match';
         const idx = member.index;
         leave(reg, member.id);
@@ -288,8 +334,10 @@ wss.on('connection', (ws) => {
 
   ws.on('close', () => {
     announceOnline();
+    league.gone(member);
     const room = roomOf(reg, member.id);
     if (!room) return;
+    if (room.arena) { league.left(room, member); return; }
     const wasMatch = room.phase === 'match';
     const idx = member.index;
     leave(reg, member.id);

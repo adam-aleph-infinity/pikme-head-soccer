@@ -674,9 +674,11 @@ function track(m, s, inputs = NONE) {
 // atY: the height the shot flies at once it leaves (a shot always leaves at the shooter's head
 // height, constants.js POWER_RELEASE_UP — this puts it where a test needs it to meet him)
 // When KICK goes in for a counter (the boot must meet it — _block-window.mjs): a ball at head height
-// ~0.18 s before it arrives (the boot is up 0.12–0.27 s after the press), one on the grass just as it
-// does (the boot is down there only for the first frames of the swing).
-const kickLead = (b) => (b.y > C.GROUND_Y - 45 ? 0.07 : 0.18);
+// ~0.145 s before it arrives (the boot swings up through it 0.12–0.15 s after the press, and only
+// the swing up blocks: C.BLOCK_SWING), one on the grass just as it does (the boot is down there only
+// for the first frames of the swing).
+const KICK_LATE = 3;   // ticks after the release the in-air block test kicks (its jump: 20 before)
+const kickLead = (b) => (b.y > C.GROUND_Y - 45 ? 0.07 : 0.145);
 function atDefender(fam, o = {}, { kick = false, armed = false, gap = 560, atY = null } = {}) {
   const m = fresh();
   const a = m.players[0], z = m.players[1];
@@ -1233,9 +1235,10 @@ const first = (log, type, f = () => true) => log.find((e) => e.type === type && 
   step(m, NONE); m.events.length = 0;
   let bt = -1, y0 = 0, air = false, moved = false, reb = null, held = 0;
   for (let t = 0; t < 260 && !reb; t++) {
-    // (jump 20 ticks before the shot leaves the cut-in's hold, kick as it leaves)
-    const HOLD = Math.round((C.POWER_CUTIN - C.POWER_RELEASE) / C.TICK);
-    step(m, [{}, { jump: t === HOLD - 20, kick: t === HOLD }]);
+    // (kick KICK_AT ticks after the shot leaves the cut-in's hold — on the swing's timing, C.BLOCK_SWING
+    // — and jump 20 ticks before that)
+    const HOLD = Math.round((C.POWER_CUTIN - C.POWER_RELEASE) / C.TICK), KICK_AT = HOLD + KICK_LATE;
+    step(m, [{}, { jump: t === KICK_AT - 20, kick: t === KICK_AT }]);
     const ev = m.events.splice(0);
     if (bt < 0) { if (ev.some((e) => e.type === 'blocked' && e.player === 1)) { bt = t; y0 = z.y; air = !z.onGround; } continue; }
     reb = ev.find((e) => e.type === 'rebound');

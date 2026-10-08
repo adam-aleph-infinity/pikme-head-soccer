@@ -268,7 +268,7 @@ body.safedemo { --safe-l: 44px; --safe-r: 44px; --safe-b: 21px; --safe-t: 12px; 
 /* A LANDSCAPE PHONE IS 390px TALL and a portrait one is 390px WIDE, so the board is sized
    off whichever of the two is scarcer. Everything else on it — the clock, both scores, the
    gap the clock is pulled up by — is a multiple of this one number. */
-#stage { --face: clamp(34px, min(6.4cqw, 7.6cqh), 52px); }
+#stage { --face: clamp(40px, min(8cqw, 9.6cqh), 66px); }
 
 /* ── THE POWER METER ──────────────────────────────────────────────────────────
    Was a plain rectangle that only grew. It is the one number a player watches all match,
@@ -449,7 +449,7 @@ body.safedemo { --safe-l: 44px; --safe-r: 44px; --safe-b: 21px; --safe-t: 12px; 
   animation: vsSweep 1s .3s ease-in-out both;
 }
 .vs-face { position: relative; display: block; width: 36cqh; height: 36cqh; border-radius: 50%; background: no-repeat; filter: drop-shadow(0 1cqh 1.5cqh #0009); }
-.vs-face.char-face { width: 44cqh; height: 44cqh; }
+.vs-face.char-face { width: 50cqh; height: 50cqh; border-radius: 0; }   /* the whole champion, not a circle cut out of it */
 #vsFace0 { animation: vsInL .3s .1s cubic-bezier(.2, 1.2, .4, 1) both; }
 #vsFace1 { animation: vsInR .3s .1s cubic-bezier(.2, 1.2, .4, 1) both; }
 .vs-mid { position: relative; width: 30cqh; height: 30cqh; display: grid; place-items: center; }

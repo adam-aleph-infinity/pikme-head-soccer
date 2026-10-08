@@ -54,6 +54,13 @@ export function joinRoom(reg, member, code) {
   return { room };
 }
 
+// THE ARENA (server/league.js) seats its second player itself: they were matched, not invited, and
+// an arena room's code is not one anybody can type.
+export function seat(reg, member, room) {
+  leave(reg, member.id);
+  attach(reg, member, room);
+  return room;
+}
 function attach(reg, member, room) {
   room.members.push(member);
   reg.byMember.set(member.id, { member, room });

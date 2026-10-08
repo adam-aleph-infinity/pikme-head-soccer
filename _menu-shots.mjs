@@ -51,7 +51,7 @@ const go = async (q = '') => { await send('Page.navigate', { url: `http://127.0.
 // Everything inside the glass: no visible element of the screen sticks out past the viewport.
 const fits = (sel) => js(`(() => { const root = document.querySelector(${JSON.stringify(sel)}); const bad = [];
   for (const e of root.querySelectorAll('button, .m-title, .m-panel, .m-pill, .m-chip, .sel-stats, .m-points')) {
-    if (e.closest('.hidden') || e.closest('.rl-item') || e.closest('.mn-mode:not(.on)') || e.closest('.how-page:not(.on)')) continue;
+    if (e.closest('.hidden') || e.closest('.rl-item') || e.closest('.how-page:not(.on)')) continue;
     const r = e.getBoundingClientRect(); if (!r.width) continue;
     if (r.left < -1 || r.top < -1 || r.right > innerWidth + 1 || r.bottom > innerHeight + 1) bad.push((e.id || e.className).toString().slice(0, 30));
   } return bad; })()`);
@@ -68,7 +68,7 @@ await size(844, 390);
 console.log('· the walk, 844×390');
 await go('?nointro');
 check('boot opens on the title', (await screen()) === 'title' && await visible('#title'));
-check('…and nothing else is showing', (await js(`MENU && ['menu','select','shop','howto','lobby','match'].every(s => document.getElementById(s).classList.contains('hidden'))`)));
+check('…and nothing else is showing', (await js(`MENU && ['menu','modes','select','shop','howto','lobby','match'].every(s => document.getElementById(s).classList.contains('hidden'))`)));
 await sleep(1500);
 await shot('01-title');
 await click('#title');
@@ -76,15 +76,22 @@ check('a tap on the title opens the main menu', await on('menu'));
 await sleep(700);
 check('the menu fits the glass', (await fits('#menu')).length === 0, (await fits('#menu')).join(','));
 await shot('02-menu');
-check('arcade is in the middle of the carousel', (await js(`document.querySelector('.mn-mode.on').dataset.mode`)) === 'arcade');
-await key('ArrowRight');
-check('→ turns the carousel to the tournament (HS\'s order)', (await js(`document.querySelector('.mn-mode.on').dataset.mode`)) === 'tournament');
-await sleep(400); await shot('02b-menu-multi');
-await key('ArrowLeft'); await key('ArrowLeft');
-check('←← turns it round to practice (it loops)', (await js(`document.querySelector('.mn-mode.on').dataset.mode`)) === 'practice');
-await key('ArrowRight');
-await key('Enter');
-check('Enter on arcade opens Player Select', await on('select'));
+check('you stand on the podium: a body and a head', await js(`!!document.querySelector('#hmHero canvas') && !!document.querySelector('#hmHero .head')`));
+await click('#hmPass'); await sleep(250);
+check('BATTLE PASS says "coming soon"', await js(`document.querySelector('#hmToast').classList.contains('on')`));
+// PLAY: the game modes until the arena is live (ARENA_LIVE, Idan 2026-10-08), the arena after
+check('the trophies say "soon" until the arena is live', (await js(`document.querySelector('#hmCups').textContent`)) === 'בקרוב');
+await click('#hmPlay'); await sleep(400);
+check('PLAY is the arena: practice until the trophies count', await js(`ARENA_UI.on || document.querySelector('#hmToast').classList.contains('on')`));
+await js(`ARENA_UI.hide(); NET?.league('unqueue')`);
+await click('#hmModes');
+check('the modes button opens the game modes', await on('modes'));
+await sleep(500);
+check('the modes fit the glass', (await fits('#modes')).length === 0, (await fits('#modes')).join(','));
+await shot('02b-modes');
+check('every mode, in HS\'s order', (await js(`[...document.querySelectorAll('#mdRow .mn-mode')].map(b => b.dataset.mode).join()`)) === 'arcade,tournament,multi,practice');
+await click('.mn-mode[data-mode="arcade"]');
+check('arcade opens Player Select', await on('select'));
 await sleep(700);
 check('Player Select fits the glass', (await fits('#select')).length === 0, (await fits('#select')).join(','));
 await shot('03-select');
@@ -105,14 +112,16 @@ check('five stats, each with a buy button', (await js(`document.querySelectorAll
 await key('Escape');
 check('Esc goes back to Player Select', await on('select'));
 await click('#selRar'); await sleep(200);
-check('the rarity pill steps to the next rarity', /אדיר/.test(await js(`document.querySelector('#selRar').textContent`)));
+check('one list of characters: the pill does not switch rarities', (await js(`document.querySelector('#selRar').textContent.trim()`)) === 'דמויות');
 await click('#reelMe .rl-item.sel'); await sleep(250);
 check('a tap on your frame opens the card popup', await visible('#cardsPop'));
 await shot('06-cards');
 await key('Escape');
 check('Esc closes it', !(await visible('#cardsPop')));
 await click('#selBack');
-check('BACK goes to the main menu', await on('menu'));
+check('BACK goes to the game modes', await on('modes'));
+await click('#mdBack');
+check('…and BACK again to the home screen', await on('menu'));
 
 await click('#mnOpt'); await sleep(300);
 check('⚙ opens the options', await visible('#optPop'));
@@ -135,7 +144,7 @@ await key('Escape');
 check('BACK from how to returns to the menu, options open', (await on('menu')) && await visible('#optPop'));
 await key('Escape');
 
-await js(`MENU.openMenu()`); await key('ArrowRight'); await key('ArrowRight'); await key('Enter'); await sleep(300);
+await js(`MENU.openModes()`); await click('.mn-mode[data-mode="multi"]'); await sleep(300);
 check('multiplayer opens its popup', await visible('#mpPop'));
 await shot('10-multi');
 await click('#hostBtn');
@@ -147,7 +156,7 @@ await click('#lobbyBack');
 check('BACK leaves the room for the menu', await on('menu'));
 
 // practice → a match → pause → how to → give up → result → Player Select
-await key('ArrowRight'); await key('Enter');
+await click('#hmPlay'); await on('modes'); await click('.mn-mode[data-mode="practice"]');
 check('practice opens Player Select, practice flavour', (await on('select')) && await visible('#selDiff'));
 await click('#diffUp'); await sleep(100);
 check('the difficulty arrows move the bot', (await js(`pick.level`)) === 4);
@@ -179,8 +188,8 @@ await click('#again');
 check('NEXT goes back to Player Select (practice)', (await on('select')) && await visible('#selDiff'));
 
 // arcade: win stage 1 → points, NEXT MATCH → stage 2 selected
-await click('#selBack'); await on('menu');
-await key('ArrowRight'); await key('Enter');
+await click('#selBack'); await on('modes');
+await click('.mn-mode[data-mode="arcade"]');
 await on('select');
 await go('?arcade');
 await click('#selPlay');
@@ -215,9 +224,8 @@ check('GIVE UP in the arcade records the loss', (await on('select')) && await js
 check('…and Player Select stays on that champion', (await js(`document.querySelector('#selTabV').textContent`)) === '2/45');
 
 // ── the tournament: enter it, win the bracket, lift the cup; then a new one, knocked out ──
-await js(`localStorage.removeItem('hs.tour.v1'); MENU.openMenu()`); await sleep(300);
-await click('.mn-mode[data-mode="tournament"]'); await sleep(350);
-await click('.mn-mode[data-mode="tournament"] .mn-pill'); await sleep(400);
+await js(`localStorage.removeItem('hs.tour.v1'); MENU.openModes()`); await sleep(300);
+await click('.mn-mode[data-mode="tournament"]'); await sleep(400);
 check('the tournament opens its Player Select (HS: NEXT)', (await on('select')) && await visible('#selCup') && (await js(`document.querySelector('#selPlay').textContent`)) === 'הבא');
 await shot('17-tour-select');
 check('HS: you pick yourself from a SIDEWAYS reel', (await visible('#reelCup')) && !(await visible('#reelMe')) && await js(`document.querySelector('#reelCup').classList.contains('rl-x')`));
@@ -267,12 +275,14 @@ await click('#again'); await on('bracket'); await brReady();
 check('…the bracket shows you out, the rest played to a winner', (await js(`TOURNEY.out && TOURNEY.rounds[2][0].winner !== null`)) && await visible('.br-leaf.you.out'));
 await shot('22-bracket-out');
 await click('#brBack');
-check('BACK goes to the menu', await on('menu'));
+check('BACK goes to the game modes', await on('modes'));
 
 // deep links skip the title
 await go('?arcade');
 check('?arcade opens Player Select, no title', (await screen()) === 'select');
-await go('?room=ABCD');
+// (past the first launch: a room link before it waits for the starter and the tutorial —
+// _tutorial-shots.mjs walks that)
+await go('?room=ABCD&nointro');
 check('?room=ABCD opens the lobby, joining', (await screen()) === 'lobby' && (await js(`document.querySelector('#codeInput').value`)) === 'ABCD');
 
 // a phone held upright is asked to turn

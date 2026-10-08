@@ -254,6 +254,13 @@ export const KICK_COOLDOWN = 0.349;
 // the pair, so everything the ball touches reads alike.
 // The boot is drawn 24 x 13.5 px; its collision is a disc of the boot's mean half-size.
 export let BOOT_R = 9;
+// THE KICK-BLOCK'S TIMING (Idan, 2026-10-08: "you need good timing and touching just with your
+// boot, like HS"). A power ball only BLOCKS on the boot while the leg is still swinging up — the
+// first BLOCK_SWING of the swing (k, 0..1) — not once it is held out at the top (k 0.32–0.92 of
+// kick.js BOOT_PATH), which used to catch every ball for ~10 frames. Met by the held leg, the ball
+// is a hit, as any other part of him. (0.45 was "way too hard" — Idan, the same day: 3 frames
+// standing, 5 jumping. 0.65 gives 6 and 8, half way back to the old 10 and 12; _block-window.mjs.)
+export let BLOCK_SWING = 0.65;
 export let BOOT_BOUNCE = 0.68;
 // Grip across the contact (Box2D friction): how much of the ball's sliding speed across the
 // boot's face the strike takes with it, as a fraction of the normal impulse, Coulomb-capped.
@@ -605,6 +612,7 @@ const SETTERS = {
   KICK_REACH: (v) => { KICK_REACH = v; },
   KICK_R: (v) => { KICK_R = v; },
   BOOT_R: (v) => { BOOT_R = v; },
+  BLOCK_SWING: (v) => { BLOCK_SWING = v; },
   BOOT_BOUNCE: (v) => { BOOT_BOUNCE = v; },
   BOOT_BODY: (v) => { BOOT_BODY = v; },
   BOOT_DRIVE: (v) => { BOOT_DRIVE = v; },
@@ -675,6 +683,7 @@ export function snapshot() {
     KICK_REACH,
     KICK_R,
     BOOT_R,
+    BLOCK_SWING,
     BOOT_BOUNCE,
     BOOT_GRIP,
     POWER_SHOT_LIFE,

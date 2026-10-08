@@ -3,48 +3,81 @@
    in the Saltiz colours. Sizes are in --u (menus.css: 1% of a landscape phone's height). */
 
 /* ─── LOADING = TITLE ───────────────────────────────────────────────────── */
-#title.ld { background: #12062a; --rx: 50%; --ry: 40%; }
+#title.ld { background: #1a0206; --rx: 50%; --ry: 40%; }
 .ld-stadium { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; object-position: 50% 100%; z-index: 0; }
 /* the floodlights: two soft beams swinging a little, as HB2's do */
 .ld-beam {
   position: absolute; z-index: 0; top: -20%; width: 60%; height: 140%; pointer-events: none; mix-blend-mode: screen;
-  background: linear-gradient(180deg, #ffe9ff66, #c27dff22 45%, transparent 75%);
+  background: linear-gradient(180deg, #fff3c866, #ffb02e22 45%, transparent 75%);
   clip-path: polygon(46% 0, 54% 0, 100% 100%, 0 100%); transform-origin: 50% 0;
 }
 .ld-beam.l { left: -12%; transform: rotate(-24deg); animation: ldSway 7s ease-in-out infinite; }
 .ld-beam.r { right: -12%; transform: rotate(24deg); animation: ldSway 7s ease-in-out -3.5s infinite reverse; }
 @keyframes ldSway { 50% { rotate: 6deg; } }
-.ld-vignette { position: absolute; inset: 0; z-index: 0; pointer-events: none; background: radial-gradient(ellipse 75% 70% at 50% 45%, transparent 55%, #0a0218b0 100%); }
+.ld-vignette { position: absolute; inset: 0; z-index: 0; pointer-events: none; background: radial-gradient(ellipse 75% 70% at 50% 45%, transparent 55%, #140004c0 100%); }
 #title.ld .t-sparks { z-index: 1; }
 
-/* the two heads squaring up from the edges (HB2: red on the left, blue on the right) */
-.ld-hero { position: absolute; z-index: 2; bottom: calc(var(--u) * 16); width: calc(var(--u) * 54); height: calc(var(--u) * 66); pointer-events: none; }
-.ld-hero.l { left: max(calc(var(--safe-l) + var(--u) * 2), calc(50% - var(--u) * 108)); animation: ldInL .55s cubic-bezier(.2, 1.25, .4, 1) .15s both; }
-.ld-hero.r { right: max(calc(var(--safe-r) + var(--u) * 2), calc(50% - var(--u) * 108)); animation: ldInR .55s cubic-bezier(.2, 1.25, .4, 1) .25s both; }
-@keyframes ldInL { from { transform: translateX(-120%) rotate(-12deg); } }
-@keyframes ldInR { from { transform: translateX(120%) rotate(12deg); } }
-.ld-face {
-  position: absolute; z-index: 2; left: 0; top: 0; width: calc(var(--u) * 54); height: calc(var(--u) * 54); background-repeat: no-repeat;
-  filter: drop-shadow(0 calc(var(--u) * 1.4) calc(var(--u) * 2) #000a); animation: ldBreath 2.4s ease-in-out infinite; transform-origin: 50% 90%;
-}
-.ld-hero.r .ld-face { animation-delay: -1.2s; }
-@keyframes ldBreath { 50% { translate: 0 calc(var(--u) * -1); rotate: -1.5deg; } }   /* not `transform`: the right face is mirrored by one */
-.ld-body { position: absolute; z-index: 1; left: 18%; top: 66%; width: 64%; height: 40%; }
-.ld-body > svg { width: 100%; height: 100%; overflow: visible; display: block; }
-.ld-hero.r .ld-body { transform: scaleX(-1); }
+/* THE FOUR MYTHICS, 2v2, HEAD TO HEAD (Idan, 2026-10-08): שובל and אורי on the left in red,
+   נוה and פז on the right in blue, standing whole on their gold podiums, the front pair face to
+   face across a gold VS. Each side is a box from the screen's edge to
+   just short of the VS, as wide as the screen allows, and the figures are sized off it: the front
+   one big and nearer the middle, the one behind smaller, higher and further out, a touch darker.
+   They rise in one after another, then breathe. */
+.ld-side { position: absolute; z-index: 1; top: 0; bottom: 0; width: 62%; pointer-events: none; mix-blend-mode: screen; }
+.ld-side.l { left: 0; background: radial-gradient(ellipse 70% 60% at 30% 72%, #ff2a3c55, transparent 70%); clip-path: polygon(0 0, 100% 0, 72% 100%, 0 100%); }
+.ld-side.r { right: 0; background: radial-gradient(ellipse 70% 60% at 70% 72%, #2a8cff55, transparent 70%); clip-path: polygon(28% 0, 100% 0, 100% 100%, 0 100%); }
+.ld-team { position: absolute; z-index: 2; bottom: calc(var(--safe-b) + var(--u) * 3); height: calc(var(--u) * 90); pointer-events: none;
+  width: min(calc(var(--u) * 92), calc(50% - var(--u) * 14)); }
+.ld-team.l { right: calc(50% + var(--u) * 14); }
+.ld-team.r { left: calc(50% + var(--u) * 14); }
+.ld-hero { position: absolute; bottom: 0; }
+.ld-hero.front { width: 56%; z-index: 2; }
+.ld-hero.back { width: 46%; z-index: 1; bottom: calc(var(--u) * 12); filter: brightness(.8) saturate(.9) blur(calc(var(--u) * .1)); }
+.ld-team.l .front { right: 0; } .ld-team.l .back { left: 0; }
+.ld-team.r .front { left: 0; } .ld-team.r .back { right: 0; }
+/* IN THE SCENE, not stuck on it (Idan: the white outline "looks pasted"): the artist's sticker
+   outline is cut off (mythic_full.py), and the stadium lights them: a rim in their team's light,
+   a soft shade over the outer side, and a shadow on the grass. */
+.ld-fig { position: relative; z-index: 1; display: block; width: 100%; height: auto; transform-origin: 50% 100%;
+  filter: drop-shadow(0 0 calc(var(--u) * .3) var(--rim)) drop-shadow(0 0 calc(var(--u) * 1.6) var(--glow)) drop-shadow(0 calc(var(--u) * 1.2) calc(var(--u) * 1.2) #0009);
+  animation: ldStand 3s ease-in-out infinite; }
+.ld-team.l { --rim: #ffb3a0dd; --glow: #ff3a3a66; }
+.ld-team.r { --rim: #a8d4ffdd; --glow: #3a8cff66; }
+.ld-hero.back .ld-fig { animation-delay: -.8s; }
+.ld-team.r .front .ld-fig { animation-delay: -1.5s; }
+.ld-team.r .back .ld-fig { animation-delay: -2.3s; }
+@keyframes ldStand { 50% { scale: 1 1.015; translate: 0 calc(var(--u) * -.4); } }
+.ld-hero::after { content: ''; position: absolute; z-index: 2; inset: 0; pointer-events: none; mix-blend-mode: multiply;
+  -webkit-mask: var(--fig) center / 100% 100% no-repeat; mask: var(--fig) center / 100% 100% no-repeat;
+  background: linear-gradient(100deg, #fff0 40%, #2a1a4a66); }
+.ld-team.l .ld-hero::after { background: linear-gradient(260deg, #fff0 40%, #5a1a2a66); }
+.ld-hero::before { content: ''; position: absolute; z-index: 0; left: -6%; right: -6%; bottom: -3%; height: 12%; border-radius: 50%;
+  background: radial-gradient(closest-side, #000a, #0000); }
+/* the spotlight: a soft cone from above in the team's light, and its pool round the podium */
+.ld-spot { position: absolute; z-index: 0; left: -30%; right: -30%; bottom: -4%; height: 135%; pointer-events: none; mix-blend-mode: screen;
+  background: radial-gradient(ellipse 50% 9% at 50% 95%, var(--glow), transparent 100%), linear-gradient(180deg, transparent, var(--glow) 90%);
+  opacity: .7; clip-path: polygon(42% 0, 58% 0, 100% 100%, 0 100%); }
+.ld-hero { animation: ldRise .7s cubic-bezier(.2, 1.3, .4, 1) both; }
+.ld-team .front { animation-delay: .15s; } .ld-team .back { animation-delay: .4s; }
+@keyframes ldRise { from { transform: translateY(40%) scale(.6); opacity: 0; } }
+/* the VS between the front pair (no lightning: Idan) */
+.ld-vs { position: absolute; z-index: 3; left: 50%; bottom: calc(var(--safe-b) + var(--u) * 30); width: calc(var(--u) * 24); height: calc(var(--u) * 24);
+  transform: translateX(-50%); display: grid; place-items: center; pointer-events: none; container-type: size; }
+.ld-vs .vs-txt { font-size: calc(var(--u) * 17); animation: vsPop .3s .7s cubic-bezier(.2, 1.5, .5, 1) both, ldVsBeat 1.6s 1.1s ease-in-out infinite; }
+@keyframes ldVsBeat { 50% { scale: 1.08; filter: drop-shadow(0 0 calc(var(--u) * 2) #ffd400); } }
 
 /* the logo between them, stacked like HB2's */
-#title.ld .t-stage { z-index: 3; flex-direction: column; gap: calc(var(--u) * .6); padding-bottom: calc(var(--u) * 20); }
-#title.ld .t-sym { width: calc(var(--u) * 30); }
+#title.ld .t-stage { z-index: 3; flex-direction: column; justify-content: flex-start; gap: calc(var(--u) * .4); padding: calc(var(--safe-t, 0px) + var(--u) * 3) 0 0; }
+#title.ld .t-sym { width: calc(var(--u) * 22); }
 #title.ld .t-word { align-items: center; gap: 0; }
-#title.ld .t-word .m-title.flame { font-size: calc(var(--u) * 15); }
-#title.ld .t-word .m-title.chrome { font-size: calc(var(--u) * 10); margin: calc(var(--u) * -1.5) 0 0; }
+#title.ld .t-word .m-title.flame { font-size: calc(var(--u) * 12); }
+#title.ld .t-word .m-title.chrome { font-size: calc(var(--u) * 8); margin: calc(var(--u) * -1.5) 0 0; }
 
 /* the status line over the fat green pill */
-.ld-load { position: absolute; z-index: 4; left: 50%; bottom: calc(var(--safe-b) + var(--u) * 8); width: calc(var(--u) * 70); transform: translateX(-50%); text-align: center; }
+.ld-load { position: absolute; z-index: 4; left: 50%; bottom: calc(var(--safe-b) + var(--u) * 6); width: calc(var(--u) * 60); transform: translateX(-50%); text-align: center; }
 .ld-status {
   margin: 0 0 calc(var(--u) * 1); font-weight: 700; font-size: calc(var(--u) * 3.4); color: #fff;
-  -webkit-text-stroke: calc(var(--u) * .5) #1b0a32; paint-order: stroke fill; transition: opacity .25s;
+  -webkit-text-stroke: calc(var(--u) * .5) #2a0008; paint-order: stroke fill; transition: opacity .25s;
 }
 .ld-bar {
   position: relative; height: calc(var(--u) * 7.4); border-radius: 999px; overflow: hidden;
@@ -90,6 +123,7 @@
 .tut-coach .tc-set { position: absolute; inset: 0; z-index: 2; width: 100%; height: 100%; overflow: visible; }
 .tut-coach .tc-thumb { position: absolute; z-index: 3; width: 42%; height: 48%; right: -16%; bottom: -10%; overflow: visible; animation: tcThumb 1.8s ease-in-out infinite; transform-origin: 50% 90%; }
 .tut-coach .tc-suit { position: absolute; z-index: 0; display: none; }
+.tut-coach.drawn .tc-set, .tut-coach.drawn.big .tc-suit { display: none; }   /* the Saltiz commentator wears his own */
 @keyframes tcThumb { 50% { transform: rotate(-8deg) translateY(calc(var(--u) * -.6)); } }
 .tut-coach.big { left: calc(var(--safe-l) - var(--u) * 2); top: auto; bottom: calc(var(--u) * -6); width: calc(var(--u) * 52); height: calc(var(--u) * 52); }
 .tut-coach.big .tc-suit {
@@ -121,8 +155,6 @@
   color: #f07a12; -webkit-text-stroke: calc(var(--u) * .35) #7a3200; paint-order: stroke fill;
 }
 .tut-bub.big .tut-say { font-size: calc(var(--u) * 5.6); }
-.tut-keys { display: block; margin-top: calc(var(--u) * .5); font-weight: 700; font-size: calc(var(--u) * 2.6); color: #8a6a44; }
-.tut-keys:empty { display: none; }
 .tut-next { display: block; margin-top: calc(var(--u) * .8); font-weight: 700; font-size: calc(var(--u) * 2.6); color: #b08850; animation: tTap 1s steps(1) infinite both; }
 .tut-next:empty { display: none; }
 
@@ -151,11 +183,32 @@
 .tut-check.on { animation: tutCheck 1.1s cubic-bezier(.2, 1.4, .4, 1) both; }
 @keyframes tutCheck { 0% { opacity: 0; scale: 0; } 25% { opacity: 1; scale: 1.15; } 40%, 80% { opacity: 1; scale: 1; } 100% { opacity: 0; scale: 1; } }
 
-/* THE FINDING-AN-OPPONENT ROULETTE on the VS (HB2 46 s) */
-.vs-find { position: absolute; z-index: 3; top: 8cqh; left: 0; right: 0; text-align: center; font-family: var(--m-font); font-weight: 900; font-size: 6cqh; color: #fff; -webkit-text-stroke: .6cqh #0a1a3a; paint-order: stroke fill; }
+/* THE FINDING-AN-OPPONENT ROULETTE on the VS (HB2 46–56 s): it stays up the whole search (the VS's
+   own 2 s fade is for kick-off), the faces spin with no ring round them (Idan: the white ring was ugly), a gold ring and a pop
+   when it lands, the champion's name under it, a loading bar, and a fade to the match. */
+#vs.vs.tut-find { animation: tFindIn .3s ease-out both; }
+#vs.vs.tut-find.out { animation: tFindOut .35s ease-in both; }
+@keyframes tFindIn { from { opacity: 0; } }
+@keyframes tFindOut { to { opacity: 0; } }
+.vs-find { position: absolute; z-index: 3; top: 7cqh; left: 0; right: 0; text-align: center; direction: rtl; font-family: var(--m-font); font-weight: 900; font-size: 7cqh; color: #fff; -webkit-text-stroke: .7cqh #3a0009; paint-order: stroke fill; text-shadow: 0 .6cqh 0 #3a0009; }
+.vs-find.found { color: #ffdd01; animation: tFoundTxt .5s cubic-bezier(.2, 1.6, .4, 1) both; }
+@keyframes tFoundTxt { from { scale: .4; opacity: 0; } }
+.vs-dots { display: inline-block; width: 1.4em; text-align: start; font-style: normal; }
+.vs-dots::after { content: ''; animation: tDots 1s steps(4) infinite; }
+@keyframes tDots { 0% { content: ''; } 25% { content: '.'; } 50% { content: '..'; } 75% { content: '...'; } }
 .vs.tut-find .vs-hint { display: none; }
-.vs.tut-find .vs-find.blink { animation: tTap .8s steps(1) infinite both; }
-.vs.tut-find #vsFace1.spin { animation: none; filter: blur(.25cqh) drop-shadow(0 1cqh 1.5cqh #0009); }
+.vs.tut-find #vsFace1.spin { animation: none; filter: blur(.15cqh) drop-shadow(0 1cqh 1.5cqh #0009); }
+.vs.tut-find #vsFace1::before { content: ''; position: absolute; inset: -7%; border-radius: 50%; pointer-events: none; }
+.vs.tut-find #vsFace1.found::before { border: 1cqh solid #ffdd01; box-shadow: 0 0 4cqh #ffdd01, inset 0 0 3cqh #ffdd0188; animation: tRing .6s ease-out both; }
+.vs.tut-find #vsFace1.found { animation: tPop .55s cubic-bezier(.2, 1.6, .4, 1) both; }
+@keyframes tRing { from { scale: 1.6; opacity: 0; } }
+@keyframes tPop { 0% { scale: 1; filter: brightness(3); } 35% { scale: 1.18; } 100% { scale: 1; filter: none; } }
+.vs-foe-name { position: absolute; left: 50%; bottom: -10cqh; transform: translateX(-50%) scaleX(-1); white-space: nowrap; direction: rtl; font-family: var(--m-font); font-weight: 900; font-size: 5.2cqh; color: #fff; -webkit-text-stroke: .5cqh #3a0009; paint-order: stroke fill; opacity: 0; }
+.vs.tut-find #vsFace1.found .vs-foe-name { opacity: 1; transition: opacity .25s .15s; }
+.vs-load { position: absolute; z-index: 3; left: 50%; bottom: 9cqh; width: 46cqw; height: 3cqh; transform: translateX(-50%); border-radius: 99px; background: #000a; border: .5cqh solid #fff; overflow: hidden; opacity: 0; transition: opacity .2s; }
+.vs-load > i { position: absolute; inset: 0; width: 0; background: linear-gradient(180deg, #fff07a, #ffdd01 50%, #ff9a00); border-radius: 99px; }
+.vs-load.go { opacity: 1; }
+.vs-load.go > i { width: 100%; transition: width 1s linear; }
 
 /* THE PAD AND HUD WHILE THE TUTORIAL TEACHES THEM */
 .pad .btn { transition: opacity .25s, scale .35s cubic-bezier(.2, 1.4, .4, 1); }
@@ -171,5 +224,5 @@ body.tut-drill .hud, body.tut-drill #head1 { visibility: hidden; }
 .orbit .o6 { left: calc(var(--u) * 88); top: calc(var(--u) * 10); --fx: 0px; --fy: calc(var(--u) * 32); animation-delay: .18s; }
 
 @media (prefers-reduced-motion: reduce) {
-  .ld-beam, .ld-face, .ld-hero, .tut-ring.on, .tut-hand.on, .tc-thumb { animation: none !important; }
+  .ld-beam, .ld-fig, .ld-hero, .ld-vs .vs-txt, .tut-ring.on, .tut-hand.on, .tc-thumb { animation: none !important; }
 }

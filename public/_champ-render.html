@@ -1,0 +1,21 @@
+<!doctype html>
+<!-- One chosen champion design, rendered for tools/chars/champ_build.py: ?tag=1A&expr=happy&ss=2 draws
+     it alone at 4 px per frame unit (x ss) on a transparent page; ?tag=1A&meta=1 writes its eye and nose
+     points (frame units, after any refit) as JSON into #meta. -->
+<html><head><meta charset="utf-8"><style>html,body{margin:0;background:transparent;overflow:hidden}img{position:absolute;left:0;top:0}</style></head>
+<body><pre id="meta"></pre><script type="module">
+import { setExpr } from './champ-concepts/kit.js';
+const q = new URLSearchParams(location.search), tag = q.get('tag'), n = +tag.slice(0, -1), L = tag.slice(-1), ss = +(q.get('ss') || 1);
+const opt = (await import(`./champ-concepts/card-${String(n).padStart(2, '0')}.js`)).default.options.find((o) => o.letter === L);
+if (q.has('meta')) {
+  const m = opt.marks, tf = new DOMMatrix(m.tf || 'none'), [sx, sy, dx, dy] = opt.draw.fit || [1, 1, 0, 0];
+  const at = ([x, y]) => { const p = tf.transformPoint({ x, y }); return [75.2 + (p.x - 75.2) * sx + dx, 61.2 + (p.y - 61.2) * sy + dy]; };
+  document.getElementById('meta').textContent = JSON.stringify({ name: opt.name, eyes: m.eyes.map(at), nose: at(m.nose) });
+} else {
+  setExpr(q.get('expr') || 'normal');
+  const img = new Image();
+  img.src = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(opt.draw());
+  img.width = 576 * ss; img.height = 568 * ss;
+  document.body.append(img);
+}
+</script></body></html>

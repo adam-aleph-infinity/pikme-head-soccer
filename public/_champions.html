@@ -1,0 +1,322 @@
+<!doctype html>
+<html lang="en" dir="ltr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Champions 6–45 · options</title>
+<style>
+  :root { color-scheme: dark; --bg: #0b0b12; --panel: #15151f; --line: #262636; --mute: #9a9ab0; --gold: #ffd24a; }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: #e8e8f0; font: 14px/1.45 -apple-system, "Segoe UI", Arial, sans-serif; }
+  header.top { padding: 22px 26px 8px; max-width: 1500px; }
+  header.top h1 { margin: 0 0 4px; font-size: 22px; }
+  header.top p { margin: 0 0 6px; color: var(--mute); font-size: 13px; max-width: 980px; }
+  .he { font-family: "Arial Hebrew", Arial, sans-serif; direction: rtl; unicode-bidi: isolate; }
+  section { padding: 10px 26px 18px; }
+  h2 { font-size: 15px; margin: 6px 0 10px; color: #cfcfe0; letter-spacing: .3px; }
+  /* the reference strip: champions #1-#5 as they are */
+  .ref { display: flex; gap: 14px; flex-wrap: wrap; }
+  .ref figure { margin: 0; text-align: center; color: var(--mute); font-size: 12px; }
+  .ref img { width: 104px; height: 103px; display: block; background: radial-gradient(#2c2c40, #15151f 70%); border-radius: 10px; }
+  .card .today { margin: 8px 0 0; display: flex; align-items: center; gap: 8px; color: var(--mute); font-size: 12px; }
+  .card .today img { width: 72px; height: 71px; background: radial-gradient(#2c2c40, #15151f 70%); border-radius: 8px; }
+  /* one row per card: the card, then A B C */
+  .row { display: grid; grid-template-columns: 210px repeat(3, minmax(260px, 1fr)); gap: 14px; align-items: stretch;
+         padding: 16px 26px; border-top: 1px solid var(--line); }
+  .card { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 10px; }
+  .card img { width: 100%; display: block; border-radius: 8px; }
+  .card .t { margin-top: 8px; font-size: 13px; }
+  .card .t b { font-size: 18px; color: var(--gold); }
+  .card .t div { color: var(--mute); font-size: 12px; }
+  .opt { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 10px 12px 12px; display: flex; flex-direction: column; }
+  .opt .lab { display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; }
+  .opt .lab .n { font-weight: 700; color: var(--gold); font-size: 15px; }
+  .opt .lab .ch { font-size: 14px; }
+  .opt .lab .L { margin-left: auto; font-weight: 800; font-size: 20px; color: #fff; background: #2b2b40; border-radius: 7px; padding: 0 9px; }
+  .opt .name { font-size: 16px; font-weight: 700; margin: 2px 0 6px; }
+  .opt .art { display: flex; gap: 8px; align-items: flex-end; }
+  .opt .portrait { flex: 1 1 auto; min-width: 0; aspect-ratio: 144 / 142; background: radial-gradient(circle at 50% 45%, #34344e, #191925 72%);
+                   border-radius: 10px; display: flex; }
+  .opt .portrait img { width: 100%; height: 100%; display: block; }
+  .opt .pitch { flex: 0 0 auto; display: flex; flex-direction: column; gap: 4px; align-items: center; color: var(--mute); font-size: 10.5px; }
+  .opt canvas { display: block; border-radius: 6px; }
+  .opt p { margin: 8px 0 0; color: #c4c4d6; font-size: 12.5px; }
+  .opt p i { color: var(--mute); font-style: normal; }
+  .opt .lab .req { font-size: 11px; font-weight: 700; color: #1a1408; background: var(--gold); border-radius: 6px; padding: 1px 7px; }
+  .row.four { grid-template-columns: 210px repeat(4, minmax(220px, 1fr)); }
+  body.sheet .row.four { grid-template-columns: repeat(4, 1fr); }
+  /* your picks: the design chosen for every card */
+  #picks .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(118px, 1fr)); gap: 10px; }
+  #picks figure { margin: 0; background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 6px; font-size: 12px; text-align: center; }
+  #picks figure.req { border-color: var(--gold); }
+  #picks figure img { width: 100%; aspect-ratio: 144 / 142; display: block; background: radial-gradient(circle at 50% 45%, #34344e, #191925 72%); border-radius: 8px; margin-bottom: 4px; }
+  #picks figure > b { color: var(--gold); }
+  #picks canvas { display: block; width: 100%; max-width: 1500px; border-radius: 10px; border: 1px solid var(--line); margin-top: 14px; }
+  body.picksonly section:not(#picks), body.picksonly #rows, body.picksonly #fit { display: none; }
+  /* the lineup: all twenty at match size on one strip of grass */
+  /* ?sheet: portraits only, big, for checking the drawing */
+  body.sheet header.top, body.sheet section, body.sheet .card, body.sheet .opt p, body.sheet .pitch { display: none; }
+  body.sheet .row { grid-template-columns: repeat(3, 1fr); padding: 6px 10px; }
+  /* the hitbox overlay (Show the hitbox) and the fit numbers under each option */
+  .hbw { position: relative; display: inline-block; line-height: 0; }
+  .portrait { position: relative; }
+  svg.hb { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; display: none; }
+  body.showhb svg.hb { display: block; }
+  .fit { margin-top: 6px; font-size: 12px; color: var(--mute); }
+  .fit b { font-weight: 700; } .fit .ok { color: #6fe08a; } .fit .mid { color: #ffd24a; } .fit .bad { color: #ff7a7a; }
+  .hbtoggle { color: var(--gold); cursor: pointer; user-select: none; }
+  #fit table { border-collapse: collapse; font-size: 12.5px; } #fit td, #fit th { padding: 3px 10px; border-bottom: 1px solid var(--line); text-align: left; }
+  body.fitonly header.top, body.fitonly section:not(#fit), body.fitonly #rows { display: none; }
+  /* ?lineup: only the strip of every head at match size */
+  body.lineonly header.top, body.lineonly section:not(.lineup), body.lineonly #rows { display: none; }
+  .lineup canvas { display: block; width: 100%; max-width: 1500px; border-radius: 10px; border: 1px solid var(--line); }
+  @media (max-width: 1100px) { .row, .row.four { grid-template-columns: 1fr 1fr; } }
+  @media (max-width: 640px) { .row, .row.four { grid-template-columns: 1fr; padding: 14px 16px; } header.top, section { padding-left: 16px; padding-right: 16px; } }
+</style>
+</head>
+<body>
+<header class="top">
+  <h1>Champions #1–#45: three options per card</h1>
+  <p>Proposals only. Nothing in the game uses these yet, and every champion in the game today is unchanged. Each card has one row: its card art on the left (for #1–#5 with today's champion under it), then options A, B and C.
+     Every option shows a big portrait (pick and result screens), the head on the game's real body at match size (×2.4 and ×1, facing right as player one), and a line on what it takes from the card and from the champion's power.
+     The strip at the bottom puts every champion side by side at match size.</p>
+  <p><a href="?picks" style="color:var(--gold)">Your picks only</a> · <a href="?sheet" style="color:var(--gold)">Big portraits only</a> · <a href="?lineup" style="color:var(--gold)">Lineup only</a> · <a href="?fit" style="color:var(--gold)">Hitbox fit table</a> · <label class="hbtoggle"><input type="checkbox" id="hbtoggle"> Show the hitbox</label> · one card: <a href="?card=1" style="color:var(--gold)">#1</a> <a href="?card=2" style="color:var(--gold)">#2</a> <a href="?card=3" style="color:var(--gold)">#3</a> <a href="?card=4" style="color:var(--gold)">#4</a> <a href="?card=5" style="color:var(--gold)">#5</a> <a href="?card=6" style="color:var(--gold)">#6</a> <a href="?card=7" style="color:var(--gold)">#7</a> <a href="?card=8" style="color:var(--gold)">#8</a> <a href="?card=9" style="color:var(--gold)">#9</a> <a href="?card=10" style="color:var(--gold)">#10</a> <a href="?card=11" style="color:var(--gold)">#11</a> <a href="?card=12" style="color:var(--gold)">#12</a> <a href="?card=13" style="color:var(--gold)">#13</a> <a href="?card=14" style="color:var(--gold)">#14</a> <a href="?card=15" style="color:var(--gold)">#15</a> <a href="?card=16" style="color:var(--gold)">#16</a> <a href="?card=17" style="color:var(--gold)">#17</a> <a href="?card=18" style="color:var(--gold)">#18</a> <a href="?card=19" style="color:var(--gold)">#19</a> <a href="?card=20" style="color:var(--gold)">#20</a> <a href="?card=21" style="color:var(--gold)">#21</a> <a href="?card=22" style="color:var(--gold)">#22</a> <a href="?card=23" style="color:var(--gold)">#23</a> <a href="?card=24" style="color:var(--gold)">#24</a> <a href="?card=25" style="color:var(--gold)">#25</a> <a href="?card=26" style="color:var(--gold)">#26</a> <a href="?card=27" style="color:var(--gold)">#27</a> <a href="?card=28" style="color:var(--gold)">#28</a> <a href="?card=29" style="color:var(--gold)">#29</a> <a href="?card=30" style="color:var(--gold)">#30</a> <a href="?card=31" style="color:var(--gold)">#31</a> <a href="?card=32" style="color:var(--gold)">#32</a> <a href="?card=33" style="color:var(--gold)">#33</a> <a href="?card=34" style="color:var(--gold)">#34</a> <a href="?card=35" style="color:var(--gold)">#35</a> <a href="?card=36" style="color:var(--gold)">#36</a> <a href="?card=37" style="color:var(--gold)">#37</a> <a href="?card=38" style="color:var(--gold)">#38</a> <a href="?card=39" style="color:var(--gold)">#39</a> <a href="?card=40" style="color:var(--gold)">#40</a> <a href="?card=41" style="color:var(--gold)">#41</a> <a href="?card=42" style="color:var(--gold)">#42</a> <a href="?card=43" style="color:var(--gold)">#43</a> <a href="?card=44" style="color:var(--gold)">#44</a> <a href="?card=45" style="color:var(--gold)">#45</a></p>
+</header>
+
+<section id="picks">
+  <h2>Your picks: the design chosen for every card</h2>
+  <p style="color:var(--mute);font-size:13px;margin:-4px 0 12px">Gold frame = drawn new from your request (option D in its row). Under each: how much of the hitbox it fills · how much of it sits outside. Green = fits like today's champions (92–98% · 12–21%); every pick is refitted to that.</p>
+  <div class="grid" id="pickgrid"></div>
+  <canvas id="pickline"></canvas>
+</section>
+
+<section>
+  <h2>Champions #1–#5 today (for contrast)</h2>
+  <div class="ref" id="ref"></div>
+</section>
+
+<div id="rows"></div>
+
+<section class="lineup">
+  <h2>Lineup at match size: #1–#5 today, then every option</h2>
+  <canvas id="lineup"></canvas>
+</section>
+
+<script type="module">
+import { createBodyArt } from './body-art.js';
+
+// ?card=8 shows one card's row only.
+const only = +new URLSearchParams(location.search).get('card') || 0;
+if (new URLSearchParams(location.search).has('sheet')) document.body.classList.add('sheet');
+if (new URLSearchParams(location.search).has('lineup')) document.body.classList.add('lineonly');
+if (new URLSearchParams(location.search).has('picks')) document.body.classList.add('picksonly');
+if (new URLSearchParams(location.search).has('fit')) document.body.classList.add('fitonly', 'showhb');
+document.getElementById('hbtoggle').checked = document.body.classList.contains('showhb');
+document.getElementById('hbtoggle').addEventListener('change', (e) => document.body.classList.toggle('showhb', e.target.checked));
+const CARDS = [];
+for (let n = 1; n <= 45; n++) {
+  if (only && n !== only) continue;
+  try { CARDS.push((await import(`./champ-concepts/card-${String(n).padStart(2, '0')}.js`)).default); } catch (e) { console.error(e); }
+}
+const CARD_ART = 'https://pxsjmychuxwufcvqixgu.supabase.co/storage/v1/object/public/cards';
+const OLD = [[1, 'התותחן'], [2, 'אדון התולעים'], [3, 'השף הבוער'], [4, 'מלך הבוץ'], [5, 'בונה החומות']];
+
+// ---- the in-match geometry, copied from game.js / constants.js so the head sits on the
+// body exactly as it will in a match (HEAD_R 26.4, BODY_H 24, NECK 7, HEAD_W 1.28, HEAD_H 1.04,
+// CHAR_FIT, the legendary gold trim, player one's blue collar).
+const R = 26.4, BODY_H = 24, NECK = 7, HEAD_W = 1.28, HEAD_H = 1.04;
+const CHAR_BOX = { w: 144, h: 142 }, CHAR_FIT = { w: 128, h: 114, cx: 75.2, bot: 118.2 };
+const KIT = { collar: '#2f8cff', collarDark: '#1a4aa8', collarLight: '#9fd0ff' }, TRIM = '#ffcc33';
+const HEAD_SHAPE = (() => {
+  const pts = [];
+  for (let i = 0; i < 48; i++) {
+    const t = (i / 48) * 2 * Math.PI, c = Math.cos(t), s = Math.sin(t);
+    const n = s < 0 ? 2.1 : 2.9;
+    let x = Math.sign(c) * Math.abs(c) ** (2 / n);
+    const y = Math.sign(s) * Math.abs(s) ** (2 / n);
+    x *= 1 - 0.1 * Math.max(0, y) ** 2;
+    pts.push([0.5 + x / 2, 0.56 + y * (y < 0 ? 0.56 : 0.44)]);
+  }
+  return pts;
+})();
+const BODY = createBodyArt({ headShape: HEAD_SHAPE, headBox: { cy: -(BODY_H + R - NECK), rx: R * HEAD_W, ry: R * HEAD_H } });
+const BOX = { w: 2 * R * HEAD_W, h: 2 * R * HEAD_H, top: -(BODY_H + R - NECK) - R * HEAD_H };
+// charFrame (game.js): the art scaled so its drawn head IS the head box, stretched sideways as HS does.
+const u = BOX.w / CHAR_FIT.w, v = BOX.h / CHAR_FIT.h;
+const FRAME = { x: BOX.w / 2 - CHAR_FIT.cx * u, y: BOX.top + BOX.h - CHAR_FIT.bot * v, w: CHAR_BOX.w * u, h: CHAR_BOX.h * v };
+
+// THE HITBOX. The sim's head is a circle of HEAD_R in a world stretched HS_STRETCH (1.2) sideways
+// (sim.js SX), so on screen it is an oval 2·1.2·R wide and 2R tall round the head's centre: the
+// same for every champion. In the art's frame units (via the same CHAR_FIT scale) that is:
+const HS_STRETCH = 1.2;
+const HB = { cx: CHAR_FIT.cx, cy: CHAR_FIT.bot - BOX.h / 2 / v, rx: (HS_STRETCH * R) / u, ry: R / v };
+const hbFrame = () => `<svg class="hb" viewBox="0 0 144 142"><ellipse cx="${HB.cx}" cy="${HB.cy}" rx="${HB.rx}" ry="${HB.ry}" fill="rgba(80,220,255,.12)" stroke="#5ff2ff" stroke-width="1.4" stroke-dasharray="4 3"/></svg>`;
+// How well the art matches it: `filled` = how much of the hitbox the art covers (a gap there is a
+// ball bouncing off thin air), `outside` = how much of the art lies outside it (the ball passes
+// straight through that part).
+function measure(img) {
+  const W = 288, Hh = 284, k = W / 144, c = document.createElement('canvas');
+  c.width = W; c.height = Hh;
+  const g = c.getContext('2d'); g.drawImage(img, 0, 0, W, Hh);
+  const a = g.getImageData(0, 0, W, Hh).data;
+  let inE = 0, inOp = 0, op = 0, opOut = 0;
+  for (let y = 0; y < Hh; y++) for (let x = 0; x < W; x++) {
+    const ux = (x + 0.5) / k, uy = (y + 0.5) / k, inside = ((ux - HB.cx) / HB.rx) ** 2 + ((uy - HB.cy) / HB.ry) ** 2 <= 1, o = a[(y * W + x) * 4 + 3] > 128;
+    if (inside) { inE++; if (o) inOp++; }
+    if (o) { op++; if (!inside) opOut++; }
+  }
+  return { filled: Math.round((100 * inOp) / inE), outside: Math.round((100 * opOut) / Math.max(1, op)) };
+}
+// Green = fits like today's champions #1-#5 (92-98% filled, 12-21% outside).
+const grade = (m) => (m.filled >= 92 && m.outside <= 21 ? 'ok' : m.filled >= 80 && m.outside <= 25 ? 'mid' : 'bad');
+const fitRows = [];
+
+const load = (src) => new Promise((res, rej) => { const i = new Image(); i.onload = () => res(i); i.onerror = rej; i.src = src; });
+const svgUrl = (s) => 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(s);
+
+// One player standing at (x, ground) in a world-px context.
+function drawPlayer(g, img, x, ground) {
+  g.save();
+  g.translate(x, ground);
+  g.fillStyle = 'rgba(0,0,0,.38)';
+  g.beginPath(); g.ellipse(0, 4, R * 1.32, R * 0.26, 0, 0, Math.PI * 2); g.fill();
+  BODY.lower(g, KIT, TRIM, 'stand', 1);
+  g.drawImage(img, -BOX.w / 2 + FRAME.x, FRAME.y, FRAME.w, FRAME.h);
+  g.restore();
+}
+function grass(g, w, h, ground) {
+  g.fillStyle = '#7fc4ff'; g.fillRect(0, 0, w, h);
+  g.fillStyle = '#9dd3ff'; g.fillRect(0, 0, w, ground * 0.45);
+  for (let x = 0; x < w; x += 24) { g.fillStyle = (x / 24) % 2 ? '#5aa83a' : '#63b341'; g.fillRect(x, ground, 24, h - ground); }
+}
+// A canvas sized in world px × scale, sharp on any screen.
+function pitchCanvas(wWorld, hWorld, scale) {
+  const c = document.createElement('canvas'), dpr = window.devicePixelRatio || 1;
+  c.width = Math.round(wWorld * scale * dpr); c.height = Math.round(hWorld * scale * dpr);
+  c.style.width = `${wWorld * scale}px`; c.style.height = `${hWorld * scale}px`;
+  const g = c.getContext('2d'); g.setTransform(scale * dpr, 0, 0, scale * dpr, 0, 0); g.imageSmoothingQuality = 'high';
+  return [c, g];
+}
+function pitchView(img, scale) {
+  const ww = 92, hh = 92, ground = 80;
+  const [c, g] = pitchCanvas(ww, hh, scale);
+  grass(g, ww, hh, ground);
+  drawPlayer(g, img, ww / 2, ground);
+  const w = el('span', 'hbw');
+  w.innerHTML = `<svg class="hb" viewBox="0 0 ${ww} ${hh}"><ellipse cx="${ww / 2}" cy="${ground - (BODY_H + R - NECK)}" rx="${HS_STRETCH * R}" ry="${R}" fill="rgba(80,220,255,.12)" stroke="#5ff2ff" stroke-width="${1.2 / scale}" stroke-dasharray="${3 / scale} ${2 / scale}"/></svg>`;
+  w.prepend(c);
+  return w;
+}
+
+const el = (tag, cls, html) => { const e = document.createElement(tag); if (cls) e.className = cls; if (html != null) e.innerHTML = html; return e; };
+
+// ---- reference strip
+const ref = document.getElementById('ref');
+for (const [n, name] of OLD) {
+  const f = el('figure');
+  f.innerHTML = `<img src="img/chars/legendary-${n}/normal.webp" alt=""><div>#${n} <span class="he">${name}</span></div>`;
+  ref.append(f);
+}
+
+// ---- rows
+const rows = document.getElementById('rows');
+const lineupImgs = [], BY = new Map();
+for (const card of CARDS) {
+  const row = el('div', 'row');
+  row.id = `card-${card.card}`;
+  if (card.options.length > 3) row.classList.add('four');
+  const cv = el('div', 'card');
+  cv.innerHTML = `<img src="${CARD_ART}/legendary/${card.card}.webp" alt="card ${card.card}">
+    <div class="t"><b>#${card.card}</b> <span class="he">${card.champion}</span> · ${card.en}<div>${card.theme}</div></div>
+    ${card.card <= 5 ? `<figure class="today"><img src="img/chars/legendary-${card.card}/normal.webp" alt=""><figcaption>today</figcaption></figure>` : ''}`;
+  row.append(cv);
+  for (const o of card.options) {
+    const svg = o.draw();
+    const url = svgUrl(svg);
+    const img = await load(url);
+    lineupImgs.push([`${card.card}${o.letter}`, img]);
+    const t = el('div', 'opt');
+    t.innerHTML = `<div class="lab"><span class="n">#${card.card}</span><span class="ch he">${card.champion}</span>${o.request ? '<span class="req">your request</span>' : ''}<span class="L">${o.letter}</span></div>
+      <div class="name">${o.name}</div>
+      <div class="art"><div class="portrait"><img src="${url}" alt="#${card.card} ${o.letter}">${hbFrame()}</div><div class="pitch"></div></div>
+      <div class="fit"></div>
+      <p>${o.blurb}</p>`;
+    const m = measure(img);
+    fitRows.push([`${card.card}${o.letter}`, o.name, m]);
+    BY.set(`${card.card}${o.letter}`, { img, url, m, name: o.name, request: o.request });
+    t.querySelector('.fit').innerHTML = `Hitbox: <b class="${grade(m)}">${m.filled}% filled · ${m.outside}% of the art outside it</b>`;
+    const pv = t.querySelector('.pitch');
+    pv.append(pitchView(img, 1.6), el('div', '', 'match ×1.6'), pitchView(img, 0.8), el('div', '', '×0.8'));
+    row.append(t);
+  }
+  rows.append(row);
+}
+
+// ---- lineup
+{
+  const olds = await Promise.all(OLD.map(([n]) => load(`img/chars/legendary-${n}/normal.webp`)));
+  // rows: #1-#5 as they are, then the options fifteen to a row (five cards)
+  const lines = [olds.map((img, i) => [`#${i + 1}`, img])];
+  for (let i = 0; i < lineupImgs.length; i += 15) lines.push(lineupImgs.slice(i, i + 15));
+  const step = 78, ww = 40 + step * 15, hh = 120, ground = 96, dpr = window.devicePixelRatio || 1;
+  const canvas = document.getElementById('lineup');
+  canvas.width = ww * dpr; canvas.height = hh * lines.length * dpr; canvas.style.aspectRatio = `${ww} / ${hh * lines.length}`;
+  const G = canvas.getContext('2d');
+  lines.forEach((row, r) => {
+    G.setTransform(dpr, 0, 0, dpr, 0, r * hh * dpr);
+    grass(G, ww, hh, ground);
+    row.forEach(([tag, img], i) => {
+      const x = 20 + step * (i + 0.5);
+      drawPlayer(G, img, x, ground);
+      G.fillStyle = r ? '#fff' : '#ffffffaa'; G.font = 'bold 11px Arial'; G.textAlign = 'center';
+      G.fillText(tag, x, hh - 6);
+    });
+  });
+}
+// ---- your picks: the chosen design for every card, and the whole roster at match size
+{
+  const PICKS = '1A 2D 3B 4C 5B 6A 7B 8A 9A 10A 11A 12C 13A 14A 15A 16C 17D 18D 19C 20C 21B 22A 23B 24A 25D 26C 27C 28A 29A 30A 31A 32B 33D 34D 35A 36D 37A 38B 39D 40B 41B 42A 43A 44D 45C'.split(' ');
+  if (only) document.getElementById('picks').remove();
+  else {
+    const grid = document.getElementById('pickgrid'), chosen = [];
+    for (const tag of PICKS) {
+      const p = BY.get(tag);
+      if (!p) continue;
+      chosen.push([tag, p.img]);
+      const f = el('figure', p.request ? 'req' : '');
+      f.innerHTML = `<img src="${p.url}" alt="${tag}"><b>#${tag.slice(0, -1)} ${tag.slice(-1)}</b> ${p.name}<div class="fit"><b class="${grade(p.m)}">${p.m.filled}% · ${p.m.outside}%</b></div>`;
+      grid.append(f);
+    }
+    const lines = [];
+    for (let i = 0; i < chosen.length; i += 15) lines.push(chosen.slice(i, i + 15));
+    const step = 78, ww = 40 + step * 15, hh = 120, ground = 96, dpr = window.devicePixelRatio || 1;
+    const canvas = document.getElementById('pickline');
+    canvas.width = ww * dpr; canvas.height = hh * lines.length * dpr; canvas.style.aspectRatio = `${ww} / ${hh * lines.length}`;
+    const G = canvas.getContext('2d');
+    lines.forEach((row, r) => {
+      G.setTransform(dpr, 0, 0, dpr, 0, r * hh * dpr);
+      grass(G, ww, hh, ground);
+      row.forEach(([tag, img], i) => {
+        const x = 20 + step * (i + 0.5);
+        drawPlayer(G, img, x, ground);
+        G.fillStyle = '#fff'; G.font = 'bold 11px Arial'; G.textAlign = 'center';
+        G.fillText(tag, x, hh - 6);
+      });
+    });
+  }
+}
+// ---- the fit table: #1-#5 for reference, then every option, worst fit first
+{
+  const olds = await Promise.all(OLD.map(([n]) => load(`img/chars/legendary-${n}/normal.webp`)));
+  const ref = olds.map((img, i) => [`#${i + 1}`, 'today', measure(img)]);
+  const sec = el('section'); sec.id = 'fit';
+  const worst = [...fitRows].sort((a, b) => (b[2].outside - b[2].filled / 2) - (a[2].outside - a[2].filled / 2));
+  sec.innerHTML = `<h2>Hitbox fit: how much of the hitbox each head fills, and how much of the art sits outside it (worst first)</h2>
+    <table><tr><th></th><th>Design</th><th>Hitbox filled</th><th>Art outside it</th></tr>${[...ref, ...worst].map(([id, name, m]) =>
+      `<tr><td>${id}</td><td>${name}</td><td class="fit"><b class="${grade(m)}">${m.filled}%</b></td><td class="fit"><b class="${grade(m)}">${m.outside}%</b></td></tr>`).join('')}</table>`;
+  document.body.append(sec);
+}
+document.body.dataset.ready = '1';
+</script>
+</body>
+</html>

@@ -11,6 +11,12 @@ import { createEditor, applyLayout, applyOpacity, loadOpacity } from './padlayou
 import { walkPick, resolveWalk } from './walkpad.js';
 import { headCrop } from './head-crop.js';
 import { characterFor, kitFor, charUrl, expressionFor, CHAR_BOX, EXPRESSIONS as CHAR_EXPRESSIONS } from './characters.js';
+import { MYTHIC, STARTER_KEY, loadStarter, switchStarter, ownsMythic, needsStarter } from '../shared/mythics.js';
+import { createStarterPick } from './starter.js';
+import * as TEAM from '../shared/teams.js';
+import { createTeams, badgeSVG, timeLeft } from './team.js';
+import * as ARENA from '../shared/arena.js';
+import { createArena } from './arena.js';
 import { clockText, gaugeView } from './hud.js';
 import { createNet } from './net.js';
 import { playEvent, SFX, audioState, unlockAudio, audioLevel, loadVoice, playVoice, stopVoice, voiceLeft, setAudioEnabled, audioEnabled, setSfxEnabled, setMusicEnabled, musicEnabled, startBed, stopBed, startMenuMusic, stopMenuMusic } from './audio.js';
@@ -55,7 +61,8 @@ const RARITIES = ['legendary', 'epic', 'rare', 'common'];
 const CARDS_PER_RARITY = 45;
 
 const $ = (s) => document.querySelector(s);
-const cardUrl = (r, n) => `${CARD_ART}/${r}/${n}.webp`;
+// A card's picture is the app's; a Mythic is not the app's card, so its picture is its portrait.
+const cardUrl = (r, n) => (r === MYTHIC ? charUrl(characterFor(r, n) || { dir: `mythic-${n}` }) : `${CARD_ART}/${r}/${n}.webp`);
 
 let ANCHORS = { cardW: 400, cardH: 545, heads: {} };
 const DEFAULT_ANCHOR = { cx: 0.5, cy: 0.3, d: 0.41 };
@@ -136,7 +143,9 @@ const OWNED = (() => {
   }
   return set.size ? set : null;
 })();
-const owns = (r, n) => !OWNED || OWNED.has(`${r}_${n}`);
+// …except the Mythics, which are the game's, not the album's: a player owns exactly the one they
+// picked as their starter (shared/mythics.js), in the app or out of it.
+const owns = (r, n) => (r === MYTHIC ? ownsMythic(STARTER, n) : !OWNED || OWNED.has(`${r}_${n}`));
 // The best card they actually hold, for the opening selection: rarest first, then lowest
 // number, so a player with one legendary opens on it rather than on a common they forgot.
 const bestOwned = () => {
@@ -152,12 +161,31 @@ const bestOwned = () => {
 
 const STORE = (() => { try { return window.localStorage; } catch { return null; } })();
 const stored = (k) => { try { return STORE ? STORE.getItem(k) : null; } catch { return null; } };
+// This Mac, or a phone on its Wi-Fi (npm start's «phone» address): localhost and the private
+// address ranges. Production is a public hostname, so it is never one.
+const IS_DEV_HOST = /^(localhost|\[::1\]|[\w-]+\.local|(127|10)(\.\d{1,3}){3}|192\.168(\.\d{1,3}){2}|172\.(1[6-9]|2\d|3[01])(\.\d{1,3}){2})$/.test(location.hostname);
+// ?fresh — see the first launch again from the very start: forgets this device's Mythic starter
+// and the tutorial (nothing else: progress, points and upgrades stay). Dev hosts only, like
+// ?unlockall: on production a URL must never hand anyone a second choice.
+if (IS_DEV_HOST && new URLSearchParams(location.search).has('fresh')) {
+  try { for (const k of [STARTER_KEY, TUTR.TUT_KEY, TEAM.TEAM_KEY, TEAM.DEVICE_KEY]) STORE?.removeItem(k); } catch { /* private mode */ }
+}
+// THE MYTHIC STARTER this device chose (starter.js), or null until it has.
+let STARTER = loadStarter(STORE);
+// YOUR TEAM is your starter's, always (shared/teams.js): a switch changes both. The device keeps
+// only what it needs offline (the intro seen, the prizes already paid); the truth — the team the
+// server has, this week's standings — is PROFILE, which the server sends (arena.js).
+let TEAM_REC = TEAM.loadTeamRec(STORE);
+const saveTeamRec = (r) => { TEAM_REC = r; TEAM.saveTeamRec(STORE, r); };
+const DEVICE = TEAM.deviceId(STORE);
+let PROFILE = null;
 
 const pick = {
   // The app injects these before the page boots, exactly as it does for football. Outside the
   // app the name is the one typed into the multiplayer box last time (HS: "AUTO SAVE").
   name: MN.cleanName((typeof window !== 'undefined' && window.SALTIZ_NAME) || new URLSearchParams(location.search).get('name') || stored(MN.NAME_KEY)),
-  me: bestOwned() || { rarity: 'legendary', number: 1 },   // the first two cards have drawn HS-style characters
+  // your Mythic starter; before you have one, the best card in your album
+  me: STARTER ? { rarity: MYTHIC, number: STARTER } : bestOwned() || { rarity: 'legendary', number: 1 },
   foe: { rarity: 'legendary', number: 2 },
   level: 3,
 };
@@ -199,7 +227,7 @@ for (const t of ['touchend', 'pointerup', 'mousedown', 'click', 'keydown']) addE
 // THE MENUS (menus.js): title, main menu, Player Select, shop, options, how to, multiplayer
 // ═══════════════════════════════════════════════════════════════════════════
 const MENU = createMenus({
-  pick, owns, cardUrl, paintHead, characterFor, shotFor, statMult, ARC, UPG, SFX, store: STORE,
+  pick, owns, cardUrl, paintHead, paintStanding, characterFor, shotFor, statMult, ARC, UPG, SFX, store: STORE,
   perRarity: CARDS_PER_RARITY, champions: CHAMPIONS, tiers: TIERS, difficulties: DIFFICULTIES,
   state: {
     get prog() { return PROG; },
@@ -224,20 +252,39 @@ const MENU = createMenus({
   onFirstTap: () => { /* the title's tap is the gesture that unlocks audio on iOS */ },
   // THE LOADING SCREEN IS THE TITLE (loader.js): a tap made while it loads waits for it
   whenLoaded: (f) => LOADER.then(f),
-  // THE FIRST LAUNCH (tutorial.js): a new player's tap on the title starts the tutorial
-  firstRun: () => TUT.firstRun(PROG, STATS, new URLSearchParams(location.search)),
-  startTutorial: (replay = false) => TUT.start({ replay }),
+  // THE FIRST LAUNCH: until a player has chosen their Mythic starter and done the tutorial, the
+  // tap on the title goes there (starter.js, then tutorial.js) instead of the menu
+  firstRun: () => needsStarter({ starter: STARTER, params: QS }) || TUT.firstRun(PROG, STATS, QS),
+  startTutorial: (replay = false) => onboard({ replay }),
+  // THE TEAM (team.js): the home chip, the profile's lines, the team screen
+  team: () => TEAM.teamOf(STARTER),
+  badgeSVG,
+  teamStatus: () => teamStatus(),
+  openTeam: () => TEAMS_UI.open(),
+  onHome: () => onHome(),
+  profileRows: () => profileRows(),
+  // THE ARENA (arena.js): PLAY, the trophies, the road, the leaderboard
+  playArena: () => playArena(),
+  trophies: () => PROFILE?.trophies ?? 0,
+  paintArenaHome: () => paintArenaHome(),
+  openRoad: () => (arenaLive() ? ARENA_UI.openRoad() : MENU.toast('בקרוב!')),
+  openBoard: () => (arenaLive() ? ARENA_UI.openBoard() : MENU.toast('בקרוב!')),
 });
 // Exactly one screen is up at a time; every navigation goes through the menus' router.
 const show = (id) => MENU.show(id);
 // The names the harnesses and the console have always used.
 const openArcade = () => MENU.openSelect('arcade');
-const openModes = () => MENU.openMenu();
+const openModes = () => MENU.openModes();
 const selectStage = (n) => MENU.selectStage(n);
 // The title first — unless the page was opened for something (a room link, ?play, ?arcade),
 // which boot() goes straight to. The title is the loading screen; ?nointro (the harnesses)
 // skips its minimum time.
-const DEEP = ['room', 'play', 'arcade', 'unlockall', 'resetarcade'].some((k) => new URLSearchParams(location.search).has(k));
+const QS = new URLSearchParams(location.search);
+// A friend's room link opened before the first launch is done waits for it: the starter, the
+// whole tutorial, and then the room (Idan) — so it opens on the title like any other launch.
+const ROOM_FIRST = QS.has('room') && (needsStarter({ starter: STARTER, params: QS }) || TUTR.shouldRun({ flag: stored(TUTR.TUT_KEY), params: QS }));
+let PENDING_ROOM = ROOM_FIRST ? String(QS.get('room')).trim().toUpperCase().slice(0, 4) : null;
+const DEEP = !ROOM_FIRST && ['room', 'play', 'arcade', 'unlockall', 'resetarcade'].some((k) => QS.has(k));
 const LOADER = createLoader({ paintHead, cardUrl, me: pick.me, quick: DEEP || new URLSearchParams(location.search).has('nointro') });
 // THE FIRST-LAUNCH TUTORIAL (tutorial.js): it plays on this file's match through a handful of seams
 // — hold / mask / afterStep / event in the loop, drawGround / drawOver on the pitch.
@@ -256,11 +303,197 @@ const TUT = createTutorial({
   voice: (id) => playVoice(id ? `audio/voice/${id}.mp3` : null),
   voiceLeft: () => voiceLeft(),
   preloadVoice: (ids) => ids.forEach((id) => loadVoice(`audio/voice/${id}.mp3`)),
+  onFinish: () => afterFirstLaunch(),
+  arenaLive: () => arenaLive(),
+  // the tutorial's team step: your leader's three cards (team.js)
+  teamIntro: (then) => { saveTeamRec({ ...TEAM_REC, welcomed: true }); TEAMS_UI.intro(STARTER, then); },
 });
+const STARTER_PICK = createStarterPick({ paintHead, store: STORE, sfx: (name) => { if (GESTURE && audioEnabled()) SFX[name]?.(); } });
+// THE FIRST LAUNCH, in order: the Mythic starter (once, for good), then the tutorial with it. A
+// replay from OPTIONS goes straight to the tutorial.
+function onboard({ replay = false } = {}) {
+  const tutorial = () => {
+    if (replay || TUT.firstRun(PROG, STATS, QS)) TUT.start({ replay });
+    else { MENU.openMenu(); afterFirstLaunch(); }
+  };
+  if (!replay && needsStarter({ starter: STARTER, params: QS })) {
+    STARTER_PICK.open((n) => { STARTER = n; pick.me = { rarity: MYTHIC, number: n }; sendHello(); tutorial(); });
+    return;
+  }
+  tutorial();
+}
+// ═══════════════════════════════════════════════════════════════════════════
+// THE TEAMS (shared/teams.js, team.js; docs/TEAMS-ARENA.md)
+// ═══════════════════════════════════════════════════════════════════════════
+const TEAMS_UI = createTeams({
+  paintHead, paintStanding,
+  sfx: (name) => { if (GESTURE && audioEnabled()) SFX[name]?.(); },
+  starter: () => STARTER,
+  profile: () => PROFILE,
+  clockSkew: () => CLOCK_SKEW,
+  switchTeam: (n) => switchTeam(n),
+  // ?teamsim on this Mac (DEV_TOOLS=1 npm start): the team screen's dev buttons — a week in a minute
+  dev: IS_DEV_HOST && QS.has('teamsim') ? (op) => NET?.league('dev', { op }) : null,
+  live: () => arenaLive(),
+  onClose: () => MENU.paintTeam(),
+});
+const ARENA_UI = createArena({
+  paintHead,
+  sfx: (name) => { if (GESTURE && audioEnabled()) SFX[name]?.(); },
+  profile: () => PROFILE,
+  me: () => pick.me,
+  myName: () => pick.name || MN.cleanName(''),
+  starter: () => STARTER,
+  clockSkew: () => CLOCK_SKEW,
+  cancel: () => NET?.league('unqueue'),
+  claimRoad: (i) => NET?.league('road', { i }),
+  countUp: (el, a, b) => countUp(el, a, b),
+  openTeam: () => TEAMS_UI.open(),
+  onClose: () => MENU.paintHome(),
+  live: () => arenaLive(),
+});
+let CLOCK_SKEW = 0;                  // the server's clock minus ours (the week ends by the server's)
+// The chip's second line: where your team is this week, and how long is left.
+function teamStatus() {
+  const w = PROFILE?.week;
+  if (!w || !STARTER) return '';
+  if (w.phase === 'break') return 'השבוע נגמר!';
+  const mine = w.standings.find((s) => s.team === (w.me?.team || STARTER));
+  const left = w.end - (Date.now() + CLOCK_SKEW);
+  const when = left < 24 * 3600e3 ? 'היום הסיום!' : timeLeft(left);
+  return mine?.active ? `מקום ${mine.rank} · ${when}` : when;
+}
+function profileRows() {
+  const t = TEAM.teamOf(STARTER);
+  const rows = [];
+  if (t) rows.push(['הקבוצה שלי', `<span style="color:${t.color}">${t.title}</span>`]);
+  if (TEAM_REC.badges) rows.push(['אליפויות שבועיות', `🏅 ${TEAM_REC.badges}`]);
+  return rows;
+}
+// Every visit to the home screen: a player who had a starter before teams existed meets their team
+// once (the tutorial's three cards), then any week's prize that is waiting.
+function onHome() {
+  if (TUT.on || !STARTER || TEAMS_UI.introOn) return;
+  if (!TEAM_REC.welcomed && stored(TUTR.TUT_KEY) === 'done') {
+    saveTeamRec({ ...TEAM_REC, welcomed: true });
+    TEAMS_UI.intro(STARTER, () => onHome());
+    return;
+  }
+  // a week's news: "your team won!" — paid once, however often the server says it
+  const p = PRIZES.shift();
+  if (p && !TEAMS_UI.prizeOn) {
+    TEAMS_UI.prize(p, () => {
+      const r = TEAM.claimPrize(TEAM_REC, p.week, p.prize);
+      if (r.paid) addPoints(r.paid.points);
+      saveTeamRec(r.paid ? r.rec : { ...r.rec, claimed: r.rec.claimed.includes(p.week) ? r.rec.claimed : [...r.rec.claimed, p.week].slice(-12) });
+      NET?.league('ack', { week: p.week });
+      MENU.paintHome();
+      onHome();
+    });
+  }
+}
+// A team switch: the server allows it (once free), then the champion goes with the team.
+let SWITCHING = null;
+function switchTeam(n) {
+  if (!NET?.connected || !PROFILE) return Promise.resolve({ ok: false, err: 'offline' });
+  return new Promise((resolve) => {
+    const t = setTimeout(() => { SWITCHING = null; resolve({ ok: false, err: 'offline' }); }, 6000);
+    SWITCHING = (r) => { clearTimeout(t); SWITCHING = null; resolve(r); };
+    NET.league('switchTeam', { team: n });
+  });
+}
+// Your Mythic is the server's word on it (a switch made on this device, or the first pick it saw).
+function adoptStarter(n) {
+  if (!n || n === STARTER) return;
+  STARTER = switchStarter(STORE, n);
+  if (pick.me.rarity === MYTHIC) pick.me = { rarity: MYTHIC, number: STARTER };
+  MENU.paintHome();
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// THE LEAGUE (server/league.js): who this device is, the arena, the week's prize
+// ═══════════════════════════════════════════════════════════════════════════
+function sendHello() {
+  if (NET?.connected) NET.hello(pick.name || 'שחקן', pick.me, { id: DEVICE, starter: STARTER });
+}
+let ARENA_RES = null;                // the server's word on the arena match just played
+const PRIZES = [];                   // weeks' news waiting for the home screen
+function onLeague(msg) {
+  switch (msg.type) {
+    case 'profile':
+      PROFILE = msg;
+      CLOCK_SKEW = msg.now - Date.now();
+      if (msg.starter && STARTER && msg.starter !== STARTER) adoptStarter(msg.starter);
+      if (msg.switched && !TEAM_REC.switched) saveTeamRec({ ...TEAM_REC, switched: true });
+      MENU.paintHome(); TEAMS_UI.refresh(); ARENA_UI.refresh();
+      break;
+    case 'queued': break;
+    case 'found': ARENA_UI.found(msg); break;
+    case 'oppLeft': ARENA_UI.oppLeft(); break;
+    case 'arenaResult': arenaResult(msg); break;
+    case 'road':
+      if (msg.ok && msg.prize) { addPoints(msg.prize.points); MENU.toast(`+${msg.prize.points.toLocaleString('en-US')} נקודות סולטיז!`); }
+      ARENA_UI.roadDone(msg);
+      break;
+    case 'switched':
+      if (msg.ok) { adoptStarter(msg.starter); saveTeamRec({ ...TEAM_REC, switched: true }); }
+      SWITCHING?.(msg.ok ? { ok: true } : { ok: false, err: msg.err });
+      break;
+    case 'prize':
+      if (!PRIZES.some((p) => p.week === msg.week)) PRIZES.push(msg);
+      if (MENU.screen === 'menu' && !running) onHome();
+      break;
+  }
+}
+// THE ARENA IS LIVE only when the server says so (ARENA_LIVE=1). Until then it is practice: PLAY
+// still finds an opponent, but nothing is counted, and trophies, the road and the leaderboard say
+// "בקרוב" (Idan, 2026-10-09).
+const arenaLive = () => !!PROFILE?.live;
+// PLAY: an arena battle — when the server is there to find one
+function playArena() {
+  if (!STARTER) { MENU.toast('בחרו אלוף קודם!'); return; }
+  if (!NET?.connected) { MENU.toast('אין חיבור לאינטרנט'); return; }
+  if (!PROFILE) { sendHello(); MENU.toast('מתחברים…'); return; }
+  ARENA_UI.search();
+  NET.league('queue', { card: pick.me });
+}
+function arenaResult(msg) {
+  ARENA_RES = msg;
+  if (MODE !== 'arena') return;                    // given up and gone: the profile has the numbers
+  const over = !$('#over').classList.contains('hidden');
+  const spelled = $('#ovSpell').className.includes('win') ? 'win' : $('#ovSpell').className.includes('lose') ? 'loss' : 'draw';
+  if (running || (over && spelled !== msg.result)) endMatch();   // the other one left / our picture of the end was off
+  else if (over) ARENA_UI.resultInto($('#over .ov-panel'), msg);
+}
+// the home screen's arena: its name over PLAY, the day's stars, the bar to the next arena
+function paintArenaHome() {
+  const live = arenaLive();
+  document.body.classList.toggle('arena-soon', !live);
+  if (!live) {
+    $('#hmCups').textContent = 'בקרוב';
+    $('#hmArena').innerHTML = PROFILE ? '<b>זירת אימון</b><small>הגביעים בקרוב!</small>' : '';
+    $('#hmStars').innerHTML = '';
+    $('#hmCupsBox .hm-bar > i').style.setProperty('--p', '0%');
+    $('#hmCupsBox').classList.remove('has-prize');
+    return;
+  }
+  const p = PROFILE, t = p?.trophies || 0, a = ARENA.arenaOf(t);
+  $('#hmArena').innerHTML = p ? `<b>זירה ${a.n}</b><small>${a.name}</small>` : '';
+  const wins = p?.daily?.wins || 0;
+  $('#hmStars').innerHTML = p ? ARENA.DAILY.map((_, i) => `<i class="${i < wins ? 'on' : ''}">★</i>`).join('') : '';
+  $('#hmCupsBox .hm-bar > i').style.setProperty('--p', `${Math.round(100 * ARENA.arenaProgress(t))}%`);
+  $('#hmCupsBox').classList.toggle('has-prize', !!p && ARENA.roadWaiting(p.best, p.road) > 0);
+}
+// The first launch is over: a room link that waited for it goes to its room now.
+function afterFirstLaunch() {
+  if (!PENDING_ROOM) return;
+  const code = PENDING_ROOM;
+  PENDING_ROOM = null;
+  $('#codeInput').value = code;
+  openLobby('join', code);
+}
 if (!DEEP) { MENU.openTitle(); LOADER.repaint(); }
 addEventListener('resize', () => { if (MENU.screen === 'title') LOADER.repaint(); });
-// Anyone who has played already is never shown the tutorial, now or later.
-if (TUTR.playedBefore(PROG, STATS)) { try { if (!STORE?.getItem(TUTR.TUT_KEY)) STORE?.setItem(TUTR.TUT_KEY, 'done'); } catch { /* private mode */ } }
 
 // ═══════════════════════════════════════════════════════════════════════════
 // INPUT
@@ -700,7 +933,11 @@ function net() {
     onStart: startOnlineMatch,
     onOver: () => { /* the local sim reaches full time too; endMatch already ran */ },
     onOpponentLeft: () => banner('היריב עזב — בוט נכנס', '#ffb800'),
+    onOpen: () => sendHello(),
+    onLeague: (msg) => onLeague(msg),
     onError: (code) => {
+      // the arena could not take this player (no id yet / no starter): stop searching
+      if ((code === 'no-id' || code === 'no-starter') && ARENA_UI.on) { ARENA_UI.hide(); MENU.toast('מתחברים…'); sendHello(); return; }
       // `stale`: the server runs a newer protocol than this cached page (see PROTOCOL in
       // shared/net.js). Nothing here can fix that, so say so and fetch the new build.
       if (code === 'stale') {
@@ -742,7 +979,7 @@ function openLobby(mode, code) {
   paintHead($('#connFace'), pick.me.rarity, pick.me.number, $('#connFace').clientWidth || 40);
 
   const go = () => {
-    n.hello(pick.name || 'שחקן', pick.me);
+    n.hello(pick.name || 'שחקן', pick.me, { id: DEVICE, starter: STARTER });
     if (mode === 'host') n.create();
     else if (code) n.join(code);
   };
@@ -776,8 +1013,11 @@ function renderLobby(room) {
 
 function startOnlineMatch(msg) {
   ONLINE = true;
-  MODE = 'online';
-  STAGE = PIN_STAGE || pickStage();
+  // an arena match (server/league.js): on the arena's own stadium, and the trophies come after
+  MODE = msg.arena ? 'arena' : 'online';
+  ARENA_RES = null;
+  if (msg.arena) ARENA_UI.hide();
+  STAGE = PIN_STAGE || (msg.arena && POOL.find((s) => s.id === msg.arena.stage)) || pickStage();
   bgAt = -1e9;                        // new stage, so the baked backdrop is stale
   M = NET.match;
   parts.length = 0;
@@ -847,7 +1087,7 @@ function startTutorialMatch() {
   const cfg = stageConfig(1, STATS.lv);
   ARCADE = null;
   MODE = 'tutorial';
-  STAGE = PIN_STAGE || HS_STAGES[1 % HS_STAGES.length];
+  STAGE = PIN_STAGE || HS_STAGES[0];              // the drills' daytime stadium, not a night one (Idan)
   beginLocal(pick.me, tutorialFoe(), { ...cfg.matchOpts, duration: TUTR.MATCH_SECONDS }, createBot(0, Math.random, cfg.bot));
 }
 // The practice match is over: it pays the first upgrade (once — a replay pays nothing).
@@ -940,8 +1180,10 @@ function endMatch({ forfeit = false } = {}) {
   const [a, b] = M.score;
   const me = ONLINE ? (NET?.you ?? 0) : 0;
   const mine = M.score[me], theirs = M.score[1 - me];
-  const draw = !forfeit && mine === theirs;
-  const iWon = !forfeit && mine > theirs;
+  let draw = !forfeit && mine === theirs;
+  let iWon = !forfeit && mine > theirs;
+  // the arena: the server's result is the result (it also knows who left)
+  if (MODE === 'arena' && ARENA_RES) { iWon = ARENA_RES.result === 'win'; draw = ARENA_RES.result === 'draw'; }
   // HS M3 92.6 s: the scores in gold either side of a gold VS, on the panel
   $('#overScore').innerHTML = `<b class="gold">${a}</b><b class="gold ov-vs">VS</b><b class="gold">${b}</b>`;
   const word = draw ? 'DRAW' : iWon ? 'WIN' : 'LOSE';
@@ -955,17 +1197,20 @@ function endMatch({ forfeit = false } = {}) {
   else if (MODE === 'tournament' && TOURNEY) tournamentResult(iWon, [mine, theirs]);
   else if (MODE === 'tutorial') tutorialResult(iWon, draw);
   const plan = MODE === 'tutorial' ? { buttons: [{ id: 'shop', label: 'לחנות' }], select: null }
+    : MODE === 'arena' ? { buttons: [{ id: 'again', label: 'עוד קרב!' }, { id: 'leave', label: 'בית' }], select: null }
     : MN.afterResult({ mode: MODE, won: iWon, stage: ARCADE?.stage || 1, last: ARC.STAGE_COUNT });
+  if (MODE === 'arena') ARENA_UI.resultInto($('#over .ov-panel'), ARENA_RES);
+  else ARENA_UI.clearResult($('#over .ov-panel'));
   if (plan.select) NEXT_SELECT = plan.select;
   $('#again').innerHTML = `<b>${plan.buttons[0].label}</b>`;
   $('#back').classList.toggle('hidden', plan.buttons.length < 2);
-  $('.ov-btns').classList.toggle('lost', MODE !== 'online' && !iWon && !draw);   // HS: NEXT bottom-right after a loss
+  $('.ov-btns').classList.toggle('lost', MODE !== 'online' && MODE !== 'arena' && !iWon && !draw);   // HS: NEXT bottom-right after a loss
   if (plan.buttons[1]) $('#back').innerHTML = `<b>${plan.buttons[1].label}</b>`;
   const over = $('#over');
   over.classList.remove('out');
   over.classList.remove('hidden');
-  // The two heads either side of the score, the loser greyed (HS turns it to char); under each
-  // the badge HS's flag stands for: the champion's tier, or the card's rarity.
+  // The two heads either side of the score, the loser greyed (HS turns it to char). No rarity or
+  // tier under them (Idan, 2026-10-08).
   for (let i = 0; i < 2; i++) {
     const el = $('#ovFace' + i), won = M.score[i] > M.score[1 - i], { rarity, number } = M.players[i].char;
     el.classList.toggle('char-face', !!characterFor(rarity, number));   // a character portrait is bigger (style.css): measure it at that size
@@ -973,9 +1218,6 @@ function endMatch({ forfeit = false } = {}) {
     const lost = forfeit ? i === me : (!won && a !== b);
     el.classList.toggle('lost', lost);
     el.parentElement.classList.toggle('lost', lost);
-    const gem = $('#ovGem' + i), champ = MODE !== 'online' && i === 1 ? CHAMPIONS.find((c) => c.card.rarity === rarity && c.card.number === number) : null;
-    gem.textContent = champ ? TIERS[champ.tier] : MN.RARITY_NAME[rarity];
-    gem.style.setProperty('--c', champ ? champ.color : MN.RARITY_COLOR[rarity]);
   }
 }
 
@@ -1024,6 +1266,12 @@ $('#again').onclick = () => {
   // the tutorial's result goes on to the shop, where its first upgrade is bought
   if (MODE === 'tutorial') { $('#over').classList.add('out'); setTimeout(() => { stopMatchLoop(); $('#over').classList.add('hidden'); TUT.toShop(); }, 260); return; }
   if (MODE === 'online') { stopMatchLoop(); show('lobby'); if (NET?.room) renderLobby(NET.room); return; }
+  // the arena: another battle, straight away (the home screen under the search)
+  if (MODE === 'arena') {
+    $('#over').classList.add('out');
+    setTimeout(() => { stopMatchLoop(); $('#over').classList.add('hidden'); ONLINE = false; MENU.openMenu(); playArena(); }, 260);
+    return;
+  }
   const mode = MODE === 'arcade' ? 'arcade' : 'practice', stage = NEXT_SELECT, toBracket = MODE === 'tournament';
   $('#over').classList.add('out');
   setTimeout(() => {
@@ -1051,12 +1299,17 @@ const VS_INTRO = 2.0, VS_SKIP = 0.22;
 function startIntro() {
   if (ONLINE || window.SIM_HOLD || MODE === 'tutorial' || new URLSearchParams(location.search).has('nointro')) return;
   const vs = $('#vs');
-  for (let i = 0; i < 2; i++) {
-    const el = $('#vsFace' + i), { rarity, number } = M.players[i].char;
-    el.classList.toggle('char-face', !!characterFor(rarity, number));
-    paintHead(el, rarity, number, el.clientWidth || 150, { expr: 'normal', flip: i === 1, fill: 1 });
-  }
   vs.classList.remove('hidden', 'skip');
+  const paintVs = () => {
+    for (let i = 0; i < 2; i++) {
+      const el = $('#vsFace' + i), { rarity, number } = M.players[i].char;
+      el.classList.toggle('char-face', !!characterFor(rarity, number));
+      paintHead(el, rarity, number, el.clientWidth || 150, { expr: 'normal', flip: i === 1, h: el.clientHeight || undefined, fill: 0.92 });
+    }
+  };
+  // painted now and again once laid out: before its first frame the screen can measure 0, and a
+  // face painted at the 150px fallback sat small and off centre in its box (cut off on a phone)
+  paintVs(); requestAnimationFrame(() => requestAnimationFrame(paintVs));
   vs.style.animation = 'none'; void vs.offsetWidth; vs.style.animation = '';   // restart the CSS
   introT = VS_INTRO;
 }
@@ -1095,7 +1348,7 @@ $('#pHow').onclick = () => MENU.openHowTo('pause');
 // and — HS M16 25.75 s — no result screen: the pills slide away and Player Select is back.
 // Online it is leaving the room; the server hands the friend a bot.
 $('#pGive').onclick = () => closePause(() => {
-  if (MODE === 'online') { toMenu(); return; }
+  if (MODE === 'online' || MODE === 'arena') { toMenu(); return; }     // the arena: the server scores it lost
   // a tournament given up is a match lost: out, and back to the bracket to see who won it
   if (MODE === 'tournament' && TOURNEY) {
     TOURNEY = TOUR.recordMatch(TOURNEY, false, [M.score[0], M.score[1]]).t;
@@ -1141,7 +1394,7 @@ if (new URLSearchParams(location.search).has('dev')) {
 function toMenu() {
   stopMatchLoop();
   // Online, leaving the result (or quitting) leaves the room too, or the friend waits forever.
-  if (MODE === 'online') { net().leave(); ONLINE = false; }
+  if (MODE === 'online' || MODE === 'arena') { net().leave(); ONLINE = false; }
   // Leaving an arcade match early records nothing: a quit is neither a win nor a loss (GIVE UP is).
   ARCADE = null;
   MENU.openMenu();
@@ -1302,7 +1555,7 @@ function frame(now) {
       // reasons: practising a shot without being harassed, and making the screenshot
       // harness deterministic — every probe there was racing a bot that could score,
       // freeze the match and reset positions between one await and the next.
-      const foe = window.BOT_OFF || TUT.solo ? {} : TUT.foeInput(botInput(BOT, M, 1, C.TICK), M);
+      const foe = window.BOT_OFF || TUT.solo || !BOT ? {} : TUT.foeInput(botInput(BOT, M, 1, C.TICK), M);   // (no bot: the tutorial's drills)
         step(M, [TUT.mask(tickInput()), foe], C.TICK, fx);
         TUT.afterStep(M);
         acc -= C.TICK;
@@ -1321,7 +1574,7 @@ function frame(now) {
   // velocity for the `acc` not yet simulated, it moves on every refresh — forward only, and no
   // added lag (interpolating back from the last tick costs a tick). At 60 Hz `acc` is ~0 and this
   // draws the tick exactly. Offline only: the net module owns the clock online.
-  const lerped = !ONLINE && running && !paused && lerpIn(acc);
+  const lerped = running && !paused && (ONLINE ? netSmoothIn(dt) : lerpIn(acc));
   draw();
   syncHud();
   if (lerped) lerpOut();
@@ -1347,6 +1600,31 @@ function lerpIn(ahead) {
   return true;
 }
 function lerpOut() { bodies().forEach((o, i) => { [o.x, o.y] = REAL[i]; }); REAL = null; }
+// ONLINE, drawn as smoothly as the arcade (2026-10-09): the same fraction-of-a-tick lead, and every
+// snapshot's correction (net.js net.vis) glided out instead of jumped — fast for your own player
+// (it is your thumb), a little slower for the opponent and the ball.
+function netSmoothIn(dt) {
+  if (!M || !NET?.vis) return false;
+  const you = NET.you ?? 0;
+  NET.vis.forEach((v, i) => {
+    // the half-life of a correction: your own player 30 ms (it is your thumb), the ball 40 ms,
+    // the opponent 60 ms (its dashes and kicks are the guesses that miss most)
+    const half = i === 0 ? 0.04 : i - 1 === you ? 0.03 : 0.06;
+    const k = Math.pow(0.5, dt / half);
+    v[0] *= k; v[1] *= k;
+    if (Math.abs(v[0]) < 0.05 && Math.abs(v[1]) < 0.05) { v[0] = 0; v[1] = 0; }
+  });
+  const ahead = lerpIn(NET.acc);                // the tick lead (it saves REAL)
+  if (!ahead) REAL = bodies().map((o) => [o.x, o.y]);
+  bodies().forEach((o, i) => {
+    const v = NET.vis[i];
+    if (!v || (o === M.ball && M.ballWait > 0)) return;
+    o.x += v[0]; o.y += v[1];
+    const rr = o === M.ball ? (o.r || C.BALL_R) : 0;
+    if (o.y > C.GROUND_Y - rr) o.y = C.GROUND_Y - rr;
+  });
+  return true;
+}
 
 // ═══════════════════════════════════════════════════════════════════════════
 // RENDER
@@ -1920,6 +2198,7 @@ function stageLayer(t, scene) {
     bgAt = t;
     bgCtx.clearRect(0, 0, C.W, C.H + BLEED);
     STAGE.draw(bgCtx, scene);
+    STAGE.ground?.(bgCtx, scene);             // HS's boards and floor, baked in with the stands (hs-stadium.js)
   }
   return bgCanvas;
 }
@@ -1948,8 +2227,8 @@ function drawStadium(g) {
   const topSky = STAGE.sky || barSky;
   if (SKY_TOP > 0 && topSky) R2(g, 0, -SKY_TOP, C.W, SKY_TOP + 1, topSky);
 
-  // HS's own boards are shorter and sit lower (M4 31.0 s: world 360-395, 36 tall against 48 here)
-  if (STAGE.hs) { hsBoardsAndFloor(g, standBot, gy - 75, gy - 40, gy); return; }
+  // HS's own boards and floor are painted by the stadium itself, into the baked layer above
+  if (STAGE.hs) return;
 
   // railing across the front of the crowd, common to every stage
   R2(g, 0, standBot - 6, C.W, 6, OUTLINE);
@@ -1996,90 +2275,6 @@ function drawStadium(g) {
 }
 
 const R2 = (g, x, y, w, h, c) => { g.fillStyle = c; g.fillRect(Math.round(x), Math.round(y), Math.round(w), Math.round(h)); };
-
-// HS'S HOARDINGS AND FLOOR (hs-video/M4 30.2 s). The boards are a row of still, different adverts
-// right under the stands; the floor starts at their foot and runs forward BEHIND the players'
-// feet, marked in perspective — a centre line, a flat centre circle round the feet line, a
-// penalty box and a goal box at each end. Grass in mown stripes, or a wooden court.
-const HS_BOARDS = [
-  { bg: ['#1c3f94', '#12296a'], fg: '#ffd23c', txt: 'SALTIZ' },
-  { bg: ['#d92a3a', '#9e1522'], fg: '#ffffff', txt: 'ראשים' },
-  { bg: ['#111418', '#2a2f38'], fg: '#ffb800', txt: 'SALTIZ ★' },
-  { bg: ['#f7f7f2', '#d9d9d0'], fg: '#1c3f94', txt: 'ראשים ⚽' },
-  { bg: ['#0f8a4a', '#07603a'], fg: '#ffffff', txt: 'GOAL!' },
-  { bg: ['#ff8a00', '#d86a00'], fg: '#1a1000', txt: 'SALTIZ' },
-];
-function hsBoardsAndFloor(g, standBot, ledTop, ledBot, gy) {
-  // the wall under the stands
-  R2(g, 0, standBot - 2, C.W, ledTop - standBot + 2, STAGE.wall);
-  // the boards
-  const n = 6, bw = (C.W - C.GOAL_W * 2) / n, h = ledBot - ledTop;
-  g.save();
-  g.textAlign = 'center'; g.textBaseline = 'middle'; g.direction = 'ltr';   // the page is RTL: '!GOAL'
-  g.font = `italic 900 ${Math.round(h * 0.56)}px "Arial Black", Arial, sans-serif`;
-  for (let i = 0; i < n; i++) {
-    const b = HS_BOARDS[i % HS_BOARDS.length], x = C.GOAL_W + i * bw;
-    const gr = g.createLinearGradient(0, ledTop, 0, ledBot);
-    gr.addColorStop(0, b.bg[0]); gr.addColorStop(1, b.bg[1]);
-    g.fillStyle = gr; g.fillRect(x + 1, ledTop, bw - 2, h);
-    g.fillStyle = '#ffffff30'; g.fillRect(x + 1, ledTop, bw - 2, h * 0.18);        // the gloss along the top
-    g.fillStyle = b.fg; g.fillText(b.txt, x + bw / 2, ledTop + h * 0.54);
-  }
-  // HS's hoardings are muted (M1: saturation 0.37, against 0.60 for ours at full colour): a warm
-  // grey veil over the whole run takes ours to HS's.
-  g.fillStyle = 'rgba(150,138,118,0.3)'; g.fillRect(C.GOAL_W, ledTop, n * bw, h);
-  // under the goals the boards carry on plain
-  R2(g, 0, ledTop, C.GOAL_W, h, '#2a2f38'); R2(g, C.W - C.GOAL_W, ledTop, C.GOAL_W, h, '#2a2f38');
-  g.restore();
-
-  // the floor, from the foot of the boards down past the world into the BLEED
-  const top = ledBot, bot = C.H + BLEED, fh = bot - top;
-  if (STAGE.floor === 'wood') {
-    const gr = g.createLinearGradient(0, top, 0, bot);
-    // HS M4's court: a deep orange wood, (209, 148, 66) at saturation 0.68, with barely a plank line
-    gr.addColorStop(0, '#c8883a'); gr.addColorStop(1, '#dea04e');
-    g.fillStyle = gr; g.fillRect(0, top, C.W, fh);
-    g.fillStyle = '#9a603040'; for (let y = top + 6, k = 0; y < bot; y += 11 + k * 0.9, k++) g.fillRect(0, y, C.W, 1);
-  } else {
-    g.fillStyle = STAGE.grass[0]; g.fillRect(0, top, C.W, fh);
-    // mown stripes, fanned for perspective: narrow at the back, wide at the front
-    g.fillStyle = STAGE.grass[1];
-    const k = 10;
-    for (let i = -k; i <= k; i += 2) {
-      const xb = C.W / 2 + i * 50, xf = C.W / 2 + i * 70;
-      g.beginPath(); g.moveTo(xb, top); g.lineTo(xb + 50, top); g.lineTo(xf + 70, bot); g.lineTo(xf, bot); g.fill();
-    }
-  }
-  // THE MARKINGS, white, in perspective — HS's own, measured on the court (M4 29.98 and 31.0 s,
-  // 2556 x 1180, world px from the feet line gy and the wall): a far touchline 21.5 behind the
-  // feet and a near one 29 in front, the halfway line between them, a centre circle 120 x 10.5
-  // around the feet line, and at each end a goal box and a penalty box whose sides slant OUT
-  // towards the wall as they come forward (they run to a vanishing point over the middle), the
-  // side touchline doing the same behind the goal. Ours used to be a 92 x 16 circle, a near line
-  // 58 in front and boxes slanting the wrong way.
-  // (on HS's court the lines are a faint cream, (215, 174, 116) over the wood's (198, 135, 52))
-  const L = STAGE.floor === 'wood' ? 'rgba(255,235,200,0.5)' : '#ffffffd0', back = gy - 21.5, front = gy + 29;
-  g.strokeStyle = L; g.lineWidth = 2.8;
-  g.beginPath();
-  g.moveTo(0, back); g.lineTo(C.W, back);                                    // far touchline
-  g.moveTo(0, front); g.lineTo(C.W, front);                                  // near touchline
-  g.moveTo(C.W / 2, back); g.lineTo(C.W / 2, front);                         // halfway
-  // (lift the pen to the circle's start first, or the path joins it to the halfway line)
-  g.moveTo(C.W / 2 + 120, gy + 2);
-  g.ellipse(C.W / 2, gy + 2, 120, 10.5, 0, 0, 6.2832);                       // the centre circle
-  for (const side of [1, -1]) {
-    const X = (x) => side > 0 ? x : C.W - x;
-    g.moveTo(X(10), front); g.lineTo(X(77), back);                           // side touchline
-    g.moveTo(X(0), gy - 14); g.lineTo(X(170), gy - 14);                      // penalty box
-    g.lineTo(X(142), gy + 18); g.lineTo(X(0), gy + 18);
-    g.moveTo(X(0), gy - 6.5); g.lineTo(X(102), gy - 6.5);                    // goal box
-    g.lineTo(X(86), gy + 9.5); g.lineTo(X(0), gy + 9.5);
-    // the penalty arc, bulging out of the box's side
-    g.moveTo(X(157), gy - 5.5);
-    g.ellipse(X(157), gy + 2.5, 23, 8, 0, -Math.PI / 2, Math.PI / 2, side < 0);
-  }
-  g.stroke();
-}
 
 // A stone guardian, the way Sagat's temple stage frames its pitch. Blocky, three flat
 // stone tones, black keyline — same rules as the fighters, so it sits in the same world.
@@ -2848,6 +3043,39 @@ function paintPitchChar(inner, ch, w, h, expr, flip) {
 function clearPitchChar(inner) {
   for (const k of ['left', 'top', 'right', 'bottom', 'width', 'height', 'transform']) inner.style[k] = '';
 }
+// A PLAYER STANDING, outside a match (the home screen's podium): the match's own body (bodyArt,
+// the card's kit and rarity trim) on a canvas, and the match's own head node over it, sized and
+// placed as drawHeads places it — the same player you will see on the pitch, filling `host`.
+// Feet on the host's bottom edge.
+function paintStanding(host, card) {
+  let cv = host.querySelector('canvas'), el = host.querySelector('.head');
+  if (!cv) {
+    cv = document.createElement('canvas');
+    el = document.createElement('div');
+    el.className = 'head';
+    el.appendChild(document.createElement('i'));
+    host.append(cv, el);
+  }
+  const R = C.HEAD_R, bw = 2 * R * HEAD_W, bh = 2 * R * HEAD_H, headCy = -(C.BODY_H + R - C.NECK);
+  const top = headCy - bh / 2 - 4, sideW = bw * 0.75;        // the world box: the crown to the soles
+  const W = host.clientWidth, H = host.clientHeight;
+  if (!W || !H) return;
+  const s = Math.min(W / (2 * sideW), H / (-top + 3)), dpr = window.devicePixelRatio || 1;
+  const fx = W / 2, fy = H - 3 * s;                          // the feet, in host px
+  cv.width = Math.round(W * dpr); cv.height = Math.round(H * dpr);
+  const g = cv.getContext('2d');
+  g.setTransform(dpr * s, 0, 0, dpr * s, fx * dpr, fy * dpr);
+  const own = kitFor(card.rarity, card.number);
+  bodyArt().lower(g, own ? { ...KIT[0], ...own } : KIT[0], TRIM[card.rarity] || TRIM.legendary, 'stand', 1);
+  const w = bw * s, h = bh * s, ol = Math.max(1.5, h * 0.05);
+  const ch = characterFor(card.rarity, card.number);
+  el.style.width = w + 'px'; el.style.height = h + 'px';
+  el.style.setProperty('--ol', ol.toFixed(1) + 'px');
+  el.classList.toggle('char', !!ch);
+  if (ch) paintPitchChar(el.firstElementChild, ch, w, h, 'normal', false);
+  else { clearPitchChar(el.firstElementChild); paintHead(el.firstElementChild, card.rarity, card.number, w - 2 * ol, { ...HEAD_CROP, h: h - 2 * ol }); }
+  el.style.transform = `translate(${fx - w / 2}px, ${fy + headCy * s - h / 2}px)`;
+}
 function drawHeads() {
   for (let i = 0; i < 2; i++) {
     const p = M.players[i];
@@ -3032,7 +3260,8 @@ function paintFaces() {
     const expr = characterFor(rarity, number) ? expressionFor(M, p) : '';
     const key = `${rarity}_${number}_${FACE_PX}_${expr}`;
     if (el.dataset.card === key) continue;
-    paintHead(el.firstElementChild, rarity, number, FACE_PX, { expr, flip: i === 1 });
+    // a character fits whole inside the circle (its corners are empty), a photo keeps its close crop
+    paintHead(el.firstElementChild, rarity, number, FACE_PX, characterFor(rarity, number) ? { expr, flip: i === 1, fill: 0.9 } : { expr, flip: i === 1 });
     el.dataset.card = key;
   }
 }
@@ -3188,9 +3417,7 @@ $('#tunerCopy').onclick = async () => {
 
   // ?me=legendary_3&foe=epic_7&diff=4 — so a screenshot harness can pin a matchup.
   const q = new URLSearchParams(location.search);
-  // This Mac, or a phone on its Wi-Fi (npm start's «phone» address): localhost and the private
-  // address ranges. Production is a public hostname, so it is never one.
-  const DEV_HOST = /^(localhost|\[::1\]|[\w-]+\.local|(127|10)(\.\d{1,3}){3}|192\.168(\.\d{1,3}){2}|172\.(1[6-9]|2\d|3[01])(\.\d{1,3}){2})$/.test(location.hostname);
+  const DEV_HOST = IS_DEV_HOST;
   // ?hs=1 — the Head Soccer ruleset switch (C.HS, see shared/constants.js), for trying the
   // migration on a phone. Dev hosts only, like ?unlockall: on production a URL must not be
   // able to change the rules. Set here at boot, before any match is created.
@@ -3199,12 +3426,14 @@ $('#tunerCopy').onclick = async () => {
     const v = q.get(key);
     if (!v) continue;
     const [r, n] = v.split('_');
-    if (!RARITIES.includes(r) || !(+n >= 1 && +n <= CARDS_PER_RARITY)) continue;
+    if (!(RARITIES.includes(r) || r === MYTHIC) || !(+n >= 1 && +n <= MN.cardsIn(r))) continue;
     // The album gates the URL too. Greying a card out in the picker is not a guard if
     // `?me=legendary_1` walks straight past it — and inside the app this query string is one
     // WebView inspector away. The opponent stays free: choosing who to play against is not a
     // claim to own them.
-    if (who === 'me' && !owns(r, +n)) continue;
+    // (On a dev machine or the local network any of the four Mythics plays, to try each one's
+    // power colour — a testing link, like ?unlockall.)
+    if (who === 'me' && !owns(r, +n) && !(DEV_HOST && r === MYTHIC)) continue;
     pick[who] = { rarity: r, number: +n };
   }
   // (?pickups and ?cards used to switch the two power systems on and off from a URL. Both
@@ -3237,7 +3466,9 @@ $('#tunerCopy').onclick = async () => {
   // ?stage= pins any of the eleven. Falls back to the old lookup so an unknown id still
   // yields a stage rather than a blank screen.
   if (q.has('stage')) PIN_STAGE = findStage(q.get('stage')) || stageById(q.get('stage'));
-  if (q.has('room')) {
+  if (q.has('room') && ROOM_FIRST) {
+    // the first launch comes first: PENDING_ROOM opens the lobby when the tutorial is over
+  } else if (q.has('room')) {
     // A share link is an invite: land straight in the lobby, pre-joined.
     const code = String(q.get('room')).trim().toUpperCase().slice(0, 4);
     $('#codeInput').value = code;
@@ -3280,6 +3511,13 @@ Object.assign(window, { headCrop });
 Object.assign(window, { endMatch, characterFor, MENU });
 Object.defineProperty(window, 'MATCH', { get: () => M });
 Object.defineProperty(window, 'TUTORIAL', { get: () => TUT });
+Object.defineProperty(window, 'TEAMS_UI', { get: () => TEAMS_UI });
+Object.defineProperty(window, 'PROFILE', { get: () => PROFILE });
+Object.defineProperty(window, 'ARENA_UI', { get: () => ARENA_UI });
+Object.defineProperty(window, 'ARENA_RES', { get: () => ARENA_RES });
+Object.defineProperty(window, 'MODE', { get: () => MODE });
+Object.assign(window, { playArena });
+Object.defineProperty(window, 'NET', { get: () => NET });
 Object.defineProperty(window, 'AUDIO_STATE', { get: () => audioState() });
 Object.defineProperty(window, 'AUDIO_LEVEL', { get: () => audioLevel() });
 Object.defineProperty(window, 'VOICE_LEFT', { get: () => voiceLeft() });

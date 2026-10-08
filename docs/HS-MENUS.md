@@ -218,6 +218,16 @@ TITLE goes to the **main menu**. There is no separate title screen in that path.
 - **UNSURE:** whether a D&D Dream splash or loading screen comes first. No source shows one.
 
 ### 3.2 Main menu
+
+> **Ours is no longer HS's carousel (2026-10-08).** The home screen is our own: the
+> player's character (the match body and head, `game.js` `paintStanding`) on a podium under a
+> spotlight on a dark stage. Top-left: the profile card (tap: name + stats) and trophies; along the
+> top: the wallet (money, נקודות סולטיז); top-right: settings. Left: דמויות (the card picker) over
+> חנות (the upgrades shop), BATTLE PASS bottom-left. Right: חברים over LEADERBOARD, and **שחק**
+> bottom-right, which opens a separate **game modes** screen (`#modes`: every mode in `MODES`,
+> as cards). Player Select's and the bracket's BACK go to that screen. Money, trophies, the battle
+> pass, friends and the leaderboard are placeholders (0 / "בקרוב") until they exist. What follows
+> is the HS research the old menu was built from.
 **[WEB]**, `web/menu-carousel-2017.jpg`, `web/menu-grid-2017.jpg`. The v7.0 video still shows the carousel. None of the clips shows this screen.
 
 ```
@@ -610,6 +620,7 @@ All of it is on branch `hs/menus`, uncommitted. The full plan was approved in Ph
 - The arcade save keeps each stage's **last score** (`shared/arcade.js`, `lastScore`).
 - The audio has separate SOUND and MUSIC switches, saved as `hs.audio.v1`.
 - Your multiplayer name is saved as `hs.name.v1`.
+- **One list, no rarities (Idan, 2026-10-08).** Player Select and the card popup show a single list, "דמויות" (`shared/menu.js` `charReel`): your Mythic starter first, then legendary #1–#45 in order, with the cards not in your album caged. The other three Mythics are not shown at all. The rarity pill is now a fixed "דמויות" label. The rarity and tier badges are gone, both under the two sides of the VS and on the result screen.
 
 ### Checks
 - `npm test` (with the new `test-menus.mjs` and `test-css.mjs`).

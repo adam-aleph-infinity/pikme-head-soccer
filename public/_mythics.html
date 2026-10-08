@@ -1,0 +1,107 @@
+<!doctype html>
+<html lang="en" dir="ltr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Mythic starters · options</title>
+<style>
+  :root { color-scheme: dark; --bg: #0b0b12; --panel: #15151f; --line: #262636; --mute: #9a9ab0; --gold: #ffd24a; --myth: #c79bff; }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: #e8e8f0; font: 14px/1.45 -apple-system, "Segoe UI", Arial, sans-serif; }
+  header.top { padding: 22px 26px 8px; max-width: 1500px; }
+  header.top h1 { margin: 0 0 4px; font-size: 22px; }
+  header.top p { margin: 0 0 6px; color: var(--mute); font-size: 13px; max-width: 1000px; }
+  section { padding: 10px 26px 18px; }
+  h2 { font-size: 16px; margin: 6px 0 10px; color: #e8e8f0; }
+  h2 small { color: var(--mute); font-weight: 400; font-size: 12px; margin-left: 8px; }
+  .ref { display: flex; gap: 14px; flex-wrap: wrap; }
+  .ref figure { margin: 0; text-align: center; color: var(--mute); font-size: 12px; }
+  .ref img { width: 104px; height: 103px; display: block; background: radial-gradient(#2c2c40, #15151f 70%); border-radius: 10px; }
+  .char { border-top: 1px solid var(--line); padding: 18px 26px; display: grid; grid-template-columns: 250px 1fr; gap: 18px; }
+  .sheet { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 10px; align-self: start; position: sticky; top: 10px; }
+  .sheet img { width: 100%; display: block; border-radius: 8px; }
+  .sheet .t { margin-top: 8px; font-size: 12px; color: var(--mute); }
+  .sheet .t b { color: #fff; font-size: 16px; }
+  .opts { display: grid; gap: 14px; }
+  .opt { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 10px 12px 12px; }
+  .opt .lab { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; margin-bottom: 6px; }
+  .opt .lab b { font-size: 18px; color: var(--gold); }
+  .opt .lab .id { font-size: 15px; font-weight: 700; }
+  .opt .lab span.b { color: var(--mute); font-size: 12px; flex: 1 1 400px; }
+  .views { display: grid; grid-template-columns: repeat(4, minmax(110px, 1fr)) minmax(150px, 1.25fr); gap: 8px; }
+  .v { background: radial-gradient(#2a2a3e, #17171f 72%); border-radius: 10px; text-align: center; padding: 4px 4px 6px; }
+  .v svg { width: 100%; height: auto; display: block; }
+  .v .c { font-size: 11px; color: var(--mute); }
+  .v.game { background: #3a6fb0; align-self: start; }
+  .opt-C .v:not(.game) { background: radial-gradient(circle at 50% 40%, rgba(180,140,255,.45), rgba(106,216,255,.12) 45%, #17171f 72%); }
+  .v.game .c { color: #fff; text-shadow: 0 1px 2px #000; }
+  body.big .views { grid-template-columns: repeat(4, minmax(220px, 1fr)) minmax(280px, 1.25fr); }
+  @media (max-width: 900px) {
+    .char { grid-template-columns: 1fr; padding: 14px 16px; }
+    .sheet { position: static; max-width: 320px; }
+    .views { grid-template-columns: repeat(2, 1fr); }
+    section, header.top { padding-left: 16px; padding-right: 16px; }
+  }
+</style>
+</head>
+<body>
+<header class="top">
+  <h1>Mythic starters: three options per character</h1>
+  <p>Proposals only. Nothing in the game uses these yet; champions #1–#5 and every player's save are unchanged. Each character has its artist's sheet on the left (the original file, untouched) and options A, B and C on the right. Every head is the artist's own drawing, traced from the sheet in its four views and set on the game's kit body. Each fills exactly the same head box as #1–#5, width and height, and the last tile shows it on the pitch beside #1 with the hitbox dashed over both: every champion's hitbox is identical.</p>
+  <p style="color:var(--gold)"><b>Chosen (Idan, 2026-10-08): A for all four.</b> They are in the game as the Mythic cards (tools/chars/mythic_build.py); B and C stay here for comparison.</p>
+  <p>Face, hair, kit and accessories are the artist's in all three options, drawn as a cartoon (the artist's line work over flat colours); they differ in how flat, and in the finish. Pick one letter per character.</p>
+</header>
+<section>
+  <h2>Champions #1–#5 as they are <small>for style comparison</small></h2>
+  <div class="ref" id="roster"></div>
+</section>
+<div id="chars"></div>
+<script type="module">
+  // Each head is the artist's own drawing, traced from the sheet (tools/chars/mythic_trace.py →
+  // mythic-concepts/heads/), standing on the kit body (rig.js renderBody) with its chin on the collar.
+  import { renderBody } from './mythic-concepts/rig.js';
+  import { MYTHICS, STYLES } from './mythic-concepts/mythics.js';
+  const HEADS = await (await fetch('mythic-concepts/heads/heads.json')).json();
+  const CHIN = 150;
+  const names = ['Shoval', 'Ori', 'Naveh', 'Naveh', 'Paz'];
+  document.getElementById('roster').innerHTML = names.map((n, i) =>
+    `<figure><img src="img/chars/legendary-${i + 1}/normal.webp" alt=""><figcaption>#${i + 1} ${n}</figcaption></figure>`).join('');
+  // THE HEAD BOX (game.js CHAR_FIT): on the pitch every character's drawn head, hair included (but
+  // not hair that hangs below it), is fitted to one box — #1–#5 included, so all heads stand the
+  // same size over the same hitbox. Here, in this page's units (#1's portrait is drawn at 1.111 units per frame unit):
+  const BOX = { w: 128 * 1.111, h: 114 * 1.111 };
+  // The hitbox inside it (game.js HEAD_W x HEAD_H = 1.28 x 1.04 of the hitbox's diameter, and the
+  // hitbox itself stretched 1.2x sideways, constants.js HS_STRETCH): 94% x 96% of the box.
+  const HIT = { rx: (BOX.w * 1.2) / 1.28 / 2, ry: BOX.h / 1.04 / 2 };
+  // Each Mythic fills the box exactly, width and height, as #1–#5 do (Idan: "exactly the same
+  // hitbox like the original"): the drawn head IS the head box. One fit per character, from the
+  // three-quarter view the pitch shows; every panel of its sheet shares it.
+  function fitOf(ch) {
+    const b = HEADS[ch.id].bl.head;
+    return { sx: BOX.w / (b[2] - b[0]), sy: BOX.h / (b[3] - b[1]) };
+  }
+  function figure(ch, st, panel, yaw, kind, mirror) {
+    const m = HEADS[ch.id][panel], { sx, sy } = fitOf(ch), pad = m.pad;
+    const x = 100 - (pad + (m.head[0] + m.head[2]) / 2) * sx, y = CHIN - (m.chin[1] + pad) * sy;
+    const img = `<image href="mythic-concepts/heads/${ch.id}-${panel}-${st.key}.svg" preserveAspectRatio="none" x="${x.toFixed(1)}" y="${y.toFixed(1)}" width="${((m.w + 2 * pad) * sx).toFixed(1)}" height="${((m.h + 2 * pad) * sy).toFixed(1)}"/>`;
+    return renderBody(ch, yaw, kind, CHIN) + (mirror ? `<g transform="translate(200 0) scale(-1 1)">${img}</g>` : img);
+  }
+  // the hitbox, dashed, over a head whose drawn box is centred on cx with its bottom on `bot`
+  const hit = (cx, bot) => `<ellipse cx="${cx}" cy="${(bot - BOX.h / 2).toFixed(1)}" rx="${HIT.rx.toFixed(1)}" ry="${HIT.ry.toFixed(1)}" fill="none" stroke="#fff" stroke-width="1.6" stroke-dasharray="5 4" opacity=".85"/>`;
+  const one = new URLSearchParams(location.search).get('one');
+  if (one) document.body.classList.add('big');
+  const out = [];
+  for (const ch of MYTHICS.filter((c) => !one || c.id === one)) {
+    const rows = STYLES.map((st) => {
+      const tiles = ch.views.map((v) => `<div class="v"><svg viewBox="0 0 200 250">${figure(ch, st, v.panel, v.yaw, 'full', false)}</svg><div class="c">${v.label}</div></div>`).join('');
+      // on the pitch: the three-quarter view facing right (mirrored when the sheet's faces left),
+      // the game's own small body, beside champion #1 at the same scale
+      const game = `<div class="v game"><svg viewBox="0 0 352 196"><rect x="0" y="173" width="352" height="30" fill="#4fa040"/><svg x="0" y="0" width="200" height="250" viewBox="0 0 200 250">${figure(ch, st, 'bl', 50, 'game', !!ch.facesLeft)}</svg><image href="img/chars/legendary-1/normal.webp" x="186" y="19.5" width="160" height="158"/>${hit(100, CHIN)}${hit(186 + 75.2 * 1.111, 19.5 + 118.2 * 1.111)}</svg><div class="c">In game, beside #1 · dashed: the hitbox, the same for both</div></div>`;
+      return `<div class="opt opt-${st.key}" id="${ch.id}-${st.key}"><div class="lab"><b>${st.key}</b><span class="id">${ch.id} · ${st.name}</span><span class="b">${st.blurb}</span></div><div class="views">${tiles}${game}</div></div>`;
+    }).join('');
+    out.push(`<div class="char" id="${ch.id}"><div class="sheet"><img src="mythic-concepts/ref/${ch.sheet}" alt="${ch.name}'s reference sheet"><div class="t"><b>${ch.id}</b> · ${ch.name} · #${String(ch.shirt).padStart(2, '0')}<br>Sheet panels: ${ch.sheetViews}</div></div><div class="opts">${rows}</div></div>`);
+  }
+  document.getElementById('chars').innerHTML = out.join('');
+</script>
+</body>
+</html>

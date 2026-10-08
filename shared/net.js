@@ -85,12 +85,25 @@ export function ingest(q, t0, frames) {
 
 // The next input, in order. Starvation repeats the last one: a held key must stay held
 // through jitter, and the sim's own edge detection then sees no spurious edge.
+// CATCHING UP (2026-10-09): every starved tick (a packet late on a phone's connection) leaves the
+// server one frame further behind for good — nothing ever made it up — so under real jitter the
+// queue ratcheted up to MAX_BUFFER and frames were thrown away: the player walked slower and was
+// pulled back. Now a queue deeper than FOLD_AT folds its oldest frame into the next one: one tick
+// of input is spent in one, with the buttons of BOTH held, so a tap is never lost.
+const FOLD_AT = 8;
+const oldest = (q) => { let lo = Infinity; for (const seq of q.frames.keys()) if (seq < lo) lo = seq; return lo; };
 export function takeNext(q) {
   if (q.frames.size === 0) return q.last;
-  let lo = Infinity;
-  for (const seq of q.frames.keys()) if (seq < lo) lo = seq;
-  q.last = q.frames.get(lo);
+  let lo = oldest(q), v = q.frames.get(lo);
   q.frames.delete(lo);
+  if (q.frames.size >= FOLD_AT) {
+    const lo2 = oldest(q);
+    v |= q.frames.get(lo2);
+    q.frames.delete(lo2);
+    lo = lo2;
+    q.folded = (q.folded || 0) + 1;
+  }
+  q.last = v;
   if (lo > q.played) q.played = lo;
   return q.last;
 }
@@ -101,10 +114,17 @@ export const queueDepth = (q) => q.frames.size;
 // Snapshots. JSON, not a packed binary format: one 1v1 snapshot is ~500 bytes, so 30Hz is
 // ~15KB/s per client, which is nothing. Binary is a later optimisation with a real cost in
 // debuggability, and this is a mock.
-export function encodeSnapshot(m, tick, oppInput = 0) {
-  return { t: tick, i: oppInput, s: serialize(m) };
+// `ack`: the newest of THIS client's input frames the server has used (its queue's `played`).
+// The state is the server's after exactly those frames, so the client replays its own frames
+// from ack + 1 — not from the server's tick: the server runs ahead of the client's tick count
+// (it started first, and frames take time to arrive), and replaying by tick re-applied the wrong
+// frames and threw away ones never sent (2026-10-09: one tap on an arrow arrived as two — a dash).
+export function encodeSnapshot(m, tick, oppInput = 0, ack = null) {
+  const w = { t: tick, i: oppInput, s: serialize(m) };
+  if (Number.isInteger(ack)) w.a = ack;
+  return w;
 }
 
 export function decodeSnapshot(wire) {
-  return { tick: wire.t, oppInput: wire.i | 0, state: wire.s };
+  return { tick: wire.t, oppInput: wire.i | 0, state: wire.s, ack: Number.isInteger(wire.a) ? wire.a : null };
 }

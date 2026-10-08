@@ -10,6 +10,7 @@ import fs from 'node:fs';
 import * as C from './shared/constants.js';
 import { createMatch, step, headY, serialize } from './shared/sim.js';
 import { shotById, FAMILY_ORDER, AILMENT_ORDER, applyAilment } from './shared/hs-powers.js';
+import { MYTHIC_POWER } from './shared/mythics.js';
 import { createVfx, FAMILY_VFX, AILMENT_VFX, POWER_VFX, FAMILIES_DRAWN, AILMENTS_DRAWN } from './public/champ-vfx.js';
 import { CHAMPION_POWERS, BUILT_STAGES } from './shared/champion-powers.js';
 import { cometAlpha, COMET } from './public/vfx/families.js';
@@ -57,7 +58,7 @@ function recorder() {
 // ── 1. the registry: every family and every ailment has a renderer ─────────
 ok('all 11 families have a renderer', FAMILIES_DRAWN.length === 11 && FAMILY_ORDER.every((f) => typeof FAMILY_VFX[f]?.draw === 'function'), FAMILIES_DRAWN.join(','));
 ok('no renderer for a family that does not exist', Object.keys(FAMILY_VFX).every((f) => FAMILY_ORDER.includes(f)));
-ok('all 9 ailments (6 + the Grab\'s thrown + the tornado\'s twister + Russia\'s ice block) have an overlay', AILMENTS_DRAWN.length === 9 && AILMENT_ORDER.every((a) => typeof AILMENT_VFX[a]?.draw === 'function'), AILMENTS_DRAWN.join(','));
+ok('all 10 ailments (6 + the Grab\'s thrown + the tornado\'s twister + Russia\'s ice block + the Mythic Gem\'s crust) have an overlay', AILMENTS_DRAWN.length === 10 && AILMENT_ORDER.every((a) => typeof AILMENT_VFX[a]?.draw === 'function'), AILMENTS_DRAWN.join(','));
 ok('every family has a 3-colour palette (+ an optional seam)', FAMILY_ORDER.every((f) => Array.isArray(FAMILY_VFX[f].palette) && FAMILY_VFX[f].palette.length >= 3 && FAMILY_VFX[f].palette.length <= 4));
 ok('the Aerial draws its warning streaks', typeof FAMILY_VFX.aerial.warn === 'function');
 
@@ -141,7 +142,7 @@ for (const fam of FAMILY_ORDER) {
 
 // ── 3b. every champion's own power (shared/champion-powers.js) has its renderer, and draws ────
 ok('every built champion power has a renderer (public/vfx/powers/)', BUILT_STAGES.every((n) => POWER_VFX[CHAMPION_POWERS[n].id] && typeof POWER_VFX[CHAMPION_POWERS[n].id].draw === 'function'));
-ok('no renderer for a power that is not built', Object.keys(POWER_VFX).every((id) => BUILT_STAGES.some((n) => CHAMPION_POWERS[n].id === id)));
+ok('no renderer for a power that is not built (the stages\', and the Mythic Gem)', Object.keys(POWER_VFX).every((id) => id === MYTHIC_POWER.cp || BUILT_STAGES.some((n) => CHAMPION_POWERS[n].id === id)));
 for (const n of BUILT_STAGES) {
   const d = CHAMPION_POWERS[n], P = POWER_VFX[d.id];
   // The press looks the same for every character in HS (the yellow flame licks, fx-kit); a power

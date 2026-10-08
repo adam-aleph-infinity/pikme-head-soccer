@@ -20,6 +20,8 @@ import S03 from './champion-powers/stage-03.js';
 import S04 from './champion-powers/stage-04.js';
 import S05 from './champion-powers/stage-05.js';
 import S06 from './champion-powers/stage-06.js';
+// the four Mythic starters' own power (not a stage: shared/mythics.js)
+import MYTHIC_GEM from './champion-powers/mythic.js';
 
 // The registry: one line per built stage.
 export const CHAMPION_POWERS = Object.freeze({
@@ -33,7 +35,7 @@ export const CHAMPION_POWERS = Object.freeze({
 
 export const BUILT_STAGES = Object.freeze(Object.keys(CHAMPION_POWERS).map(Number));
 export const championPower = (stage) => CHAMPION_POWERS[stage] || null;
-const BY_ID = new Map(Object.values(CHAMPION_POWERS).map((d) => [d.id, d]));
+const BY_ID = new Map([...Object.values(CHAMPION_POWERS), MYTHIC_GEM].map((d) => [d.id, d]));
 export const powerById = (id) => BY_ID.get(id) || null;
 
 // How hard a power is to stop — the ladder must never step down (test-arcade). Each term is one

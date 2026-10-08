@@ -136,6 +136,12 @@ const CH = { rarity: 'legendary', number: 3 };
   m.freeze = 0; m.phase = 'play';
   for (let i = 0; i < 120; i++) step(m, [{ right: true, kick: i % 9 === 0 }, { left: true }]);
 
+  // the server's ack (its queue's `played`) travels, so a client replays its own unused frames
+  {
+    const acked = decodeSnapshot(JSON.parse(JSON.stringify(encodeSnapshot(m, 42, 0, 37))));
+    ok('a snapshot carries the server\'s ack of my inputs', acked.ack === 37);
+    ok('…and a snapshot without one says so (an old server)', decodeSnapshot(encodeSnapshot(m, 42)).ack === null);
+  }
   const wire = encodeSnapshot(m, 42);
   const snap = decodeSnapshot(wire);
   ok('a snapshot carries its tick', snap.tick === 42);

@@ -5,6 +5,8 @@
 // Select is two vertical reels, the result screen has one button that goes back to Player
 // Select, and online keeps two (play again / leave).
 
+import { MYTHIC, MYTHIC_COUNT, MYTHICS } from './mythics.js';
+
 // ── THE CAROUSEL ──────────────────────────────────────────────────────────
 // The modes on the main menu, in HS's order (ARCADE, TOURNAMENT, …, MULTIPLAYER after the
 // single-player modes). Practice is ours: HS has no free match against the computer.
@@ -55,21 +57,36 @@ export function reelSnap(from, pos, min, max) {
 }
 
 // ── YOUR CARDS ────────────────────────────────────────────────────────────
-// Rarest first, the order the app's album is in.
-export const RARITY_ORDER = ['legendary', 'epic', 'rare', 'common'];
-export const RARITY_NAME = { legendary: 'אגדי', epic: 'אדיר', rare: 'נדיר', common: 'רגיל' };
-export const RARITY_COLOR = { legendary: '#ffb800', epic: '#b46bff', rare: '#4ea0ff', common: '#9ab0c5' };
+// Rarest first, the order the app's album is in — and above them the Mythic starters, four cards
+// that are the game's own, not the album's (shared/mythics.js).
+export const RARITY_ORDER = [MYTHIC, 'legendary', 'epic', 'rare', 'common'];
+export const RARITY_NAME = { [MYTHIC]: 'מיתי', legendary: 'אגדי', epic: 'אדיר', rare: 'נדיר', common: 'רגיל' };
+export const RARITY_COLOR = { [MYTHIC]: '#ff5fd2', legendary: '#ffb800', epic: '#b46bff', rare: '#4ea0ff', common: '#9ab0c5' };
+// How many cards a rarity has: 45 of each in the album, four Mythics.
+export const cardsIn = (rarity) => (rarity === MYTHIC ? MYTHIC_COUNT : 45);
 // The rarity pill (HS's HERO pill) steps through the rarities.
 export const nextRarity = (r) => RARITY_ORDER[wrap(RARITY_ORDER.indexOf(r) + 1, RARITY_ORDER.length)];
 // One rarity's reel: every card of it, in number order, with whether you own it — a card you
 // do not own is SHOWN, caged (HS shows its locked characters the same way), never hidden.
-export function cardReel(rarity, owns, perRarity = 45) {
+export function cardReel(rarity, owns, perRarity = cardsIn(rarity)) {
   const out = [];
   for (let n = 1; n <= perRarity; n++) out.push({ rarity, number: n, owned: !!owns(rarity, n) });
   return out;
 }
+// THE CHARACTERS (Idan, 2026-10-08): Player Select and the card popup show ONE list, "דמויות", with
+// no rarities to switch between — the cards the game plays are the legendary ones. Your Mythic
+// starter comes first; the three you did not pick are not shown at all (not even caged). Then
+// every legendary card in number order, the ones not in your album caged.
+export function charReel(owns) {
+  const out = [];
+  for (let n = 1; n <= MYTHIC_COUNT; n++) if (owns(MYTHIC, n)) out.push({ rarity: MYTHIC, number: n, owned: true });
+  return out.concat(cardReel('legendary', owns));
+}
+export const charIndex = (list, card) => list.findIndex((c) => c.rarity === card.rarity && c.number === card.number);
+// What a card is called on screen: a Mythic by its name, any other by its number.
+export const charName = (card) => (card.rarity === MYTHIC ? MYTHICS[card.number - 1].name : `דמות #${card.number}`);
 // The first card of a rarity you can play: the one to land on after switching to it.
-export function firstOwned(rarity, owns, perRarity = 45) {
+export function firstOwned(rarity, owns, perRarity = cardsIn(rarity)) {
   for (let n = 1; n <= perRarity; n++) if (owns(rarity, n)) return n;
   return null;
 }

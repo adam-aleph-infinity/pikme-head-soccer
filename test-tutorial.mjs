@@ -20,13 +20,13 @@ const fresh = { prog: { cleared: 0, record: {} }, stats: { points: 0, lv: { spee
 // ── who gets it ──
 ok('a brand-new player gets it', T.shouldRun({ ...fresh, params: P() }));
 ok('…not once it is done', !T.shouldRun({ ...fresh, flag: 'done', params: P() }));
-ok('…not with an arcade stage cleared', !T.shouldRun({ prog: { cleared: 1, record: {} }, stats: fresh.stats, params: P() }));
-ok('…not with a stage merely played', !T.shouldRun({ prog: { cleared: 0, record: { 1: { last: [0, 2] } } }, stats: fresh.stats, params: P() }));
-ok('…not with points', !T.shouldRun({ prog: fresh.prog, stats: { ...fresh.stats, points: 100 }, params: P() }));
-ok('…not with an upgrade', !T.shouldRun({ prog: fresh.prog, stats: { points: 0, lv: { ...fresh.stats.lv, kick: 1 } }, params: P() }));
+// 2026-10-08: everyone does it once, with their Mythic starter (Idan) — progress no longer skips it
+ok('a player with arcade progress, points and upgrades gets it too (Idan: every player)', T.shouldRun({ flag: null, params: P() }) && T.TUT_KEY === 'hs.tutorial.v2');
+ok('…a run after the reward was paid still runs, but owes nothing', T.shouldRun({ flag: 'paid', params: P() }) && !T.owesReward('paid') && !T.owesReward('done') && T.owesReward(null));
 ok('?tutorial forces it, even when done', T.shouldRun({ ...fresh, flag: 'done', params: P('?tutorial') }));
-ok('the harnesses (?nointro) and deep links skip it', ['?nointro', '?notutorial', '?room=ABCD', '?play=1', '?arcade=3'].every((q) => !T.shouldRun({ ...fresh, params: P(q) })));
-ok('no storage at all still works', T.shouldRun({ params: P() }) && !T.playedBefore(null, null));
+ok('the harnesses (?nointro) and testing links skip it', ['?nointro', '?notutorial', '?play=1', '?arcade=3'].every((q) => !T.shouldRun({ ...fresh, params: P(q) })));
+ok('…but a friend\'s room link does not: the tutorial first, then the room (Idan)', T.shouldRun({ params: P('?room=ABCD') }));
+ok('no storage at all still works', T.shouldRun({ params: P() }));
 
 // ── the drills ──
 const ids = T.DRILLS.map((d) => d.id).join();
@@ -37,7 +37,7 @@ ok('the first two send you right, then left', T.DRILLS[0].mark > 530 && T.DRILLS
 ok('a ball drill passes on a goal', T.DRILLS.filter((d) => d.ball).every((d) => d.pass === 'goal'));
 ok('the buttons arrive one by one and never leave', T.DRILLS.every((d, i) => i === 0 || T.DRILLS[i - 1].pad.every((k) => d.pad.includes(k))));
 ok('POWER is never on the pad in the drills (it is taught in the match)', T.DRILLS.every((d) => !d.pad.includes('power')));
-ok('every drill says something and has a keyboard line', T.DRILLS.every((d) => d.say && d.keys));
+ok('every drill says something, and none has a keyboard line (a phone game, Idan)', T.DRILLS.every((d) => d.say && !('keys' in d)));
 ok('nextDrill walks the list and ends', T.nextDrill(0) === 1 && T.nextDrill(T.DRILLS.length - 1) === null);
 
 // ── the marker and the ball ──
@@ -56,7 +56,7 @@ ok('the practice match pays exactly the first upgrade', T.REWARD === costOf(1), 
 ok('the practice match is short (HB2: 38 s)', T.MATCH_SECONDS >= 30 && T.MATCH_SECONDS <= 60);
 ok('a stuck shot drill gives up on aim after a few balls', T.MAX_TRIES >= 2 && T.MAX_TRIES <= 5 && T.RETRY_IDLE > 1);
 ok('the coach is one of the drawn characters', T.COACH >= 1 && T.COACH <= 5);
-ok('the coach has a line for every moment', ['hello', 'again', 'match', 'power', 'powerGo', 'powerAfter', 'won', 'lost', 'toShop', 'shop', 'stats', 'bought', 'arcade'].every((k) => T.SAY[k]) && T.SAY.good.length > 1);
+ok('the coach has a line for every moment', ['hello', 'again', 'match', 'power', 'powerGo', 'powerAfter', 'won', 'lost', 'toShop', 'shop', 'stats', 'bought', 'arena'].every((k) => T.SAY[k]) && T.SAY.good.length > 1);
 
 // ── the counter lesson, played in the sim exactly as tutorial.js stages it ──
 // You on your mark, him on his with the ball on his head and his power armed; his shot freezes
@@ -87,11 +87,35 @@ for (const n of T.FOES) {
 }
 ok('the opponent is never your own card', [1, 2, 3, 7].every((n) => T.foeFor({ rarity: 'legendary', number: n }).number !== n) && T.foeFor({ rarity: 'epic', number: 2 }).number === 2);
 ok('…and never the coach', T.FOES.every((n) => n !== T.COACH));
-ok('the freeze sits inside the measured block window (300–520 px)', T.COUNTER_GAP >= 300 && T.COUNTER_GAP <= 520);
+ok('the freeze sits inside the measured block window (280–480 px)', T.COUNTER_GAP >= 340 && T.COUNTER_GAP <= 420);
 
 // ── the narration ──
 ok('every coach line has a clip id', Object.values(T.SAY).flat().every((t) => T.voiceFor(t)) && T.DRILLS.every((d) => T.voiceFor(d.say)));
 ok('clip ids are safe file names', Object.keys(T.LINES).every((k) => /^[a-zA-Z0-9]+$/.test(k)));
+
+// ── the shot drills' ball waits, and a kick close enough always scores (Idan, 2026-10-08) ──
+ok('the air ball hangs over a standing head and under a jumping one', T.HOLD_HIGH - C.BALL_R > C.GROUND_Y - (headY({ y: C.GROUND_Y }) - C.HEAD_R) && T.HOLD_HIGH - C.BALL_R < C.GROUND_Y - (headY({ y: C.GROUND_Y }) - C.HEAD_R) + C.JUMP_V ** 2 / (2 * C.PLAYER_GRAV));
+ok('the air ball needs a kick in the air; a kick on the grass leaves it', T.kickReaches('drop', 60, true) && !T.kickReaches('drop', 60, false));
+ok('the ground ball goes from a kick near it, not from across the pitch', T.kickReaches('ground', 40, false) && T.kickReaches('ground', 120, false) && !T.kickReaches('ground', 300, false) && !T.kickReaches('ground', -120, false));
+// the guided shot, in the real sim, from every spot a drill can put the ball (ballSpot's 360 … W−330)
+for (const kind of ['drop', 'ground']) {
+  for (const x of [360, 500, 600, C.W - 330]) {
+    const m = createMatch({ rarity: 'legendary', number: 1 }, { rarity: 'legendary', number: 2 }, {});
+    m.freeze = 0; m.phase = 'play'; m.banner = null; m.bannerT = 0; m.ballWait = 0; m.clock = 999;
+    const p = m.players[0], f = m.players[1], b = m.ball;
+    p.x = x - 60; b.x = x; b.y = kind === 'drop' ? C.GROUND_Y - T.HOLD_HIGH : C.GROUND_Y - b.r; b.vx = 120; b.vy = -80;
+    let t = T.aimTime(b.x, C.W), goal = null;
+    const to = T.aimTarget(C.W, C.GROUND_Y);
+    for (let i = 0; i < 60 * 3 && !goal; i++) {
+      f.x = C.W + 900; f.y = -4000; f.vx = 0; f.vy = 0;
+      if (!(m.hitStop > 0) && b.x <= C.W - C.GOAL_W - 25) { t = Math.max(0.12, t - C.TICK); const v = T.aimVelocity(b.x, b.y, to.x, to.y, t, C.BALL_GRAV); b.vx = v.vx; b.vy = v.vy; }
+      step(m, [{}, {}], C.TICK);
+      goal = m.events.find((e) => e.type === 'goal');
+      m.events.length = 0;
+    }
+    ok(`the guided ${kind} shot from x ${x} scores in your goal`, goal && goal.player === 0, JSON.stringify({ x: Math.round(b.x), y: Math.round(b.y) }));
+  }
+}
 
 console.log(`tutorial: ${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);

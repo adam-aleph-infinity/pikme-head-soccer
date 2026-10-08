@@ -1,0 +1,27 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+<defs>
+<linearGradient id="gy" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#ffe95c"/><stop offset=".55" stop-color="#ffd400"/><stop offset="1" stop-color="#ffb000"/></linearGradient>
+<linearGradient id="gr" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#ff2a48"/><stop offset="1" stop-color="#e00f30"/></linearGradient>
+<linearGradient id="gold" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#fff4b0"/><stop offset=".35" stop-color="#ffd43b"/><stop offset=".75" stop-color="#f0a400"/><stop offset="1" stop-color="#c97a00"/></linearGradient>
+<linearGradient id="face" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#f2b81c"/><stop offset=".5" stop-color="#ffd84a"/><stop offset="1" stop-color="#ffe98a"/></linearGradient>
+<clipPath id="cc"><circle cx="256" cy="256" r="238"/></clipPath>
+</defs>
+<circle cx="256" cy="262" r="246" fill="#000" opacity=".18"/>
+<circle cx="256" cy="256" r="247" fill="#7a3f00"/>
+<circle cx="256" cy="256" r="238" fill="url(#gold)"/>
+<circle cx="256" cy="256" r="221" fill="none" stroke="#b36b00" stroke-width="13" stroke-dasharray="8.6 7" opacity=".55"/>
+<circle cx="256" cy="256" r="208" fill="none" stroke="#a45f00" stroke-width="6"/>
+<circle cx="256" cy="256" r="204" fill="none" stroke="#fff3a6" stroke-width="3" opacity=".85"/>
+<circle cx="256" cy="256" r="200" fill="url(#face)" stroke="#c37800" stroke-width="5"/>
+<circle cx="256" cy="256" r="194" fill="none" stroke="#fff6c4" stroke-width="3" opacity=".55"/>
+<g clip-path="url(#cc)"><polygon points="60,40 190,0 70,470 -40,470" fill="#fff" opacity=".17"/><polygon points="215,0 255,0 105,512 65,512" fill="#fff" opacity=".12"/></g>
+<g transform="translate(7,11)" opacity=".38"><g transform="translate(256,260) scale(.385) translate(-400,-423)"><polygon points="398,42 738,235 738,610 400,805 62,610 62,235" fill="#7a3f00" stroke="#7a3f00" stroke-width="16" stroke-linejoin="round"/></g></g>
+<g transform="translate(256,260) scale(.385) translate(-400,-423)">
+<polygon points="398,42 738,235 738,610 400,805 62,610 62,235" fill="#0c0c12" stroke="#0c0c12" stroke-width="16" stroke-linejoin="round"/>
+<path d="M701 253 L698 257 L693 257 L686 264 L681 264 L667 272 L661 280 L659 280 L653 286 L630 302 L628 306 L628 491 L635 508 L688 540 L702 546 L713 553 L716 553 L718 548 L718 261 L717 255 L715 253Z M359 84 L355 84 L130 213 L83 241 L80 245 L80 608 L129 637 L136 636 L142 631 L219 588 L225 580 L360 504 L366 499 L404 478 L413 471 L413 460 L397 436 L376 394 L374 392 L367 392 L311 423 L196 491 L177 501 L172 497 L172 299 L174 295 L180 290 L360 185Z" fill="url(#gr)" fill-rule="evenodd"/>
+<path d="M397 58 L359 80 L360 337 L362 350 L373 381 L373 391 L397 438 L412 461 L420 467 L450 501 L479 526 L503 542 L569 580 L573 584 L573 586 L569 591 L399 689 L396 689 L387 681 L222 587 L211 590 L140 631 L135 635 L134 639 L385 785 L402 791 L717 610 L720 607 L719 559 L717 554 L678 533 L637 507 L628 503 L621 502 L547 458 L517 435 L495 410 L475 379 L466 361 L463 350 L458 341 L451 316 L448 300 L446 271 L446 201 L447 197 L450 194 L454 195 L494 219 L507 225 L520 234 L542 245 L562 258 L568 260 L572 264 L611 285 L625 295 L631 295 L687 261 L715 246 L715 240 L678 217 L457 91 L417 66 L402 58Z" fill="url(#gy)" fill-rule="evenodd"/>
+</g>
+
+<path d="M41.6 194.5 A223 223 0 0 1 225.0 35.2" fill="none" stroke="#fff" stroke-width="8" stroke-linecap="round" opacity=".8"/>
+<path d="M398 94 Q403.28 112.72 422 118 Q403.28 123.28 398 142 Q392.72 123.28 374 118 Q392.72 112.72 398 94Z" fill="#fff" opacity="1"/><path d="M432 146 Q434.64 155.36 444 158 Q434.64 160.64 432 170 Q429.36 160.64 420 158 Q429.36 155.36 432 146Z" fill="#fff" opacity="0.9"/><path d="M112 386 Q114.2 393.8 122 396 Q114.2 398.2 112 406 Q109.8 398.2 102 396 Q109.8 393.8 112 386Z" fill="#fff" opacity="0.7"/>
+</svg>

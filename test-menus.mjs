@@ -40,8 +40,20 @@ ok('a rarity reel holds all 45 cards, in number order', reel.length === 45 && re
 ok('…the ones you do not own shown, marked', reel.filter((c) => c.owned).map((c) => c.number).join() === '7,12');
 ok('no album means every card is yours', M.cardReel('rare', all).every((c) => c.owned));
 ok('switching rarity lands on your first card of it', M.firstOwned('epic', some) === 7 && M.firstOwned('rare', some) === null);
-ok('the rarity pill steps rarest-first and loops', M.nextRarity('legendary') === 'epic' && M.nextRarity('common') === 'legendary');
+ok('the rarity pill steps rarest-first and loops', M.nextRarity('mythic') === 'legendary' && M.nextRarity('legendary') === 'epic' && M.nextRarity('common') === 'mythic');
+ok('the Mythic row is four cards, every other rarity 45', M.cardsIn('mythic') === 4 && M.cardReel('mythic', all).length === 4 && M.cardReel('epic', all).length === 45);
 ok('every rarity has a name and a colour', M.RARITY_ORDER.every((r) => M.RARITY_NAME[r] && M.RARITY_COLOR[r]));
+{
+  // the characters list (Idan, 2026-10-08): your starter first, the other Mythics not shown, then the legendary cards
+  const own = (r, n) => (r === 'mythic' ? n === 2 : n % 2 === 1);
+  const L = M.charReel(own);
+  ok('the characters: your Mythic first, then legendary 1–45', L.length === 46 && L[0].rarity === 'mythic' && L[0].number === 2 && L.slice(1).every((c, i) => c.rarity === 'legendary' && c.number === i + 1));
+  ok('…the other three Mythics are not in it', L.filter((c) => c.rarity === 'mythic').length === 1);
+  ok('…cards not in the album are shown, caged', !L[2].owned && L[1].owned);
+  ok('…no starter yet: only the legendary cards', M.charReel((r) => r !== 'mythic').length === 45);
+  ok('charIndex finds a card, -1 for one not in the list', M.charIndex(L, { rarity: 'legendary', number: 3 }) === 3 && M.charIndex(L, { rarity: 'epic', number: 3 }) === -1);
+  ok('charName: a Mythic by name, others by number', M.charName({ rarity: 'mythic', number: 2 }) === 'אורי' && M.charName({ rarity: 'legendary', number: 7 }) === 'דמות #7');
+}
 
 // ── stars ──
 ok('five stars, halves allowed', M.starRow(3.5).join() === 'full,full,full,half,empty' && M.starRow(0.5).join() === 'half,empty,empty,empty,empty');

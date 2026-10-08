@@ -9,14 +9,16 @@
 //   MATCH    "let's have a practice match" → the VS finding an opponent → a short match against
 //            the easiest champion. At kick-off it stops, dims everything but POWER, and a glove
 //            taps it: the first power shot is the player's own.
-//   AFTER    the result pays the first upgrade; the coach walks you into the shop to buy it,
-//            then to the main menu and the arcade.
+//   AFTER    the result pays the first upgrade; the coach walks you into the shop to buy it;
+//            your team's leader welcomes you to the team (team.js, three cards); then the main
+//            menu and PLAY, which is the arena.
 //
 // game.js owns the match. It asks this module four things every tick (hold / mask / afterStep /
 // event) and lets it draw on the pitch (drawGround / drawOver). Everything else here is DOM.
 import * as C from '../shared/constants.js';
 import * as T from '../shared/tutorial.js';
 import { headY } from '../shared/sim.js';
+import { championFor } from '../shared/champions.js';
 
 const GLOVE = `<svg viewBox="0 0 64 84" aria-hidden="true"><g stroke="#1b1f3a" stroke-width="3.5" stroke-linejoin="round" stroke-linecap="round">
   <path fill="#fff" d="M19 44 V11 a7 7 0 0 1 14 0 V36 a6 6 0 0 1 12 0 V40 a6 6 0 0 1 11 3 V60 c0 11-8 18-19 18 h-7 c-9 0-15-5-18-12 l-7-15 a6 6 0 0 1 10-6 Z"/>
@@ -44,19 +46,19 @@ export function createTutorial(ctx) {
   root.className = 'hidden';
   root.innerHTML = `<i class="tut-fade"></i><i class="tut-spot"></i><i class="tut-ring"></i>
     <div class="tut-coach"><i class="tc-suit"></i><i class="tc-face"></i>${HEADSET}<span class="tc-thumb">${THUMB}</span></div>
-    <div class="tut-bub"><b class="tut-say"></b><small class="tut-keys"></small><small class="tut-next"></small></div>
+    <div class="tut-bub"><b class="tut-say"></b><small class="tut-next"></small></div>
     <i class="tut-hand">${GLOVE}</i><i class="tut-check"></i>`;
   document.body.appendChild(root);
   const el = (s) => root.querySelector(s);
   const fadeEl = el('.tut-fade'), spotEl = el('.tut-spot'), ringEl = el('.tut-ring'), handEl = el('.tut-hand');
   const coachEl = el('.tut-coach'), faceEl = el('.tc-face'), bubEl = el('.tut-bub'), checkEl = el('.tut-check');
-  const touch = matchMedia('(pointer: coarse)').matches;
 
   // ── STATE ──
   let on = false, phase = null, hold = false, firstTime = true;
   let allow = new Set();
   let di = 0, dState = 'go', mark = null, arrow = false, ballWanted = false, placeNext = null;
   let tries = 0, idleT = 0, simT = 0, landed = false, quietT = 0;
+  let held = null, aim = null;          // the shot drills' ball: held still, then guided in (T.HOLD_HIGH)
   let pw = null, playT = 0, pwT = 0;
   // the counter lesson: null → 'wait' → 'talk' → 'fly' → 'hold' → 'after' → 'done'
   let cw = null, cwT = 0, botFrozen = false;
@@ -74,16 +76,18 @@ export function createTutorial(ctx) {
     coachEl.classList.toggle('big', mode === 'big');
     if (mode !== 'off') {
       const px = Math.round((mode === 'big' ? 52 : 19) * u());
-      ctx.paintHead(faceEl, 'legendary', T.COACH, px, { expr: 'happy', fill: 1.05 });
+      // the Saltiz commentator (characters.js coach:1), his own headset and shirt drawn in: no overlay ones
+      coachEl.classList.add('drawn');
+      ctx.paintHead(faceEl, 'coach', 1, px, { expr: 'happy', fill: 1 });
     }
   }
-  // say(text, { at: 'coach' | 'big' | element, side: 'up' | 'down', keys, next })
+  // say(text, { at: 'coach' | 'big' | element, side: 'up' | 'down', next })
+  // (no keyboard line under it: it is a phone game, Idan 2026-10-08)
   function say(text, opts = {}) {
     if (!text) { bubEl.classList.remove('on'); bubAt = null; return; }
     bubEl.querySelector('.tut-say').textContent = text;
     ctx.voice?.(T.voiceFor(text));                  // the coach says it, in Idan's voice
-    bubEl.querySelector('.tut-keys').textContent = !touch && opts.keys ? 'מקלדת: ' + opts.keys : '';
-    bubEl.querySelector('.tut-next').textContent = opts.next ? (touch ? 'לחצו להמשך' : 'לחצו / Enter להמשך') : '';
+    bubEl.querySelector('.tut-next').textContent = opts.next ? 'לחצו להמשך' : '';
     bubEl.classList.toggle('big', opts.at === 'big');
     bubAt = { at: opts.at || 'coach', side: opts.side || 'up' };
     bubEl.classList.remove('on'); void bubEl.offsetWidth; bubEl.classList.add('on');
@@ -196,7 +200,8 @@ export function createTutorial(ctx) {
   function start({ replay = false } = {}) {
     gen++;
     timers.forEach(clearTimeout); timers = [];
-    on = true; firstTime = !replay && read() !== 'done';
+    // the first run owes the reward (a run after it was paid, or a replay, owes nothing)
+    on = true; firstTime = !replay && T.owesReward(read());
     root.classList.remove('hidden');
     document.body.classList.add('tut-on', 'tut-drill');
     cancelAnimationFrame(raf); raf = requestAnimationFrame(loop);
@@ -222,14 +227,14 @@ export function createTutorial(ctx) {
     allow = new Set(d.pad);
     pads(d.pad);
     mark = d.mark ?? null;
-    say(d.say, { keys: d.keys });
+    say(d.say);
     ring(ctx.padBtn(d.ring));
     if (d.ball) placeNext = d.ball;
   }
   function ok() {
     if (dState !== 'go') return;
     dState = 'ok';
-    mark = null; arrow = false; ballWanted = false; placeNext = null;
+    mark = null; arrow = false; ballWanted = false; placeNext = null; held = null; aim = null;
     ring(null);
     check();
     say(T.SAY.good[di % T.SAY.good.length]);
@@ -242,14 +247,20 @@ export function createTutorial(ctx) {
     tries++;
     idleT = 0;
     const d = T.DRILLS[di];
-    say(tries >= T.MAX_TRIES ? T.LINES.kick : T.SAY.again, { keys: d.keys });
-    laterV(1400, () => { if (phase === 'drill' && dState === 'go' && T.DRILLS[di] === d) say(d.say, { keys: d.keys }); });
+    say(tries >= T.MAX_TRIES ? T.LINES.kick : T.SAY.again);
+    laterV(1400, () => { if (phase === 'drill' && dState === 'go' && T.DRILLS[di] === d) say(d.say); });
     placeNext = d.ball;
   }
+  // Every shot drill's ball (and every retry) starts from the same place: you back on your start
+  // spot, the ball in front of you (Idan: the ground drill did, after the goal's reset; the air
+  // ball came in wherever you happened to be).
   function placeBall(M, kind) {
-    const p = M.players[0], s = T.ballSpot(kind, p.x, C.W), b = M.ball;
+    const p = M.players[0], b = M.ball;
+    Object.assign(p, { x: C.SPAWN_X[0], y: C.GROUND_Y, vx: 0, vy: 0, onGround: true, facing: p.side, kickT: 0, dashT: 0, jumps: C.MAX_JUMPS });
+    const s = T.ballSpot(kind, p.x, C.W);
     b.x = s.x; b.vx = 0; b.vy = 0; b.spin = 0; b.power = null;
-    b.y = kind === 'drop' ? C.BALL_SPAWN.y - 140 : C.GROUND_Y - b.r;
+    b.y = kind === 'drop' ? C.GROUND_Y - T.HOLD_HIGH : C.GROUND_Y - b.r;
+    held = { x: b.x, y: b.y, kind }; aim = null;
     M.ballWait = 0; M.idle = 0;
     ballWanted = true; arrow = true; idleT = 0;
   }
@@ -262,32 +273,47 @@ export function createTutorial(ctx) {
     later(450, () => { coach('big'); later(300, () => { say(T.SAY.match, { at: 'big', next: true }); laterV(3450, () => { if (tapNext === find) { waitTap(null); find(); } }); }); });
     later(900, () => waitTap(find));
   }
+  // FINDING AN OPPONENT (HB2 46–56 s): the VS stays up through the whole search, the faces spin
+  // like a roulette — fast, then slowing — and land on the opponent with a pop, a flash and a gold
+  // ring ("נמצא יריב!" and his champion's name), then "המשחק נטען…" fills a bar, and the VS goes.
   function find() {
     if (phase !== 'outro') return;
     phase = 'find';
     say(null); coach('off'); fade('black');
-    const vs = $('#vs'), meC = ctx.me(), foe = ctx.foe();
+    const vs = $('#vs'), meC = ctx.me(), foe = ctx.foe(), f1 = $('#vsFace1');
     let label = vs.querySelector('.vs-find');
     if (!label) { label = document.createElement('b'); label.className = 'vs-find'; vs.appendChild(label); }
+    const load = document.createElement('span'); load.className = 'vs-load'; load.innerHTML = '<i></i>';
+    const name = document.createElement('b'); name.className = 'vs-foe-name';
+    name.textContent = championFor(foe)?.title || '';
+    // the roulette: every drawn character but you
+    const same = (c) => c.rarity === meC.rarity && c.number === meC.number;
+    const pool = [...[1, 2, 3, 4, 5].map((n) => ({ rarity: 'legendary', number: n })), ...[1, 2, 3, 4].map((n) => ({ rarity: 'mythic', number: n }))].filter((c) => !same(c));
     later(350, () => {
       fade(null);
-      vs.classList.remove('hidden', 'skip'); vs.classList.add('tut-find');
+      vs.classList.remove('hidden', 'skip', 'out'); vs.classList.add('tut-find');
       vs.style.animation = 'none'; void vs.offsetWidth; vs.style.animation = '';
       ctx.paintFace($('#vsFace0'), meC, false);
-      label.textContent = 'מחפשים יריב…'; label.classList.add('blink');
-      const f1 = $('#vsFace1'); f1.classList.add('spin');
-      const pool = [1, 2, 3, 4, 5].map((n) => ({ rarity: 'legendary', number: n }));
-      let k = 0;
-      const spinT = setInterval(() => { if (!on) return clearInterval(spinT); ctx.paintFace(f1, pool[k++ % pool.length], true); ctx.sfx('tick'); }, 130);
-      later(2600, () => {
-        clearInterval(spinT);
-        f1.classList.remove('spin');
+      label.innerHTML = 'מחפשים יריב<i class="vs-dots"></i>'; label.classList.remove('found');
+      f1.classList.add('spin'); f1.classList.remove('found');
+      f1.appendChild(name); vs.appendChild(load);
+      // fast, then slower and slower: 55 ms a face growing 12% a step, about 2.8 s in all
+      let k = 0, t = 0, d = 55;
+      const tick = () => { if (!on) return; ctx.paintFace(f1, pool[k++ % pool.length], true); ctx.sfx('tick'); };
+      while (t + d < 2800) { t += d; later(t, tick); d *= 1.12; }
+      later(t + 260, () => {
+        f1.classList.remove('spin'); f1.classList.add('found');
         ctx.paintFace(f1, foe, true);
-        label.classList.remove('blink'); label.textContent = 'נמצא יריב!';
+        label.textContent = 'נמצא יריב!'; label.classList.add('found');
         ctx.sfx('swish');
       });
-      later(3500, () => { label.textContent = 'המשחק נטען…'; });
-      later(4200, () => { vs.classList.remove('tut-find'); vs.classList.add('hidden'); label.textContent = ''; match(); });
+      later(t + 1350, () => { label.innerHTML = 'המשחק נטען<i class="vs-dots"></i>'; label.classList.remove('found'); load.classList.add('go'); });
+      later(t + 2500, () => vs.classList.add('out'));
+      later(t + 2850, () => {
+        vs.classList.remove('tut-find', 'out'); vs.classList.add('hidden');
+        f1.classList.remove('found', 'spin'); name.remove(); load.remove(); label.textContent = '';
+        match();
+      });
     });
   }
   function match() {
@@ -305,7 +331,7 @@ export function createTutorial(ctx) {
     allow = new Set(['power']);
     const btn = ctx.padBtn('power');
     spot(btn); ring(btn); hand(btn);
-    say(T.SAY.power, { at: btn, side: 'up', keys: 'J' });
+    say(T.SAY.power, { at: btn, side: 'up' });
     ctx.sfx('tap');
   }
   function powerPressed() {
@@ -349,7 +375,7 @@ export function createTutorial(ctx) {
     allow = new Set(['kick']);
     const btn = ctx.padBtn('kick');
     spot(btn); ring(btn); hand(btn);
-    say(T.SAY.counterNow, { at: btn, side: 'up', keys: '↓ / S' });
+    say(T.SAY.counterNow, { at: btn, side: 'up' });
   }
   function counterPressed() {
     cw = 'after'; cwT = 0; hold = false;
@@ -425,15 +451,17 @@ export function createTutorial(ctx) {
     later(650, () => {
       speed0 = ctx.stats().lv.speed;
       const row = $('#upgRows .upg-row[data-k="speed"]'), buy = row?.querySelector('.upg-buy');
-      // a replay only explains: it never spends points the player earned for real
-      if (firstTime && buy && !buy.disabled) {
+      // a replay only explains: it never spends points the player earned for real. And the guided
+      // buy is the level-1 speed the reward pays for — a player who already has speed (one who had
+      // played before the tutorial was for everyone) is only shown, and keeps the 500 (Idan)
+      if (firstTime && buy && !buy.disabled && speed0 === 0) {
         phase = 'shop';
         spot(row); ring(buy); hand(buy);
         say(T.SAY.shop, { at: row, side: 'down' });
         guardOk = [buy];
       } else {
         phase = 'shop-talk';
-        talk(T.SAY.stats, toMenu);
+        talk(T.SAY.stats, teamStep);
       }
     });
   }
@@ -443,7 +471,7 @@ export function createTutorial(ctx) {
     ring(null); hand(null);
     check();
     say(T.SAY.bought, { at: '#upgRows', side: 'down' });
-    later(1900, () => talk(T.SAY.stats, toMenu));
+    later(1900, () => talk(T.SAY.stats, teamStep));
   }
   // the coach, big, in the dark, until a tap (HB2 42 s)
   function talk(text, then) {
@@ -452,28 +480,42 @@ export function createTutorial(ctx) {
     later(300, () => say(text, { at: 'big', next: true }));
     later(600, () => waitTap(() => { fade(null); coach('off'); say(null); then(); }));
   }
-  // THE MENU: the arcade is where it goes on
+  // THE TEAM (Idan, 2026-10-08): the coach steps aside and your team's leader takes over for three
+  // cards — welcome to my team, the four teams and their week, what you can win (team.js). The
+  // leader is not the narrator, so the cards are not spoken.
+  function teamStep() {
+    phase = 'team'; guardOk = ['#tmIntro'];
+    say(null); spot(null); ring(null); hand(null); coach('off'); fade(null);
+    ctx.voice?.(null);
+    if (!ctx.teamIntro) { toMenu(); return; }
+    ctx.teamIntro(() => { if (on && phase === 'team') toMenu(); });
+  }
+  // THE MENU: PLAY, which is the arena (Idan: Clash Royale's Battle button); your team's chip
+  // under your profile lights up once on the way
   function toMenu() {
     phase = 'menu'; guardOk = ['#tut'];
     say(null); spot(null);
     ctx.menu.openMenu();
+    const chip = document.querySelector('#hmTeam');
+    if (chip) { chip.classList.remove('pulse'); void chip.offsetWidth; chip.classList.add('pulse'); }
     later(700, () => {
-      const mode = $('.mn-mode.on') || '#mnTrack';
+      const mode = '#hmPlay';
       ring(mode);
-      say(T.SAY.arcade, { at: mode, side: 'up', next: true });
+      say(ctx.arenaLive?.() ? T.SAY.arena : T.SAY.practice, { at: mode, side: 'up', next: true });
       waitTap(finish);
     });
   }
   function finish() {
     write('done');
     stop();
+    ctx.onFinish?.();
   }
   function stop() {
     gen++;
     ctx.voice?.(null);
     timers.forEach(clearTimeout); timers = [];
     on = false; phase = null; hold = false; guardOk = null; waitTap(null);
-    mark = null; arrow = false;
+    mark = null; arrow = false; held = null; aim = null;
     cancelAnimationFrame(raf);
     pads(null);
     coach('off'); say(null); ring(null); spot(null); hand(null); fade(null);
@@ -537,12 +579,37 @@ export function createTutorial(ctx) {
     if (phase !== 'drill' || dState !== 'go') return;
     const d = T.DRILLS[di];
     if (d.pass === 'mark' && p.onGround && T.onMark(p.x, d.mark)) ok();
-    if (d.ball && ballWanted && live) {
+    if (d.ball && ballWanted && live) holdAndAim(M, p);
+    if (d.ball && ballWanted && live && !held) {
       const b = M.ball;
       const dead = Math.abs(b.vx) < 30 && Math.abs(b.vy) < 40 && b.y > C.GROUND_Y - b.r - 6;
       idleT = dead ? idleT + C.TICK : 0;
       if (idleT > T.RETRY_IDLE) retry();
     }
+  }
+  // The held ball (T.HOLD_HIGH): kept still until a kick close enough lets it go; then, a few ticks
+  // on (the boot visibly meets it), steered into the far net on a fresh arc every tick.
+  function holdAndAim(M, p) {
+    const b = M.ball;
+    if (held) {
+      const kicked = M.events.some((e) => e.player === 0 && ((e.type === 'strike' && !e.head) ||
+        (e.type === 'kick' && T.kickReaches(held.kind, held.x - p.x, !p.onGround))));
+      if (kicked && !held.go) held.go = 0.07;
+      if (held.go != null && (held.go -= C.TICK) <= 0) {
+        held = null; aim = { t: T.aimTime(b.x, C.W), left: 3 };
+      } else {
+        b.x = held.x; b.y = held.y; b.vx = 0; b.vy = 0; b.spin = 0; b.power = null;
+        return;
+      }
+    }
+    if (!aim || M.hitStop > 0) return;
+    aim.left -= C.TICK;
+    const to = T.aimTarget(C.W, C.GROUND_Y);
+    if (aim.left <= 0) { aim = null; return; }                    // somehow no goal: the idle check takes it from here
+    if (b.x > C.W - C.GOAL_W - 25) return;                        // into the mouth: the sim finishes it
+    aim.t = Math.max(0.12, aim.t - C.TICK);
+    const v = T.aimVelocity(b.x, b.y, to.x, to.y, aim.t, C.BALL_GRAV);
+    b.vx = v.vx; b.vy = v.vy;
   }
   function event(e) {
     if (!on) return;
@@ -617,8 +684,11 @@ export function createTutorial(ctx) {
     afterStep, event, mask, foeInput, drawGround, drawOver,
     get lesson() { return cw; },
     result, toShop: shop,
-    reward: () => (firstTime ? T.REWARD : 0),
+    // the practice match's pay: once, and marked paid at once, so closing the game before the end and
+    // running it again never pays twice
+    reward: () => { if (!firstTime) return 0; write('paid'); return T.REWARD; },
     firstRun: (prog, stats, params) => T.shouldRun({ flag: read(), prog, stats, params }),
     markDone: () => write('done'),
+    finish: () => { if (on) finish(); },
   };
 }
