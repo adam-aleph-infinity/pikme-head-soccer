@@ -13,7 +13,7 @@ import { headCrop } from './head-crop.js';
 import { characterFor, kitFor, charUrl, expressionFor, CHAR_BOX, EXPRESSIONS as CHAR_EXPRESSIONS } from './characters.js';
 import { clockText, gaugeView } from './hud.js';
 import { createNet } from './net.js';
-import { playEvent, SFX, setAudioEnabled, audioEnabled, setSfxEnabled, setMusicEnabled, musicEnabled, startBed, stopBed, startMenuMusic, stopMenuMusic } from './audio.js';
+import { playEvent, SFX, audioState, unlockAudio, audioLevel, loadVoice, playVoice, stopVoice, voiceLeft, setAudioEnabled, audioEnabled, setSfxEnabled, setMusicEnabled, musicEnabled, startBed, stopBed, startMenuMusic, stopMenuMusic } from './audio.js';
 import { STAGES, randomStage, stageById } from './stages.js';
 import { HS_STAGES } from './hs-stadium.js';
 import { DIRECTIONS } from './art-directions.js';
@@ -25,6 +25,9 @@ import { createBodyArt, RUN_FRAMES, BOOT_H } from './body-art.js';
 import { createMenus } from './menus.js';
 import * as MN from '../shared/menu.js';
 import * as TOUR from '../shared/tournament.js';
+import { createTutorial } from './tutorial.js';
+import { createLoader } from './loader.js';
+import * as TUTR from '../shared/tutorial.js';
 
 // What a Head Soccer power shot looks like: the aura, the cut-in, the comet, the ailments. It
 // only watches the match (see champ-vfx.js).
@@ -184,6 +187,13 @@ const onGesture = () => {
 };
 addEventListener('pointerdown', onGesture, true);
 addEventListener('keydown', onGesture, true);
+// THE AUDIO UNLOCK. A phone lets sound start only from the END of a tap (touchend / click) or a
+// key, not from its start — and the title's tap used to reach the audio only through the menu
+// it opened, inside that click. The tutorial can begin a beat after the tap (when the loading
+// screen finishes), outside any gesture, and nothing in its drills is a click: on an iPhone the
+// whole tutorial played silent. So every tap and key wakes the audio until it is running.
+const wakeAudio = () => { if (audioState() !== 'running') unlockAudio(); };
+for (const t of ['touchend', 'pointerup', 'mousedown', 'click', 'keydown']) addEventListener(t, wakeAudio, { capture: true, passive: true });
 
 // ═══════════════════════════════════════════════════════════════════════════
 // THE MENUS (menus.js): title, main menu, Player Select, shop, options, how to, multiplayer
@@ -212,6 +222,11 @@ const MENU = createMenus({
   menuMusic: () => { if (GESTURE && !running) startMenuMusic(); },
   refreshOnline: () => showOnline(ONLINE_N),
   onFirstTap: () => { /* the title's tap is the gesture that unlocks audio on iOS */ },
+  // THE LOADING SCREEN IS THE TITLE (loader.js): a tap made while it loads waits for it
+  whenLoaded: (f) => LOADER.then(f),
+  // THE FIRST LAUNCH (tutorial.js): a new player's tap on the title starts the tutorial
+  firstRun: () => TUT.firstRun(PROG, STATS, new URLSearchParams(location.search)),
+  startTutorial: (replay = false) => TUT.start({ replay }),
 });
 // Exactly one screen is up at a time; every navigation goes through the menus' router.
 const show = (id) => MENU.show(id);
@@ -220,8 +235,32 @@ const openArcade = () => MENU.openSelect('arcade');
 const openModes = () => MENU.openMenu();
 const selectStage = (n) => MENU.selectStage(n);
 // The title first — unless the page was opened for something (a room link, ?play, ?arcade),
-// which boot() goes straight to.
-if (!['room', 'play', 'arcade', 'unlockall', 'resetarcade'].some((k) => new URLSearchParams(location.search).has(k))) MENU.openTitle();
+// which boot() goes straight to. The title is the loading screen; ?nointro (the harnesses)
+// skips its minimum time.
+const DEEP = ['room', 'play', 'arcade', 'unlockall', 'resetarcade'].some((k) => new URLSearchParams(location.search).has(k));
+const LOADER = createLoader({ paintHead, cardUrl, me: pick.me, quick: DEEP || new URLSearchParams(location.search).has('nointro') });
+// THE FIRST-LAUNCH TUTORIAL (tutorial.js): it plays on this file's match through a handful of seams
+// — hold / mask / afterStep / event in the loop, drawGround / drawOver on the pitch.
+const TUT = createTutorial({
+  paintHead, depthPoint, store: STORE, menu: MENU,
+  paintFace: (el, c, flip) => paintHead(el, c.rarity, c.number, el.clientWidth || 150, { expr: 'normal', flip, fill: 1 }),
+  sfx: (name) => { if (GESTURE && audioEnabled()) SFX[name]?.(); },
+  padBtn: (k) => document.querySelector(`.pad .btn[data-k="${k}"]`),
+  pressed: (k) => !!(heldNow[k] || tapped[k]),
+  stats: () => STATS,
+  me: () => pick.me, foe: () => tutorialFoe(),
+  startDrills: () => startTutorialDrills(), startPractice: () => startTutorialMatch(),
+  match: () => M,
+  // THE NARRATOR: the coach's lines in Idan's own voice (audio/voice/<line id>.mp3, made by
+  // tools/voice/make-voice.py). A line without a clip just shows.
+  voice: (id) => playVoice(id ? `audio/voice/${id}.mp3` : null),
+  voiceLeft: () => voiceLeft(),
+  preloadVoice: (ids) => ids.forEach((id) => loadVoice(`audio/voice/${id}.mp3`)),
+});
+if (!DEEP) { MENU.openTitle(); LOADER.repaint(); }
+addEventListener('resize', () => { if (MENU.screen === 'title') LOADER.repaint(); });
+// Anyone who has played already is never shown the tutorial, now or later.
+if (TUTR.playedBefore(PROG, STATS)) { try { if (!STORE?.getItem(TUTR.TUT_KEY)) STORE?.setItem(TUTR.TUT_KEY, 'done'); } catch { /* private mode */ } }
 
 // ═══════════════════════════════════════════════════════════════════════════
 // INPUT
@@ -790,6 +829,36 @@ function startMatch() {
   beginLocal(pick.me, pick.foe, {}, createBot(pick.level));
 }
 
+// THE TUTORIAL'S TWO MATCHES (tutorial.js). The drills: you alone on HS's day pitch, dropped in
+// from the sky, no clock, no ball until a drill hands one out, and the other player parked off
+// the pitch. The practice match: a short one against the easiest champion's bot, with a drawn
+// champion's face (never your own card), one whose power the counter lesson can kick back.
+function tutorialFoe() { return TUTR.foeFor(pick.me); }   // a champion whose power a kick blocks (shared/tutorial.js FOES)
+function startTutorialDrills() {
+  ARCADE = null;
+  MODE = 'tutorial';
+  STAGE = PIN_STAGE || HS_STAGES[0];
+  beginLocal(pick.me, tutorialFoe(), { duration: 999 }, null);
+  M.freeze = 0; M.phase = 'play'; M.banner = null; M.bannerT = 0; M.ballWait = 1e9; M.gaugeLead = 999;
+  const p = M.players[0];
+  p.x = C.W / 2; p.y = C.GROUND_Y - 560; p.vy = 0; p.onGround = false;
+}
+function startTutorialMatch() {
+  const cfg = stageConfig(1, STATS.lv);
+  ARCADE = null;
+  MODE = 'tutorial';
+  STAGE = PIN_STAGE || HS_STAGES[1 % HS_STAGES.length];
+  beginLocal(pick.me, tutorialFoe(), { ...cfg.matchOpts, duration: TUTR.MATCH_SECONDS }, createBot(0, Math.random, cfg.bot));
+}
+// The practice match is over: it pays the first upgrade (once — a replay pays nothing).
+function tutorialResult(won, draw) {
+  const gained = TUT.reward();
+  addPoints(gained);
+  countUp($('#ovReward'), 0, gained);
+  countUp($('#ovTotal'), STATS.points - gained, STATS.points);
+  TUT.result(won, draw);
+}
+
 // AN ARCADE STAGE. The same match on the same sim with the same controls — the differences are
 // all data: who the opponent is (the stage's champion), how its bot plays (its stage on the
 // ladder), and that both legendary cards fire their champion power instead of the power shot.
@@ -880,11 +949,13 @@ function endMatch({ forfeit = false } = {}) {
   $('#ovSpell').innerHTML = (draw ? '' : '<small>YOU</small>') +
     '<em>' + [...word].map((c, k) => `<span style="animation-delay:${0.35 + k * 0.1}s">${c}</span>`).join('') + '</em>';
   $('#ovNews').classList.add('hidden');
-  $('#ovPts').classList.toggle('hidden', MODE !== 'arcade' && MODE !== 'tournament');
+  $('#ovPts').classList.toggle('hidden', MODE !== 'arcade' && MODE !== 'tournament' && MODE !== 'tutorial');
   NEXT_SELECT = null;
   if (ARCADE) arcadeResult(iWon, [mine, theirs]);
   else if (MODE === 'tournament' && TOURNEY) tournamentResult(iWon, [mine, theirs]);
-  const plan = MN.afterResult({ mode: MODE, won: iWon, stage: ARCADE?.stage || 1, last: ARC.STAGE_COUNT });
+  else if (MODE === 'tutorial') tutorialResult(iWon, draw);
+  const plan = MODE === 'tutorial' ? { buttons: [{ id: 'shop', label: 'לחנות' }], select: null }
+    : MN.afterResult({ mode: MODE, won: iWon, stage: ARCADE?.stage || 1, last: ARC.STAGE_COUNT });
   if (plan.select) NEXT_SELECT = plan.select;
   $('#again').innerHTML = `<b>${plan.buttons[0].label}</b>`;
   $('#back').classList.toggle('hidden', plan.buttons.length < 2);
@@ -950,6 +1021,8 @@ function stopMatchLoop() {
 // NEXT MATCH / NEXT: back to Player Select, through a quick fade (HS M4 92 s). Online: back to
 // the room, which the server has already reset to the lobby.
 $('#again').onclick = () => {
+  // the tutorial's result goes on to the shop, where its first upgrade is bought
+  if (MODE === 'tutorial') { $('#over').classList.add('out'); setTimeout(() => { stopMatchLoop(); $('#over').classList.add('hidden'); TUT.toShop(); }, 260); return; }
   if (MODE === 'online') { stopMatchLoop(); show('lobby'); if (NET?.room) renderLobby(NET.room); return; }
   const mode = MODE === 'arcade' ? 'arcade' : 'practice', stage = NEXT_SELECT, toBracket = MODE === 'tournament';
   $('#over').classList.add('out');
@@ -976,7 +1049,7 @@ addEventListener('pointerdown', () => {
 // it — about 2 s in all. A tap cuts it short (M2: 1.25 s).
 const VS_INTRO = 2.0, VS_SKIP = 0.22;
 function startIntro() {
-  if (ONLINE || window.SIM_HOLD || new URLSearchParams(location.search).has('nointro')) return;
+  if (ONLINE || window.SIM_HOLD || MODE === 'tutorial' || new URLSearchParams(location.search).has('nointro')) return;
   const vs = $('#vs');
   for (let i = 0; i < 2; i++) {
     const el = $('#vsFace' + i), { rarity, number } = M.players[i].char;
@@ -1039,7 +1112,7 @@ $('#pGive').onclick = () => closePause(() => {
   stopMatchLoop();
   ARCADE = null;
   MENU.openSelect(mode, { stage });
-});addEventListener('keydown', (e) => { if (e.key === 'Escape' && running) { if (paused) closePause(() => setPaused(false)); else setPaused(true); } });
+});addEventListener('keydown', (e) => { if (e.key === 'Escape' && running && !TUT.on) { if (paused) closePause(() => setPaused(false)); else setPaused(true); } });
 // A phone that takes a call or leaves the app comes back to the pause menu, not a lost match.
 document.addEventListener('visibilitychange', () => { if (document.hidden && running && !ONLINE) setPaused(true); });
 // The tuner is a developer's tool: ?dev=1 shows it. HS has nothing like it.
@@ -1137,6 +1210,7 @@ function watchChance() {
 }
 function drainEvents() {
   for (const e of M.events) {
+    TUT.event(e);
     EVENT_LOG.push({ ...e, t: +M.t.toFixed(2) });
     if (EVENT_LOG.length > 200) EVENT_LOG.shift();
     // The sim's event names ARE the sound names, so a new event gets audio for free and a
@@ -1211,7 +1285,7 @@ function frame(now) {
   // THE VS INTRO (HS: ~1.5 s of both heads and a gold VS on a red streak before KICK OFF): the
   // match waits under it, offline only.
   if (introT > 0) { introT -= dt; if (introT <= 0) { introT = 0; $('#vs').classList.add('hidden'); last = now; } }
-  if (running && !(paused && !ONLINE) && !(introT > 0)) {
+  if (running && !(paused && !ONLINE) && !(introT > 0) && !TUT.hold) {
     const simDt = vsyncDt(dt);
     if (ONLINE) {
       // The net module owns the tick clock online: it has to replay from whatever tick a
@@ -1228,8 +1302,9 @@ function frame(now) {
       // reasons: practising a shot without being harassed, and making the screenshot
       // harness deterministic — every probe there was racing a bot that could score,
       // freeze the match and reset positions between one await and the next.
-      const foe = window.BOT_OFF ? {} : botInput(BOT, M, 1, C.TICK);
-        step(M, [tickInput(), foe], C.TICK, fx);
+      const foe = window.BOT_OFF || TUT.solo ? {} : TUT.foeInput(botInput(BOT, M, 1, C.TICK), M);
+        step(M, [TUT.mask(tickInput()), foe], C.TICK, fx);
+        TUT.afterStep(M);
         acc -= C.TICK;
         drainEvents();
         if (!running) break;
@@ -1595,6 +1670,7 @@ function draw() {
   TRAIL_CLOCK.wall = wall;
   const now = TRAIL_CLOCK.t;
   for (const p of M.players) drawShadow(g, p);
+  TUT.drawGround(g);                 // the tutorial's target on the grass
   // The bodies go on their own full-resolution layer (#cvbody), shaken with the pitch.
   const gb = ctxBody || g;
   if (ctxBody) {
@@ -2904,6 +2980,7 @@ function drawOverHeads(g) {
     const p = M.players[ONLINE && NET ? (NET.you ?? 0) : 0];
     if (p) youMarker(g, p, t);
   }
+  TUT.drawOver(g, M);                // the tutorial's arrow at the ball
 }
 function youMarker(g, p, t) {
   const r = headR(M, p);
@@ -3202,6 +3279,10 @@ Object.assign(window, { headCrop });
 // The real-face characters, for _charfaces.mjs: re-render the pick slots, end a match on demand.
 Object.assign(window, { endMatch, characterFor, MENU });
 Object.defineProperty(window, 'MATCH', { get: () => M });
+Object.defineProperty(window, 'TUTORIAL', { get: () => TUT });
+Object.defineProperty(window, 'AUDIO_STATE', { get: () => audioState() });
+Object.defineProperty(window, 'AUDIO_LEVEL', { get: () => audioLevel() });
+Object.defineProperty(window, 'VOICE_LEFT', { get: () => voiceLeft() });
 Object.defineProperty(window, 'HELD', { get: () => held });
 Object.defineProperty(window, 'EVENTS', { get: () => EVENT_LOG });
 // Which backdrop is live. A getter, not a copy: STAGE is reassigned on every kickoff, so a

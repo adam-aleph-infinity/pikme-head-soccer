@@ -86,13 +86,19 @@ export function createMenus(ctx) {
   // ── TITLE ───────────────────────────────────────────────────────────────
   // HS: the logo and "TOUCH TO KICK OFF !". Here the symbol assembles (menus.css .t-sym), and a
   // tap flies it to the menu's top-left corner, where HS keeps its logo.
-  let leaving = false;
-  function openTitle() { leaving = false; show('title'); }
+  let leaving = false, waiting = false;
+  function openTitle() { leaving = false; waiting = false; show('title'); }
   function leaveTitle() {
     if (leaving || screen !== 'title') return;
+    // The title is the loading screen (loader.js): a tap while it loads goes through when it is done.
+    if (ctx.whenLoaded && !waiting) { waiting = true; ctx.whenLoaded(() => { waiting = false; if (screen === 'title' && !leaving) goTitle(); }); }
+  }
+  function goTitle() {
     leaving = true;
     ctx.onFirstTap?.();
     ctx.sfx?.('swish');
+    // A new player's first tap starts the tutorial (tutorial.js) instead of the menu.
+    if (ctx.firstRun?.()) { ctx.startTutorial(); return; }
     const from = $('#tSym').getBoundingClientRect();
     openMenu();
     const logo = $('#mnLogo'), to = logo.getBoundingClientRect();
@@ -628,6 +634,7 @@ export function createMenus(ctx) {
   on('#oSnd', () => { ctx.setSfx(!ctx.sfxOn()); syncSound(); });
   on('#oMus', () => { ctx.setMusic(!ctx.musicOn()); syncSound(); });
   tap('#oHow', () => { closePop('optPop'); openHowTo('menu'); });
+  tap('#oTut', () => { closePop('optPop'); ctx.startTutorial?.(true); });
   tap('#oStats', () => openStats());
   tap('#oBack', () => closePop('optPop'));
   on('#optPop', (e, el) => { if (e.target === el) closePop('optPop'); });
@@ -702,6 +709,7 @@ export function createMenus(ctx) {
   // and a popup on top takes Esc first. Captured, so none of it is also a game key.
   addEventListener('keydown', (e) => {
     if (!screen || screen === 'match') return;
+    if (document.body.classList.contains('tut-on')) return;      // the tutorial has the keys (tutorial.js guard)
     const t = e.target, inField = t?.closest?.('input,textarea,[contenteditable]');
     const k = e.code;
     let act = null;

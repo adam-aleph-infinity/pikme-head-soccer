@@ -33,8 +33,9 @@ function ctx() {
     music.connect(out);
   }
   // iOS/WKWebView start every context suspended until a gesture; nudging it on each sound
-  // is cheaper than tracking whether the unlock already happened.
-  if (AC.state === 'suspended') AC.resume().catch(() => {});
+  // is cheaper than tracking whether the unlock already happened. ('interrupted' is Safari's
+  // word for a context a phone call or the app going to the background stopped.)
+  if (AC.state === 'suspended' || AC.state === 'interrupted') AC.resume().catch(() => {});
   return AC;
 }
 
@@ -624,6 +625,7 @@ export function stopMenuMusic() {
   menu = null;
 }
 export const menuMusicPlaying = () => !!menu;
+export const bedPlaying = () => !!bed;
 
 // Both at once (the old single switch).
 export function setAudioEnabled(v) { setSfxEnabled(v); setMusicEnabled(v); }
@@ -636,6 +638,75 @@ export function setMusicEnabled(v) {
   if (!musicOn) { stopBed(); stopMenuMusic(); }
   if (music) music.gain.value = musicOn ? 1 : 0;
 }
+// THE NARRATOR (the tutorial's coach, tutorial.js): one recorded line at a time, under the
+// SOUND switch like every effect, with the music ducked to a third while he talks. Clips are
+// decoded once and kept; a new line cuts the one before it, as a narrator would.
+const VOICE = new Map();             // url -> Promise<AudioBuffer | null>
+const VOICE_BUF = new Map();         // url -> AudioBuffer, once decoded
+let voiceSrc = null, voiceEnds = 0, voiceGain = null;
+export function loadVoice(url) {
+  if (!VOICE.has(url)) {
+    VOICE.set(url, fetch(url).then((r) => (r.ok ? r.arrayBuffer() : null))
+      .then((ab) => ab && new Promise((ok, no) => ctx().decodeAudioData(ab, ok, no)))
+      .then((buf) => { if (buf) VOICE_BUF.set(url, buf); return buf; })
+      .catch(() => null));
+  }
+  return VOICE.get(url);
+}
+export function stopVoice() {
+  if (voiceSrc) { try { voiceSrc.stop(); } catch { /* done already */ } voiceSrc = null; }
+  voiceEnds = 0;
+  if (music && AC) music.gain.setTargetAtTime(musicOn ? 1 : 0, AC.currentTime, 0.12);
+}
+// Plays it now if it is loaded (and when it loads, if it is still the latest line asked for).
+let voiceWant = null;
+export function playVoice(url) {
+  voiceWant = url;
+  stopVoice();
+  if (!url || !enabled) return 0;
+  const go = (buf) => {
+    if (!buf || voiceWant !== url) return;
+    const a = ctx();
+    // 1.5: the narrator peaks ~0.4 at the output — over the kicks (~0.3), not shouting
+    if (!voiceGain) { voiceGain = a.createGain(); voiceGain.gain.value = 1.5; voiceGain.connect(master); }
+    const src = a.createBufferSource();
+    src.buffer = buf; src.connect(voiceGain); src.start();
+    voiceSrc = src; voiceEnds = a.currentTime + buf.duration;
+    music.gain.setTargetAtTime(musicOn ? 0.33 : 0, a.currentTime, 0.08);
+    src.onended = () => { if (voiceSrc === src) stopVoice(); };
+  };
+  const buf = VOICE_BUF.get(url);
+  if (buf) go(buf); else loadVoice(url).then(go);
+  return buf ? buf.duration : 0;
+}
+// Seconds of the current line still to come (0 when he is quiet).
+export const voiceLeft = () => (voiceSrc && AC ? Math.max(0, voiceEnds - AC.currentTime) : 0);
+
+// THE UNLOCK, from inside a tap or a key (game.js calls it on every one until it takes). It makes
+// the context, resumes it, and — the first time — starts one silent sample, which older iOS
+// needs to see inside the gesture before it lets any later sound out.
+let primed = false;
+export function unlockAudio() {
+  const a = ctx();
+  if (!primed) {
+    primed = true;
+    try { const s = a.createBufferSource(); s.buffer = a.createBuffer(1, 1, 22050); s.connect(a.destination); s.start(0); } catch { /* nothing to prime */ }
+  }
+  return a.state;
+}
+// How loud the game is right now, 0..1 (the peak of the last ~20 ms at the output) — so a
+// harness can tell sound from silence without a speaker.
+let meter = null, meterBuf = null;
+export function audioLevel() {
+  if (!AC || !out) return 0;
+  if (!meter) { meter = AC.createAnalyser(); meter.fftSize = 1024; meterBuf = new Float32Array(meter.fftSize); out.connect(meter); }
+  meter.getFloatTimeDomainData(meterBuf);
+  let p = 0;
+  for (const v of meterBuf) p = Math.max(p, Math.abs(v));
+  return p;
+}
+// What the browser is letting the context do: 'none' (not made yet), 'suspended', 'running'.
+export const audioState = () => (AC ? AC.state : 'none');
 export const audioEnabled = () => enabled;
 export const musicEnabled = () => musicOn;
 

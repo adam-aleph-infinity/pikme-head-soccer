@@ -13,6 +13,7 @@
 <title>סלטיז ראשים · Head Soccer mock</title>
 <link rel="stylesheet" href="style.css">
 <link rel="stylesheet" href="menus.css">
+<link rel="stylesheet" href="tutorial.css">
 </head>
 <body>
 
@@ -20,15 +21,25 @@
      menus.js). TITLE → MENU → SELECT ⇄ SHOP → VS → MATCH → RESULT → SELECT; the lobby off the menu.
      The geometry is HS's (BACK top-left, SHOP left, PLAY right); the words are Hebrew. -->
 
-<!-- TITLE · HS: the logo, "TOUCH TO KICK OFF !" -->
-<section id="title" class="screen m-screen hidden" aria-label="סלטיז ראשים">
-  <i class="m-rays" aria-hidden="true"></i>
+<!-- TITLE = THE LOADING SCREEN (loader.js) · Head Ball 2's first frame: a floodlit night stadium,
+     two big heads squaring up from the edges, the logo between them, and a status line over a
+     "Loading n%" pill. At 100% the pill turns into HS's "TOUCH TO KICK OFF !". -->
+<section id="title" class="screen m-screen ld hidden" aria-label="סלטיז ראשים">
+  <canvas class="ld-stadium" id="ldStadium" aria-hidden="true"></canvas>
+  <i class="ld-beam l" aria-hidden="true"></i><i class="ld-beam r" aria-hidden="true"></i>
+  <i class="ld-vignette" aria-hidden="true"></i>
   <div class="t-sparks" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div>
+  <div class="ld-hero l" aria-hidden="true"><i class="ld-face" id="ldFace0"></i><i class="ld-body red"></i></div>
+  <div class="ld-hero r" aria-hidden="true"><i class="ld-face" id="ldFace1"></i><i class="ld-body blue"></i></div>
   <div class="t-stage">
     <span class="m-sym glow t-sym" id="tSym"></span>
     <h1 class="t-word"><b class="m-title flame">סלטיז</b><b class="m-title chrome">ראשים</b></h1>
   </div>
-  <p class="t-tap">לחצו כדי להתחיל</p>
+  <div class="ld-load">
+    <p class="ld-status" id="ldStatus">מכינים את האצטדיון…</p>
+    <div class="ld-bar"><i class="ld-fill" id="ldFill"></i><b id="ldPct">טוען 0%</b></div>
+    <p class="t-tap">לחצו כדי להתחיל</p>
+  </div>
   <small class="t-foot">© סלטיז · בהשראת Head Soccer</small>
 </section>
 
@@ -162,6 +173,7 @@
     <button class="m-pill ring-btn ob o2" id="oMus"><i class="m-orb">🎵</i><b>מוזיקה</b></button>
     <button class="m-pill ring-btn ob o3" id="oHow"><i class="m-orb">❔</i><b>איך משחקים</b></button>
     <button class="m-pill ring-btn ob o4" id="oStats"><i class="m-orb">📊</i><b>סטטיסטיקה</b></button>
+    <button class="m-pill ring-btn ob o6" id="oTut"><i class="m-orb">🎓</i><b>הדרכה</b></button>
     <button class="m-pill ring-btn ob o5" id="oBack"><b>חזרה</b></button>
   </div>
 </div>
