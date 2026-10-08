@@ -173,22 +173,27 @@ await shot('counter-blocked');
 check('…and it goes back as yours', await js(`EVENTS.some(e => e.type === 'blocked' && e.player === 0)`));
 await sleep(1500);
 await shot('counter-fireback');
-// the sparring partner: stand still to the final whistle. It never scores, and nothing goes in
-// its own net either (with you idle, any goal for you would be its own goal) — the fire-back
-// above is the one goal you may have.
+// the sparring partner (Idan, 2026-10-08): a weak CPU that hangs back by its goal, never dashes,
+// and the goals are open both ways. Watch it for a while with you standing still.
 const at = await js(`MATCH.score.slice()`);
-await sleep(1500);
+const ev0 = await js(`EVENTS.length`);
+const xs = [];
+for (let i = 0; i < 12; i++) { await sleep(500); xs.push(await js(`MATCH.players[1].x`)); }
 await shot('match-play');
+check('the sparring partner never dashes', await js(`EVENTS.slice(${ev0}).every(e => !(e.type === 'dash' && e.player === 1))`));
+check('…and mostly stays in its own half', xs.filter((x) => x > 530).length >= 9, xs.map(Math.round).join(','));
+// your goal: roll the ball into his net — it counts (no invisible wall)
+const s0 = await js(`MATCH.score.slice()`);
+await js(`Object.assign(MATCH.ball, { x: 1060 - 140, y: 420, vx: 900, vy: -40, power: null })`);
+check('a shot into his net is a goal', await until(async () => (await js(`MATCH.score[0]`)) > s0[0], 3000), String(await js(`MATCH.score.join('-')`)));
+await sleep(3500);
+// …and his way too: the ball into yours counts for him
+const s1 = await js(`MATCH.score.slice()`);
+await js(`MATCH.players[0].x = 600; Object.assign(MATCH.ball, { x: 140, y: 420, vx: -900, vy: -40, power: null })`);
+check('…and one into your net counts for him (both goals are open)', await until(async () => (await js(`MATCH.score[1]`)) > s1[1], 3000), String(await js(`MATCH.score.join('-')`)));
 check('the match runs to full time', await until(() => js(`!document.querySelector('#over').classList.contains('hidden')`), 60000));
 const fin = await js(`MATCH.score.slice()`);
-check('the practice opponent never scores', fin[1] === 0, fin.join('-'));
-// an idle player's head still deflects the ball, so a goal for you is fine — as long as YOU
-// touched it last (a header, the fire-back), never the bot
-const own = await js(`(() => { const ev = EVENTS, i0 = ev.findIndex(e => e.type === 'powershot' && e.player === 0); const bad = [];
-  ev.forEach((e, i) => { if (i < i0 || e.type !== 'goal' || e.player !== 0) return;
-    const last = ev.slice(i0, i).reverse().find(x => ['strike', 'rebound', 'powershot', 'blocked'].includes(x.type));
-    if (last && last.player === 1 && last.type !== 'blocked') bad.push(e.t); }); return bad; })()`);
-check('…and puts none in its own net (every goal of yours, you touched last)', own.length === 0, own.join(','));
+check('the weak CPU scores little on its own (you stood still the whole match)', fin[1] - 1 <= 2, fin.join('-'));
 check('the result', await until(() => js(`!document.querySelector('#over').classList.contains('hidden')`), 4000));
 check('…pays 500 points', await until(async () => (await js(`document.querySelector('#ovReward').textContent`)) === '500', 3000));
 await sleep(1800);

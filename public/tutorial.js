@@ -59,7 +59,7 @@ export function createTutorial(ctx) {
   let tries = 0, idleT = 0, simT = 0, landed = false, quietT = 0;
   let pw = null, playT = 0, pwT = 0;
   // the counter lesson: null → 'wait' → 'talk' → 'fly' → 'hold' → 'after' → 'done'
-  let cw = null, cwT = 0, botFrozen = false, lastTouch = -1, botTick = 0, lastStrike = -1;
+  let cw = null, cwT = 0, botFrozen = false;
   let ringOn = null, handOn = null, spotOn = null, bubAt = null;
   let tapNext = null;                  // a "tap to continue": what the tap does
   let guardOk = null;                  // while set, only clicks inside these elements get through
@@ -202,7 +202,7 @@ export function createTutorial(ctx) {
     cancelAnimationFrame(raf); raf = requestAnimationFrame(loop);
     fade('black');
     phase = 'intro'; hold = false; di = 0; dState = 'go'; mark = null; arrow = false; ballWanted = false; placeNext = null;
-    landed = false; simT = 0; pw = null; cw = null; botFrozen = false; lastTouch = -1; lastStrike = -1; guardOk = null; waitTap(null);
+    landed = false; simT = 0; pw = null; cw = null; botFrozen = false; spar = null; guardOk = null; waitTap(null);
     allow = new Set();
     pads([]);
     coach('off'); say(null); ring(null); spot(null); hand(null);
@@ -369,19 +369,36 @@ export function createTutorial(ctx) {
       laterV(1900, () => { if (cw === 'retry') stageCounter(); });
     }
   }
-  // THE SPARRING PARTNER: the practice opponent lets you play. It never fires its power (but for
-  // the lesson's), walks a step slower than the weakest champion, and only clears the ball out of
-  // its own half — the kick always goes toward your goal (sim.js kickDir), so it is never an own
-  // goal — and never boots you. And whatever bounces, it does not score (afterStep's goal guard).
+  // THE SPARRING PARTNER (Idan, 2026-10-08): a very weak CPU that lets you learn. It walks slower
+  // than you, hangs back near its own goal, defends a little and clears the ball now and then, but
+  // it never dashes, never fires its power (but for the lesson's) and never boots you.
+  // It decides only every SPAR_THINK seconds and holds what it decided until the next decision, so
+  // every arrow press lasts longer than a tap (C.DASH_TAP_MAX) and the sim never reads a dash.
+  const SPAR_THINK = 0.4, SPAR_SPEED = 0.7;
+  let spar = null;
   function foeInput(inp, M) {
     if (!on || phase !== 'match') return inp;
     if (hold || botFrozen || !M) return {};
     const q = M.players[1], p = M.players[0], b = M.ball;
-    const out = { ...inp, power: false };
-    if (++botTick % 5 >= 3) { out.left = false; out.right = false; }
-    const clear = q.x > C.W * 0.5 && b.x < q.x && Math.abs(p.x - q.x) > 90;
-    if (!clear) out.kick = false;
-    return out;
+    if (!spar || spar.M !== M) {
+      spar = { M, t: 0, move: 0, kick: 0, jump: 0 };
+      q.stats = { ...q.stats, speed: q.stats.speed * SPAR_SPEED };
+    }
+    if (spar.kick > 0) spar.kick--;
+    if (spar.jump > 0) spar.jump--;
+    if ((spar.t -= C.TICK) <= 0) {
+      spar.t = SPAR_THINK;
+      const home = C.W - C.GOAL_W - 110;
+      // the ball in its own half and low enough to reach: go stand behind it (its kick then goes
+      // your way); otherwise back home. Some of the time it just hesitates.
+      const near = b.x > C.W * 0.5 && b.y > C.GROUND_Y - 220 && Math.random() < 0.6;
+      const target = near ? Math.max(C.W * 0.5, Math.min(home + 40, b.x + 30)) : home;
+      spar.move = Math.abs(target - q.x) > 25 ? Math.sign(target - q.x) : 0;
+      const dx = b.x - q.x, hy = headY(q);
+      if (Math.abs(dx) < 75 && dx < 15 && b.y > hy - 60 && Math.abs(p.x - q.x) > 90 && Math.random() < 0.35) spar.kick = 6;
+      if (Math.abs(dx) < 60 && b.y < hy - 50 && q.onGround && Math.random() < 0.25) spar.jump = 6;
+    }
+    return { left: spar.move < 0, right: spar.move > 0, kick: spar.kick > 0, jump: spar.jump > 0, power: false };
   }
   // THE RESULT: the points it paid, then off to the shop
   function result(won, draw = false) {
@@ -466,30 +483,16 @@ export function createTutorial(ctx) {
   function read() { try { return store?.getItem(T.TUT_KEY) ?? null; } catch { return null; } }
   function write(v) { try { store?.setItem(T.TUT_KEY, v); } catch { /* private mode */ } }
 
-  // THE GOAL GUARD (practice match): the bot never scores, not even off a bounce, and never puts
-  // one in its own net — a ball it touched last that is heading over its own line comes back out,
-  // as if off the post. Checked a tick ahead: the goal only counts once the whole ball is in.
-  function guardGoals(M) {
-    if (M.phase !== 'play' || M.afterGoal > 0) return;     // a goal already in stays in
-    const b = M.ball, bar = C.GROUND_Y - C.GOAL_H;
-    for (const pl of M.players) {
-      const hy = headY(pl);
-      if (Math.hypot(b.x - pl.x, b.y - hy) < C.HEAD_R + b.r + 6 || (Math.abs(b.x - pl.x) < 34 && b.y > hy && b.y < pl.y + 4)) lastTouch = pl.index;
-    }
-    if (b.power && b.power.owner === 0) lastTouch = 0;
-    if (!(b.y + b.r > bar)) return;
-    // By where it is, not only how fast: a body can nudge a still ball over the line a few
-    // pixels a tick. The edge is a ball's width short of the line (goalbox.js ballInGoal needs the
-    // WHOLE ball in), and the fastest power shot covers 36 px a tick — it cannot jump the gap.
-    const rx = b.r * C.HS_STRETCH, next = b.x + b.vx * 2 * C.TICK;
-    const mine = C.GOAL_W + rx + 6, his = C.W - C.GOAL_W - rx - 6;
-    const intoMine = b.x < mine || (b.vx < 0 && next < mine);
-    const intoHis = (lastTouch === 1 || lastStrike === 1) && (b.x > his || (b.vx > 0 && next > his));
-    if (intoMine || intoHis) {
-      if (b.power && (!intoMine || b.power.owner === 1)) b.power = null;
-      b.x = intoMine ? Math.max(b.x, mine) : Math.min(b.x, his);
-      b.vx = (intoMine ? 1 : -1) * Math.max(160, Math.abs(b.vx) * 0.4);
-      if (b.vy > -60) b.vy = -160;
+  // THE COUNTER LESSON'S SHOT never scores: it is staged at you to be kicked back, and a miss is
+  // staged again. Everything else in the match counts, both ways (Idan, 2026-10-08).
+  function guardLesson(M) {
+    const b = M.ball;
+    if (M.phase !== 'play' || M.afterGoal > 0 || !b.power || b.power.owner !== 1) return;
+    if (!['fly', 'hold', 'after', 'retry'].includes(cw)) return;
+    const mine = C.GOAL_W + b.r * C.HS_STRETCH + 6, next = b.x + b.vx * 2 * C.TICK;
+    if (b.x < mine || (b.vx < 0 && next < mine)) {
+      b.power = null; b.x = Math.max(b.x, mine);
+      b.vx = Math.max(160, Math.abs(b.vx) * 0.4); if (b.vy > -60) b.vy = -160;
     }
   }
 
@@ -509,9 +512,8 @@ export function createTutorial(ctx) {
       if (cw === 'wait' && live && !b.power) { cwT += C.TICK; if (cwT > 1.5) counterLesson(); }
       else if (cw === 'fly' && b.power && b.power.owner === 1 && !(M.hitStop > 0) && b.x - p.x < T.COUNTER_GAP) counterFreeze();
       else if (cw === 'after' || cw === 'fly') { cwT += C.TICK; if (cwT > 4) counterDone(false); }
-      guardGoals(M);
-      // NO SUDDEN DEATH IN PRACTICE: the bot cannot score, so a level match would never end.
-      // A draw at the whistle is a draw.
+      guardLesson(M);
+      // NO SUDDEN DEATH IN PRACTICE: the match is 45 s, and a draw at the whistle is a draw.
       if (M.golden && M.phase !== 'over') {
         M.golden = false; M.phase = 'over';
         M.events = M.events.filter((e) => e.type !== 'golden');
@@ -545,8 +547,6 @@ export function createTutorial(ctx) {
   function event(e) {
     if (!on) return;
     if (phase === 'match') {
-      // who last really played the ball (a kick, a header, a power): a bounce off a body is not a play
-      if (['strike', 'powershot', 'rebound'].includes(e.type) && (e.player === 0 || e.player === 1)) lastStrike = e.player;
       if (pw === 'armed' && e.player === 0 && (e.type === 'strike' || e.type === 'powerHit' || e.type === 'goal')) later(900, powerDone);
       if ((cw === 'after' || cw === 'fly') && e.player === 0 && e.by === 1) {
         if (e.type === 'blocked') counterDone(true);
