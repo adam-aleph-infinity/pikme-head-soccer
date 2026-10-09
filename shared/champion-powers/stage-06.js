@@ -24,7 +24,7 @@ export const ICE = Object.freeze({
 export default Object.freeze({
   stage: 6, id: 'iceshot', hs: 'Russia', hsPower: 'Ice Shot', hsStars: 3,
   family: 'straight', speed: 1.0, ailment: 'iced', ailSec: ICE.FREEZE,
-  name: 'כדור קרח', icon: '🧊', color: '#9fe8ff',
+  name: 'Ice Ball', icon: '🧊', color: '#9fe8ff',
   desc: 'כדור קרח טס גבוה וצולל בסוף. חסמת או נפגעת? אתה קופא בגוש קרח — ואפשר לבעוט אותך לשער.',
   sources: ['https://headsoccer.wiki.gg/wiki/Russia', 'https://headsoccer.wiki.gg/wiki/Power_Shot_Guide'],
   diff: { speed: 1.0, disable: ICE.FREEZE, blockKO: ICE.FREEZE, above: 1 },

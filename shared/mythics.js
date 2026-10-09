@@ -27,7 +27,7 @@ export const MYTHICS = Object.freeze([
 // the body it shatters into three shards that fly on, and only a timed kick stops it — what it
 // does: shared/champion-powers/mythic.js, its look: public/vfx/powers/mythic.js. Each Mythic fires
 // it in their own gem's colour (Idan): Shoval red, Ori pink, Naveh yellow, Paz green.
-export const MYTHIC_POWER = Object.freeze({ cp: 'mythicgem', family: 'straight', speed: 1.1, name: 'אבן מיתית', icon: '💎' });
+export const MYTHIC_POWER = Object.freeze({ cp: 'mythicgem', family: 'straight', speed: 1.1, name: 'Gem Strike', icon: '💎' });
 export const MYTHIC_GEMS = Object.freeze({
   1: Object.freeze({ gem: 'ruby', name: 'רובי', color: '#ff2b45', glow: '#ffc2ca' }),
   2: Object.freeze({ gem: 'pink diamond', name: 'יהלום ורוד', color: '#ff4fc8', glow: '#ffd3f1' }),

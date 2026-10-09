@@ -27,7 +27,7 @@ export const GEM = Object.freeze({
 export default Object.freeze({
   id: 'mythicgem',
   family: 'straight', speed: GEM.SPEED, ailment: null, ailSec: 0,
-  name: 'אבן מיתית', icon: '💎',
+  name: 'Gem Strike', icon: '💎',
   desc: 'הכדור הופך לאבן חן ועף מהר לשער. עצרת אותה עם הראש או הגוף? היא מתנפצת, אתה תקוע בגבישים לרגע והכדור קופץ מעליך. בעיטה בזמן מחזירה אותה.',
   diff: { speed: GEM.SPEED, disable: GEM.CRUST, blockKO: 0 },
 

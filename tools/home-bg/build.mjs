@@ -7,7 +7,7 @@
 //
 // The picture is 2.4:1 — wider than any phone we fit (4:3 … 20:9) — so `background-size: cover`
 // always fits it by HEIGHT: 36% down the picture is 36% down every screen, and the extra width is
-// the bleed each side. The bands are laid out in those screen percentages (the brief):
+// the bleed each side. The bands are laid out in those screen percentages:
 //   roof ring ~19–28% (it curves up toward the sides), bowl tiers to 36%, crowd 36–48%,
 //   ad boards 48–51%, the pitch 51–100%, its stripes running to a vanishing point at (50%, −40%).
 //

@@ -7,7 +7,7 @@
     "title": "התותחן",
     "power": {
       "id": "cannon",
-      "name": "תותח",
+      "name": "Blue Aura",
       "icon": "💥"
     },
     "family": "destructive",
@@ -36,7 +36,7 @@
     "title": "אדון התולעים",
     "power": {
       "id": "tentacles",
-      "name": "תולעים",
+      "name": "Thunderbolt",
       "icon": "🪱"
     },
     "family": "grab",
@@ -65,7 +65,7 @@
     "title": "השף הבוער",
     "power": {
       "id": "blaze",
-      "name": "מנגל בוער",
+      "name": "Tornado",
       "icon": "🔥"
     },
     "family": "straight",
@@ -94,7 +94,7 @@
     "title": "מלך הבוץ",
     "power": {
       "id": "mud",
-      "name": "בוץ",
+      "name": "Illusion",
       "icon": "🟤"
     },
     "family": "ground",
@@ -123,7 +123,7 @@
     "title": "בונה החומות",
     "power": {
       "id": "goalwall",
-      "name": "חומת שער",
+      "name": "Ninja",
       "icon": "🧱"
     },
     "family": "ground",
@@ -152,7 +152,7 @@
     "title": "איל ההון",
     "power": {
       "id": "coins",
-      "name": "גשם מטבעות",
+      "name": "Ice Ball",
       "icon": "🪙"
     },
     "family": "multiball",
@@ -181,7 +181,7 @@
     "title": "הקפצן",
     "power": {
       "id": "spring",
-      "name": "קפיץ",
+      "name": "Spring",
       "icon": "🌀"
     },
     "family": "aerial",
@@ -210,7 +210,7 @@
     "title": "האיש המגנטי",
     "power": {
       "id": "magnet",
-      "name": "מגנט",
+      "name": "Magnet",
       "icon": "🧲"
     },
     "family": "straight",
@@ -239,7 +239,7 @@
     "title": "גולש הגלים",
     "power": {
       "id": "wave",
-      "name": "גל אדום",
+      "name": "Red Wave",
       "icon": "🌊"
     },
     "family": "updown",
@@ -268,7 +268,7 @@
     "title": "הענק",
     "power": {
       "id": "giant",
-      "name": "ראש ענק",
+      "name": "Big Head",
       "icon": "🗿"
     },
     "family": "downward",
@@ -297,7 +297,7 @@
     "title": "המכווץ",
     "power": {
       "id": "shrink",
-      "name": "מכווץ",
+      "name": "Shrink",
       "icon": "🔻"
     },
     "family": "ailment",
@@ -326,7 +326,7 @@
     "title": "האסטרונאוט",
     "power": {
       "id": "lowgrav",
-      "name": "ירח",
+      "name": "Moon Shot",
       "icon": "🌙"
     },
     "family": "aerial",
@@ -355,7 +355,7 @@
     "title": "המטפס",
     "power": {
       "id": "rising",
-      "name": "טיל עולה",
+      "name": "Rocket",
       "icon": "🚀"
     },
     "family": "ground",
@@ -384,7 +384,7 @@
     "title": "נהג המרוצים",
     "power": {
       "id": "turbo",
-      "name": "טורבו",
+      "name": "Turbo",
       "icon": "⚡"
     },
     "family": "straight",
@@ -413,7 +413,7 @@
     "title": "מרים המשקולות",
     "power": {
       "id": "heavy",
-      "name": "משקולות",
+      "name": "Heavy Ball",
       "icon": "🏋️"
     },
     "family": "downward",
@@ -442,7 +442,7 @@
     "title": "מקפיץ האבנים",
     "power": {
       "id": "skip",
-      "name": "אבן מקפצת",
+      "name": "Skipping Stone",
       "icon": "🪨"
     },
     "family": "ground",
@@ -471,7 +471,7 @@
     "title": "רוכב הסערה",
     "power": {
       "id": "wind",
-      "name": "סופה",
+      "name": "Storm",
       "icon": "🌬️"
     },
     "family": "straight",
@@ -500,7 +500,7 @@
     "title": "הסטרייקר",
     "power": {
       "id": "strike",
-      "name": "סטרייק",
+      "name": "Strike",
       "icon": "⚡"
     },
     "family": "destructive",
@@ -529,7 +529,7 @@
     "title": "הג'וקר",
     "power": {
       "id": "reverse",
-      "name": "בלבול",
+      "name": "Dizzy",
       "icon": "🔄"
     },
     "family": "ailment",
@@ -558,7 +558,7 @@
     "title": "איש השלג",
     "power": {
       "id": "freeze",
-      "name": "הקפאה",
+      "name": "Freeze",
       "icon": "❄️"
     },
     "family": "ailment",
@@ -587,7 +587,7 @@
     "title": "צייד המטאורים",
     "power": {
       "id": "meteor",
-      "name": "מטאור",
+      "name": "Meteor",
       "icon": "☄️"
     },
     "family": "downward",
@@ -616,7 +616,7 @@
     "title": "הגנב",
     "power": {
       "id": "drain",
-      "name": "גניבת כוח",
+      "name": "Power Steal",
       "icon": "🫳"
     },
     "family": "ailment",
@@ -645,7 +645,7 @@
     "title": "רעם האדמה",
     "power": {
       "id": "quake",
-      "name": "רעידת אדמה",
+      "name": "Earthquake",
       "icon": "🌋"
     },
     "family": "destructive",
@@ -674,7 +674,7 @@
     "title": "האקרובט",
     "power": {
       "id": "trampoline",
-      "name": "טרמפולינה",
+      "name": "Trampoline",
       "icon": "🤸"
     },
     "family": "updown",
@@ -703,7 +703,7 @@
     "title": "המטעה",
     "power": {
       "id": "stutter",
-      "name": "עצור וסע",
+      "name": "Stop & Go",
       "icon": "⏯️"
     },
     "family": "delay",
@@ -732,7 +732,7 @@
     "title": "המחליק",
     "power": {
       "id": "ice",
-      "name": "רצפת קרח",
+      "name": "Ice Floor",
       "icon": "🧊"
     },
     "family": "ground",
@@ -761,7 +761,7 @@
     "title": "שומר הפורטל",
     "power": {
       "id": "portal",
-      "name": "פורטל",
+      "name": "Portal",
       "icon": "🌀"
     },
     "family": "delay",
@@ -790,7 +790,7 @@
     "title": "זורק הבומרנג",
     "power": {
       "id": "boomerang",
-      "name": "בומרנג",
+      "name": "Boomerang",
       "icon": "🪃"
     },
     "family": "aerial",
@@ -819,7 +819,7 @@
     "title": "הכורה",
     "power": {
       "id": "drill",
-      "name": "מקדחה",
+      "name": "Drill",
       "icon": "🔩"
     },
     "family": "destructive",
@@ -848,7 +848,7 @@
     "title": "אדון המשיכה",
     "power": {
       "id": "goalmagnet",
-      "name": "מגנט שער",
+      "name": "Goal Magnet",
       "icon": "🥅"
     },
     "family": "downward",
@@ -877,7 +877,7 @@
     "title": "השואב",
     "power": {
       "id": "keeperpull",
-      "name": "שאיבה",
+      "name": "Vacuum",
       "icon": "🌪️"
     },
     "family": "grab",
@@ -906,7 +906,7 @@
     "title": "הרוזן האפל",
     "power": {
       "id": "vampire",
-      "name": "ערפד",
+      "name": "Vampire",
       "icon": "🧛"
     },
     "family": "grab",
@@ -935,7 +935,7 @@
     "title": "רגל הזהב",
     "power": {
       "id": "superboot",
-      "name": "בעיטת על",
+      "name": "Super Kick",
       "icon": "👟"
     },
     "family": "critical",
@@ -964,7 +964,7 @@
     "title": "אמן הצמר",
     "power": {
       "id": "woolshoes",
-      "name": "נעלי צמר",
+      "name": "Wool Boots",
       "icon": "🧶"
     },
     "family": "aerial",
@@ -993,7 +993,7 @@
     "title": "הנווט",
     "power": {
       "id": "homing",
-      "name": "טיל מונחה",
+      "name": "Homing Missile",
       "icon": "🎯"
     },
     "family": "critical",
@@ -1022,7 +1022,7 @@
     "title": "הופך העולמות",
     "power": {
       "id": "gravflip",
-      "name": "היפוך כבידה",
+      "name": "Gravity Flip",
       "icon": "🙃"
     },
     "family": "updown",
@@ -1051,7 +1051,7 @@
     "title": "אדון המראות",
     "power": {
       "id": "mirror",
-      "name": "מראה",
+      "name": "Mirror",
       "icon": "🪞"
     },
     "family": "critical",
@@ -1080,7 +1080,7 @@
     "title": "המשגר",
     "power": {
       "id": "teleport",
-      "name": "שיגור",
+      "name": "Blast Off",
       "icon": "🛸"
     },
     "family": "critical",
@@ -1109,7 +1109,7 @@
     "title": "מלך הכדרור",
     "power": {
       "id": "carry",
-      "name": "דבק",
+      "name": "Glue",
       "icon": "🍯"
     },
     "family": "grab",
@@ -1138,7 +1138,7 @@
     "title": "רוח הרפאים",
     "power": {
       "id": "phantom",
-      "name": "רוח רפאים",
+      "name": "Ghost",
       "icon": "👻"
     },
     "family": "multiball",
@@ -1167,7 +1167,7 @@
     "title": "שומר הזמן",
     "power": {
       "id": "timeslow",
-      "name": "הילוך איטי",
+      "name": "Slow Motion",
       "icon": "🐢"
     },
     "family": "delay",
@@ -1196,7 +1196,7 @@
     "title": "התאום",
     "power": {
       "id": "clone",
-      "name": "שכפול",
+      "name": "Clone",
       "icon": "👥"
     },
     "family": "multiball",
@@ -1225,7 +1225,7 @@
     "title": "המפצל",
     "power": {
       "id": "split",
-      "name": "פיצול",
+      "name": "Split Shot",
       "icon": "🔱"
     },
     "family": "multiball",
@@ -1254,7 +1254,7 @@
     "title": "עין הסערה",
     "power": {
       "id": "tornado",
-      "name": "טורנדו",
+      "name": "Cyclone",
       "icon": "🌪"
     },
     "family": "updown",
@@ -1283,7 +1283,7 @@
     "title": "אדון הזמן",
     "power": {
       "id": "timestop",
-      "name": "עצירת זמן",
+      "name": "Time Stop",
       "icon": "⏱️"
     },
     "family": "delay",

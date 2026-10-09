@@ -62,44 +62,14 @@
        characters and shop on the left, the battle pass bottom-left; friends and the leaderboard on
        the right, PLAY bottom-right (it opens the game modes). -->
   <div class="hm-stage" aria-hidden="true">
-    <!-- the sunset stadium, back to front (menus.css "HOME"): sky and sun on #menu itself, three
-         layers of drifting clouds, the baked bowl/crowd/boards/pitch (tools/home-bg/build.mjs),
-         two floodlights, the pitch's lines, a shade for the UI's sake, then you on the podium -->
-    <div class="hm-clouds">
-      <div class="hm-cl-far"><i class="a"></i><i class="b"></i><i class="c"></i><i class="d"></i></div>
-      <div class="hm-cl-mid"><i class="a"></i><i class="b"></i><i class="c"></i></div>
-      <div class="hm-cl-near"><i class="a"></i><i class="b"></i></div>
-    </div>
+    <!-- the sunset stadium (menus.css "HOME"): one picture with the sky, floodlights, crowd and
+         pitch, a shade for the UI's sake, then you on the podium -->
     <i class="hm-bowl"></i>
-    <svg class="hm-flood l" viewBox="0 0 100 160"><use href="#hmFlood"/></svg>
-    <svg class="hm-flood r" viewBox="0 0 100 160"><use href="#hmFlood"/></svg>
-    <svg width="0" height="0" style="position:absolute">
-      <defs>
-        <radialGradient id="hmFloodGlow"><stop offset="0" stop-color="#fff8e0"/><stop offset=".3" stop-color="#ffe9b0" stop-opacity=".55"/><stop offset="1" stop-color="#ffd890" stop-opacity="0"/></radialGradient>
-        <linearGradient id="hmFloodCone" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#fff4d0" stop-opacity=".9"/><stop offset="1" stop-color="#fff4d0" stop-opacity="0"/></linearGradient>
-        <g id="hmFlood">
-          <path d="M44 58h12l4 102H40z" fill="#1d1440"/>
-          <path d="M46 66l8 18-8 18 8 18-8 18 8 18" fill="none" stroke="#3d2a72" stroke-width="2"/>
-          <circle cx="50" cy="34" r="46" fill="url(#hmFloodGlow)"/>
-          <rect x="18" y="14" width="64" height="44" rx="5" fill="#2a1a55" stroke="#120b2c" stroke-width="3"/>
-          <g fill="#fffbea"><circle cx="30" cy="25" r="5"/><circle cx="43" cy="25" r="5"/><circle cx="57" cy="25" r="5"/><circle cx="70" cy="25" r="5"/>
-            <circle cx="30" cy="42" r="5"/><circle cx="43" cy="42" r="5"/><circle cx="57" cy="42" r="5"/><circle cx="70" cy="42" r="5"/></g>
-          <path d="M18 14h64" stroke="#ff9a6a" stroke-width="2"/>
-        </g>
-      </defs>
-    </svg>
-    <i class="hm-cone l"></i><i class="hm-cone r"></i>
-    <div class="hm-lines">
-      <i class="hm-half"></i>
-      <svg class="hm-boxes" viewBox="0 0 100 100" preserveAspectRatio="none">
-        <path d="M-5 18H20.1L10.9 80H-5M105 18H79.9L89.1 80H105"/>
-      </svg>
-      <i class="hm-ring"></i>
-    </div>
     <i class="hm-shade"></i>
     <div class="hm-spot">
       <div class="hm-podium"><i class="hm-pod-side"></i><i class="hm-pod-top"></i><span class="m-sym hm-pod-sym" id="hmPodSym"></span></div>
-      <div class="hm-hero" id="hmHero"></div>
+      <div class="hm-hero" id="hmHero" role="button" tabindex="0" aria-label="החלף אלוף"></div>
+      <b class="hm-swap" id="hmSwap" aria-hidden="true"><i>⇄</i>החלף אלוף</b>
     </div>
   </div>
   <!-- the HUD and the tiles (round 2, after the references: Brawl Stars' square tiles and
@@ -148,6 +118,40 @@
   <button class="m-back m-drop" id="mdBack"><i></i>חזרה</button>
   <h1 class="sel-h m-drop"><b class="m-title">בחר מצב משחק</b></h1>
   <nav class="md-row m-rise" id="mdRow" aria-label="מצבי משחק"></nav>
+</section>
+
+<!-- MY CHAMPIONS: a tap on you on the home podium. Left, the one you are looking at, whole on a gold
+     podium under a spotlight in their colour, with their name, stars and power; right, every champion,
+     the ones you have not collected yet dark silhouettes, and how many of them you have -->
+<section id="champs" class="screen m-screen hidden">
+  <i class="m-rays" aria-hidden="true" style="--rx: 27%; --ry: 52%"></i>
+  <button class="m-back m-drop" id="chBack"><i></i>חזרה</button>
+  <div class="ch-show" id="chShow">
+    <i class="ch-light" aria-hidden="true"></i>
+    <div class="ch-sparks" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div>
+    <div class="ch-stage">
+      <div class="hm-podium ch-podium"><i class="hm-pod-side"></i><i class="hm-pod-top"></i><span class="m-sym hm-pod-sym" id="chPodSym"></span></div>
+      <div class="ch-hero" id="chHero"></div>
+      <b class="ch-lockbig" aria-hidden="true">?</b>
+    </div>
+    <div class="ch-info">
+      <span class="ch-rar" id="chRar"></span>
+      <b class="ch-big ch-name" id="chName"></b>
+      <small class="ch-title" id="chTitle"></small>
+      <div class="ch-row"><span class="m-stars ch-stars" id="chStars"></span>
+      <span class="ch-power" id="chPower"><i></i><b></b></span></div>
+    </div>
+    <button class="m-pill big glint ch-go" id="chGo"><b>בחר!</b></button>
+    <small class="ch-why" id="chWhy"></small>
+    <div class="ch-burst" id="chBurst" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div>
+  </div>
+  <div class="ch-side m-rise">
+    <header class="ch-head">
+      <b class="ch-big ch-h">האלופים שלי</b>
+      <div class="ch-count"><span class="ch-num"><b id="chN">0</b>/<span id="chOf">0</span></span><i class="ch-bar"><i id="chBar"></i></i><small>אספו את כולם!</small></div>
+    </header>
+    <div class="ch-grid" id="chGrid" aria-label="האלופים"></div>
+  </div>
 </section>
 
 <!-- PLAYER SELECT · HS: two reels (you left, the CPU right), MATCH n, the last score, the stats, SHOP / PLAY -->

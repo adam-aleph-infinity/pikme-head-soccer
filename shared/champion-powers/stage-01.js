@@ -10,7 +10,7 @@
 export default Object.freeze({
   stage: 1, id: 'blueaura', hs: 'South Korea', hsPower: 'Blue Aura Shot', hsStars: 0.5,
   family: 'straight', speed: 1, ailment: null, ailSec: 0,
-  name: 'הילה כחולה', icon: '🔵', color: '#2f7bff',
+  name: 'Blue Aura', icon: '🔵', color: '#2f7bff',
   desc: 'כדור עטוף הילה כחולה טס ישר ושטוח לשער. בעיטה בזמן חוסמת אותו.',
   sources: ['https://headsoccer.wiki.gg/wiki/South_Korea', 'https://headsoccer.wiki.gg/wiki/Power_Shot_Guide', 'docs/HS-POWER-SHOTS.md §3–4 (M4, M1)'],
   diff: { speed: 1 },

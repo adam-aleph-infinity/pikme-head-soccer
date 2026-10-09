@@ -184,8 +184,9 @@ const pick = {
   // The app injects these before the page boots, exactly as it does for football. Outside the
   // app the name is the one typed into the multiplayer box last time (HS: "AUTO SAVE").
   name: MN.cleanName((typeof window !== 'undefined' && window.SALTIZ_NAME) || new URLSearchParams(location.search).get('name') || stored(MN.NAME_KEY)),
-  // your Mythic starter; before you have one, the best card in your album
-  me: STARTER ? { rarity: MYTHIC, number: STARTER } : bestOwned() || { rarity: 'legendary', number: 1 },
+  // the champion you chose in the picker (menus.js) if you still own it; else your Mythic starter;
+  // before you have one, the best card in your album
+  me: MN.loadMe(stored(MN.ME_KEY), owns, STARTER) || (STARTER ? { rarity: MYTHIC, number: STARTER } : bestOwned() || { rarity: 'legendary', number: 1 }),
   foe: { rarity: 'legendary', number: 2 },
   level: 3,
 };

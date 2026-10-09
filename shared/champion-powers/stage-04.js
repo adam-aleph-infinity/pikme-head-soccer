@@ -24,7 +24,7 @@ export const ILLUSION = Object.freeze({
 export default Object.freeze({
   stage: 4, id: 'illusion', hs: 'USA', hsPower: 'Illusion Shot', hsStars: 2,
   family: 'straight', speed: 1.0, ailment: null, ailSec: 0,
-  name: 'אשליה', icon: '🎩', color: '#9fd0ff',
+  name: 'Illusion', icon: '🎩', color: '#9fd0ff',
   desc: 'הכדור מתפצל לשמונה, רק אחד אמיתי — והוא נעלם באוויר ועובר דרך השוער.',
   sources: ['https://headsoccer.wiki.gg/wiki/USA', 'https://headsoccer.wiki.gg/wiki/Power_Shot_Guide'],
   diff: { speed: 1.0, decoys: 7, decoyLife: ILLUSION.FAKES, invisible: ILLUSION.INV, through: 1 },

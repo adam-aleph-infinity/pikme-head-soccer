@@ -34,7 +34,7 @@ export function ninjaTarget(pw, i) {
 export default Object.freeze({
   stage: 5, id: 'ninja', hs: 'Japan', hsPower: 'Ninja Shot', hsStars: 2.5,
   family: 'downward', speed: 1.1, ailment: null, ailSec: 0,
-  name: 'נינג׳ה', icon: '🥷', color: '#3fd07a',
+  name: 'Ninja', icon: '🥷', color: '#3fd07a',
   desc: 'הופך לבול עץ, חמישה כדורים סביבו וחמש קרני אור יורדות לשער. רק הירוקה אמיתית.',
   sources: ['https://headsoccer.wiki.gg/wiki/Japan', 'https://headsoccer.wiki.gg/wiki/Power_Shot_Guide'],
   diff: { speed: 1.1, decoys: 4, decoyLife: 1, above: 1, blockKO: NINJA.KO },

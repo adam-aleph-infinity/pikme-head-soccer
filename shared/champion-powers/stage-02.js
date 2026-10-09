@@ -12,7 +12,7 @@
 export default Object.freeze({
   stage: 2, id: 'thunderbolt', hs: 'Cameroon', hsPower: 'Thunderbolt Shot', hsStars: 1,
   family: 'straight', speed: 1, ailment: 'shock', ailSec: 1.8,
-  name: 'ברק', icon: '⚡', color: '#b9a8ff',
+  name: 'Thunderbolt', icon: '⚡', color: '#b9a8ff',
   desc: 'כדור עטוף ברקים טס ישר. מי שנפגע מתחשמל: איטי ולא קופץ.',
   sources: ['https://headsoccer.wiki.gg/wiki/Cameroon', 'https://headsoccer.wiki.gg/wiki/Power_Shot_Guide', 'https://headsoccer.wiki.gg/wiki/Power_Shots'],
   diff: { speed: 1, disable: 1.8 },

@@ -130,7 +130,7 @@ const FOE_CARD = { rarity: 'epic', number: 1 };            // not a champion: no
     ok(`power ${n}: is the spec's HS character (${row.hsCharacter} — ${row.powerName})`, d.stage === n && d.hs === row.hsCharacter && d.hsPower === row.powerName && d.hsStars === row.stars);
     ok(`power ${n}: flies a real engine family, carries a real ailment`, FAMILY_ORDER.includes(d.family) && (d.ailment === null || AILMENT_ORDER.includes(d.ailment)));
     ok(`power ${n}: its own id`, !ids.has(d.id)); ids.add(d.id);
-    ok(`power ${n}: the board says it in short Hebrew`, /[֐-׿]/.test(d.name) && /[֐-׿]/.test(d.desc) && d.desc.length <= 90 && c.powerName === d.name && c.desc === d.desc, `${d.desc.length} chars`);
+    ok(`power ${n}: its name in English (Idan), the board's words in short Hebrew`, /^[A-Z][A-Za-z &]+$/.test(d.name) && /[֐-׿]/.test(d.desc) && d.desc.length <= 90 && c.powerName === d.name && c.desc === d.desc, `${d.desc.length} chars`);
     ok(`power ${n}: cites the HS wiki`, d.sources.some((u) => u === row.sources.P));
     ok(`power ${n}: has its renderer (public/vfx/powers/stage-${String(n).padStart(2, '0')}.js)`, (() => { try { return readFileSync(new URL(`./public/vfx/powers/stage-${String(n).padStart(2, '0')}.js`, import.meta.url), 'utf8').includes(`id: '${d.id}'`); } catch { return false; } })());
     const lo = BUILT_STAGES.filter((k) => k < n).pop();            // the nearest built stage below

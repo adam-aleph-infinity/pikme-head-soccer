@@ -30,7 +30,7 @@ export const TORNADO = Object.freeze({
 export default Object.freeze({
   stage: 3, id: 'tornado', hs: 'Nigeria', hsPower: 'Tornado Shot', hsStars: 1.5,
   family: 'ground', speed: 0.68, ailment: null, ailSec: 0,
-  name: 'טורנדו', icon: '🌪️', color: '#e8eef4',
+  name: 'Tornado', icon: '🌪️', color: '#e8eef4',
   desc: 'טורנדו רץ על הדשא עם הכדור ופוגע גם בקופץ. נפגעת? עף מסתחרר, 3 שניות מעולף.',
   sources: ['https://headsoccer.wiki.gg/wiki/Nigeria', 'https://headsoccer.wiki.gg/wiki/Power_Shot_Guide', 'https://headsoccer.wiki.gg/wiki/Power_Shots'],
   diff: { speed: 0.68, disable: TORNADO.OUT, jumpers: 1 },

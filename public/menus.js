@@ -17,7 +17,7 @@ import { HS_STAGES } from './hs-stadium.js';
 import * as TOUR from '../shared/tournament.js';
 
 const $ = (s) => document.querySelector(s);
-export const SCREENS = ['title', 'menu', 'modes', 'select', 'shop', 'bracket', 'howto', 'lobby', 'match'];
+export const SCREENS = ['title', 'menu', 'champs', 'modes', 'select', 'shop', 'bracket', 'howto', 'lobby', 'match'];
 const POPS = ['cardsPop', 'statsPop', 'optPop', 'mpPop'];      // the order Esc closes them in
 const fmt = (n) => Number(n || 0).toLocaleString('en-US');
 
@@ -53,7 +53,7 @@ export function createMenus(ctx) {
   let shownPts = null, ptsAnim = 0;
 
   // The symbol, everywhere HS has its own art.
-  for (const id of ['tSym', 'hmPodSym', 'mnLogo', 'oSym', 'pSym', 'vsSym', 'brSym']) { const el = document.getElementById(id); if (el) el.innerHTML = symbolSVG(); }
+  for (const id of ['tSym', 'hmPodSym', 'chPodSym', 'mnLogo', 'oSym', 'pSym', 'vsSym', 'brSym']) { const el = document.getElementById(id); if (el) el.innerHTML = symbolSVG(); }
 
   // ── SCREENS AND POPUPS ──────────────────────────────────────────────────
   function show(id) {
@@ -131,7 +131,7 @@ export function createMenus(ctx) {
     ctx.onHome?.();
   }
   // the tiles' drawn icons (home-icons.js), once
-  const ICONS = { trophy: ICON.TROPHY, gear: ICON.GEAR, shop: '<img src="img/shop-icon.png" alt="">', friends: ICON.FRIENDS, board: ICON.BOARD, pass: ICON.PASS, quests: ICON.QUESTS };
+  const ICONS = { trophy: ICON.TROPHY, gear: ICON.GEAR, shop: '<img src="img/shop-icon.png" alt="">', friends: '<img src="img/friends-icon.png" alt="">', board: ICON.BOARD, pass: ICON.PASS, quests: ICON.QUESTS };
   for (const el of document.querySelectorAll('#menu [data-ico]')) el.innerHTML = ICONS[el.dataset.ico] || '';
   function paintHome() {
     $('#hmName').textContent = pick.name || MN.cleanName('');
@@ -174,13 +174,106 @@ export function createMenus(ctx) {
   tap('#hmModes', () => openModes());
   on('#hmCupsBox', () => { ctx.sfx?.('tap'); ctx.openRoad?.(); });
   tap('#hmBoard', () => (ctx.openBoard ? ctx.openBoard() : toast('בקרוב!')));
-  tap('#hmChars', () => openCards('menu'));
+  tap('#hmChars', () => openChamps());
+  for (const id of ['#hmHero', '#hmSwap']) on(id, () => { ctx.sfx?.('swish'); openChamps(); });
   tap('#hmShop', () => openShop('menu'));
   tap('#hmProfile', () => openStats({ profile: true }));
   tap('#hmTeam', () => ctx.openTeam?.());
   for (const id of ['#hmPass', '#hmQuests', '#hmFriends', '#hmMoneyPlus']) tap(id, () => toast('בקרוב!'));
   tap('#hmPtsPlus', () => openShop('menu'));          // more points: the shop is where they are spent
   tap('#mnOpt', () => openOptions());
+
+  // ── MY CHAMPIONS ────────────────────────────────────────────────────────
+  // A tap on you on the podium (or the Characters tile): every champion as a tile, yours lit, the
+  // ones still to collect dark silhouettes with a lock — the collection the kids play to fill. A tap
+  // on a tile stands that champion on the big podium; CHOOSE makes it the one you play with (kept in
+  // MN.ME_KEY, game.js reads it at launch).
+  let chList = [], chAt = 0, chLeaving = false;
+  const isMe = (c) => c.rarity === pick.me.rarity && c.number === pick.me.number;
+  // what a tile and the stage say about a champion: a Mythic its name and gem, a legendary its title and power
+  function champLook(c) {
+    if (c.rarity === 'mythic') {
+      const s = ctx.shotFor(c, { arcade: true });
+      return { name: MN.charName(c), sub: '', color: s.color, power: s.name, icon: s.icon, stars: 0 };
+    }
+    const row = champs[c.number - 1];
+    return { name: row?.title || MN.charName(c), sub: `אלוף #${c.number}`, color: row?.color || '#ffb800', power: row?.powerName, icon: row?.icon, stars: row?.hs.stars || 0 };
+  }
+  function openChamps() {
+    chList = MN.charReel(ctx.owns);
+    chLeaving = false;
+    show('champs');
+    $('#chShow').classList.remove('chosen');
+    renderChampGrid();
+    previewChamp(Math.max(0, MN.charIndex(chList, pick.me)), false);
+  }
+  function renderChampGrid() {
+    const grid = $('#chGrid');
+    grid.innerHTML = chList.map((c, i) => {
+      const L = champLook(c), lit = c.owned ? L.color : '#3a3f55';
+      return `<button class="ch-tile${c.owned ? '' : ' locked'}${c.rarity === 'mythic' ? ' myth' : ''}${isMe(c) ? ' cur' : ''}" data-i="${i}" data-k="${c.rarity}_${c.number}"
+        style="--c:${lit};--d:${Math.min(i, 20) * 18}" aria-label="${c.owned ? L.name : 'נעול'}"><i class="ch-face"></i>` +
+        `<b class="ch-no">${c.rarity === 'mythic' ? '💎' : c.number}</b>${c.owned ? '' : '<i class="ch-lock"></i>'}${isMe(c) ? '<i class="ch-on">✓</i>' : ''}</button>`;
+    }).join('');
+    for (const b of grid.children) {
+      const c = chList[+b.dataset.i], f = b.querySelector('.ch-face');
+      ctx.paintHead(f, c.rarity, c.number, f.clientWidth || 60, { fill: 1.0 });
+      b.addEventListener('click', () => { if (+b.dataset.i === chAt) return; ctx.sfx?.('tap'); previewChamp(+b.dataset.i); });
+    }
+    const got = chList.filter((c) => c.owned).length;
+    $('#chN').textContent = got;
+    $('#chOf').textContent = chList.length;
+    $('#chBar').style.width = `${(100 * got) / chList.length}%`;
+  }
+  function previewChamp(i, anim = true) {
+    chAt = i;
+    const c = chList[i], L = champLook(c), box = $('#chShow'), go = $('#chGo');
+    for (const b of $('#chGrid').children) b.classList.toggle('sel', +b.dataset.i === i);
+    // bring the tile into view: the grid only (scrollIntoView would scroll the whole screen too)
+    const grid = $('#chGrid'), tile = grid.children[i];
+    if (tile) {
+      const top = tile.offsetTop - grid.offsetTop, pad = tile.offsetHeight * 0.4;
+      const to = top < grid.scrollTop + pad ? top - pad : top + tile.offsetHeight > grid.scrollTop + grid.clientHeight - pad ? top + tile.offsetHeight - grid.clientHeight + pad : null;
+      if (to !== null) grid.scrollTo({ top: to, behavior: anim ? 'smooth' : 'auto' });
+    }
+    box.style.setProperty('--c', L.color);
+    $('#champs').style.setProperty('--chc', c.owned ? L.color : '#5b63a0');
+    box.classList.toggle('locked', !c.owned);
+    box.classList.toggle('myth', c.rarity === 'mythic');
+    ctx.paintStanding?.($('#chHero'), c);
+    $('#chRar').textContent = L.sub;
+    $('#chName').textContent = L.name;
+    $('#chTitle').textContent = MN.charRole(c);
+    $('#chStars').classList.toggle('hidden', !L.stars);
+    if (L.stars) stars($('#chStars'), L.stars);
+    $('#chPower i').textContent = L.icon || '⚡';
+    $('#chPower b').textContent = L.power || '';
+    const mine = isMe(c);
+    go.disabled = !c.owned || mine;
+    go.classList.toggle('on', mine);
+    go.innerHTML = `<b>${!c.owned ? '🔒 נעול' : mine ? '✓ בשימוש' : 'בחר!'}</b>`;
+    $('#chWhy').textContent = c.owned ? '' : '🃏 אספו את הקלף באלבום כדי לפתוח';
+    if (anim) { box.classList.remove('pop'); void box.offsetWidth; box.classList.add('pop'); }
+  }
+  function chooseChamp() {
+    const c = chList[chAt];
+    if (chLeaving || !c?.owned || isMe(c)) return;
+    chLeaving = true;
+    pick.me = { rarity: c.rarity, number: c.number };
+    try { ctx.store?.setItem(MN.ME_KEY, MN.saveMe(pick.me)); } catch { /* private mode: for this visit only */ }
+    ctx.sfx?.('armed');
+    $('#chShow').classList.add('chosen');
+    $('#chGo').classList.add('on');
+    $('#chGo').innerHTML = '<b>✓ נבחר!</b>';
+    $('#chGo').disabled = true;
+    setTimeout(() => {
+      openMenu();
+      const hero = $('#hmHero');
+      hero.classList.remove('arrive'); void hero.offsetWidth; hero.classList.add('arrive');
+    }, 850);
+  }
+  on('#chGo', (e, el) => press(el, chooseChamp));
+  tap('#chBack', () => openMenu());
 
   // ── GAME MODES ──────────────────────────────────────────────────────────
   // What PLAY opens: every mode (shared/menu.js MODES) as a big card, its mascot over it.
@@ -695,7 +788,13 @@ export function createMenus(ctx) {
     } else if (screen === 'title') {
       if (k === 'Enter' || k === 'NumpadEnter' || k === 'Space') act = leaveTitle;
     } else if (screen === 'menu') {
-      if ((k === 'Enter' || k === 'NumpadEnter') && !(t?.tagName === 'BUTTON')) act = () => openModes();
+      if ((k === 'Enter' || k === 'NumpadEnter') && t?.id === 'hmHero') act = () => openChamps();
+      else if ((k === 'Enter' || k === 'NumpadEnter') && !(t?.tagName === 'BUTTON')) act = () => openModes();
+    } else if (screen === 'champs') {
+      if (k === 'Escape') act = () => openMenu();
+      else if (k === 'ArrowRight' || k === 'ArrowDown') act = () => previewChamp(Math.min(chList.length - 1, chAt + 1));
+      else if (k === 'ArrowLeft' || k === 'ArrowUp') act = () => previewChamp(Math.max(0, chAt - 1));
+      else if ((k === 'Enter' || k === 'NumpadEnter') && !(t?.tagName === 'BUTTON')) act = chooseChamp;
     } else if (screen === 'modes') {
       if (k === 'Escape') act = () => openMenu();
     } else if (screen === 'select') {

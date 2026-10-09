@@ -30,7 +30,13 @@ function boot({ live = true } = {}) {
     srv.once('exit', () => { clearTimeout(timer); reject(new Error('Test server exited')); });
   });
 }
-const die = (code) => { try { srv.kill(); } catch {} rmSync(DATA, { recursive: true, force: true }); process.exit(code); };
+// On Windows the killed server can hold the database file open a moment longer, so the cleanup
+// retries, and a temp folder that still will not go never fails the run.
+const die = (code) => {
+  try { srv.kill(); } catch {}
+  try { rmSync(DATA, { recursive: true, force: true, maxRetries: 20, retryDelay: 100 }); } catch {}
+  process.exit(code);
+};
 process.on('uncaughtException', (e) => { console.log('  ✗ threw:', e.stack); die(1); });
 
 let n = 0;

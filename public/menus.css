@@ -324,7 +324,9 @@
 }
 /* HS's stars, gold, halves allowed */
 .m-stars { display: inline-flex; gap: calc(var(--u) * .4); }
-.m-stars .st { width: calc(var(--u) * 3.6); height: calc(var(--u) * 3.6); background: #ffffff26;
+/* (position…overflow: the starter screen's own .st, further down, is a fixed full-screen layer) */
+.m-stars .st { position: static; inset: auto; z-index: auto; overflow: visible; display: block; padding: 0;
+  width: calc(var(--u) * 3.6); height: calc(var(--u) * 3.6); background: #ffffff26;
   clip-path: polygon(50% 0, 61% 35%, 98% 35%, 68% 57%, 79% 91%, 50% 70%, 21% 91%, 32% 57%, 2% 35%, 39% 35%); }
 .m-stars .st.full { background: linear-gradient(180deg, #fff4a0, var(--m-gold) 50%, var(--m-gold-lo)); }
 .m-stars .st.half { background: linear-gradient(90deg, var(--m-gold) 50%, #ffffff26 50%); }
@@ -387,12 +389,9 @@
 /* Ours: a sunset stadium, you on a small podium at the centre spot, the buttons round
    the edges. Sizes in --u (1% of a 16:9 screen's height), so the same layout fits every phone;
    horizontal places in % of the width.
-   The stadium is layers, back to front: the sky and a low sun (here, CSS), three layers of soft
-   clouds drifting (home-cloud-*.svg), the bowl, crowd, boards and mown pitch baked into one
-   picture (home-sunset.webp, made by tools/home-bg/build.mjs — 2.4:1, so `cover` always fits it
-   by height and its bands land at the same screen heights on 4:3 … 20:9), two floodlights at 9%
-   and 91%, the pitch's lines (the centre circle is tied to the podium, not to the picture), a
-   shade that keeps the UI readable, and you. The colours are tokens, for a day or night later. */
+   The stadium is one picture (home-bg-sunset.webp): the sunset sky, the floodlights, the crowd,
+   the boards and the pitch with its lines, `cover` so it fills every phone; over it a shade that
+   keeps the UI readable, and you.  */
 #menu {
   --sky-1: #2b1a5e; --sky-2: #6a2c91; --sky-3: #d94a86; --sky-4: #ff8a4c; --sky-5: #ffc766;
   --sun: #fff6d0; --sun-glow: #ffb35a; --flood: #fff4d0; --line: #ffffffd9;
@@ -402,43 +401,14 @@
     linear-gradient(180deg, var(--sky-1) 0, var(--sky-2) 8%, var(--sky-3) 15%, var(--sky-4) 20%, var(--sky-5) 25%);
   background-color: var(--sky-5);
 }
-.hm-stage { position: absolute; inset: 0; overflow: hidden; pointer-events: none;
-  --hm-base: calc(var(--safe-b) + var(--u) * 9 + 15%); }     /* where the podium meets the grass */
-/* the clouds: only between the side buttons and your head, fading out under the top bar, behind the roof */
-.hm-clouds { position: absolute; left: 0; right: 0; top: 6%; height: 26%;
-  -webkit-mask-image: linear-gradient(90deg, transparent 11%, #000 17%, #000 29%, transparent 37%, transparent 63%, #000 71%, #000 83%, transparent 89%),
-    linear-gradient(180deg, transparent, #000 28%);
-  -webkit-mask-composite: source-in; mask-composite: intersect; }
-.hm-clouds > div { position: absolute; inset: 0; animation: hmDrift 90s ease-in-out infinite alternate; }
-.hm-clouds i { position: absolute; background: center / 100% 100% no-repeat; }
-.hm-cl-far { opacity: .75; animation-duration: 150s !important; }
-.hm-cl-far i { background-image: url(img/home-cloud-far.svg); height: calc(var(--u) * 7); width: calc(var(--u) * 26.7); }
-.hm-cl-mid i { background-image: url(img/home-cloud-mid.svg); height: calc(var(--u) * 11); width: calc(var(--u) * 28.9); }
-.hm-cl-near { animation-duration: 60s !important; }
-.hm-cl-near i { background-image: url(img/home-cloud-near.svg); height: calc(var(--u) * 14); width: calc(var(--u) * 30.8); }
-.hm-cl-far .a { left: 14%; top: 22%; } .hm-cl-far .b { left: 25%; top: 44%; transform: scaleX(-1); }
-.hm-cl-far .c { left: 66%; top: 30%; transform: scaleX(-1); } .hm-cl-far .d { left: 76%; top: 16%; }
-.hm-cl-mid .a { left: 13%; top: 40%; } .hm-cl-mid .b { left: 69%; top: 44%; transform: scaleX(-1); } .hm-cl-mid .c { left: 27%; top: 62%; transform: scaleX(-1); }
-.hm-cl-near .a { left: 17%; top: 60%; } .hm-cl-near .b { left: 63%; top: 64%; transform: scaleX(-1); }
-@keyframes hmDrift { from { transform: translateX(-2.5%); } to { transform: translateX(2.5%); } }
-/* the bowl, the crowd, the boards and the pitch: one baked picture */
-.hm-bowl { position: absolute; inset: 0; background: url(img/home-sunset.webp) 50% 50% / cover no-repeat; }
-/* the floodlights, on at sunset: lit heads on the roof ring, and a faint cone of light each toward the pitch */
-.hm-flood { position: absolute; top: 12%; width: calc(var(--u) * 10); height: calc(var(--u) * 16); overflow: visible; }
-.hm-flood.l { left: 9%; transform: translateX(-50%); }
-.hm-flood.r { right: 9%; transform: translateX(50%) scaleX(-1); }
-.hm-cone { position: absolute; top: calc(12% + var(--u) * 3); width: 44%; height: 66%; opacity: .14; mix-blend-mode: screen;
-  background: linear-gradient(180deg, var(--flood), transparent); filter: blur(calc(var(--u) * 1.2)); }
-.hm-cone.l { left: 9%; clip-path: polygon(0 0, 5% 0, 100% 100%, 35% 100%); }
-.hm-cone.r { right: 9%; clip-path: polygon(95% 0, 100% 0, 65% 100%, 0 100%); }
-/* the pitch's lines: the halfway line, the two boxes at the sides, and the centre circle round your podium */
-.hm-lines { position: absolute; inset: 0; }
-.hm-half { position: absolute; left: 50%; top: 51%; bottom: 0; width: calc(var(--u) * .6); transform: translateX(-50%); background: var(--line); }
-.hm-boxes { position: absolute; left: 0; top: 51%; width: 100%; height: 49%; overflow: visible; }
-.hm-boxes path { fill: none; stroke: var(--line); stroke-opacity: .6; stroke-width: calc(var(--u) * .6); vector-effect: non-scaling-stroke; }
-.hm-ring { position: absolute; left: 17%; width: 66%; height: 15%; bottom: calc(var(--hm-base) + var(--u) * 1.8 - 7.5%);
-  box-sizing: border-box; border: calc(var(--u) * .6) solid var(--line); border-radius: 50%; }
-/* for the UI's sake: darker under the top bar, down the side columns and in the bottom corners */
+/* where the podium meets the grass: its base on the picture's centre spot. The spot is 74.2% down the
+   picture (2.162:1); `cover` fits it by height (1cqh per %) or, on screens wider than it, by width
+   (1cqw / 2.162 per %), so the spot sits 24.2 of those below the middle. The drum's base is 3.7u
+   above the bottom of .hm-spot. */
+.hm-stage { position: absolute; inset: 0; overflow: hidden; pointer-events: none; container-type: size;
+  --hm-base: calc(50cqh - max(1cqh, 1cqw / 2.162) * 24.2 - var(--u) * 3.7); }
+/* the whole stadium, sky to pitch: one picture (images_up/home_bg_sunset_hq_2560.png as WebP) */
+.hm-bowl { position: absolute; inset: 0; background: url(img/home-bg-sunset.webp) 50% 50% / cover no-repeat; }
 .hm-shade { position: absolute; inset: 0;
   background:
     linear-gradient(180deg, #120a2a99 0, #120a2a40 9%, transparent 15%),
@@ -489,7 +459,7 @@
 .hm-tile .hm-ico { position: absolute; left: 50%; top: -34%; width: 74%; aspect-ratio: 1; transform: translateX(-50%) skewX(4deg); pointer-events: none;
   filter: drop-shadow(0 calc(var(--u) * .5) 0 #0007); }
 .hm-ico > svg { display: block; width: 100%; height: 100%; overflow: visible; }
-.hm-ico > img { display: block; width: 100%; height: 100%; object-fit: contain; transform: scale(1.45); transform-origin: 50% 62%; }   /* an uploaded picture icon (the shop's bag), scaled past its own margins */
+.hm-ico > img { display: block; width: 100%; height: 100%; object-fit: contain; transform: scale(1.45); transform-origin: 50% 62%; }   /* an uploaded picture icon (the shop's bag, the friends' chat), scaled past its own margins */
 .hm-tile > b { position: relative; z-index: 1; font-weight: 900; font-size: calc(var(--u) * 3.4); white-space: nowrap; letter-spacing: .02em;
   -webkit-text-stroke: calc(var(--u) * .7) var(--ink); paint-order: stroke fill; text-shadow: 0 calc(var(--u) * .5) 0 var(--ink); }
 .hm-tile.gold { --top: #ffe46a; --body: #ffc400; --low: #d08a00; }
@@ -547,9 +517,9 @@
 
 /* LEFT: characters over shop. RIGHT, in the middle: friends over the leaderboard. Room between the
    two for each icon to break out over its tile. */
-.hm-side { position: absolute; z-index: 3; display: flex; flex-direction: column; gap: calc(var(--u) * 7.5); }
-.hm-left { left: calc(var(--safe-l) + var(--u) * 4); top: calc(var(--safe-t) + var(--u) * 25); gap: calc(var(--u) * 5.5); }
-.hm-right { right: calc(var(--safe-r) + var(--u) * 4); top: 50%; transform: translateY(-38%); }
+.hm-side { position: absolute; z-index: 3; display: flex; flex-direction: column; gap: calc(var(--u) * 6.5); }
+.hm-left { left: calc(var(--safe-l) + var(--u) * 4); top: calc(var(--safe-t) + var(--u) * 25); gap: calc(var(--u) * 4.8); }
+.hm-right { right: calc(var(--safe-r) + var(--u) * 4); top: 42%; transform: translateY(-38%); }
 /* the Characters tile: two drawn champions peeking out of it */
 .hm-faces { display: flex; align-items: flex-end; justify-content: center; }
 .hm-cf { display: block; flex: none; width: calc(var(--u) * 9); height: calc(var(--u) * 9); background-repeat: no-repeat; border-radius: 50%; }
@@ -1218,5 +1188,166 @@
 .hm-tile.is-pressed, .hm-tile:active { filter: brightness(.85) drop-shadow(0 calc(var(--u) * .5) calc(var(--u) * .8) #0009); }
 
 /* the side buttons are a little smaller, so on a phone they never sit on top of each other */
-.hm-side .hm-tile { width: calc(var(--u) * 14); height: calc(var(--u) * 12.2); padding-bottom: calc(var(--u) * 1.1); }
-.hm-side .hm-tile > b { font-size: calc(var(--u) * 3); }
+.hm-side .hm-tile { width: calc(var(--u) * 11.5); height: calc(var(--u) * 10); padding-bottom: calc(var(--u) * .9); }
+.hm-side .hm-tile > b { font-size: calc(var(--u) * 2.5); }
+.hm-side .hm-cf { width: calc(var(--u) * 7.4); height: calc(var(--u) * 7.4); }
+.hm-side .hm-cf.a { margin-right: calc(var(--u) * -2.1); }
+/* the friends' chat bubbles: a bit bigger, and lower, so they sit close to the word under them */
+#hmFriends .hm-ico { width: 86%; top: -27%; }
+
+/* ─── MY CHAMPIONS (a tap on you on the home podium) ─────────────────────── */
+/* Left: the champion you are looking at, whole on the gold podium under a spotlight in their own
+   colour (--c), sparks rising; their name, stars and power under them, CHOOSE at the bottom. One you
+   have not collected is a black silhouette with a "?" — you see their power, not their face.
+   Right: the collection, a tile per champion, and how many you have. */
+.hm-hero { pointer-events: auto; cursor: pointer; -webkit-tap-highlight-color: transparent; }
+.hm-hero.arrive { animation: chArrive .7s cubic-bezier(.3, 1.6, .5, 1) both, hmBob 2.6s ease-in-out .7s infinite; }
+.hm-swap { position: absolute; left: 50%; bottom: calc(var(--u) * -6.5); transform: translateX(-50%) scale(1.22); transform-origin: 50% 0;
+  display: inline-flex; align-items: center; gap: calc(var(--u) * .8); white-space: nowrap; pointer-events: auto; cursor: pointer;
+  padding: calc(var(--u) * .7) calc(var(--u) * 2.2) calc(var(--u) * .7) calc(var(--u) * .7); border-radius: 999px;
+  font-weight: 900; font-size: calc(var(--u) * 3); color: #2a0006;
+  background: linear-gradient(180deg, #fffbd0, var(--m-gold) 50%, var(--m-gold-lo)); border: calc(var(--u) * .45) solid #8a4b00;
+  box-shadow: 0 calc(var(--u) * .5) 0 #000a, 0 0 calc(var(--u) * 2.5) #ffd40088; animation: chNudge 2.4s ease-in-out infinite; }
+.hm-swap i { display: grid; place-items: center; width: calc(var(--u) * 3.8); aspect-ratio: 1; border-radius: 50%; font-style: normal;
+  background: var(--m-red); color: #fff; font-size: calc(var(--u) * 2.6); box-shadow: inset 0 calc(var(--u) * -.4) 0 #8c0019; }
+@keyframes chNudge { 0%, 70%, 100% { translate: 0 0; } 78% { translate: 0 calc(var(--u) * -1); } 86% { translate: 0 0; } 92% { translate: 0 calc(var(--u) * -.5); } }
+@keyframes chArrive { 0% { scale: .15; filter: brightness(4) drop-shadow(0 0 calc(var(--u) * 6) #fff); } 55% { scale: 1.14; } 100% { scale: 1; } }
+
+#champs { background:
+    radial-gradient(ellipse 40% 70% at 22% 55%, color-mix(in srgb, var(--chc, #ffb800) 22%, transparent), transparent 70%),
+    radial-gradient(ellipse 60% 55% at 90% 100%, #ffb30020, transparent 70%),
+    radial-gradient(ellipse at 50% 45%, #1a0b18, #06040a 75%); }
+.ch-show { --c: #ffb800; position: absolute; left: 0; top: 0; bottom: 0; width: 42%; z-index: 1;
+  /* one column, top to bottom — the stage takes what the words and the button leave, so nothing ever overlaps */
+  display: flex; flex-direction: column; align-items: center; gap: calc(var(--u) * 1.4);
+  padding: calc(var(--safe-t) + var(--u) * 7) 0 calc(var(--safe-b) + var(--u) * 3); }
+/* the spotlight: a cone from above in their colour, a pool on the floor */
+.ch-light { position: absolute; inset: 0; pointer-events: none; transition: opacity .3s;
+  background:
+    radial-gradient(ellipse 34% 7% at 50% calc(var(--safe-t) + var(--u) * 57), color-mix(in srgb, var(--c) 70%, #fff 10%), transparent 70%),
+    linear-gradient(180deg, color-mix(in srgb, var(--c) 46%, transparent), transparent 75%);
+  clip-path: polygon(40% 0, 60% 0, 84% 100%, 16% 100%); -webkit-mask: linear-gradient(180deg, #000 0, #000 55%, transparent 80%); mask: linear-gradient(180deg, #000 0, #000 55%, transparent 80%); opacity: .75; }
+.ch-sparks { position: absolute; left: 20%; right: 20%; top: calc(var(--safe-t) + var(--u) * 10); height: calc(var(--u) * 48); pointer-events: none; }
+.ch-sparks i { position: absolute; bottom: 0; width: calc(var(--u) * 1.1); aspect-ratio: 1; border-radius: 50%; background: #fff;
+  box-shadow: 0 0 calc(var(--u) * 1.2) var(--c), 0 0 calc(var(--u) * 2.4) var(--c); opacity: 0; animation: chSpark 3.2s linear infinite; }
+.ch-sparks i:nth-child(1) { left: 6%; animation-delay: 0s; } .ch-sparks i:nth-child(2) { left: 18%; animation-delay: 1.4s; scale: .7; }
+.ch-sparks i:nth-child(3) { left: 30%; animation-delay: .5s; } .ch-sparks i:nth-child(4) { left: 42%; animation-delay: 2.3s; scale: .6; }
+.ch-sparks i:nth-child(5) { left: 55%; animation-delay: 1s; } .ch-sparks i:nth-child(6) { left: 66%; animation-delay: 2.8s; scale: .8; }
+.ch-sparks i:nth-child(7) { left: 78%; animation-delay: .2s; scale: .6; } .ch-sparks i:nth-child(8) { left: 90%; animation-delay: 1.8s; }
+.ch-sparks i:nth-child(9) { left: 24%; animation-delay: 2.6s; scale: .5; } .ch-sparks i:nth-child(10) { left: 72%; animation-delay: .8s; scale: .5; }
+@keyframes chSpark { 0% { transform: translateY(0); opacity: 0; } 15% { opacity: 1; } 100% { transform: translateY(calc(var(--u) * -44)); opacity: 0; } }
+.ch-show.locked .ch-sparks { display: none; }
+.ch-show.locked .ch-light { opacity: .3; filter: grayscale(1); }
+
+/* the podium (the home screen's own) and the champion on it */
+.ch-stage { position: relative; flex: 1 1 0; min-height: 0; max-height: calc(var(--u) * 56); width: calc(var(--u) * 44); }
+.ch-podium { transform: translateX(-50%) scale(.72); transform-origin: 50% 100%; }
+.ch-hero { position: absolute; left: 50%; bottom: calc(var(--u) * 8.6); width: calc(var(--u) * 42); height: min(calc(var(--u) * 42), calc(100% - var(--u) * 8.6)); transform: translateX(-50%);
+  animation: hmBob 2.6s ease-in-out infinite; filter: drop-shadow(0 0 calc(var(--u) * 2.5) color-mix(in srgb, var(--c) 55%, transparent)); }
+.ch-hero > canvas { position: absolute; inset: 0; width: 100%; height: 100%; }
+.ch-hero > .head { will-change: auto; }
+.ch-show.locked .ch-hero { filter: brightness(0) drop-shadow(0 0 calc(var(--u) * .5) #8a93c8) drop-shadow(0 0 calc(var(--u) * 2) #5b63a080); }
+.ch-lockbig { display: none; position: absolute; left: 50%; top: calc(var(--u) * 6); transform: translateX(-50%); font-weight: 900; font-size: calc(var(--u) * 14);
+  color: #fff; text-shadow: 0 0 calc(var(--u) * 2) #8a93c8, 0 calc(var(--u) * .6) 0 #000; animation: chQ 1.6s ease-in-out infinite; }
+.ch-show.locked .ch-lockbig { display: block; }
+@keyframes chQ { 50% { transform: translateX(-50%) scale(1.12) rotate(6deg); } }
+
+/* name, stars and power */
+.ch-info { flex: none; max-width: 94%; display: flex; flex-direction: column; align-items: center; gap: calc(var(--u) * .9); text-align: center; }
+.ch-rar:empty { display: none; }
+.ch-rar { font-weight: 900; font-size: calc(var(--u) * 3); letter-spacing: .06em; padding: calc(var(--u) * .3) calc(var(--u) * 1.8); border-radius: 999px;
+  background: color-mix(in srgb, var(--c) 80%, #000); color: #fff; text-shadow: 0 1px 0 #0008; box-shadow: 0 0 calc(var(--u) * 1.6) color-mix(in srgb, var(--c) 60%, transparent); }
+.ch-show.myth .ch-rar { background: linear-gradient(90deg, #ff5fd2, #8a5bff, #3ad1ff); }
+.ch-big { display: inline-block; font-weight: 900; line-height: 1.05; white-space: nowrap; transform: skewX(-6deg);
+  /* solid bright letters, the outline painted UNDER them (a gradient clipped to the text lost to its own outline) */
+  color: #ffe94a; -webkit-text-stroke: calc(var(--u) * 1) #2a0a3a; paint-order: stroke fill;
+  text-shadow: 0 calc(var(--u) * .6) 0 #2a0a3a, 0 0 calc(var(--u) * 3) color-mix(in srgb, var(--c, #ffb800) 75%, transparent); }
+.ch-name { font-size: calc(var(--u) * 7); max-width: 100%; }
+.ch-h { font-size: calc(var(--u) * 6); color: #fff; --c: #ff2a5a; }
+.ch-title { font-weight: 800; font-size: calc(var(--u) * 2.8); color: #fff; text-shadow: 0 calc(var(--u) * .3) 0 #000, 0 0 calc(var(--u) * 1.4) #000; }
+.ch-title:empty { display: none; }
+.ch-stars .st { width: calc(var(--u) * 3.4); height: calc(var(--u) * 3.4); }
+.ch-row { display: flex; align-items: center; justify-content: center; gap: calc(var(--u) * 2); flex-wrap: wrap; }
+.ch-power { display: inline-flex; align-items: center; gap: calc(var(--u) * .9); padding: calc(var(--u) * .4) calc(var(--u) * 2) calc(var(--u) * .4) calc(var(--u) * .5);
+  border-radius: 999px; background: #0009; border: calc(var(--u) * .35) solid color-mix(in srgb, var(--c) 70%, #fff); font-size: calc(var(--u) * 3); font-weight: 900; color: #fff; }
+.ch-power i { display: grid; place-items: center; width: calc(var(--u) * 4.2); aspect-ratio: 1; border-radius: 50%; font-style: normal; font-size: calc(var(--u) * 2.6);
+  background: radial-gradient(circle at 40% 35%, #fff8, var(--c) 60%); }
+.ch-power b:empty { display: none; }
+.ch-go { flex: none; --h: calc(var(--u) * 11.5); min-width: calc(var(--u) * 34); }
+.ch-go.on:disabled { filter: none; color: #fff; text-shadow: 0 2px 0 #0a4a12;
+  background: linear-gradient(180deg, #b6ff9c, #46d63a 45%, #1f9a2a); border-color: #0a4a12; }
+.ch-why { flex: none; text-align: center; font-weight: 900; font-size: calc(var(--u) * 2.8); color: #ffe94a; text-shadow: 0 calc(var(--u) * .3) 0 #000, 0 0 calc(var(--u) * 1.4) #000; }
+.ch-why:empty { display: none; }
+
+/* a new look: the champion jumps in, the words slide up */
+.ch-show.pop .ch-hero { animation: chArrive .5s cubic-bezier(.3, 1.6, .5, 1) both, hmBob 2.6s ease-in-out .5s infinite; }
+.ch-show.pop .ch-info { animation: chUp .35s ease-out both; }
+@keyframes chUp { from { opacity: 0; transform: translateY(calc(var(--u) * 2.5)); } }
+/* CHOOSE: a flash, a ring, confetti out of the podium, the champion leaps */
+.ch-burst { position: absolute; left: 50%; top: calc(var(--safe-t) + var(--u) * 34); width: 0; height: 0; pointer-events: none; }
+.ch-burst::before { content: ''; position: absolute; left: calc(var(--u) * -10); top: calc(var(--u) * -10); width: calc(var(--u) * 20); aspect-ratio: 1; border-radius: 50%;
+  border: calc(var(--u) * 1.4) solid var(--c); opacity: 0; }
+.ch-burst i { position: absolute; width: calc(var(--u) * 1.6); height: calc(var(--u) * 3.2); border-radius: calc(var(--u) * .4); opacity: 0;
+  background: var(--k, var(--m-gold)); rotate: calc(var(--a) * 1deg); }
+.ch-burst i:nth-child(3n) { --k: var(--m-red); } .ch-burst i:nth-child(3n+1) { --k: var(--c); } .ch-burst i:nth-child(4n) { --k: #fff; }
+.ch-burst i:nth-child(1) { --a: 0; } .ch-burst i:nth-child(2) { --a: 22; } .ch-burst i:nth-child(3) { --a: 45; } .ch-burst i:nth-child(4) { --a: 67; }
+.ch-burst i:nth-child(5) { --a: 90; } .ch-burst i:nth-child(6) { --a: 112; } .ch-burst i:nth-child(7) { --a: 135; } .ch-burst i:nth-child(8) { --a: 157; }
+.ch-burst i:nth-child(9) { --a: 180; } .ch-burst i:nth-child(10) { --a: 202; } .ch-burst i:nth-child(11) { --a: 225; } .ch-burst i:nth-child(12) { --a: 247; }
+.ch-burst i:nth-child(13) { --a: 270; } .ch-burst i:nth-child(14) { --a: 292; } .ch-burst i:nth-child(15) { --a: 315; } .ch-burst i:nth-child(16) { --a: 337; }
+.ch-show.chosen .ch-burst::before { animation: chRing .6s ease-out both; }
+.ch-show.chosen .ch-burst i { animation: chConf .8s cubic-bezier(.2, .7, .3, 1) both; }
+.ch-show.chosen .ch-burst i:nth-child(even) { animation-duration: 1s; }
+.ch-show.chosen .ch-hero { animation: chLeap .7s cubic-bezier(.3, 1.4, .5, 1) both; }
+.ch-show.chosen .ch-light { opacity: 1; }
+@keyframes chRing { from { opacity: 1; transform: scale(.3); } to { opacity: 0; transform: scale(2.6); } }
+@keyframes chConf { 0% { opacity: 1; transform: rotate(calc(var(--a) * 1deg)) translateY(0); }
+  100% { opacity: 0; transform: rotate(calc(var(--a) * 1deg)) translateY(calc(var(--u) * -30)) rotate(200deg); } }
+@keyframes chLeap { 0% { translate: 0 0; filter: brightness(1); } 30% { translate: 0 calc(var(--u) * -9); filter: brightness(2.2) drop-shadow(0 0 calc(var(--u) * 4) #fff); }
+  65% { translate: 0 0; scale: 1.08 .94; } 100% { translate: 0 0; scale: 1; filter: drop-shadow(0 0 calc(var(--u) * 3) var(--c)); } }
+
+/* the collection */
+.ch-side { position: absolute; right: 0; top: 0; bottom: 0; width: 58%; z-index: 1; display: flex; flex-direction: column;
+  padding: calc(var(--safe-t) + var(--u) * 2.5) calc(var(--safe-r) + var(--u) * 3) 0 calc(var(--u) * 1); }
+.ch-head { display: flex; align-items: center; justify-content: space-between; gap: calc(var(--u) * 2); padding: 0 calc(var(--u) * 1) calc(var(--u) * 2); }
+.ch-count { display: grid; grid-template-columns: auto auto; align-items: center; column-gap: calc(var(--u) * 1.4); row-gap: calc(var(--u) * .3); }
+.ch-num { grid-row: span 2; font-weight: 900; font-size: calc(var(--u) * 4); color: #fff; text-shadow: 0 2px 0 #000; }
+.ch-num b { color: var(--m-gold); font-size: calc(var(--u) * 6); }
+.ch-bar { display: block; width: calc(var(--u) * 26); height: calc(var(--u) * 2.4); border-radius: 999px; background: #ffffff1c; overflow: hidden; border: calc(var(--u) * .3) solid #ffffff30; }
+.ch-bar > i { display: block; height: 100%; width: 0; border-radius: inherit; background: linear-gradient(180deg, #fff4a0, var(--m-gold) 50%, var(--m-gold-lo)); box-shadow: 0 0 calc(var(--u) * 1.4) #ffd400aa; transition: width .6s; }
+.ch-count small { font-weight: 900; font-size: calc(var(--u) * 2.6); color: #7dff5a; text-shadow: 0 calc(var(--u) * .3) 0 #000; }
+.ch-grid { flex: 1; min-height: 0; overflow-y: auto; overscroll-behavior: contain; -webkit-overflow-scrolling: touch; scrollbar-width: none;
+  display: grid; grid-template-columns: repeat(auto-fill, minmax(calc(var(--u) * 17), 1fr)); gap: calc(var(--u) * 2.2); align-content: start;
+  padding: calc(var(--u) * 1.6) calc(var(--u) * 1.2) calc(var(--safe-b) + var(--u) * 5);
+  -webkit-mask: linear-gradient(180deg, transparent, #000 calc(var(--u) * 1.6), #000 calc(100% - var(--u) * 5), transparent); mask: linear-gradient(180deg, transparent, #000 calc(var(--u) * 1.6), #000 calc(100% - var(--u) * 5), transparent); }
+.ch-grid::-webkit-scrollbar { display: none; }
+.ch-tile { --c: #ffb800; position: relative; aspect-ratio: 1 / 1.08; border-radius: calc(var(--u) * 2.4); cursor: pointer;
+  /* the glint is a background layer, not a clipped child: overflow would cost the tile its aspect-ratio height in the grid */
+  background: linear-gradient(100deg, transparent 42%, #ffffff70 50%, transparent 58%) no-repeat 160% 0 / 260% 100%,
+    radial-gradient(circle at 50% 30%, color-mix(in srgb, var(--c) 85%, #fff 15%), color-mix(in srgb, var(--c) 50%, #000) 78%);
+  border: calc(var(--u) * .5) solid color-mix(in srgb, var(--c) 60%, #fff);
+  box-shadow: inset 0 calc(var(--u) * .6) 0 #fff6, inset 0 calc(var(--u) * -1) 0 #0005, 0 calc(var(--u) * .8) 0 #000a;
+  transition: transform .15s, box-shadow .15s; -webkit-tap-highlight-color: transparent; }
+.ch-tile:not(.locked) { animation: chShine 5s ease-in-out infinite; }
+.ch-tile:nth-child(3n+1) { animation-delay: .6s; } .ch-tile:nth-child(3n+2) { animation-delay: 1.3s; } .ch-tile:nth-child(4n) { animation-delay: 2.1s; }
+@keyframes chShine { 0%, 58% { background-position: 160% 0, 0 0; } 86%, 100% { background-position: -60% 0, 0 0; } }
+.ch-face { position: absolute; left: 8%; right: 8%; top: 6%; bottom: 14%; }
+.ch-no { position: absolute; left: calc(var(--u) * .7); bottom: calc(var(--u) * .7); min-width: calc(var(--u) * 3.6); padding: 0 calc(var(--u) * .7); border-radius: 999px;
+  background: #000b; color: #fff; font-weight: 900; font-size: calc(var(--u) * 2.2); line-height: calc(var(--u) * 3.4); text-align: center; }
+.ch-on { position: absolute; right: calc(var(--u) * .6); top: calc(var(--u) * .6); width: calc(var(--u) * 4.4); aspect-ratio: 1; border-radius: 50%; display: grid; place-items: center;
+  font-style: normal; font-weight: 900; font-size: calc(var(--u) * 2.8); color: #fff; background: #2fc23a; border: calc(var(--u) * .35) solid #fff; box-shadow: 0 calc(var(--u) * .3) 0 #0008; }
+.ch-tile.cur { border-color: var(--m-gold); }
+.ch-tile.sel { transform: translateY(calc(var(--u) * -.8)) scale(1.06); z-index: 1;
+  box-shadow: inset 0 calc(var(--u) * .6) 0 #fff6, 0 0 0 calc(var(--u) * .6) #fff, 0 0 calc(var(--u) * 3) var(--c), 0 calc(var(--u) * 1.2) 0 #000a; }
+.ch-tile.myth { background: linear-gradient(100deg, transparent 42%, #ffffff70 50%, transparent 58%) no-repeat 160% 0 / 260% 100%, radial-gradient(circle at 50% 30%, color-mix(in srgb, var(--c) 80%, #fff 20%), #2a1030 80%); }
+.ch-tile.myth::before { content: ''; position: absolute; inset: calc(var(--u) * -.5); border-radius: inherit; padding: calc(var(--u) * .5); pointer-events: none;
+  background: conic-gradient(#ff5fd2, #8a5bff, #3ad1ff, #7dff5a, #ffdd01, #ff5fd2); -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0); -webkit-mask-composite: xor; mask-composite: exclude; }
+/* still to collect: a dark tile, the champion a shadow, a padlock */
+.ch-tile.locked { background: radial-gradient(circle at 50% 30%, #2e3350, #12142a 80%); border-color: #4a5078; box-shadow: inset 0 calc(var(--u) * -1) 0 #0006, 0 calc(var(--u) * .8) 0 #000a; }
+.ch-tile.locked .ch-face { filter: brightness(0) drop-shadow(0 0 calc(var(--u) * .3) #7a82b8); opacity: .9; }
+.ch-tile.locked .ch-no { background: #000c; color: #9aa3d8; }
+.ch-lock { position: absolute; right: calc(var(--u) * .7); bottom: calc(var(--u) * .7); width: calc(var(--u) * 3.6); height: calc(var(--u) * 3.6);
+  background: no-repeat center / contain url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M7 10V7a5 5 0 0 1 10 0v3' fill='none' stroke='%23c9d0ff' stroke-width='2.6'/%3E%3Crect x='4' y='10' width='16' height='12' rx='2.5' fill='%23c9d0ff'/%3E%3Ccircle cx='12' cy='16' r='2' fill='%2312142a'/%3E%3C/svg%3E"); }
+.ch-tile.sel.locked { box-shadow: 0 0 0 calc(var(--u) * .6) #c9d0ff, 0 0 calc(var(--u) * 3) #8a93c8, 0 calc(var(--u) * 1.2) 0 #000a; }
+#champs:not(.hidden) .ch-tile > * { animation: chIn .4s cubic-bezier(.3, 1.5, .5, 1) backwards; animation-delay: calc(var(--d, 0) * 1ms); }
+@keyframes chIn { from { opacity: 0; transform: scale(.6); } }
+@media (prefers-reduced-motion: reduce) { #champs *, .hm-swap, .hm-hero.arrive { animation: none !important; } }

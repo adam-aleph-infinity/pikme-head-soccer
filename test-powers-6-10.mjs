@@ -62,7 +62,7 @@ const kickNear = (reach = 150) => (m) => {
 function basics(stage, id) {
   const D = championPower(stage);
   ok(`stage ${stage}: built, id ${id}`, D && D.id === id, D && D.id);
-  ok(`stage ${stage}: a Hebrew name and description for the arcade board`, D && /[֐-׿]/.test(D.name) && /[֐-׿]/.test(D.desc));
+  ok(`stage ${stage}: an English name (Idan) and a Hebrew description for the arcade board`, D && /^[A-Z][A-Za-z &]+$/.test(D.name) && /[֐-׿]/.test(D.desc));
   ok(`stage ${stage}: cites the character's wiki page`, D && D.sources.some((s) => s.startsWith('https://headsoccer.wiki.gg/wiki/')));
   for (const seat of [0, 1]) {
     const f = fire(stage, seat);

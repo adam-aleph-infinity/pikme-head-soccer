@@ -85,6 +85,8 @@ export function charReel(owns) {
 export const charIndex = (list, card) => list.findIndex((c) => c.rarity === card.rarity && c.number === card.number);
 // What a card is called on screen: a Mythic by its name, any other by its number.
 export const charName = (card) => (card.rarity === MYTHIC ? MYTHICS[card.number - 1].name : `דמות #${card.number}`);
+// …and a Mythic's line about who they are (the starter screen's), for the champion picker.
+export const charRole = (card) => (card.rarity === MYTHIC ? MYTHICS[card.number - 1].role : '');
 // The first card of a rarity you can play: the one to land on after switching to it.
 export function firstOwned(rarity, owns, perRarity = cardsIn(rarity)) {
   for (let n = 1; n <= perRarity; n++) if (owns(rarity, n)) return n;
@@ -133,6 +135,21 @@ export function parseAudio(raw) {
     sfx: !(o && o.sfx === false),
     music: !(o && o.music === false),
   };
+}
+
+// ── YOUR CHAMPION ─────────────────────────────────────────────────────────
+// The one you stand on the home podium with, chosen in the champion picker and kept across launches.
+// A Mythic is saved as just "your Mythic": which one is the starter's (it follows a team switch).
+export const ME_KEY = 'hs.me.v1';
+export const saveMe = (card) => JSON.stringify(card.rarity === MYTHIC ? { rarity: MYTHIC } : { rarity: card.rarity, number: card.number });
+// The saved champion, if you still own it; null sends the caller to its default.
+export function loadMe(raw, owns, starter) {
+  try {
+    const o = JSON.parse(raw);
+    if (o?.rarity === MYTHIC) return starter ? { rarity: MYTHIC, number: starter } : null;
+    const n = Number(o?.number);
+    return o?.rarity === 'legendary' && n >= 1 && n <= cardsIn('legendary') && owns('legendary', n) ? { rarity: 'legendary', number: n } : null;
+  } catch { return null; }
 }
 
 // ── YOUR NAME ─────────────────────────────────────────────────────────────
