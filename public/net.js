@@ -16,7 +16,7 @@ import { packInput, unpackInput, decodeSnapshot, PROTOCOL } from '../shared/net.
 
 const BUFFER = 240;             // ticks of local input kept for replay (~4s)
 const SEND_HZ = 60;             // every tick: in pairs (30 Hz) every second tick found the server waiting, and each wait cost a correction
-const VIS_SNAP = 220;           // px: a correction this big is a real jump (a goal's restart), drawn at once
+const VIS_SNAP = 420;           // px: a correction this big is a real jump, drawn at once (a goal's restart snaps by itself)
 const REDUNDANCY = 6;           // frames re-sent per packet, so one lost packet costs nothing
 
 // THE ARENA AND THE TEAMS (server/league.js) speak on the same socket: their messages go to
@@ -73,6 +73,9 @@ export function createNet({ onRoom, onStart, onOver, onError, onStatus, onOppone
         break;
       case 'error': onError?.(msg.code); break;
       case 'start': {
+        // an arena match against the CPU is played on the phone (game.js startArenaLocal): no
+        // input stream, no snapshots — nothing for this file to do but pass it on
+        if (msg.local) { net.live = false; onStart?.(msg); break; }
         net.match = createMatch(msg.chars[0], msg.chars[1], { duration: msg.duration });
         net.live = true;
         net.tick = 0; net.acc = 0; net.acked = -1;
@@ -105,7 +108,7 @@ export function createNet({ onRoom, onStart, onOver, onError, onStatus, onOppone
 
     const me0 = net.match.players[net.you], op0 = net.match.players[1 - net.you], was = [me0.x, me0.y, net.match.ball.x, net.match.ball.y, net.tick, op0.x, op0.y];
     const bodies = () => [net.match.ball, ...net.match.players];
-    const before = bodies().map((o) => [o.x, o.y]);
+    const before = bodies().map((o) => [o.x, o.y]), sc = [net.match.score[0], net.match.score[1]];
     restore(net.match, snap.state);
 
     // Replay MY inputs that the server has not used yet — every frame after its `ack` — up to
@@ -125,10 +128,14 @@ export function createNet({ onRoom, onStart, onOver, onError, onStatus, onOppone
     // THE SMOOTHING (game.js draws with net.vis): what a snapshot moves is not snapped on screen —
     // the drawn ball and players keep where they were and glide to the truth over a few frames.
     // A real jump (a goal's restart, a power's teleport) is too far to glide, and snaps.
+    // A goal's restart (the score moved) is a new picture, drawn at once; anything else glides, even a
+    // big miss (a kick of the other player's we could not know about) — game.js glides a bigger one
+    // more slowly, so it curves into place instead of jumping.
+    const goal = net.match.score[0] !== sc[0] || net.match.score[1] !== sc[1];
     bodies().forEach((o, i) => {
       const v = net.vis[i];
       v[0] += before[i][0] - o.x; v[1] += before[i][1] - o.y;
-      if (Math.hypot(v[0], v[1]) > VIS_SNAP) { v[0] = 0; v[1] = 0; }
+      if (goal || Math.hypot(v[0], v[1]) > VIS_SNAP) { v[0] = 0; v[1] = 0; }
     });
     net.correction = { you: me1.x - was[0], youY: me1.y - was[1], ball: Math.hypot(net.match.ball.x - was[2], net.match.ball.y - was[3]), opp: Math.hypot(op1.x - was[5], op1.y - was[6]), replayed: target - from, ack: snap.ack, snapTick: snap.tick, tick: target };
     (net.corrections ||= []).push(net.correction); if (net.corrections.length > 600) net.corrections.shift();

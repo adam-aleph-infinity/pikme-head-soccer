@@ -33,6 +33,23 @@ client                                   server
 - Opponent input prediction is "hold the last one". For a five-button game this is right far
   more often than it is wrong, and a wrong guess self-corrects on the next snapshot.
 
+### Smoothness (2026-10-11) — measured with `_net-feel.mjs`
+
+- **The arena against the CPU is played on the phone**, on the arcade's own loop: the server only
+  matches it (the VS card, the CPU's level, the stadium) and settles the score the phone reports
+  (`arenaLocal`; ignored before 60% of the match could have been played, or if it is not a score;
+  leaving is a loss). No network inside the match, so nothing lags or jumps. Two humans still play
+  server-authoritative, as below.
+- **The server's input queue sits shallow.** It used to sit 6-7 frames deep on any connection
+  (~110 ms of delay nobody needed). It now keeps only what the jitter it has seen needs (the
+  shallowest it was over the last half second, less one spare), and drains by skipping a frame only
+  when it repeats the one just played — never a held jump — so every tap and dash edge survives.
+- **Corrections glide by size**: a bigger miss glides longer (ball up to 100 ms half-life, the
+  opponent 140 ms); only a goal's restart snaps.
+
+Measured (two phones, 4x CPU throttle): Wi-Fi 6-9 ticks predicted (was 11-12), the opponent's
+stutters 15/min (was 123); mobile 52/min (was 127); the arena vs CPU 0 corrections (was up to 156 px).
+
 ### ⚠️ The trap this design exists to avoid
 
 **Every input in this game is edge-triggered** — jump, kick, power, and dash (which is a

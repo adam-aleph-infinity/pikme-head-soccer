@@ -6,7 +6,7 @@
 // others (jump/kick/power) start misfiring. So dash is the canary: it is tested end to end,
 // through the queue, into the real sim.
 import * as C from './shared/constants.js';
-import { packInput, unpackInput, createInputQueue, ingest, takeNext, queueDepth, encodeSnapshot, decodeSnapshot }
+import { packInput, unpackInput, createInputQueue, ingest, takeNext, queueDepth, encodeSnapshot, decodeSnapshot, MAX_BUFFER }
   from './shared/net.js';
 import { createMatch, step, serialize, restore } from './shared/sim.js';
 
@@ -83,8 +83,46 @@ const CH = { rarity: 'legendary', number: 3 };
   // Sustained drift must not grow the buffer forever — that is unbounded added latency.
   const q = createInputQueue();
   for (let t = 0; t < 5000; t++) ingest(q, t, [t % 32]);
-  ok('the queue stays bounded', queueDepth(q) <= 12, `${queueDepth(q)} frames`);
+  ok('the queue stays bounded', queueDepth(q) <= MAX_BUFFER, `${queueDepth(q)} frames`);
   ok('and keeps the NEWEST frames', takeNext(q) !== 0 || true);
+}
+
+// --- the queue sits shallow (2026-10-11): it used to sit 6-7 frames deep, ~110 ms of delay ----
+{
+  // a phone that ran ahead: 10 frames waiting, then one in, one out, holding right
+  const RIGHT = packInput({ right: true });
+  const q = createInputQueue();
+  let seq = 0;
+  ingest(q, 0, Array(10).fill(RIGHT)); seq = 10;
+  for (let t = 0; t < 150; t++) { ingest(q, seq++, [RIGHT]); takeNext(q); }
+  ok('a deep queue drains to a frame or two', queueDepth(q) <= 2, `${queueDepth(q)} frames`);
+}
+{
+  // jitter: two frames at once every other tick — the queue keeps what that needs, no more
+  const q = createInputQueue();
+  let seq = 0, starved = 0;
+  for (let t = 0; t < 600; t++) {
+    if (t % 2 === 0) { ingest(q, seq, [0, 0]); seq += 2; }
+    if (queueDepth(q) === 0) starved++;
+    takeNext(q);
+  }
+  ok('jitter: the queue stays shallow', queueDepth(q) <= 3, `${queueDepth(q)} frames`);
+  ok('jitter: and is rarely starved', starved < 60, `${starved} starved ticks`);
+}
+{
+  // draining never loses a press: taps, re-presses and dash's down-up-down all come out, in order
+  const R = packInput({ right: true }), J = packInput({ jump: true }), K = packInput({ kick: true });
+  const pattern = [];
+  for (let i = 0; i < 40; i++) pattern.push(...[R, R, R, 0, R, R, 0, 0, J, J, 0, K, 0, R, R, R, R, 0]);
+  const edges = (a) => a.filter((v, i) => v && v !== (a[i - 1] ?? 0)).length;
+  const q = createInputQueue();
+  ingest(q, 0, pattern.slice(0, 12));
+  const out = [];
+  for (let s = 12; s < pattern.length; s++) { ingest(q, s, [pattern[s]]); out.push(takeNext(q)); }
+  while (queueDepth(q)) out.push(takeNext(q));
+  ok('draining keeps every press', edges(out) === edges(pattern), `${edges(out)} of ${edges(pattern)}`);
+  ok('and skipped only repeats', out.length < pattern.length, `${pattern.length - out.length} frames spent`);
+  ok('a held jump is never shortened', out.filter((v) => v === J).length === pattern.filter((v) => v === J).length);
 }
 
 // --- ⚠️ THE CANARY: dash survives the wire ---------------------------------

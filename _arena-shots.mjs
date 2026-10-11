@@ -163,7 +163,7 @@ await shot('arena-vs');
 check('kick-off: an arena match, on arena 1\'s stadium', await until(() => js(`MODE === 'arena' && STAGE.id === 'hs-day'`), 5000));
 await sleep(1500);
 await shot('arena-match');
-check('the result: the server\'s trophies on the panel', await until(() => js(`!document.querySelector('#over').classList.contains('hidden') && !!document.querySelector('.oa .oa-cups')`), 20000));
+check('the result: the server\'s trophies on the panel', await until(() => js(`!document.querySelector('#over').classList.contains('hidden') && !!document.querySelector('.oa .oa-cups')`), 35000));   // (goals stop the clock: a 6 s match runs ~16 s)
 await sleep(1800);
 const won = await js(`ARENA_RES.delta`);
 check(`…a win, +${won} (30 ± who you met), and the daily bonus`, won >= 20 && won <= 40 && (await js(`document.querySelector('.oa-cups').textContent`)).includes('+' + won) && (await js(`document.querySelector('#ovSpell').className`)).includes('win') && await js(`!!document.querySelector('.oa-bonus')`));

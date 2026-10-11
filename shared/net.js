@@ -15,7 +15,7 @@ import { serialize } from './sim.js';
 // cannot share a match across: a cached old page would otherwise join a room and run a
 // DIFFERENT sim than the server, and rollback would fight it forever. The new client
 // answers `stale` by reloading; see onError in public/game.js.
-export const PROTOCOL = 7;   // 2: Head Soccer rules (new physics, snapshot fields); 3: HS power shots (ail, xb, full pw); 4: HS kick swing, measured ball physics, HS restarts (no kickLob); 5: the body bounces, dash-aware ball cap; 6: the boot is a body (shared/kick.js), kickHit in the snapshot, HS M5 speed caps and air speed; 7: the human double tap (window from the release, a buffered second tap: holdT, dashBuf, dashBufDir in the snapshot)
+export const PROTOCOL = 8;   // 2: Head Soccer rules (new physics, snapshot fields); 3: HS power shots (ail, xb, full pw); 4: HS kick swing, measured ball physics, HS restarts (no kickLob); 5: the body bounces, dash-aware ball cap; 6: the boot is a body (shared/kick.js), kickHit in the snapshot, HS M5 speed caps and air speed; 7: the human double tap (window from the release, a buffered second tap: holdT, dashBuf, dashBufDir in the snapshot); 8: the arena's CPU match is played on the phone (a local start, arenaLocal), and the input queue drains to the jitter it sees
 
 // Eight buttons, one byte. The three cards are inputs exactly like the other five — same
 // queue, same edge discipline — because an ability delivered on a different path than the
@@ -49,18 +49,19 @@ export function unpackInput(v = 0) {
 // oldest unconsumed frame each tick, in order. That is what actually matters here: edges
 // (and dash's two-of-them-in-order) survive exactly, and there is no clock to sync.
 //
-// Cost: a small, self-correcting input delay equal to however deep the buffer sits.
-const MAX_BUFFER = 12;       // ~200ms. Beyond this the oldest frames are stale anyway.
-
+// Cost: a small input delay equal to however deep the buffer sits — kept small (takeNext).
+export const MAX_BUFFER = 60;   // 1s: only a stall that long throws frames away (the oldest)
 export function createInputQueue() {
   return {
     frames: new Map(),       // seq -> packed input, consumed lowest-first
     last: 0,                 // most recent frame consumed (repeated through starvation)
     played: -1,              // highest seq consumed; nothing at or below is accepted again
     newest: -1,
+    low: Infinity, seen: 0,  // the shallowest the queue was over the current window (takeNext)
+    excess: 0,               // frames the last window never needed: spent, one tick at a time
+    skipped: 0,
   };
 }
-
 export function ingest(q, t0, frames) {
   if (!Array.isArray(frames)) return q;
   for (let i = 0; i < frames.length; i++) {
@@ -72,42 +73,53 @@ export function ingest(q, t0, frames) {
     q.frames.set(seq, frames[i] | 0);
     if (seq > q.newest) q.newest = seq;
   }
-  // Sustained clock drift would otherwise grow this without bound and add latency forever.
-  // Drop from the FRONT — the oldest frames are the ones already too late to matter.
+  // A stall longer than MAX_BUFFER: drop from the FRONT — the oldest frames are the ones already
+  // too late to matter.
   while (q.frames.size > MAX_BUFFER) {
-    let lo = Infinity;
-    for (const seq of q.frames.keys()) if (seq < lo) lo = seq;
+    const lo = oldest(q);
     q.frames.delete(lo);
     if (lo > q.played) q.played = lo;
   }
   return q;
 }
-
 // The next input, in order. Starvation repeats the last one: a held key must stay held
 // through jitter, and the sim's own edge detection then sees no spurious edge.
-// CATCHING UP (2026-10-09): every starved tick (a packet late on a phone's connection) leaves the
-// server one frame further behind for good — nothing ever made it up — so under real jitter the
-// queue ratcheted up to MAX_BUFFER and frames were thrown away: the player walked slower and was
-// pulled back. Now a queue deeper than FOLD_AT folds its oldest frame into the next one: one tick
-// of input is spent in one, with the buttons of BOTH held, so a tap is never lost.
-const FOLD_AT = 8;
+//
+// HOW DEEP THE QUEUE SITS (2026-10-11). Every starved tick leaves the server a frame further behind
+// for good, so the queue only grows; the first fix let it sit up to 8 frames deep before catching
+// up, and measured, it sat at 6-7 on any connection: ~110 ms of input delay nobody needed, and the
+// other player's picture of you that much older. Now the queue keeps only what the jitter it has
+// actually seen needs: the shallowest it got over the last half second, less one frame of spare, is
+// never needed — so it is spent, a frame per tick, until the queue is that much shallower. After a
+// stall (a deep queue) it catches up faster.
+// Spending a frame never loses a press: a frame is only skipped when it is the SAME as the one just
+// played (a held direction, or nothing held; never a held jump, whose length is its height), so every edge — a tap, a re-press, dash's down-up-down
+// — reaches the sim exactly. (The first fix merged two frames into one tick, and [right, none]
+// became [right]: the gap of a double tap gone.)
+const WINDOW = 30, SPARE = 1, FAST = 8;
 const oldest = (q) => { let lo = Infinity; for (const seq of q.frames.keys()) if (seq < lo) lo = seq; return lo; };
 export function takeNext(q) {
-  if (q.frames.size === 0) return q.last;
-  let lo = oldest(q), v = q.frames.get(lo);
+  const size = q.frames.size;
+  if (size < q.low) q.low = size;
+  if (++q.seen >= WINDOW) { q.excess = Math.max(0, q.low - SPARE); q.low = Infinity; q.seen = 0; }
+  if (size === 0) { q.excess = 0; return q.last; }
+  let lo = oldest(q);
+  const v = q.frames.get(lo);
   q.frames.delete(lo);
-  if (q.frames.size >= FOLD_AT) {
-    const lo2 = oldest(q);
-    v |= q.frames.get(lo2);
-    q.frames.delete(lo2);
-    lo = lo2;
-    q.folded = (q.folded || 0) + 1;
+  // spend the excess (or catch up after a stall): skip the next frame if it repeats this one
+  let spend = q.frames.size > FAST ? 2 : q.excess > 0 ? 1 : 0;
+  while (spend-- > 0 && q.frames.size > SPARE) {
+    const nx = oldest(q);
+    if (q.frames.get(nx) !== v || (v & BITS.jump)) break;    // (a held jump's length is its height)
+    q.frames.delete(nx);
+    lo = nx;
+    q.skipped++;
+    if (q.excess > 0) q.excess--;
   }
   q.last = v;
   if (lo > q.played) q.played = lo;
   return q.last;
 }
-
 export const queueDepth = (q) => q.frames.size;
 
 // ---------------------------------------------------------------------------

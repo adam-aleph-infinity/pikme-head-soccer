@@ -123,7 +123,7 @@ const send = (ws, msg) => { if (ws && ws.readyState === 1) ws.send(JSON.stringif
 // THE ARENA AND THE TEAMS' WEEK (server/league.js): trophies, matchmaking, the week's result.
 const store = openStore(DATA_DIR === ':memory:' ? ':memory:' : path.join(DATA_DIR, 'league.sqlite'));
 const league = createLeague({ store, reg, send, startMatch: (room, opts) => startMatch(room, opts), createBot, createRoom, seat, leave,
-  dev: DEV_TOOLS, live: ARENA_LIVE, botAfter: QUEUE_BOT_MS, vsMs: ARENA_VS_MS });
+  dev: DEV_TOOLS, live: ARENA_LIVE, botAfter: QUEUE_BOT_MS, vsMs: ARENA_VS_MS, testScore: TEST_SCORE });
 setInterval(() => league.tick(), 250);
 const DEFAULT_CARD = { rarity: 'legendary', number: 3 };
 
@@ -271,6 +271,7 @@ wss.on('connection', (ws) => {
       case 'road': league.road(member, msg); break;
       case 'switchTeam': league.switchTeam(member, msg); break;
       case 'ack': league.ack(member, msg); break;
+      case 'arenaLocal': league.localOver(member, msg); break;
       case 'dev': league.dev(member, msg); break;
 
       case 'create': {

@@ -1012,7 +1012,24 @@ function renderLobby(room) {
   $('#lobbyHint').textContent = full ? 'שניכם כאן — לחצו מוכן' : 'שלח את הקישור לחבר';
 }
 
+// THE ARENA AGAINST THE CPU (server/league.js, 2026-10-11): played here, on the arcade's own loop —
+// the same sim and bot, no network between your thumb and the match, so nothing lags or jumps. The
+// server matched it and settles the score this reports at the end (endMatch → arenaLocal).
+let ARENA_LOCAL = null;              // { you } while an arena match vs the CPU is played on the phone
+function startArenaLocal(msg) {
+  MODE = 'arena';
+  ARENA_RES = null;
+  ARCADE = null;
+  const you = msg.you | 0;
+  ARENA_LOCAL = { you };
+  ARENA_UI.hide();
+  STAGE = PIN_STAGE || (msg.arena && POOL.find((s) => s.id === msg.arena.stage)) || pickStage();
+  beginLocal(msg.chars[you], msg.chars[1 - you], { duration: msg.duration }, createBot(msg.bot?.level ?? 2));
+  if (Array.isArray(msg.testScore)) M.score = you ? [msg.testScore[1], msg.testScore[0]] : msg.testScore.slice(0, 2);   // the harnesses' TEST_SCORE
+}
 function startOnlineMatch(msg) {
+  if (msg.local) { startArenaLocal(msg); return; }
+  ARENA_LOCAL = null;
   ONLINE = true;
   // an arena match (server/league.js): on the arena's own stadium, and the trophies come after
   MODE = msg.arena ? 'arena' : 'online';
@@ -1183,6 +1200,13 @@ function endMatch({ forfeit = false } = {}) {
   const mine = M.score[me], theirs = M.score[1 - me];
   let draw = !forfeit && mine === theirs;
   let iWon = !forfeit && mine > theirs;
+  // the arena vs the CPU, played here: the server settles the score this reports (in its seat order)
+  if (MODE === 'arena' && ARENA_LOCAL && !forfeit) {
+    NET?.league('arenaLocal', { score: ARENA_LOCAL.you ? [b, a] : [a, b] });
+    // no answer (the connection dropped mid-match: the server already called it): no "…" for ever
+    const which = M;
+    setTimeout(() => { if (MODE === 'arena' && !ARENA_RES && M === which) ARENA_UI.clearResult($('#over .ov-panel')); }, 6000);
+  }
   // the arena: the server's result is the result (it also knows who left)
   if (MODE === 'arena' && ARENA_RES) { iWon = ARENA_RES.result === 'win'; draw = ARENA_RES.result === 'draw'; }
   // HS M3 92.6 s: the scores in gold either side of a gold VS, on the panel
@@ -1298,7 +1322,7 @@ addEventListener('pointerdown', () => {
 // it — about 2 s in all. A tap cuts it short (M2: 1.25 s).
 const VS_INTRO = 2.0, VS_SKIP = 0.22;
 function startIntro() {
-  if (ONLINE || window.SIM_HOLD || MODE === 'tutorial' || new URLSearchParams(location.search).has('nointro')) return;
+  if (ONLINE || window.SIM_HOLD || MODE === 'tutorial' || MODE === 'arena' || new URLSearchParams(location.search).has('nointro')) return;
   const vs = $('#vs');
   vs.classList.remove('hidden', 'skip');
   const paintVs = () => {
@@ -1577,6 +1601,7 @@ function frame(now) {
   // draws the tick exactly. Offline only: the net module owns the clock online.
   const lerped = running && !paused && (ONLINE ? netSmoothIn(dt) : lerpIn(acc));
   draw();
+  window.ON_FRAME?.(M, dt, now);            // a harness reads what was just drawn (_net-feel.mjs)
   syncHud();
   if (lerped) lerpOut();
 }
@@ -1609,8 +1634,10 @@ function netSmoothIn(dt) {
   const you = NET.you ?? 0;
   NET.vis.forEach((v, i) => {
     // the half-life of a correction: your own player 30 ms (it is your thumb), the ball 40 ms,
-    // the opponent 60 ms (its dashes and kicks are the guesses that miss most)
-    const half = i === 0 ? 0.04 : i - 1 === you ? 0.03 : 0.06;
+    // the opponent 60 ms (its dashes and kicks are the guesses that miss most) — and a bigger one
+    // glides longer (up to 100 / 140 ms), so a big miss curves into place rather than jumping
+    const mag = Math.hypot(v[0], v[1]);
+    const half = i - 1 === you ? 0.03 : Math.min(i === 0 ? 0.1 : 0.14, (i === 0 ? 0.04 : 0.06) * (1 + mag / 60));
     const k = Math.pow(0.5, dt / half);
     v[0] *= k; v[1] *= k;
     if (Math.abs(v[0]) < 0.05 && Math.abs(v[1]) < 0.05) { v[0] = 0; v[1] = 0; }

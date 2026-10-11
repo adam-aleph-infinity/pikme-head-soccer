@@ -14,10 +14,11 @@
 // team the player started that week on. At Saturday 20:00 the week is decided once and saved, and
 // every player is told on their next connection — paid if they played, told how to next time if not.
 import * as A from '../shared/arena.js';
+import * as C from '../shared/constants.js';
 import * as T from '../shared/teams.js';
 
 export function createLeague({ store, reg, send, startMatch, createBot, createRoom, seat, leave,
-  clock = Date.now, rnd = Math.random, botAfter = A.BOT_AFTER, vsMs = A.VS_MS, dev = false, live = false }) {
+  clock = Date.now, rnd = Math.random, botAfter = A.BOT_AFTER, vsMs = A.VS_MS, dev = false, live = false, testScore = null }) {
   // `live` off (Idan, 2026-10-09, until the arenas are finished): the arena is PRACTICE — real
   // matches against other kids (or the CPU), but no trophies, no daily bonus, no road, no team
   // week. The profile says so and the client labels it "זירת אימון · הגביעים בקרוב".
@@ -137,7 +138,17 @@ export function createLeague({ store, reg, send, startMatch, createBot, createRo
     ar.timer = setTimeout(() => {
       ar.timer = null;
       if (ar.done || !reg.rooms.has(room.code)) return;
-      startMatch(room, { cards: ar.cards, names: ar.names, bots: [null, bot ? createBot(bot.level) : null], extra: { arena: { n: ar.arena, stage: ar.stage } } });
+      // AGAINST THE CPU THE MATCH IS PLAYED ON THE PHONE (2026-10-11): the same sim and the same bot as
+      // the arcade, no network in between, so nothing lags and nothing is corrected. The server only
+      // hands out the match (cards, names, the CPU's level, the stadium) and settles the score the
+      // phone reports at the end (localOver). Two humans still play here, server-authoritative.
+      if (bot) {
+        ar.local = { at: now(), duration: C.MATCH_DURATION };
+        for (const m of room.members) send(m.ws, { type: 'start', local: true, you: m.index, chars: ar.cards, names: ar.names,
+          duration: C.MATCH_DURATION, bot: { level: bot.level }, arena: { n: ar.arena, stage: ar.stage }, ...(testScore ? { testScore } : {}) });
+        return;
+      }
+      startMatch(room, { cards: ar.cards, names: ar.names, bots: [null, null], extra: { arena: { n: ar.arena, stage: ar.stage } } });
     }, vsMs);
   }
 
@@ -151,13 +162,23 @@ export function createLeague({ store, reg, send, startMatch, createBot, createRo
     tell.forEach((f) => f());                      // both written before either is told (rank, totals)
     close(room);
   }
+  // the end of a match played on the phone (vs the CPU): the score it reports, in the player's seat
+  // order. Sane or nothing — whole goals, and not before most of the match could have been played.
+  function localOver(member, msg) {
+    const room = reg.byMember.get(member.id)?.room, ar = room?.arena;
+    if (!ar?.local || ar.done) return;
+    const sc = Array.isArray(msg.score) ? msg.score.slice(0, 2).map((v) => v | 0) : null;
+    if (!sc || sc.length !== 2 || sc.some((v) => v < 0 || v > 99)) return;
+    if (now() - ar.local.at < ar.local.duration * 1000 * 0.6) return;
+    over(room, sc);
+  }
   // a player left (or lost the connection): during the VS card nothing happened and the other one
   // searches again; during the match the leaver loses and the other wins, now
   function left(room, member) {
     const ar = room.arena;
     if (!ar || ar.done) { leave(reg, member.id); return; }
     ar.done = true;
-    if (!room.match) {
+    if (!room.match && !ar.local) {
       clearTimeout(ar.timer);
       const stay = room.members.filter((m) => m !== member);
       leave(reg, member.id);
@@ -169,7 +190,7 @@ export function createLeague({ store, reg, send, startMatch, createBot, createRo
       }
       return;
     }
-    const li = member.index, score = [...room.match.score];
+    const li = member.index, score = room.match ? [...room.match.score] : [0, 0];
     const tell = [settle(room, li, 'loss', score, true)];
     if (ar.pids[1 - li]) tell.push(settle(room, 1 - li, 'win', score, true));
     tell.forEach((f) => f());
@@ -310,7 +331,7 @@ export function createLeague({ store, reg, send, startMatch, createBot, createRo
   }
 
   return {
-    hello, gone, enqueue, unqueue, tick, over, left, road, switchTeam, ack, dev: devOp,
+    hello, gone, enqueue, unqueue, tick, over, localOver, left, road, switchTeam, ack, dev: devOp,
     profile: (member) => sendProfile(member),
     get queued() { return queue.size; },
     now,

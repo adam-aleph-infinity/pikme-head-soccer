@@ -43,12 +43,15 @@ let n = 0;
 const ID = () => `test-device-${String(++n).padStart(4, '0')}-abcdef`;
 function client(starter, { id = ID(), name = 'kid' + n, card } = {}) {
   const ws = new WebSocket(`ws://127.0.0.1:${PORT}/ws`);
-  const c = { ws, id, starter, card: card || { rarity: 'mythic', number: starter }, got: {}, all: [], prizes: [] };
+  const c = { ws, id, starter, card: card || { rarity: 'mythic', number: starter }, got: {}, all: [], prizes: [], autoLocal: true, snaps: 0 };
   ws.onmessage = (ev) => {
     const m = JSON.parse(ev.data);
-    if (!m.type) return;
+    if (!m.type) { c.snaps++; return; }        // a snapshot
     c.got[m.type] = m; c.all.push(m);
     if (m.type === 'prize') c.prizes.push(m);
+    // a match against the CPU is played on the phone (2026-10-11): like the game, report its score
+    // once it could have been played (the server's TEST_SCORE, in seat order)
+    if (m.type === 'start' && m.local && c.autoLocal) setTimeout(() => c.send({ type: 'arenaLocal', score: m.testScore || [1, 0] }), m.duration * 1000 * 0.6 + 150);
   };
   c.send = (o) => { if (ws.readyState === 1) ws.send(JSON.stringify(o)); };
   c.hello = () => c.send({ type: 'hello', name, card: c.card, v: PROTOCOL, id: c.id, starter: c.starter });
@@ -96,7 +99,37 @@ await c.open; c.clear();
 c.send({ type: 'queue' });
 ok('alone: a CPU after the wait', await c.wait('found', () => true, 4000) && A.BOT_NAMES.includes(c.got.found.opp.name), JSON.stringify(c.got.found));
 ok('…dressed as a Mythic of a team, near your trophies', c.got.found.opp.card.rarity === 'mythic' && T.isTeam(c.got.found.opp.team) && Math.abs(c.got.found.opp.trophies) <= 30);
+ok('…played on the phone: a local start with the CPU\'s level, and no snapshots', await c.wait('start') && c.got.start.local === true && Number.isInteger(c.got.start.bot?.level) && c.got.start.duration > 0);
 ok('…and it plays the match out', await c.wait('arenaResult') && c.got.arenaResult.result === 'win' && c.got.arenaResult.delta >= 20);
+ok('…no snapshots were streamed for it', c.snaps === 0, `${c.snaps}`);
+
+// ── a CPU match on the phone: the server settles only a sane score, and only once ──
+{
+  const p = client(2);
+  p.autoLocal = false;
+  await p.open;
+  p.send({ type: 'queue' });
+  await p.wait('start', (m) => m.local, 4000);
+  p.send({ type: 'arenaLocal', score: [9, 0] });
+  await sleep(250);
+  ok('a score reported before the match could be played is ignored', !p.all.some((m) => m.type === 'arenaResult'));
+  await sleep(p.got.start.duration * 1000 * 0.6);
+  p.send({ type: 'arenaLocal', score: [-1, 300] });
+  p.send({ type: 'arenaLocal', score: 'x' });
+  await sleep(250);
+  ok('…and so is a score that is not one', !p.all.some((m) => m.type === 'arenaResult'));
+  p.send({ type: 'arenaLocal', score: [0, 2] });
+  ok('…a real one is settled, from the player\'s seat', await p.wait('arenaResult') && p.got.arenaResult.result === 'loss' && p.got.arenaResult.score.join() === '0,2');
+  p.send({ type: 'arenaLocal', score: [5, 0] });
+  await sleep(250);
+  ok('…once', p.all.filter((m) => m.type === 'arenaResult').length === 1);
+  // leaving a CPU match on the phone is giving it up
+  p.clear(); p.send({ type: 'queue' });
+  await p.wait('start', (m) => m.local, 4000);
+  p.send({ type: 'leave' });
+  ok('leaving a CPU match on the phone loses it', await p.wait('arenaResult') && p.got.arenaResult.result === 'loss' && p.got.arenaResult.forfeit === true);
+  p.ws.close();
+}
 
 // ── leaving loses ──
 const d = client(4), e = client(1);
