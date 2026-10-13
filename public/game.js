@@ -35,6 +35,7 @@ import { createTutorial } from './tutorial.js';
 import { createLoader } from './loader.js';
 import * as TUTR from '../shared/tutorial.js';
 import { createAnalyticsClient } from './analytics.js';
+import { createPlayStats, withPlayStats } from './play-stats.js';
 
 // What a Head Soccer power shot looks like: the aura, the cut-in, the comet, the ailments. It
 // only watches the match (see champ-vfx.js).
@@ -200,7 +201,12 @@ if (IS_DEV_HOST && new URLSearchParams(location.search).has('fresh')) {
 }
 // GAMEPLAY ANALYTICS (analytics.js, docs/ANALYTICS.md): off without a key, and nothing kept until the
 // Saltiz app says the player may be counted. Every call below is fire-and-forget.
-const AN = createAnalyticsClient({ store: STORE, devHost: IS_DEV_HOST, params: new URLSearchParams(location.search) });
+// PLAY STATS (play-stats.js, docs/PLAY-STATS.md) count alongside it: daily totals on our own server, no id,
+// so no consent needed. "fresh" = this device has never played (no tutorial, no starter).
+const AN = withPlayStats(
+  createAnalyticsClient({ store: STORE, devHost: IS_DEV_HOST, params: new URLSearchParams(location.search) }),
+  createPlayStats({ store: STORE, inApp: !!(window.SALTIZ_CARDS || window.SALTIZ_NAME), devHost: IS_DEV_HOST, params: new URLSearchParams(location.search),
+    fresh: (() => { try { return STORE?.getItem(TUTR.TUT_KEY) == null && STORE?.getItem(STARTER_KEY) == null; } catch { return false; } })() }));
 // THE MYTHIC STARTER this device chose (starter.js), or null until it has.
 let STARTER = loadStarter(STORE);
 // YOUR TEAM is your starter's, always (shared/teams.js): a switch changes both. The device keeps

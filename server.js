@@ -13,6 +13,7 @@ import { createBot, botInput } from './shared/bot.js';
 import { createRegistry, createRoom, joinRoom, leave, setReady, bothReady, roomOf, seat } from './shared/rooms.js';
 import { openStore } from './server/store.js';
 import { createLeague } from './server/league.js';
+import { createPlayStats } from './server/play-stats.js';
 import { createInputQueue, ingest, takeNext, unpackInput, packInput, encodeSnapshot, PROTOCOL } from './shared/net.js';
 
 const ROOT = path.dirname(fileURLToPath(import.meta.url));
@@ -61,6 +62,8 @@ const server = http.createServer((req, res) => {
   rel = '/' + rel.split('/').filter(Boolean).join('/');
   // Render supplies this non-secret SHA. A healthy old build must not pass a new deploy.
   // How many have the game open right now, any mode — every page holds the socket from boot.
+  // PLAY STATS (server/play-stats.js): POST /play counts, GET /stats/history reads the totals
+  if (playStats.handle(req, res, rel, new URLSearchParams((req.url || '').split('?')[1] || ''))) return;
   if (rel === '/stats') {
     const rooms = [...reg.rooms.values()];
     res.writeHead(200, { 'content-type': 'application/json', 'cache-control': 'no-store' });
@@ -122,6 +125,8 @@ let nextId = 1;
 const send = (ws, msg) => { if (ws && ws.readyState === 1) ws.send(JSON.stringify(msg)); };
 // THE ARENA AND THE TEAMS' WEEK (server/league.js): trophies, matchmaking, the week's result.
 const store = openStore(DATA_DIR === ':memory:' ? ':memory:' : path.join(DATA_DIR, 'league.sqlite'));
+// PLAY STATS: daily totals, no ids (docs/PLAY-STATS.md) — a table in the same file as the league
+const playStats = createPlayStats(store.db);
 const league = createLeague({ store, reg, send, startMatch: (room, opts) => startMatch(room, opts), createBot, createRoom, seat, leave,
   dev: DEV_TOOLS, live: ARENA_LIVE, botAfter: QUEUE_BOT_MS, vsMs: ARENA_VS_MS, testScore: TEST_SCORE });
 setInterval(() => league.tick(), 250);

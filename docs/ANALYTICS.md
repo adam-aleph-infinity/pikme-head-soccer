@@ -1,5 +1,7 @@
 # Gameplay analytics
 
+> **Just need how many play and which modes?** That is `docs/PLAY-STATS.md`: daily totals on our own server, no consent needed. This file is the PostHog part, which needs the app's consent.
+
 The Salties counts how the game is played (modes, matches, trophies, unlocks) through PostHog's EU cloud. It never counts who is playing.
 
 **Decisions (Idan, 2026-10-13)**
