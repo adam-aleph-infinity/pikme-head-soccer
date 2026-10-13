@@ -1,5 +1,8 @@
 # 45 champions → 45 Head Soccer power shots (spec)
 
+> **Superseded (2026-10-11):** the champions' powers are now ORIGINAL, not copies of Head Soccer characters — see docs/CHAMPION-POWERS.md. This spec stays as research (and still describes the HS copies not yet replaced).
+
+
 _Research + spec only; no game code reads this yet. Data: `docs/hs-45-powers.json` (checked by `test-hs-45-powers.mjs`)._
 
 Idan's decision: every champion gets its **own** power, copied from one real Head Soccer character — same flight,

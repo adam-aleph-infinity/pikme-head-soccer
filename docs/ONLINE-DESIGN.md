@@ -44,8 +44,12 @@ client                                   server
   (~110 ms of delay nobody needed). It now keeps only what the jitter it has seen needs (the
   shallowest it was over the last half second, less one spare), and drains by skipping a frame only
   when it repeats the one just played — never a held jump — so every tap and dash edge survives.
-- **Corrections glide by size**: a bigger miss glides longer (ball up to 100 ms half-life, the
-  opponent 140 ms); only a goal's restart snaps.
+- **Corrections glide on a spring** (game.js `smoothDamp`, a critically damped spring): a new
+  correction leaves the drawn body where it was and moving as it was, then curves in — an
+  exponential glide moved fastest the frame it landed, and the other player visibly popped. Settle
+  times: you 50 ms, the ball 70 ms, the other player 110 ms. Only a goal's restart snaps.
+  Measured against how the other player really moved (their own phone's picture of themselves):
+  on Wi-Fi and mobile, no extra jerks and no jump over 21 px (was +15 and +49 a minute, up to 65 px).
 
 Measured (two phones, 4x CPU throttle): Wi-Fi 6-9 ticks predicted (was 11-12), the opponent's
 stutters 15/min (was 123); mobile 52/min (was 127); the arena vs CPU 0 corrections (was up to 156 px).

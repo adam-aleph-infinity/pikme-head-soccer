@@ -85,7 +85,7 @@ for (const n of T.FOES) {
   ok(`…and the kick there blocks it`, yes.blocked && !yes.hit, JSON.stringify(yes));
   ok(`…while standing still is a hit (so the lesson can say "again")`, !no.blocked, JSON.stringify(no));
 }
-ok('the opponent is never your own card', [1, 2, 3, 7].every((n) => T.foeFor({ rarity: 'legendary', number: n }).number !== n) && T.foeFor({ rarity: 'epic', number: 2 }).number === 2);
+ok('the opponent is never your own card', [1, 2, 3, 4, 7].every((n) => T.foeFor({ rarity: 'legendary', number: n }).number !== n) && T.foeFor({ rarity: 'epic', number: 2 }).number === T.FOES[0]);
 ok('…and never the coach', T.FOES.every((n) => n !== T.COACH));
 ok('the freeze sits inside the measured block window (280–480 px)', T.COUNTER_GAP >= 340 && T.COUNTER_GAP <= 420);
 

@@ -48,14 +48,23 @@ export const BOARD = svg(`
   <circle cx="50" cy="26" r="4" fill="#e8102e" stroke="${K}" stroke-width="2.4"/>
   <path d="M36 22l4 6" stroke="#fff3a0" stroke-width="3"/>`);
 
-// BATTLE PASS: a gold ticket, notched at the sides, the Saltiz hexagon stamped on it.
-export const PASS = svg(`
-  <path d="M8 28h84v14a8 8 0 0 0 0 16v14H8V58a8 8 0 0 0 0-16z" fill="#ffd400" ${ln}/>
-  <path d="M12 32h76v6H12z" fill="#fff3a0"/>
-  <path d="M30 32v36" stroke="#b86e06" stroke-width="3" stroke-dasharray="4 4"/>
-  <path d="M60 32l14 8v16l-14 8-14-8V40z" fill="#e8102e" ${ln}/>
-  <path d="M60 40l7 4v8l-7 4-7-4v-8z" fill="#ffd400"/>
-  <path d="M15 46h8M15 54h8" stroke="#b86e06" stroke-width="4"/>`);
+// BATTLE PASS (the picture, images_up/battlepassticket.png): a ticket tilted back, a gold stub
+// with a ball on it, a dashed tear line, then the red body with a gold frame round the Saltiz symbol
+// (`logo`: symbol.js symbolSVG(), nested). Notched at both ends, like a real ticket.
+const TICKET = 'M8 24H92a4 4 0 0 1 4 4V43a7 7 0 0 0 0 14V72a4 4 0 0 1-4 4H8a4 4 0 0 1-4-4V57a7 7 0 0 0 0-14V28a4 4 0 0 1 4-4z';
+export const passTicket = (logo) => svg(`
+  <g transform="rotate(-14 50 50)">
+    <path d="${TICKET}" fill="#e8203e" ${ln}/>
+    <path d="M8 24H30V76H8a4 4 0 0 1-4-4V57a7 7 0 0 0 0-14V28a4 4 0 0 1 4-4z" fill="#ffc21a"/>
+    <path d="M10 28H28" stroke="#ffe680" stroke-width="3"/>
+    <path d="M38 28H90" stroke="#ff6a7a" stroke-width="3"/>
+    <path d="${TICKET}" fill="none" stroke="${K}" stroke-width="5"/>
+    <path d="M30 26V74" stroke="${K}" stroke-width="2.6" stroke-dasharray="4 3.4"/>
+    <circle cx="17.5" cy="50" r="8.5" fill="#fff" stroke="${K}" stroke-width="2.4"/>
+    <path d="M17.5 45.6l4.2 3-1.6 5h-5.2l-1.6-5z" fill="${K}"/>
+    <rect x="36" y="30" width="54" height="40" rx="4" fill="none" stroke="#ffc21a" stroke-width="3"/>
+    ${logo.replace('<svg ', '<svg x="49" y="33" width="34" height="34" ')}
+  </g>`);
 
 // QUESTS: a cream scroll with three checklist lines, the first two ticked in Saltiz red.
 export const QUESTS = svg(`

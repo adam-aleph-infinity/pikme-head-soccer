@@ -516,23 +516,47 @@ const FAMILY_VOICE = {
   critical: { from: 2400, to: 200 }, downward: { from: 2000, to: 150 }, multiball: { from: 700, to: 1400, type: 'triangle' },
   updown: { from: 500, to: 1600, type: 'triangle' }, ailment: { from: 1200, to: 400, type: 'triangle' },
 };
-// …and the first three champions' own sound AT THE RELEASE, when the ball leaves the cut-in
-// (shared/constants.js POWER_CUTIN − POWER_RELEASE = 1.27 s after the touch that sent this event):
-// HS M4's audio has a broadband rush right there. So Korea is that rush, Cameroon's Thunderbolt a
-// thunder crack, Nigeria's Tornado a wind that swells and blows through (docs/HS-FIRST-3-POWERS.md).
+// …and a champion's own sound AT THE RELEASE, when the ball leaves the cut-in (shared/constants.js
+// POWER_CUTIN − POWER_RELEASE = 1.27 s after the touch that sent this event): HS M4's audio has a
+// broadband rush right there, and each power colours it with its own motif (docs/CHAMPION-POWERS.md).
 const RELEASE_AT = 1.27;
 const CP_VOICE = {
-  blueaura(t) { whoosh({ lo: 700, hi: 7000, peak: 0.34, at: 0.025, dur: 0.34, t, body: 2 }); },
-  thunderbolt(t) {
-    thud({ freq: 3200, q: 0.35, peak: 0.95, decay: 0.07, t });
-    thud({ freq: 1200, q: 0.5, peak: 0.7, decay: 0.18, t: t + 0.01 });
-    for (let i = 0; i < 5; i++) thud({ freq: 2400 + i * 520, q: 2, peak: 0.38, decay: 0.03, t: t + 0.04 + i * 0.037 });
-    thud({ freq: 70, q: 0.6, peak: 0.6, decay: 0.5, t });
-    sweep({ from: 95, to: 38, type: 'sine', peak: 0.5, dur: 0.7, t: t + 0.02 });
+  // the Cannoneer: his barrage booms on its own (SFX.cannonFire); the touch is the ball rammed down
+  // the barrel — a hollow gulp and the ramrod's two clunks, under the cut-in. A block's fire-back
+  // (t = 0) is the whole barrage again, heard through cannonFire.
+  broadside(t) {
+    if (!t) return;                                  // a fire-back: its barrage booms shot by shot
+    sweep({ from: 420, to: 140, type: 'sine', peak: 0.32, dur: 0.18, t: 0.22 });
+    thud({ freq: 260, q: 2, peak: 0.42, decay: 0.08, t: 0.62 });
+    thud({ freq: 235, q: 2, peak: 0.36, decay: 0.08, t: 0.8 });
   },
-  tornado(t) {
-    whoosh({ lo: 260, hi: 3200, peak: 0.42, at: 0.12, dur: 0.55, t, body: 3 });
-    whoosh({ lo: 420, hi: 5200, peak: 0.26, at: 0.08, dur: 0.4, t: t + 0.18, body: 2 });
+  // the Lord of the Worms: under the cut-in the turf cracks and the giant worm bursts up beside her,
+  // its coils squeezing round the ball; at the release it plunges into the ground (a block's
+  // fire-back, t = 0: the worm comes up under the blocker at once and plunges 0.3 s later)
+  wormtunnel(t) {
+    const up = t ? t - 0.97 : 0, dive = t || 0.3;
+    if (t) thud({ freq: 2300, q: 3, peak: 0.16, decay: 0.04, t: up - 0.05 });
+    thud({ freq: 70, q: 0.8, peak: 0.55, decay: 0.26, t: up });
+    whoosh({ lo: 260, hi: 2600, peak: 0.2, at: 0.03, dur: 0.3, t: up, body: 3 });
+    sweep({ from: 150, to: 340, type: 'triangle', peak: 0.12, dur: 0.22, t: up + 0.04 });
+    if (t) { sweep({ from: 230, to: 120, type: 'sine', peak: 0.16, dur: 0.14, t: up + 0.36 }); sweep({ from: 210, to: 105, type: 'sine', peak: 0.14, dur: 0.14, t: up + 0.52 }); }
+    whoosh({ lo: 500, hi: 3800, peak: 0.18, at: 0.08, dur: 0.22, t: dive - 0.08, body: 2 });
+  },
+  // the Burning Chef: a fat sizzle hitting the grill and a gas-flame whoosh
+  sizzle(t) {
+    whoosh({ lo: 2600, hi: 9000, peak: 0.24, at: 0.02, dur: 0.75, t, body: 3 });
+    whoosh({ lo: 300, hi: 2400, peak: 0.28, at: 0.06, dur: 0.35, t, body: 2 });
+  },
+  // the King of Mud: a wrapper's crinkle and a rush
+  chocoburst(t) {
+    for (let i = 0; i < 6; i++) thud({ freq: 3000 + i * 400, q: 3, peak: 0.16, decay: 0.03, t: t + i * 0.025 });
+    whoosh({ lo: 700, hi: 6000, peak: 0.28, at: 0.03, dur: 0.32, t, body: 2 });
+  },
+  // the Wall Builder: an icy chime and a crackle of frost
+  icepop(t) {
+    whoosh({ lo: 1200, hi: 9000, peak: 0.24, at: 0.03, dur: 0.3, t, body: 2 });
+    [2093, 2794, 3520].forEach((f, i) => blip({ freq: f, type: 'sine', peak: 0.14 - i * 0.03, dur: 0.3, t: t + i * 0.05 }));
+    for (let i = 0; i < 5; i++) thud({ freq: 5200 + i * 300, q: 4, peak: 0.12, decay: 0.02, t: t + 0.05 + i * 0.03 });
   },
   // the Mythic Gem: a bright crystal chime rising over the rush (ours, not HS's)
   mythicgem(t) {
@@ -547,6 +571,82 @@ SFX.gemShatter = () => {
   thud({ freq: 2400, q: 0.9, peak: 0.4, decay: 0.14, t: 0.005 });
   for (let i = 0; i < 10; i++) blip({ freq: 2600 + Math.random() * 3400 - i * 120, type: 'sine', peak: 0.16 - i * 0.011, dur: 0.06 + Math.random() * 0.1, t: 0.02 + i * 0.022 + Math.random() * 0.015 });
 };
+// The original powers' own moments (shared/champion-powers/stage-NN.js events).
+// THE CANNONEER (Idan 2026-10-12): the press turns the parrot into his cannon — a squawk, the
+// feathers' flurry as he flips, the barrel sliding out of the beak, the two bands pinging on, and
+// a ka-chunk as he settles (public/vfx/powers/stage-01.js times the picture to the same beats).
+function cannonTransform() {
+  sweep({ from: 1500, to: 2400, type: 'sawtooth', peak: 0.07, dur: 0.08 });
+  sweep({ from: 2200, to: 1400, type: 'sawtooth', peak: 0.06, dur: 0.09, t: 0.08 });
+  whoosh({ lo: 1500, hi: 7000, peak: 0.16, at: 0.04, dur: 0.22, t: 0.12, body: 2 });
+  sweep({ from: 180, to: 420, type: 'triangle', peak: 0.16, dur: 0.18, t: 0.24 });
+  thud({ freq: 2600, q: 6, peak: 0.22, decay: 0.05, t: 0.3 }); thud({ freq: 3100, q: 6, peak: 0.22, decay: 0.05, t: 0.36 });
+  thud({ freq: 140, q: 1, peak: 0.6, decay: 0.12, t: 0.44 }); thud({ freq: 900, q: 1.5, peak: 0.35, decay: 0.05, t: 0.47 });
+}
+// …each shot: a cannon's boom, a deep thump under a blast of noise; the ball's is bigger, with a
+// whistle on it and the parrot's squawk as he flips back; a shell's is followed by the new fuse fizzing.
+// (each shot of the barrage a size up: lower, louder, longer — n 1, 2, 3)
+function cannonBoom(big, n = 1) {
+  thud({ freq: [62, 62, 54, 46][n] || 58, q: 0.7, peak: [0.8, 0.8, 0.9, 1.0][n] || 0.85, decay: [0.38, 0.38, 0.46, 0.58][n] || 0.42 });
+  thud({ freq: 900, q: 0.4, peak: 0.7, decay: 0.12 });
+  whoosh({ lo: 500, hi: 5000, peak: big ? 0.34 : 0.26, at: 0.02, dur: 0.3, t: 0.02, body: 2 });
+}
+// THE LORD OF THE WORMS (Idan 2026-10-13): the press turns the snake into her worm form — a wet
+// squeeze down, the ripple of rings running up her (a gritty crawl of dirt), a slurp as she stretches
+// tall and a low glowing hum as her eyes light red (public/vfx/powers/stage-02.js, the same beats).
+function wormTransform() {
+  sweep({ from: 210, to: 95, type: 'sine', peak: 0.2, dur: 0.14 });
+  whoosh({ lo: 320, hi: 2400, peak: 0.12, at: 0.08, dur: 0.24, t: 0.14, body: 3 });
+  for (let i = 0; i < 4; i++) thud({ freq: 520 + i * 90, q: 3, peak: 0.1, decay: 0.035, t: 0.16 + i * 0.065 });
+  sweep({ from: 140, to: 380, type: 'triangle', peak: 0.16, dur: 0.16, t: 0.36 });
+  thud({ freq: 95, q: 0.9, peak: 0.42, decay: 0.12, t: 0.44 });
+  sweep({ from: 620, to: 940, type: 'sine', peak: 0.05, dur: 0.3, t: 0.46 });
+}
+const baseArmed = SFX.armed;
+SFX.armed = (e) => { baseArmed(e); if (e && e.cp === 'broadside') cannonTransform(); else if (e && e.cp === 'wormtunnel') wormTransform(); };
+SFX.cannonFire = (e) => {
+  const big = !!(e && e.real);
+  cannonBoom(big, (e && e.n) || 1);
+  if (big) {
+    sweep({ from: 2600, to: 900, type: 'sine', peak: 0.1, dur: 0.35, t: 0.05 });
+    whoosh({ lo: 2000, hi: 8000, peak: 0.1, at: 0.02, dur: 0.2, t: 0.38 });
+    sweep({ from: 1300, to: 2100, type: 'sawtooth', peak: 0.07, dur: 0.09, t: 0.42 });
+    sweep({ from: 1900, to: 1200, type: 'sawtooth', peak: 0.06, dur: 0.1, t: 0.52 });
+  } else whoosh({ lo: 5000, hi: 9500, peak: 0.05, at: 0.05, dur: 0.5, t: 0.3, body: 1 });
+};
+// a shell parried: an iron clang off the boot
+SFX.shellParry = () => { [1870, 2730, 3960].forEach((f, i) => blip({ freq: f, type: 'sine', peak: 0.18 - i * 0.04, dur: 0.35 })); thud({ freq: 300, q: 1, peak: 0.6, decay: 0.1 }); };
+// a shell on the goal line: a muffled thump into the net
+SFX.shellBurst = () => { thud({ freq: 90, q: 0.8, peak: 0.5, decay: 0.25 }); whoosh({ lo: 300, hi: 3000, peak: 0.12, at: 0.01, dur: 0.25, body: 2 }); };
+// THE WORM'S TUNNEL: down into the turf with a wet thump, then a rumble that digs along under the
+// pitch (the grind of its rings, a scrape a beat) …
+SFX.wormDive = () => {
+  thud({ freq: 85, q: 0.8, peak: 0.6, decay: 0.2 }); thud({ freq: 600, q: 1.2, peak: 0.25, decay: 0.05 });
+  whoosh({ lo: 90, hi: 700, peak: 0.2, at: 0.12, dur: 0.85, t: 0.04, body: 4 });
+  for (let i = 0; i < 7; i++) thud({ freq: 150 + (i % 3) * 30, q: 2, peak: 0.12, decay: 0.05, t: 0.1 + i * 0.12 });
+};
+// …the ring: the rumble rising under it, a hiss through the cracks, a heartbeat thump…
+SFX.wormWarn = () => {
+  sweep({ from: 55, to: 150, type: 'sawtooth', peak: 0.08, dur: 0.45 });
+  whoosh({ lo: 3000, hi: 8800, peak: 0.1, at: 0.3, dur: 0.18, body: 1 });
+  thud({ freq: 60, q: 0.9, peak: 0.45, decay: 0.12, t: 0.12 }); thud({ freq: 60, q: 0.9, peak: 0.5, decay: 0.12, t: 0.3 });
+};
+// …the burst: the ground erupting, and the worm's spit as the ball flies
+SFX.wormBurst = () => {
+  thud({ freq: 52, q: 0.7, peak: 0.95, decay: 0.36 }); thud({ freq: 760, q: 0.6, peak: 0.45, decay: 0.08 });
+  whoosh({ lo: 380, hi: 5200, peak: 0.3, at: 0.02, dur: 0.32, body: 3 });
+  sweep({ from: 320, to: 1250, type: 'triangle', peak: 0.2, dur: 0.1, t: 0.04 }); thud({ freq: 1900, q: 2, peak: 0.16, decay: 0.03, t: 0.05 });
+};
+// the burst threw someone off the ring: a heave of earth and a grunt of air
+SFX.wormShove = () => { thud({ freq: 130, q: 0.9, peak: 0.5, decay: 0.14 }); whoosh({ lo: 600, hi: 3200, peak: 0.12, at: 0.01, dur: 0.18, body: 2 }); };
+// a stomp on the ring smothered it: a muffled, buried thump
+SFX.wormSmother = () => { thud({ freq: 105, q: 1, peak: 0.6, decay: 0.18 }); whoosh({ lo: 200, hi: 1400, peak: 0.12, at: 0.01, dur: 0.2, body: 3 }); };
+SFX.chocoBurst = () => { thud({ freq: 420, q: 1.4, peak: 0.6, decay: 0.09 }); thud({ freq: 160, q: 0.8, peak: 0.55, decay: 0.2, t: 0.1 }); };
+SFX.chocoCoat = () => { thud({ freq: 220, q: 1, peak: 0.7, decay: 0.16 }); thud({ freq: 120, q: 0.8, peak: 0.4, decay: 0.25, t: 0.04 }); };
+SFX.fenceHit = () => { thud({ freq: 2600, q: 1.2, peak: 0.45, decay: 0.07 }); for (let i = 0; i < 4; i++) blip({ freq: 3000 + Math.random() * 2000, type: 'sine', peak: 0.08, dur: 0.05, t: 0.02 + i * 0.03 }); };
+SFX.brainFreeze = () => { thud({ freq: 4200, q: 0.8, peak: 0.4, decay: 0.12 }); sweep({ from: 1800, to: 600, type: 'triangle', peak: 0.12, dur: 0.3 }); };
+// a zone appearing: the ice pops creaking up out of the grass (the others are heard in their shot)
+SFX.zone = (e) => { if (e && e.k === 'fence') { sweep({ from: 400, to: 1400, type: 'triangle', peak: 0.1, dur: 0.5, t: 0.2 }); for (let i = 0; i < 6; i++) thud({ freq: 4000 + i * 250, q: 4, peak: 0.08, decay: 0.02, t: 0.25 + i * 0.12 }); } };
 const basePowershot = SFX.powershot;
 SFX.powershot = (e) => {
   basePowershot();

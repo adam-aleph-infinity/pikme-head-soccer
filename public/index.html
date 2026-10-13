@@ -69,7 +69,6 @@
     <div class="hm-spot">
       <div class="hm-podium"><i class="hm-pod-side"></i><i class="hm-pod-top"></i><span class="m-sym hm-pod-sym" id="hmPodSym"></span></div>
       <div class="hm-hero" id="hmHero" role="button" tabindex="0" aria-label="החלף אלוף"></div>
-      <b class="hm-swap" id="hmSwap" aria-hidden="true"><i>⇄</i>החלף אלוף</b>
     </div>
   </div>
   <!-- the HUD and the tiles (round 2, after the references: Brawl Stars' square tiles and
@@ -77,7 +76,6 @@
   <div class="hm-tl m-drop">
     <button class="hm-profile" id="hmProfile" aria-label="הפרופיל שלך">
       <i class="hm-avatar" id="hmAvatar"></i>
-      <span class="m-sym hm-badge" id="mnLogo"></span>
       <b class="hm-name" id="hmName">שחקן</b>
     </button>
     <div class="hm-cups" id="hmCupsBox" title="גביעים" role="button" tabindex="0" aria-label="דרך הגביעים">
@@ -86,8 +84,6 @@
       <i class="hm-bar"><i></i></i>
     </div>
   </div>
-  <!-- your team (team.js): its badge, its name, how its week is going; a tap opens the team screen -->
-  <button class="hm-team m-drop hidden" id="hmTeam" aria-label="הקבוצה שלי"><span class="hm-tbdg" id="hmTBdg"></span><span class="hm-tname"><b id="hmTName"></b><small id="hmTStat"></small></span></button>
   <div class="hm-wallet m-drop">
     <span class="hm-cur" title="כסף"><i class="hm-cash">$</i><b id="hmMoney">0</b><button class="hm-plus" id="hmMoneyPlus" aria-label="עוד כסף">+</button></span>
     <span class="hm-cur" title="נקודות סולטיז"><i class="coin hm-coin"></i><b id="mnPts">0</b><button class="hm-plus" id="hmPtsPlus" aria-label="עוד נקודות סולטיז">+</button></span>
@@ -95,19 +91,23 @@
   <button class="hm-tile sq hm-opt m-drop" id="mnOpt" aria-label="הגדרות"><span class="hm-ico" data-ico="gear"></span></button>
   <nav class="hm-side hm-left m-rise">
     <button class="hm-tile" id="hmChars"><span class="hm-ico hm-faces"><i class="hm-cf a"></i><i class="hm-cf b"></i></span><b>דמויות</b></button>
-    <button class="hm-tile gold" id="hmShop"><span class="hm-ico" data-ico="shop"></span><b>חנות</b></button>
-    <button class="hm-tile" id="hmQuests"><span class="hm-ico" data-ico="quests"></span><b>משימות</b></button>
+    <button class="hm-tile" id="hmShop"><span class="hm-ico" data-ico="shop"></span><b>חנות</b></button>
   </nav>
   <nav class="hm-side hm-right m-rise">
     <button class="hm-tile" id="hmFriends"><span class="hm-ico" data-ico="friends"></span><b>חברים</b></button>
     <button class="hm-tile" id="hmBoard"><span class="hm-ico" data-ico="board"></span><b>דירוג</b></button>
+    <!-- your team (team.js): a tile in the team's colour with only its badge; a tap opens the team screen -->
+    <button class="hm-tile hm-team hidden" id="hmTeam" aria-label="הקבוצה שלי"><span class="hm-ico" id="hmTBdg"></span></button>
   </nav>
-  <button class="hm-tile wide pink hm-pass m-rise" id="hmPass"><span class="hm-ico" data-ico="pass"></span>
+  <!-- the battle pass (the picture, images_up/battlepassticket.png): the tilted ticket, the name, an empty bar -->
+  <button class="hm-tile hm-pass m-rise" id="hmPass"><span class="hm-ico" data-ico="pass"></span>
     <span class="hm-pass-txt"><b>BATTLE PASS</b><i class="hm-bar"><i></i></i></span></button>
+  <!-- quests, beside the pass and no taller than it -->
+  <button class="hm-tile hm-quests m-rise" id="hmQuests"><span class="hm-ico" data-ico="quests"></span><b>משימות</b></button>
   <!-- PLAY is an arena battle (arena.js; Idan: Clash Royale's Battle button): the arena you are in over
        it, the day's three win stars on it, and the other modes beside it -->
   <div class="hm-arena m-rise" id="hmArena"></div>
-  <button class="hm-modes m-rise" id="hmModes" aria-label="מצבי משחק"><i>🎮</i><b>מצבים</b></button>
+  <button class="hm-modes m-rise" id="hmModes" aria-label="מצבי משחק"><i>🎮</i><b>מצבי משחק</b></button>
   <button class="hm-play m-rise" id="hmPlay"><span class="hm-stars" id="hmStars"></span><b>שחק</b></button>
   <div class="hm-toast" id="hmToast" role="status" aria-live="polite"></div>
 </section>
@@ -120,30 +120,37 @@
   <nav class="md-row m-rise" id="mdRow" aria-label="מצבי משחק"></nav>
 </section>
 
-<!-- MY CHAMPIONS: a tap on you on the home podium. Left, the one you are looking at, whole on a gold
-     podium under a spotlight in their colour, with their name, stars and power; right, every champion,
-     the ones you have not collected yet dark silhouettes, and how many of them you have -->
+<!-- MY CHAMPIONS (2026-10-12): two views of one screen.
+     THE COLLECTION — every champion as a big tile (face, name, ✓ on the one you use; the ones you have not
+     collected yet dark, with a padlock) and how many you have. A tap on a tile opens…
+     ITS PAGE (#champs.page) — the champion whole on a gold podium under a spotlight in their colour; their
+     rarity, name, stars and power; their own five stats, each with its upgrade; CHOOSE. One you have not
+     collected is a black silhouette: you see its power, not its face, and cannot upgrade it. -->
 <section id="champs" class="screen m-screen hidden">
   <i class="m-rays" aria-hidden="true" style="--rx: 27%; --ry: 52%"></i>
   <button class="m-back m-drop" id="chBack"><i></i>חזרה</button>
   <div class="ch-show" id="chShow">
-    <i class="ch-light" aria-hidden="true"></i>
-    <div class="ch-sparks" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div>
     <div class="ch-stage">
       <div class="hm-podium ch-podium"><i class="hm-pod-side"></i><i class="hm-pod-top"></i><span class="m-sym hm-pod-sym" id="chPodSym"></span></div>
       <div class="ch-hero" id="chHero"></div>
       <b class="ch-lockbig" aria-hidden="true">?</b>
     </div>
+    <div class="ch-burst" id="chBurst" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div>
+  </div>
+  <div class="ch-card" id="chCard">
     <div class="ch-info">
       <span class="ch-rar" id="chRar"></span>
       <b class="ch-big ch-name" id="chName"></b>
       <small class="ch-title" id="chTitle"></small>
-      <div class="ch-row"><span class="m-stars ch-stars" id="chStars"></span>
-      <span class="ch-power" id="chPower"><i></i><b></b></span></div>
     </div>
-    <button class="m-pill big glint ch-go" id="chGo"><b>בחר!</b></button>
+    <!-- its power: the icon, the name, and what it does -->
+    <div class="ch-pbox" id="chPower"><i></i><span class="ch-ptxt"><b></b><small id="chPowDesc"></small></span></div>
+    <div class="ch-ups" id="chUps" aria-label="השדרוגים של האלוף"></div>
+    <div class="ch-foot">
+      <span class="m-points ch-pts" id="chPtsBox"><i class="coin"></i><b id="chPts">0</b></span>
+      <button class="m-pill big glint ch-go" id="chGo"><b>בחר!</b></button>
+    </div>
     <small class="ch-why" id="chWhy"></small>
-    <div class="ch-burst" id="chBurst" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div>
   </div>
   <div class="ch-side m-rise">
     <header class="ch-head">
@@ -192,15 +199,14 @@
   </footer>
 </section>
 
-<!-- SHOP · HS: BACK, folder tabs, a row per stat (price, ten dots, Buy), MY POINT at the bottom -->
+<!-- SHOP (2026-10-12): bundles — three offers, all "בקרוב" for now. Upgrades are each
+     champion's own now, on its page (MY CHAMPIONS). Your points at the bottom. -->
 <section id="shop" class="screen m-screen hidden">
   <i class="m-rays" aria-hidden="true"></i>
   <button class="m-back m-drop" id="shopBack"><i></i>חזרה</button>
-  <nav class="shop-tabs m-drop"><b class="shop-tab on" id="upgTitle">שדרוג</b></nav>
-  <div class="m-panel shop-panel">
-    <div class="shop-rows" id="upgRows"></div>
-    <div class="shop-you"><span class="m-hex"><i class="m-face" id="shopFace"></i></span><b id="shopName"></b><small>השדרוגים חלים על כל הקלפים שלך</small></div>
-  </div>
+  <nav class="shop-tabs m-drop"><b class="shop-tab on" id="upgTitle">חבילות</b></nav>
+  <div class="bn-row m-rise" id="bnRow"></div>
+  <div class="hm-toast" id="shopToast" role="status" aria-live="polite"></div>
   <footer class="shop-bar m-rise"><span class="m-points big" id="upgPtsBox"><small>נקודות סולטיז</small><i class="coin"></i><b id="upgPts">0</b></span></footer>
 </section>
 
@@ -256,6 +262,7 @@
     <button class="m-pill ring-btn ob o6" id="oTut"><i class="m-orb">🎓</i><b>הדרכה</b></button>
     <button class="m-pill ring-btn ob o5" id="oBack"><b>חזרה</b></button>
   </div>
+  <button class="opt-anon" id="oAnon" hidden aria-pressed="false"><b></b></button>
 </div>
 
 <!-- STATS · HS: SINGLE / VICTORY / … -->

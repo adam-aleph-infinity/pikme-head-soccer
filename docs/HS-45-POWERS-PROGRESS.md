@@ -1,5 +1,8 @@
 # The 45 champions' own powers — what is built
 
+> **Superseded (2026-10-11):** stages 1–5 now fire ORIGINAL powers (docs/CHAMPION-POWERS.md); the HS copies below are gone from the game except stage 6 (Russia), until its batch.
+
+
 Each arcade champion fires one real Head Soccer character's power shot: the same flight, the same look
 (our own canvas art), the same effect on the defender. The spec is `docs/hs-45-powers.json`
 (`docs/HS-45-POWERS.md`); this page lists what is in the game.

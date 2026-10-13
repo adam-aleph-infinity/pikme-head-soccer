@@ -83,7 +83,7 @@ check('a device id was made', /^[0-9a-f-]{36}$/.test(await js(`localStorage.getI
 await js(`TUTORIAL.toShop()`);
 await until(() => js(`TUTORIAL.phase === 'shop' || TUTORIAL.phase === 'shop-talk'`), 4000);
 await sleep(500);
-if (await js(`TUTORIAL.phase === 'shop'`)) { await clickEl('#upgRows .upg-row[data-k="speed"] .upg-buy'); await sleep(2400); }
+if (await js(`TUTORIAL.phase === 'shop'`)) { await clickEl('#chUps .ch-up[data-k="speed"] .cu-buy'); await sleep(2400); }
 await until(() => js(`document.querySelector('#tut').style.pointerEvents === 'auto'`), 6000);
 await clickAt(W / 2, H / 2);                                   // the stats talk
 check('after the shop: the team step, said by your leader', await until(() => js(`TUTORIAL.phase === 'team' && TEAMS_UI.introOn`), 3000), await js(`TUTORIAL.phase`));
@@ -101,14 +101,14 @@ await shot('team-3');
 await clickAt(W / 2, H / 2);
 check('…then the menu', await until(() => js(`MENU.screen === 'menu' && !TEAMS_UI.introOn`), 3000));
 await sleep(800);
-check('…with your team\'s chip under your profile', await visible('#hmTeam') && (await js(`document.querySelector('#hmTName').textContent`)) === 'קבוצת פז');
+check("…with your team's tile under the leaderboard", await visible('#hmTeam') && (await js(`document.querySelector('#hmTeam').getAttribute('aria-label')`)) === 'קבוצת פז');
 check('…and the coach pointing at PLAY for the arena', (await js(`document.querySelector('.tut-say').textContent`)).includes('לזירה'));
 await shot('menu-arena');
 await until(() => js(`document.querySelector('#tut').style.pointerEvents === 'auto'`), 4000);
 await clickAt(W / 2, H / 2);
 check('the tutorial is done, and the team was welcomed', await until(() => js(`!TUTORIAL.on`), 2000) && JSON.parse(await js(`localStorage.getItem('hs.team.v1')`)).welcomed === true);
 await sleep(400);
-check('the home HUD does not overlap: profile, trophies, team chip, tiles', await js(`(() => { const r = (s) => document.querySelector(s).getBoundingClientRect(); const a = [r('#hmProfile'), r('.hm-cups'), r('#hmTeam'), r('#hmChars'), r('.hm-wallet')]; for (let i = 0; i < a.length; i++) for (let j = i + 1; j < a.length; j++) { const p = a[i], q = a[j]; if (p.left < q.right - 1 && q.left < p.right - 1 && p.top < q.bottom - 1 && q.top < p.bottom - 1) return false; } return true; })()`));
+check('the home HUD does not overlap: profile, trophies, team tile, tiles', await js(`(() => { const r = (s) => document.querySelector(s).getBoundingClientRect(); const a = [r('#hmProfile'), r('.hm-cups'), r('#hmTeam'), r('#hmChars'), r('.hm-wallet')]; for (let i = 0; i < a.length; i++) for (let j = i + 1; j < a.length; j++) { const p = a[i], q = a[j]; if (p.left < q.right - 1 && q.left < p.right - 1 && p.top < q.bottom - 1 && q.top < p.bottom - 1) return false; } return true; })()`));
 await shot('home');
 
 // ── THE TEAM SCREEN ──

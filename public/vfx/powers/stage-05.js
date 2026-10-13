@@ -1,137 +1,208 @@
-// STAGE 5 — JAPAN'S NINJA SHOT.
+// ICE POP WALL, drawn — the Wall Builder's power (what it does: shared/champion-powers/stage-05.js).
+// The champion is a red-orange ice pop with a bite out of it; the card, Paz in a straw fedora and a
+// lei bursting out of an ice pool, ice pops flying.
 //
-// Wiki (Japan): "When activated and when Japan touches the ball, he turns into a log"; he "rises
-// into the air surrounded by five soccer balls", then "a few streaks of blue light (the fake
-// 'balls') will shoot downwards towards the goal with one green streak containing the ball".
-// Power_Shot_Guide: the order is always middle, very low, the highest, a little lower, middle; the
-// green one is "always in a random place"; "the blue balls are all completely fake".
-// Not in our footage, so painted at the filmed effects' quality (fx-kit.js): from the touch the
-// shooter is a LOG (a painted, lit cylinder of bark with a ringed cut top), swapped in and out
-// with a burst of billowing white ninja smoke; five balls circle in a cold blue glow over where he
-// stood; then, one every 0.13 s, STREAKS OF BLUE LIGHT — the comet's anatomy (fx-kit beam), slim,
-// white-hot nosed, streaky — shoot down at the goal at those five heights; the one that carries
-// the ball is green, the ball at its nose.
-// Armed: Head Soccer's own yellow glow and wisps (fx-kit drawArmedGlow) — the same for everyone.
+//   the cut-in   frost bursting out round where the ball will leave, three little ice pops spinning
+//                in it — while, back at his own goal, the fence starts to grow (its zone, below)
+//   the flight   the ball trailing cold mist, snowflake sparkles and a ribbon of ice-pop colours
+//   the fence    (a zone) three giant ice pops sprouting out of the grass in front of his goal on their
+//                sticks, frosted, a bite out of one, dripping; a ball that hits them throws ice chips;
+//                at the end they melt down into a puddle
+//   a hit        brain freeze: an ice block round him, then a shiver (ailments.js `brainfreeze`)
+//   armed        snowflakes circling the head
+// Client only: Math.random is fine here.
 
-import { beam, glow, smoke, blit, tex, pix, noise2, fbm, sstep, mix, clamp01, TAU } from '../fx-kit.js';
-import { ball } from './common.js';
-import { NINJA, ninjaTarget } from '../../../shared/champion-powers/stage-05.js';
-import * as C from '../../../shared/constants.js';
+import { TAU, ball, hash, puff, rrect } from './common.js';
+import { blit, glow, tex } from '../fx-kit.js';
 
-const BLUE = ['#e6f6ff', '#5cb8ff', '#1f6bff'];
-const GREEN = ['#eaffe6', '#52e07a', '#12a04a'];
-const ORBIT = 38;
-const BLUE_BEAM = () => beam('ninja-blue', { L: 260, H: 40, mid: '#6cc8ff', edge: '#1c56ff', core: 0.26, fan: 1.4, streak: 0.85, head: 0.34 });
-const GREEN_BEAM = () => beam('ninja-green', { L: 280, H: 50, mid: '#78ffa4', edge: '#0c9a44', core: 0.3, fan: 1.45, streak: 0.85, head: 0.34 });
+const POPS = [
+  { body: '#ff4a4a', dark: '#b81e2a', light: '#ff9a9a' },      // strawberry (the champion's red)
+  { body: '#ff9a3d', dark: '#c4601a', light: '#ffc890' },      // orange
+  { body: '#ffd84a', dark: '#c49a12', light: '#fff0a0' },      // lemon
+];
+const FROST = '#dff6ff';
 
-// seconds into the volley (0 = the ball has just left the cut-in)
-const volleyT = (pw) => (pw.ph === 'nwait' ? pw.k : pw.slot * NINJA.GAP + pw.t);
-const logLeft = (pw) => pw.cp === 'ninja' && !pw.rb && (pw.ph === 'nwait' || volleyT(pw) < 4 * NINJA.GAP + 0.45);
-
-// the five circling over the spot he rose from; `fired(i)` says which have gone
-function orbit(g, s, ox, oy, now, fired) {
-  blit(g, glow('#4aa8ff', 0.1), ox, oy, (ORBIT + 30) * 2.4, (ORBIT + 30) * 2.1, 0, 0.55, true);
-  for (let i = 0; i < 5; i++) {
-    if (fired(i)) continue;
-    const a = now * 7 + (i / 5) * TAU;
-    const x = ox + Math.cos(a) * ORBIT, y = oy + Math.sin(a) * ORBIT * 0.8;
-    blit(g, glow('#8fd4ff', 0.3), x, y, 44, 44, 0, 0.7, true);
-    ball(g, s, x, y, 1);
-  }
+// a six-armed snowflake, painted once into a texture and blitted (one draw call, not thirty)
+function flakeTex() {
+  return tex('icepop-flake', 48, 48, (g, w) => {
+    const r = w * 0.42, c = w / 2;
+    g.translate(c, c);
+    g.strokeStyle = '#ffffff'; g.lineWidth = 3; g.lineCap = 'round';
+    for (let i = 0; i < 3; i++) {
+      g.rotate(Math.PI / 3);
+      g.beginPath(); g.moveTo(-r, 0); g.lineTo(r, 0);
+      g.moveTo(r * 0.55, 0); g.lineTo(r * 0.8, -r * 0.25); g.moveTo(r * 0.55, 0); g.lineTo(r * 0.8, r * 0.25);
+      g.moveTo(-r * 0.55, 0); g.lineTo(-r * 0.8, -r * 0.25); g.moveTo(-r * 0.55, 0); g.lineTo(-r * 0.8, r * 0.25);
+      g.stroke();
+    }
+  });
+}
+export function snowflake(g, x, y, r, rot, a = 1) {
+  blit(g, flakeTex(), x, y, r * 2.3, r * 2.3, rot, a, false);
 }
 
-// THE LOG: a painted cylinder of bark — lit from the left, vertical grain and cracks, two knots,
-// a stub of a branch — with a pale ringed cut top. 2.5 head radii wide, 3.2 tall.
-const logTex = () => tex('ninja-log', 120, 150, (g, w, h) => {
-  const nz = noise2(77, 64);
-  const topH = 16;                                               // the cut top's ellipse, texels
-  pix(g, w, h, (x, y, o) => {
-    const u = (x + 0.5) / w * 2 - 1;                              // −1 left … 1 right
-    const cy = topH / 2 + 1;
-    // the cut top: an ellipse of pale wood with rings
-    const ey = (y + 0.5 - cy) / (topH / 2), er = Math.hypot(u / 0.96, ey);
-    if (er <= 1) {
-      const ring = 0.5 + 0.5 * Math.sin(er * 16 + fbm(nz, x / 6, y / 6, 2) * 3);
-      const k = clamp01(0.75 + 0.15 * ring - 0.25 * er);
-      o[0] = mix(150, 238, k); o[1] = mix(100, 190, k); o[2] = mix(52, 128, k);
-      o[3] = er > 0.9 ? 1 : 1; if (er > 0.9) { o[0] *= 0.55; o[1] *= 0.5; o[2] *= 0.45; }
-      return;
-    }
-    if (y + 0.5 < cy) return;
-    // the body, down to a rounded foot
-    const footY = h - 5 - 4 * Math.sqrt(Math.max(0, 1 - u * u));
-    if (Math.abs(u) > 0.96 || y + 0.5 > footY) return;
-    const shade = 0.35 + 0.65 * Math.pow(Math.max(0, Math.cos((u + 0.35) * 1.25)), 1.3);
-    const grain = fbm(nz, x / 2.2, y / 16, 4), crack = sstep(0.72, 0.8, fbm(nz, x / 1.4 + 20, y / 26, 3));
-    const knot = Math.max(Math.exp(-(((x - w * 0.34) / 5) ** 2 + ((y - h * 0.48) / 7) ** 2)), Math.exp(-(((x - w * 0.66) / 4) ** 2 + ((y - h * 0.76) / 5) ** 2)));
-    let k = shade * (0.75 + 0.45 * grain) * (1 - 0.55 * crack) * (1 - 0.45 * knot);
-    const rim = sstep(0.82, 0.96, Math.abs(u));
-    k *= 1 - 0.55 * rim;
-    o[0] = mix(46, 176, k); o[1] = mix(26, 112, k); o[2] = mix(10, 54, k); o[3] = 1;
-  });
-});
-export function drawLog(g, x, fy, r, a = 1, dir = 1) {
-  const w = r * 2.5, h = r * 3.2;                               // wide enough to hide the head it replaces
-  blit(g, logTex(), x, fy, w * 1.02, h, 0, a, false, 0.5, 0.97);
-  // the branch stub
-  g.save(); g.globalAlpha = a; g.fillStyle = '#6e4420';
-  g.beginPath(); g.ellipse(x + dir * w * 0.52, fy - h * 0.55, w * 0.16, w * 0.1, -0.4 * dir, 0, TAU); g.fill();
-  g.fillStyle = '#c89a5c'; g.beginPath(); g.ellipse(x + dir * w * 0.6, fy - h * 0.56, w * 0.07, w * 0.08, -0.4 * dir, 0, TAU); g.fill();
+// one giant ice pop standing on its stick in the grass: bottom of the pop at `top + h`, `w` wide,
+// `bite` 1 to take a bite out of its top corner, `melt` 0..1 shrinking it into a drip
+export function icePop(g, cx, gy, w, h, col, bite, melt, now, i) {
+  const stick = 18, ph = h * (1 - 0.75 * melt);
+  const top = gy - stick - ph;
+  g.save();
+  // a white outline under everything, so the pop reads against the stands
+  g.fillStyle = 'rgba(255,255,255,0.85)';
+  rrect(g, cx - w / 2 - 2.5, gy - stick - ph - 2.5, w + 5, ph + 5, w * 0.5); g.fill();
+  // the stick, in the grass
+  g.fillStyle = '#e8c890'; g.strokeStyle = '#a07a40'; g.lineWidth = 1.2;
+  rrect(g, cx - 4, gy - stick - 4, 8, stick + 6, 3); g.fill(); g.stroke();
+  // the bite out of its top corner: everything of the pop below is clipped round it
+  const bitten = bite && melt < 0.5;
+  if (bitten) { g.save(); g.beginPath(); g.rect(cx - w, top - 12, w * 2, ph + 24); g.arc(cx + w * 0.5, top + w * 0.3, w * 0.34, 0, TAU); g.clip('evenodd'); }
+  // the pop: a rounded slab, lit from the left, its colour darker down the right
+  const lg = g.createLinearGradient(cx - w / 2, 0, cx + w / 2, 0);
+  lg.addColorStop(0, col.light); lg.addColorStop(0.35, col.body); lg.addColorStop(1, col.dark);
+  g.fillStyle = lg; g.strokeStyle = col.dark; g.lineWidth = 2;
+  rrect(g, cx - w / 2, top, w, ph, w * 0.45); g.fill(); g.stroke();
+  // frost: a pale sheen down the lit side and sparkles twinkling on it
+  g.fillStyle = 'rgba(255,255,255,0.42)';
+  rrect(g, cx - w * 0.36, top + ph * 0.1, w * 0.16, ph * 0.72, w * 0.08); g.fill();
+  for (let k = 0; k < 3; k++) {
+    const f = (now * 1.2 + k * 0.33 + i * 0.21) % 1;
+    g.globalAlpha = Math.sin(f * Math.PI);
+    snowflake(g, cx + (hash(k, i) - 0.5) * w * 0.7, top + ph * (0.15 + 0.6 * hash(k + 5, i)), 3, f * 2);
+  }
+  g.globalAlpha = 1;
+  if (bitten) {
+    g.restore();
+    // the bite's edge, a darker scallop
+    g.strokeStyle = col.dark; g.lineWidth = 2;
+    g.beginPath(); g.arc(cx + w * 0.5, top + w * 0.3, w * 0.34, Math.PI * 0.55, Math.PI * 1.5); g.stroke();
+  }
+  // drips running down and off the bottom edge
+  g.fillStyle = col.body;
+  for (let k = 0; k < 2; k++) {
+    const f = (now * (0.7 + 0.2 * k) + i * 0.4 + k * 0.5) % 1, dx = cx + (k ? 0.25 : -0.2) * w;
+    g.globalAlpha = 1 - f;
+    g.beginPath(); g.ellipse(dx, top + ph + f * (stick + 6), 2.2, 3.2, 0, 0, TAU); g.fill();
+  }
   g.restore();
 }
-// THE POOF: billowing white ninja smoke, bursting out and thinning (k 0 → 1)
-function poof(g, x, y, r, k) {
-  const a = 1 - k;
-  blit(g, glow('#ffffff', 0.4), x, y, r * 3.5, r * 3.5, 0, 0.5 * a, true);
-  for (let i = 0; i < 7; i++) {
-    const an = (i / 7) * TAU + 0.6, d = r * (0.45 + 1.3 * k), S = r * (1.9 + 1.5 * k) * (0.8 + 0.2 * (i % 3));
-    blit(g, smoke(i, '#f4f5fa'), x + Math.cos(an) * d, y + Math.sin(an) * d * 0.8, S, S, an + k * 2, 0.95 * a * (0.7 + 0.3 * (i % 2)), false);
-  }
+
+// ice chips off the fence (a ball hit it), or off a frozen head
+function chips(x, y, dir) {
+  const bits = [];
+  for (let i = 0; i < 14; i++) { const a = (dir > 0 ? Math.PI : 0) + (Math.random() - 0.5) * 2.4, v = 160 + Math.random() * 380; bits.push({ x, y, vx: Math.cos(a) * v, vy: Math.sin(a) * v - 200, s: 2.5 + Math.random() * 4, r: Math.random() * TAU }); }
+  return {
+    t: 0, life: 0.6,
+    step(dt) { for (const b of bits) { b.vy += 1200 * dt; b.x += b.vx * dt; b.y += b.vy * dt; b.r += dt * 9; } },
+    draw(g, t) {
+      const f = t / 0.6;
+      if (t < 0.2) { blit(g, glow('#bfefff', 0.4), x, y, 110 * (1 - t / 0.2) + 30, 110 * (1 - t / 0.2) + 30, 0, 1 - t / 0.2); }
+      g.save(); g.globalAlpha = 1 - f * f;
+      for (const b of bits) {
+        g.fillStyle = 'rgba(220,246,255,0.95)'; g.strokeStyle = '#7ac8e8'; g.lineWidth = 1;
+        g.beginPath(); g.moveTo(b.x + Math.cos(b.r) * b.s, b.y + Math.sin(b.r) * b.s); g.lineTo(b.x + Math.cos(b.r + 2.2) * b.s, b.y + Math.sin(b.r + 2.2) * b.s); g.lineTo(b.x + Math.cos(b.r + 4.1) * b.s, b.y + Math.sin(b.r + 4.1) * b.s); g.closePath(); g.fill(); g.stroke();
+      }
+      g.restore();
+    },
+  };
+}
+
+// THE SET PIECE (cutBack): a giant red ice pop bursts up out of the turf behind the shooter in a
+// spray of frost, a bite out of it, dripping, snowflakes swirling round — the champion itself.
+function popSet(g, s) {
+  const { hx, hy, hr, px, py, dir, el, now } = s;
+  const k = Math.min(1, el / 0.45), e = k < 1 ? 1 - Math.pow(1 - k, 3) * Math.cos(k * 8) : 1;
+  const a = Math.min(1, el / 0.1) * (s.out ?? 1);
+  g.save(); g.globalAlpha = a;
+  blit(g, glow('#cfefff', 0.12), px - dir * hr * 2.4, py - hr * 2.5, hr * 7, hr * 7, 0, 0.7);
+  icePop(g, px - dir * hr * 2.4, py, hr * 2.2, Math.max(4, hr * 4.6 * e), POPS[0], true, 0, now, 0);
+  icePop(g, px + dir * hr * 2.6, py, hr * 1.4, Math.max(4, hr * 3 * Math.max(0, e - 0.2)), POPS[1], false, 0, now, 1);
+  // frost bursting where they came up
+  for (let i = 0; i < 5; i++) { const ang = Math.PI + (i / 4) * Math.PI, d = hr * (1 + 2 * k); snowflake(g, px - dir * hr * 2.4 + Math.cos(ang) * d, py + Math.sin(ang) * d * 0.6, hr * 0.35, now * 2 + i, 1 - k * 0.6); }
+  for (let i = 0; i < 5; i++) { const ang = now * 1.6 + i * 1.257; snowflake(g, hx + Math.cos(ang) * hr * 3, hy - hr * 0.5 + Math.sin(ang) * hr * 1.6, hr * 0.3, ang, 0.9); }
+  g.restore();
 }
 
 export default {
-  id: 'ninja',
-  palette: GREEN,
-  hideInCut: true,
-  warm() { BLUE_BEAM(); GREEN_BEAM(); logTex(); glow('#4aa8ff', 0.1); glow('#8fd4ff', 0.3); glow('#ffffff', 0.4); for (let i = 0; i < 4; i++) smoke(i, '#f4f5fa'); },
-  // During the cut-in, over the dark: the five circling over him.
-  cutin(g, s) {
-    orbit(g, s, s.fx, s.fy, s.now, () => false);
-  },
-  // After release: the balls still circling, the streaks already fired, the green one on the ball.
+  id: 'icepop',
+  palette: [POPS[0].body, POPS[1].body, POPS[2].body, FROST],
+  cutColor: '#7fdcff',
+  cutBack: popSet,
+
   draw(g, b, s) {
-    const pw = s.pw, vt = volleyT(pw), dir = pw.dir || 1;
-    const S = C.POWER_SHOT_SPEED * (pw.spd || 1.1), fr = Math.floor(s.now * 30);
-    orbit(g, s, s.fx, s.fy, s.now, (i) => i * NINJA.GAP <= vt);
-    for (let i = 0; i < 5; i++) {
-      const tf = vt - i * NINJA.GAP;
-      if (tf < 0 || i === pw.slot) continue;
-      const T = ninjaTarget(pw, i);
-      const dx = T.x - s.fx, dy = T.y - s.fy, d = Math.hypot(dx, dy) || 1;
-      const run = S * tf;
-      if (run > d + 260) continue;                              // gone into the goal
-      const hx = s.fx + (dx / d) * Math.min(run, d + 40), hy = s.fy + (dy / d) * Math.min(run, d + 40);
-      const L = Math.min(260, run + 30), a = run > d ? Math.max(0, 1 - (run - d) / 260) : 1;
-      blit(g, BLUE_BEAM()[(fr + i) & 1], hx, hy, L, 40, Math.atan2(dy, dx), a, true, (L - 12) / L, 0.5);
+    const pw = s.pw, dir = pw.dir || 1, x = s.x, y = s.y, r = s.r, now = s.now || 0;
+    const h = s.hist || [];
+    // a ribbon of the three flavours streaming behind it
+    if (h.length > 2) {
+      g.save(); g.lineCap = 'round'; g.lineJoin = 'round';
+      for (let k = 0; k < 3; k++) {
+        g.strokeStyle = POPS[k].body; g.globalAlpha = 0.9; g.lineWidth = r * 0.5;
+        g.beginPath();
+        for (let i = 0; i < Math.min(h.length, 14); i++) g.lineTo(h[i].x, h[i].y + (k - 1) * r * 0.42 + Math.sin(i * 0.8 - now * 12 + k) * 2);
+        g.stroke();
+      }
+      g.restore();
     }
-    if (pw.ph === 'nwait') return true;
-    const v = Math.hypot(b.vx, b.vy) || 1, L = Math.min(280, S * pw.t + 40);
-    blit(g, GREEN_BEAM()[fr & 1], s.x, s.y, L, 50, Math.atan2(b.vy / v, b.vx / v || dir), 1, true, (L - 14) / L, 0.5);
-    blit(g, glow('#8dffb0', 0.3), s.x, s.y, 50, 50, 0, 0.6, true);
-    return false;
+    // cold mist and snowflakes shed along the path
+    for (let i = 2; i < Math.min(h.length, 16); i += 3) blit(g, glow('#cfefff', 0.1), h[i].x, h[i].y, r * (2.5 + i * 0.25), r * (2 + i * 0.2), 0, 0.5 - i * 0.025);
+    for (let i = 0; i < 5; i++) {
+      const j = 2 + ((i * 3 + Math.floor(now * 22)) % 12), p = h[Math.min(h.length - 1, j)];
+      if (!p) break;
+      snowflake(g, p.x + (hash(i, j) - 0.5) * 24, p.y + (hash(i + 4, j) - 0.5) * 24, 3 + hash(i, 2) * 3, now * 3 + i, 1 - j / 14);
+    }
+    blit(g, glow('#9fe0ff', 0.25), x, y, r * 4, r * 4, 0, 0.6);
+    ball(g, s, x, y);
+    // a frosting of white on the ball
+    g.save(); g.globalAlpha = 0.5; g.fillStyle = FROST;
+    g.beginPath(); g.arc(x - r * 0.25, y - r * 0.3, r * 0.45, 0, TAU); g.fill(); g.restore();
+    return true;
   },
-  // Over the heads: the log where he stands, for as long as the volley lasts.
-  over(g, s) {
-    const pw = s.pw;
-    if (!logLeft(pw)) return;
-    const vt = volleyT(pw), end = 4 * NINJA.GAP + 0.45;
-    drawLog(g, s.px, s.pfy, s.pr, 1, pw.dir || 1);
-    // smoke as he swaps into it (the touch) and back out of it
-    const k0 = s.sinceTouch / 0.45;
-    if (k0 < 1) poof(g, s.px, s.pfy - s.pr * 1.6, s.pr, k0);
-    const k1 = (vt - (end - 0.3)) / 0.3;
-    if (k1 > 0 && k1 < 1) poof(g, s.px, s.pfy - s.pr * 1.6, s.pr, 1 - k1);
+
+  // The fence: three giant ice pops on their sticks in front of his own goal. They grow out of the
+  // grass through his cut-in (s.cut), stand WALL s, and melt into a puddle over the last half second.
+  zone(g, z, s) {
+    if (z.k !== 'fence') return;
+    const gy = s.gy, now = s.now, H = z.h;
+    const grow = s.cut >= 0 ? Math.min(1, s.cut / 0.9) : Math.min(1, 0.55 + z.t / 0.25);
+    const e = grow < 1 ? 1 - Math.pow(1 - grow, 3) * Math.cos(grow * 9) : 1;     // a springy rise: 0 → a little over → 1
+    const left = z.life - z.t, melt = Math.max(0, 1 - left / 0.5);
+    // cold mist pooling at its foot
+    blit(g, glow('#dff6ff', 0.1), s.x0, gy - 6, 120, 34, 0, 0.55 * (1 - melt));
+    // the meltwater puddle
+    if (melt > 0) { g.save(); g.globalAlpha = 0.6 * melt; g.fillStyle = '#ff9a9a'; g.beginPath(); g.ellipse(s.x0, gy, 26 + 30 * melt, 5, 0, 0, TAU); g.fill(); g.restore(); }
+    // back to front: the pops stand in a short staggered row across the goal mouth
+    const w = 25, offs = [-22, 0, 22], heights = [0.9, 1, 0.84];
+    // a cold glow round the whole fence
+    blit(g, glow('#bfefff', 0.15), s.x0, gy - H * 0.55 * e, 130, H * 1.3 * e, 0, 0.5 * (1 - melt));
+    for (let i = 0; i < 3; i++) {
+      const h = Math.max(0, (H - 18) * heights[i] * e);
+      if (h < 3) continue;
+      icePop(g, s.x0 + offs[i] * (z.dir < 0 ? 1 : -1), gy, w, h, POPS[i], i === 0, melt, now, i);
+    }
+    // frost sparkles round the whole fence
+    for (let k = 0; k < 4; k++) {
+      const f = (now * 0.9 + k * 0.25) % 1;
+      snowflake(g, s.x0 + (hash(k, 3) - 0.5) * 60, gy - H * (0.2 + 0.7 * hash(k, 9)) * e, 4, f * 3, Math.sin(f * Math.PI) * (1 - melt));
+    }
+  },
+
+  // Under the cut-in: a burst of frost round the ball's spot (the giant pop is the set piece, cutBack).
+  cutin(g, s) {
+    const x = s.fx, y = s.fy, R = s.r, t = s.now || 0;
+    const k = Math.max(0, Math.min(1, (s.cut ?? 0.6) / 0.9));
+    blit(g, glow('#cfefff', 0.25), x, y, R * 6 * k, R * 6 * k, 0, 0.7 * k);
+    for (let i = 0; i < 5; i++) { const a = (i / 5) * TAU + t * 0.8; snowflake(g, x + Math.cos(a) * R * 2.4, y + Math.sin(a) * R * 1.8, R * 0.35, t * 2 + i, k); }
+  },
+
+  // Armed: snowflakes circling the head, a cold breath of mist.
+  armed(g, p, s) {
+    const t = s.t, rx = s.r * 1.5, ry = s.r * 0.5, cy = s.hy - s.r * 0.25;
+    for (let i = 0; i < 4; i++) { const a = t * 2.4 + i * 1.57; snowflake(g, s.hx + Math.cos(a) * rx, cy + Math.sin(a) * ry, s.r * 0.22, t * 3 + i, 0.95); }
+    blit(g, glow('#cfefff', 0.1), s.hx, s.hy, s.r * 3.2, s.r * 2.6, 0, 0.35);
+  },
+
+  event(e, at) {
+    if (e.type === 'fenceHit' && e.cp === 'icepop') { const d = at(e.x, e.y); return chips(d.x, d.y, e.dir || 1); }
+    if (e.type === 'brainFreeze') { const d = at(e.x, e.y); return chips(d.x, d.y, 0); }
+    return null;
   },
 };
-
-export { logLeft };

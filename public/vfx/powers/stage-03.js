@@ -1,123 +1,140 @@
-// STAGE 3 — NIGERIA'S TORNADO SHOT.
+// SIZZLE LINE, drawn — the Burning Chef's power (what it does: shared/champion-powers/stage-03.js).
+// The champion is a flame-grilled burger; the card, Naveh as a many-armed chef at a row of grills.
 //
-// Wiki (Nigeria): "Nigeria unleashes a tornado whirlwind on the ground towards the opponent";
-// "the shot bounces up and down very quickly"; "if the tornado touches the opponent, they fly and
-// spin in the air and they stay unconscious for 3 seconds". Power_Shot_Guide: "you can also get
-// hit by the power shot when you jump". Not in our own footage; read off the wiki's GIF frame by
-// frame (Nigeria.gif, 640 x 480, ≈ real time; docs/HS-FIRST-3-POWERS.md §1.3):
-//   • it is NOT an upright dust devil: it is a CORKSCREW OF WHITE WIND LYING ON ITS SIDE along the
-//     grass — 6–8 translucent crescent ribbons wound round an axis just above the turf, grey on
-//     their undersides, the stands showing through, motion-smeared. No sand, no dust, no brown;
-//   • it ERUPTS from Nigeria himself the frame the ball leaves: ≈ 200 px tall at its back (≈ 3.5
-//     heads), unrolling to ≈ 500 px and narrowing to a small swirl streaming off the ball;
-//   • it travels a little slower than the ball, the ball runs out of its front, and it DISSOLVES
-//     ≈ 0.45 s after the release; the ball runs on along the grass, hopping, a small swirl on it.
-// Painted as an 8-frame flipbook of the corkscrew (fx-kit textures: soft strokes, a motion smear,
-// a blur) stretched between its back and its front each frame. The one it catches tumbles with
-// the gold stars (ailments.js `twister`), as in HS.
-// Armed: Head Soccer's own yellow glow and wisps (fx-kit drawArmedGlow) — the same for everyone.
+//   the cut-in   grill flames bursting up in a ring round where the ball will leave, sesame seeds
+//                spinning in the heat
+//   the flight   the ball skimming low with flames licking back off it and sesame seeds flicked out
+//   the strip    (a zone) the grill seared into the grass behind it: charred bars glowing orange at
+//                their edges, flame tongues dancing up along it, smoke curling off; it cools and fades
+//   singed       (ailments.js) the boots smoking, little flames at the heels
+//   armed        flames flickering up round the head
+// Client only: Math.random is fine here.
 
-import { book, surface, blurred, blit, glow, sstep, mix } from '../fx-kit.js';
-import * as C from '../../../shared/constants.js';
+import { TAU, flame, hash, streak } from './common.js';
+import { blit, glow, smoke } from '../fx-kit.js';
 
-export const VORTEX = {
-  H_BACK: 200,       // world px tall at its back, standing on the grass
-  BEHIND: 240,       // px behind the release point its back starts (behind Nigeria, often off the screen)
-  FRONT_HOLD: 0.2,   // s its front keeps up with the ball before the ball runs out of it
-  FRONT_K: 0.55,     // …then its front goes on at this share of the ball's speed
-  BACK_K: 0.42,      // its back follows at this share of the ball's speed, from BACK_T
-  BACK_T: 0.08,
-  FULL: 0.22, GONE: 0.48,   // full, then dissolving, gone
-  SMALL_L: 130, SMALL_H: 62,  // the small swirl streaming off the ball
-};
+const SESAME = '#f5e6b8';
+function seed(g, x, y, rot, a = 1) {
+  g.save(); g.globalAlpha = a; g.fillStyle = SESAME; g.strokeStyle = '#b89a5a'; g.lineWidth = 0.8;
+  g.beginPath(); g.ellipse(x, y, 3.2, 1.7, rot, 0, TAU); g.fill(); g.stroke(); g.restore();
+}
 
-// The corkscrew, back (left) to front (right), standing on the texture's bottom edge.
-const TW = 560, TH = 300;
-function paintVortex(g, w, h, k) {
-  const s = surface(w, h), x = s.getContext('2d');
-  // (a margin all round: a tilted, wide loop must never reach the texture's edge)
-  const bot = h - 10, Rb = (h - 60) / 2, Rf = Rb * 0.34, X0 = w * 0.06, XW = w * 0.8;
-  const R = (u) => mix(Rb, Rf, Math.pow(u, 0.8));
-  x.lineCap = 'round';
-  // FEW, FAT, WIDE ribbons that overlap into one white mass (HS: 5–6 broad crescents), each a
-  // little different — never a regular coil
-  const N = 5.5, ph = k / 8;
-  const jit = (j, n) => { const v = Math.sin(j * 12.9898 + n * 78.233) * 43758.5453; return v - Math.floor(v); };
-  for (const near of [false, true]) {
-    for (let j = -1; j <= 6; j++) {
-      const u = ((j + ph) / N) * 0.92 + 0.04;
-      if (u < -0.02 || u > 1.02) continue;
-      const jj = Math.floor(j - ph * 0) + 7;
-      const r = R(clamp(u)) * (0.9 + 0.22 * jit(jj, 1)), cx = X0 + u * XW, cy = bot - r;
-      const endA = sstep(-0.02, 0.12, u) * (1 - sstep(0.78, 1.0, u));
-      x.save();
-      x.translate(cx, cy); x.rotate(-0.34 + 0.16 * jit(jj, 2));
-      const [a0, a1] = near ? [-Math.PI * (0.62 + 0.1 * jit(jj, 3)), Math.PI * (0.52 + 0.08 * jit(jj, 4))] : [Math.PI * 0.55, Math.PI * 1.4];
-      const rx = r * (0.9 + 0.2 * jit(jj, 5)), lw = r * (near ? 0.46 : 0.3);
-      const passes = near
-        ? [[lw * 1.7, 'rgba(255,255,255,0.08)', 0], [lw, 'rgba(146,156,172,0.30)', 5], [lw * 0.8, 'rgba(255,255,255,0.36)', 0], [lw * 0.34, 'rgba(255,255,255,0.8)', -2]]
-        : [[lw * 1.3, 'rgba(255,255,255,0.06)', 0], [lw * 0.5, 'rgba(228,234,242,0.22)', 0]];
-      for (const [wd, col, off] of passes) {
-        x.strokeStyle = col; x.lineWidth = wd; x.globalAlpha = endA;
-        x.beginPath(); x.ellipse(off * 0.4, off, rx, r, 0, a0, a1); x.stroke();
-      }
-      x.restore();
-    }
+// THE SET PIECE (cutBack): the grill lights up under the shooter — a row of glowing bars on the
+// grass and a wall of flames roaring up round him, higher and higher, sesame seeds whirling in it.
+function grillSet(g, s) {
+  const { hr, px, py, el, now } = s;
+  const k = Math.min(1, el / 0.45), e = 1 - Math.pow(1 - k, 2);
+  const a = Math.min(1, el / 0.1) * (s.out ?? 1);
+  const W = hr * 9;
+  g.save(); g.globalAlpha = a;
+  blit(g, glow('#ff5a12', 0.15), px, py - hr * 1.5, W * 1.3, hr * 6 * e, 0, 0.8);
+  // the bars
+  for (let i = -5; i <= 5; i++) {
+    const x = px + i * hr * 0.8;
+    g.fillStyle = '#1b0f08'; g.fillRect(x - 4, py - 3, 8, 8);
+    g.globalCompositeOperation = 'lighter'; g.fillStyle = '#ff7a1a'; g.globalAlpha = a * (0.5 + 0.4 * Math.sin(now * 9 + i)); g.fillRect(x - 4, py - 3, 8, 2); g.globalCompositeOperation = 'source-over'; g.globalAlpha = a;
   }
-  // the motion smear: the ribbons dragged back along the flight
-  g.globalCompositeOperation = 'lighter';
-  for (let i = 4; i >= 1; i--) { g.globalAlpha = 0.14 * (5 - i) / 4; g.drawImage(s, -i * 12, 0); }
-  g.globalAlpha = 1; g.globalCompositeOperation = 'source-over';
-  g.drawImage(s, 0, 0);
-  const soft = blurred(g.canvas, 2);
-  g.clearRect(0, 0, w, h); g.globalAlpha = 0.55; g.drawImage(g.canvas, 0, 0);
-  g.globalAlpha = 1; g.drawImage(soft, 0, 0, w, h);
-  g.globalCompositeOperation = 'lighter'; g.globalAlpha = 0.5; g.drawImage(s, 0, 0); g.globalAlpha = 1; g.globalCompositeOperation = 'source-over';
-}
-const clamp = (u) => (u < 0 ? 0 : u > 1 ? 1 : u);
-export const vortexBook = () => book('nigeria-vortex', 8, TW, TH, (g, w, h, k) => paintVortex(g, w, h, k));
-
-// The corkscrew with its back at xb and its front at xf on the grass line gy, `h` tall at the back.
-export function drawVortex(g, xb, xf, gy, h, t, a = 1) {
-  const L = Math.abs(xf - xb);
-  if (!(L > 8) || !(a > 0.004)) return;
-  const bk = vortexBook(), f = Math.floor(t * 30) % bk.length, dir = xf >= xb ? 1 : -1;
-  g.save();
-  g.globalAlpha = a > 1 ? 1 : a;
-  g.translate(xb, gy + 6 * (h / TH));
-  g.scale(dir, 1);
-  // the texture's margins (paintVortex) are drawn off past both ends, so the ribbons span L × h
-  const kx = 1 / 0.86, ky = TH / (TH - 60);
-  g.drawImage(bk[f], -0.06 * L * kx, -h * ky, L * kx, h * ky);
   g.restore();
-}
-
-// Where the big vortex is `t` s after the release, for a ball `dist` px out from the release point
-// x0 flying at `S` px/s the way `dir` points.
-export function vortexSpan(x0, dir, dist, S, t) {
-  const V = VORTEX;
-  const front = Math.min(dist + 20, S * V.FRONT_HOLD + Math.max(0, t - V.FRONT_HOLD) * S * V.FRONT_K);
-  const back = -V.BEHIND + Math.max(0, t - V.BACK_T) * S * V.BACK_K;
-  const a = t < V.FULL ? 1 : Math.max(0, 1 - (t - V.FULL) / (V.GONE - V.FULL));
-  return { xb: x0 + dir * back, xf: x0 + dir * Math.max(back + 120, front), a };
+  // the wall of flames, tallest at the ends, flickering
+  for (let i = 0; i < 14; i++) {
+    const t = i / 13 - 0.5, x = px + t * W, f = 0.5 + 0.5 * Math.sin(now * 23 + i * 1.9);
+    const h = hr * (2.2 + 2.8 * Math.abs(t) * 2 + 1.2 * f) * e;
+    g.save(); g.globalAlpha = a; flame(g, x, py + 2, h, hr * 0.8, (hash(i, Math.floor(now * 10)) - 0.5) * hr, f); g.restore();
+  }
+  for (let i = 0; i < 8; i++) { const ang = now * 3 + i * 0.8, d = hr * (2 + i * 0.3); seed(g, px + Math.cos(ang) * d, py - hr * 2 - Math.sin(ang) * d * 0.6, ang * 2, a); }
 }
 
 export default {
-  id: 'tornado',
-  palette: ['#ffffff', '#e8eef4', '#9aa6b6'],
-  warm() { vortexBook(); glow('#ffffff', 0.3); },
+  id: 'sizzle',
+  palette: ['#ff7a1a', '#ffd34a', '#2a1a10', SESAME],
+  cutColor: '#ff5a1a',
+  cutBack: grillSet,
+
   draw(g, b, s) {
-    const dir = s.pw.dir || 1, gy = C.GROUND_Y, t = s.t;
-    const S = Math.max(300, Math.abs(b.vx) || C.POWER_SHOT_SPEED * 0.68);
-    const dist = Math.max(0, (s.x - s.fx) * dir);
-    // the big corkscrew erupting from Nigeria, then dissolving
-    const v = vortexSpan(s.fx, dir, dist, S, t);
-    if (v.a > 0) drawVortex(g, v.xb, v.xf, gy, VORTEX.H_BACK * (1 - 0.2 * (1 - v.a)), t, v.a);
-    // the small swirl streaming off the ball, on it for the rest of the run
-    const sa = sstep(0.05, 0.25, t) * 0.85;
-    drawVortex(g, s.x - dir * VORTEX.SMALL_L, s.x + dir * 14, gy, VORTEX.SMALL_H, t + 0.37, sa);
-    // the ball glows white where it scours the grass
-    blit(g, glow('#ffffff', 0.3), s.x, s.y, 58, 50, 0, 0.55, true);
-    return false;
+    const pw = s.pw, dir = pw.dir || 1, x = s.x, y = s.y, r = s.r, now = s.now || 0;
+    const h = s.hist || [];
+    // the heat round it
+    blit(g, glow('#ff7a1a', 0.2), x - dir * r, y, r * 6, r * 3.4, 0, 0.7);
+    // a comet of fire streaming back off it…
+    streak(g, x, y, dir, 0, r * 10, ['#fff2a0', '#ff9a1a', '#ff3a0a'], r / 11, 1);
+    // …and flames licking up off the ball and its wake, flickering, swept back by the speed
+    for (let i = 0; i < 6; i++) {
+      const p = i === 0 ? { x, y } : h[Math.min(h.length - 1, i * 2)] || { x: x - dir * i * 20, y };
+      const k = 0.5 + 0.5 * Math.sin(now * 31 + i * 1.7);
+      flame(g, p.x + (hash(i, Math.floor(now * 18)) - 0.5) * 6, p.y + r * 0.5, r * (2.4 - i * 0.3) * (0.8 + 0.3 * k), r * (0.75 - i * 0.08), -dir * r * (1.2 + i * 0.2), k);
+    }
+    // sesame seeds flicked out behind it, tumbling
+    for (let i = 0; i < 5; i++) {
+      const j = 2 + ((i * 4 + Math.floor(now * 25)) % 12), p = h[Math.min(h.length - 1, j)];
+      if (!p) break;
+      seed(g, p.x + (hash(i, j) - 0.5) * 22, p.y - j * 1.4 - hash(i + 3, j) * 10, now * 9 + i, 1 - j / 14);
+    }
+    return false;                                         // the ball itself, on top
+  },
+
+  // The strip: the grill seared into the grass from where it left to where the ball is (or was).
+  zone(g, z, s) {
+    if (z.k !== 'strip') return;
+    const lo = Math.min(s.x0, s.x1), hi = Math.max(s.x0, s.x1), gy = s.gy, now = s.now;
+    if (hi - lo < 2) return;
+    const left = z.life - z.t, fade = Math.min(1, left / 0.5), cool = Math.min(1, z.t / 0.15);
+    g.save();
+    // the scorched bed under the bars, and the heat glowing off it
+    g.globalAlpha = 0.7 * fade;
+    g.fillStyle = '#2a160a';
+    g.beginPath(); g.ellipse((lo + hi) / 2, gy - 1, (hi - lo) / 2 + 10, 9, 0, 0, TAU); g.fill();
+    g.globalCompositeOperation = 'lighter';
+    const hg = g.createLinearGradient(0, gy - 26, 0, gy + 6);
+    hg.addColorStop(0, '#ff5a1200'); hg.addColorStop(0.7, '#ff7a1a'); hg.addColorStop(1, '#ff5a1200');
+    g.globalAlpha = (0.35 + 0.1 * Math.sin(now * 7)) * fade; g.fillStyle = hg;
+    g.fillRect(lo - 6, gy - 26, hi - lo + 12, 32);
+    g.globalCompositeOperation = 'source-over';
+    // the bars: slanted charcoal stripes, their edges glowing
+    const step = 16;
+    for (let x = lo + 6; x < hi - 2; x += step) {
+      g.globalAlpha = 0.9 * fade;
+      g.fillStyle = '#1b0f08';
+      g.beginPath(); g.moveTo(x - 5, gy + 4); g.lineTo(x + 1, gy - 5); g.lineTo(x + 7, gy - 5); g.lineTo(x + 1, gy + 4); g.closePath(); g.fill();
+      g.globalCompositeOperation = 'lighter';
+      g.globalAlpha = (0.55 + 0.35 * Math.sin(now * 9 + x * 0.3)) * fade;
+      g.strokeStyle = '#ff7a1a'; g.lineWidth = 1.6;
+      g.beginPath(); g.moveTo(x - 5, gy + 4); g.lineTo(x + 1, gy - 5); g.stroke();
+      g.globalCompositeOperation = 'source-over';
+    }
+    g.restore();
+    // the embers' glow along it and flames dancing up out of it
+    for (let x = lo + 10, i = 0; x < hi; x += 26, i++) {
+      blit(g, glow('#ff5a12', 0.15), x, gy - 4, 46, 22, 0, 0.55 * fade);
+      const k = 0.5 + 0.5 * Math.sin(now * 13 + i * 2.1);
+      flame(g, x + (hash(i, 5) - 0.5) * 10, gy, (24 + 20 * hash(i, 7)) * fade * cool * (0.7 + 0.5 * k), 9, (hash(i, Math.floor(now * 8)) - 0.5) * 8, k);
+    }
+    // smoke curling off it
+    for (let i = 0; i < 3; i++) {
+      const f = (now * 0.8 + i / 3) % 1, x = lo + (hi - lo) * hash(i, Math.floor(now * 0.8 + i / 3));
+      blit(g, smoke(i, '#8a8580'), x, gy - 10 - f * 50, 18 + f * 30, 18 + f * 30, f * 2, 0.35 * (1 - f) * fade, false);
+    }
+  },
+
+  // Under the cut-in: grill flames bursting up round the ball's spot, sesame seeds spinning in them.
+  cutin(g, s) {
+    const x = s.fx, y = s.fy, R = s.r, t = s.now || 0;
+    const k = Math.max(0, Math.min(1, (s.cut ?? 0.6) / 0.8));
+    for (let i = 0; i < 10; i++) {
+      const a = (i / 10) * TAU + t * 0.6, fx = x + Math.cos(a) * R * 2.2, fy = y + Math.sin(a) * R * 1.6;
+      const f = 0.5 + 0.5 * Math.sin(t * 17 + i * 1.9);
+      g.save(); g.translate(fx, fy); g.rotate(a + Math.PI / 2);
+      flame(g, 0, 0, R * (1.2 + 1.4 * f) * k, R * 0.45, 0, f);
+      g.restore();
+    }
+    for (let i = 0; i < 6; i++) { const a = -t * 2.4 + i * 1.05, d = R * 1.4; seed(g, x + Math.cos(a) * d, y + Math.sin(a) * d * 0.7, a * 2, k); }
+  },
+
+  // Armed: flames flickering up round the head.
+  armed(g, p, s) {
+    const t = s.t;
+    for (let i = 0; i < 6; i++) {
+      const a = Math.PI + (i / 5) * Math.PI, f = 0.5 + 0.5 * Math.sin(t * 19 + i * 2.3);
+      flame(g, s.hx + Math.cos(a) * s.r * 1.05, s.hy + Math.sin(a) * s.r * 0.9 + s.r * 0.3, s.r * (0.5 + 0.5 * f), s.r * 0.22, (i - 2.5) * 1.5, f);
+    }
   },
 };

@@ -11,6 +11,11 @@
 import { drawStars, headPath, blit, auraTex, bolts, boltBlit, rng } from './fx-kit.js';
 import { gemPalette, sparkle } from './powers/mythic.js';
 import { GEM } from '../../shared/champion-powers/mythic.js';
+import { SHIVER } from '../../shared/hs-powers.js';
+import { WORM_COL, wormTube } from './powers/stage-02.js';
+import { CHOC } from './powers/stage-04.js';
+import { snowflake } from './powers/stage-05.js';
+import { flame as flameTongue } from './powers/common.js';
 
 // The Mythic Gem's crust: [x off, height, half width, lean] in head radii, tallest first.
 // The tall ones stand at his sides and the ones in front stay under the chin, so the face shows.
@@ -202,6 +207,90 @@ export const AILMENT_VFX = {
       g.save();
       g.globalAlpha = 0.7; g.strokeStyle = '#d9ccff'; g.lineWidth = 2; g.setLineDash([5, 5]);
       g.beginPath(); g.arc(s.hx, s.hy, s.r, 0, TAU); g.stroke();
+      g.restore();
+    },
+  },
+  // ── the champions' original powers (docs/CHAMPION-POWERS.md) ──
+  // COILED (the Worm Tunnel Ambush): brown worms wound round his ankles, one red-eyed head poking out.
+  coiled: {
+    draw(g, p, s) {
+      const r = s.r, fy = s.fy, x = s.hx, t = s.t;
+      for (let i = 0; i < 3; i++) {
+        const y = fy - 4 - i * 7, rx = r * (0.62 - i * 0.06), a0 = t * 5 + i * 2;
+        const pts = [];
+        for (let k = 0; k <= 14; k++) { const a = a0 + (k / 14) * TAU * 0.9; pts.push({ x: x + Math.cos(a) * rx, y: y + Math.sin(a) * rx * 0.3 }); }
+        wormTube(g, pts, 4.6, t, 0.5);
+      }
+      const hx = x + r * 0.66, hy = fy - 21 + Math.sin(t * 6) * 1.5;
+      g.fillStyle = WORM_COL.mid; g.strokeStyle = '#1b120d'; g.lineWidth = 1.2;
+      g.beginPath(); g.ellipse(hx, hy, 3.6, 3, 0, 0, TAU); g.fill(); g.stroke();
+      g.fillStyle = WORM_COL.eye; g.beginPath(); g.arc(hx + 1, hy - 0.6, 1.4, 0, TAU); g.fill();
+    },
+  },
+  // SINGED (stood on the Sizzle Line's grill): the boots smoking, little flames licking the heels.
+  singed: {
+    draw(g, p, s) {
+      const fy = s.fy, x = s.hx, t = s.t;
+      for (let i = 0; i < 4; i++) {
+        const f = 0.5 + 0.5 * Math.sin(t * 21 + i * 1.7);
+        flameTongue(g, x + (i - 1.5) * 7, fy, 8 + 9 * f, 4, (i - 1.5) * 1.2, f);
+      }
+      g.save();
+      for (let i = 0; i < 3; i++) {
+        const f = (t * 1.4 + i / 3) % 1;
+        g.globalAlpha = 0.45 * (1 - f); g.fillStyle = '#7a7470';
+        g.beginPath(); g.arc(x + (i - 1) * 9 + Math.sin(t * 3 + i) * 4, fy - 12 - f * 34, 4 + f * 8, 0, TAU); g.fill();
+      }
+      g.restore();
+    },
+  },
+  // STICKY (the Choco Burst): chocolate up over his boots, and — coated by a hit — a drip down his
+  // head and blobs on his shoulders.
+  sticky: {
+    draw(g, p, s) {
+      const fy = s.fy, x = s.hx, r = s.r, t = s.t;
+      const blob = (bx, by, rx, ry) => {
+        g.fillStyle = CHOC.mid; g.beginPath(); g.ellipse(bx, by, rx, ry, 0, 0, TAU); g.fill();
+        g.fillStyle = CHOC.hi; g.beginPath(); g.ellipse(bx - rx * 0.2, by - ry * 0.25, rx * 0.55, ry * 0.45, 0, 0, TAU); g.fill();
+        g.fillStyle = 'rgba(255,230,200,0.7)'; g.beginPath(); g.ellipse(bx - rx * 0.35, by - ry * 0.45, rx * 0.2, ry * 0.15, -0.3, 0, TAU); g.fill();
+      };
+      g.save();
+      blob(x, fy - 2, r * 0.85, 7);
+      blob(x - r * 0.45, fy - 8, 7, 6); blob(x + r * 0.5, fy - 7, 6, 5);
+      if (p.ailT > 0.6) {
+        // coated: a drip down the head, swelling and stretching
+        const k = 0.5 + 0.5 * Math.sin(t * 3);
+        blob(x - r * 0.5, s.hy - r * 0.85, r * 0.42, r * 0.22);
+        g.fillStyle = CHOC.mid; g.beginPath(); g.ellipse(x - r * 0.62, s.hy - r * 0.5 + k * 4, 3.4, 6 + k * 4, 0, 0, TAU); g.fill();
+      }
+      g.restore();
+    },
+  },
+  // BRAIN FREEZE (the Ice Pop Wall's hit): an ice block round him while he is frozen stiff, frost
+  // creeping over it; then a shiver — snowflakes and shiver lines either side of the head.
+  brainfreeze: {
+    draw(g, p, s) {
+      const r = s.r, x = s.hx, t = s.t, top = s.hy - r * 1.15, bot = s.fy + 3;
+      const stiff = !Number.isFinite(p.ailT) || p.ailT > SHIVER;
+      g.save();
+      if (stiff) {
+        const lg = g.createLinearGradient(x - r, top, x + r, bot);
+        lg.addColorStop(0, 'rgba(235,250,255,0.55)'); lg.addColorStop(1, 'rgba(140,210,240,0.45)');
+        g.fillStyle = lg; g.strokeStyle = 'rgba(255,255,255,0.85)'; g.lineWidth = 2;
+        g.beginPath(); g.moveTo(x - r * 1.25, bot); g.lineTo(x - r * 1.3, top + r * 0.3); g.lineTo(x - r * 0.9, top - 4); g.lineTo(x + r * 1.0, top); g.lineTo(x + r * 1.3, top + r * 0.4); g.lineTo(x + r * 1.2, bot); g.closePath();
+        g.fill(); g.stroke();
+        g.fillStyle = 'rgba(255,255,255,0.6)'; g.beginPath(); g.moveTo(x - r * 1.0, top + 4); g.lineTo(x - r * 0.65, top + 2); g.lineTo(x - r * 0.95, bot - r); g.lineTo(x - r * 1.12, bot - r * 1.1); g.closePath(); g.fill();
+        for (let i = 0; i < 3; i++) snowflake(g, x + (i - 1) * r * 0.8, top + r * (0.3 + 0.5 * i), 3.5, t + i, 0.9);
+      } else {
+        for (const sgn of [-1, 1]) {
+          g.strokeStyle = '#bfefff'; g.lineWidth = 2; g.lineCap = 'round';
+          for (let k = 0; k < 2; k++) {
+            const ox = x + sgn * (r * 1.25 + k * 6), j = Math.sin(t * 40 + k + sgn) * 2;
+            g.beginPath(); g.moveTo(ox + j, s.hy - 8); g.lineTo(ox - j, s.hy); g.lineTo(ox + j, s.hy + 8); g.stroke();
+          }
+        }
+        for (let i = 0; i < 3; i++) { const a = t * 3 + i * 2.1; snowflake(g, x + Math.cos(a) * r * 1.3, s.hy - r * 1.1 + Math.sin(a) * 5, 3, a, 0.9); }
+      }
       g.restore();
     },
   },

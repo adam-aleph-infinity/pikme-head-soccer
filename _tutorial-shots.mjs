@@ -250,12 +250,12 @@ await shot('result-to-shop');
 // a stray click elsewhere is swallowed
 await clickAt(10, 10);
 await clickEl('#again');
-check('the shop', await until(() => js(`MENU.screen === 'shop'`), 3000));
+check('your starter\'s page, for the first upgrade', await until(() => js(`MENU.screen === 'champs' && document.querySelector('#champs').classList.contains('page')`), 3000));
 await sleep(900);
 await shot('shop-guide');
-check('…a click off the Buy button does nothing', await (async () => { await clickEl('#shopBack'); await sleep(300); return (await js(`MENU.screen`)) === 'shop'; })());
-await clickEl('#upgRows .upg-row[data-k="speed"] .upg-buy');
-check('…speed bought: level 1, the points spent', await until(() => js(`JSON.parse(localStorage.getItem('hs.stats.v1')).lv.speed === 1`), 2000));
+check('…a click off the Buy button does nothing', await (async () => { await clickEl('#chBack'); await sleep(300); return (await js(`MENU.screen === 'champs' && document.querySelector('#champs').classList.contains('page')`)); })());
+await clickEl('#chUps .ch-up[data-k="speed"] .cu-buy');
+check('…speed bought: level 1, on the starter', await until(() => js(`(JSON.parse(localStorage.getItem('hs.stats.v1')).cards.mythic || {}).speed === 1`), 2000));
 await sleep(400);
 await shot('shop-bought');
 await sleep(1800);
@@ -269,7 +269,7 @@ await shot('team-welcome');
 for (let i = 0; i < 3; i++) { await clickAt(W / 2, H / 2); await sleep(500); }
 check('the menu, pointing at PLAY: the arena', await until(() => js(`MENU.screen === 'menu' && !TEAMS_UI.introOn`), 3000));
 await sleep(900);
-check('…with your team\'s chip on it', (await js(`document.querySelector('#hmTName').textContent`)) === 'קבוצת נוה');
+check("…with your team's tile on it", (await js(`document.querySelector('#hmTeam').getAttribute('aria-label')`)) === 'קבוצת נוה');
 await shot('menu-arena');
 await tapOn();
 check('the tutorial is over and remembered', await until(async () => !(await tut('on')), 2000) && (await js(`localStorage.getItem('hs.tutorial.v2')`)) === 'done');
@@ -306,7 +306,7 @@ await send('Page.navigate', { url: `http://127.0.0.1:${PORT}/?nointro&me=mythic_
 await until(() => js(`MENU && MENU.screen`), 3000);
 await js(`MENU.openSelect('practice')`); await sleep(600);
 await clickEl('#reelMe .rl-item.sel'); await sleep(500);
-check('…and a link cannot hand you another one', await js(yourMythic));
+check('…and a link cannot hand you another one', await until(() => js(yourMythic), 3000));   // (the head's picture loads a moment after the list is drawn)
 
 // ── AN EXISTING PLAYER: everyone does it once now, and keeps everything ──
 const OLD = { 'hs.arcade.v1': '{"v":1,"cleared":12,"record":{}}', 'hs.stats.v1': '{"v":1,"points":2400,"lv":{"speed":2,"jump":1,"kick":0,"dash":0,"power":3}}', 'hs.tutorial.v1': 'done' };
@@ -320,7 +320,9 @@ await clickEl('#stRow .st-card[data-n="1"]'); await clickEl('#stGo'); await slee
 check('…then does the tutorial, with it', await until(() => tut('on'), 3000) && await until(() => js(`MATCH && MATCH.players[0].char.rarity === 'mythic' && MATCH.players[0].char.number === 1`), 3000));
 check('…and nothing of theirs changed', await js(`localStorage.getItem('hs.arcade.v1') === ${JSON.stringify(OLD['hs.arcade.v1'])} && localStorage.getItem('hs.stats.v1') === ${JSON.stringify(OLD['hs.stats.v1'])}`));
 await js(`TUTORIAL.toShop()`);
-check('…in the shop, a player who already has speed is only shown, never charged', await until(async () => (await tut('phase')) === 'shop-talk', 3000) && (await js(`JSON.parse(localStorage.getItem('hs.stats.v1')).points`)) === 2400, String(await tut('phase')));
+// (each champion has its own levels now: the old ones stay with the card they played with, so the new
+// starter is on level 0 and its first speed level is offered — nothing is spent until they press it)
+check('…on the starter\'s page, its first upgrade is offered and nothing is spent yet', await until(async () => (await tut('phase')) === 'shop', 3000) && (await js(`JSON.parse(localStorage.getItem('hs.stats.v1')).points`)) === 2400, String(await tut('phase')));
 await shot('existing-shop');
 
 // ── A FRIEND'S ROOM LINK before the first launch: the starter, the tutorial, then the room ──

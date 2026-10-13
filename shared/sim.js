@@ -6,9 +6,10 @@ import * as C from './constants.js';
 import { bootPose, kickPose } from './kick.js';
 import { walkBounds, barY, barCeiling, goalBox, ballInGoal, keepOutOfGoal } from './goalbox.js';
 import { championFor } from './champions.js';
+import { stepZones, zoneBall, clearZones } from './power-zones.js';
 import {
   shotFor, statsFor, meterRateFor, releaseX, releaseY, launch as launchPower, stepPower, contact as powerContact,
-  skipContact, onArm, tickAilment, ailMods, ailInput, headless, EQUAL_STATS,
+  skipContact, onArm, tickAilment, ailMods, ailInput, headless, powerHolds, EQUAL_STATS,
 } from './hs-powers.js';
 
 // A player's geometry, derived (never stored) so nothing can drift out of sync.
@@ -131,6 +132,8 @@ export function createMatch(charA, charB, opts = {}) {
     ball: { x: C.BALL_SPAWN.x, y: C.BALL_SPAWN.y, vx: 0, vy: 0, r: C.BALL_R, spin: 0, power: null },
     // A Multi-Ball's extra balls: real balls, stepped and scored exactly like the match ball.
     xballs: [],
+    // What a champion's power leaves on the pitch — a burning strip, a splat, a fence (power-zones.js).
+    zones: [],
     events: [],              // drained by the renderer each frame
   };
   // THE ARCADE. Champions are an opt-in on the match, and nothing else in the game passes it:
@@ -374,7 +377,7 @@ export function step(m, inputs, dt = C.TICK, fx = NO_FX) {
         if (!m.golden) {
           m.golden = true;
           m.events.push({ type: 'golden' });
-          m.xballs.length = 0;
+          m.xballs.length = 0; clearZones(m);
           restartAtSpots(m, 0, C.GOLDEN_HOLD);
           return m;
         }
@@ -386,7 +389,7 @@ export function step(m, inputs, dt = C.TICK, fx = NO_FX) {
         // on the match object for as long as the results screen is up — and this object is
         // what an "again" button is most tempted to reuse.
         for (const p of m.players) clearUltimate(m, p);
-        m.xballs.length = 0;
+        m.xballs.length = 0; clearZones(m);
         return m;
       }
     }
@@ -402,6 +405,8 @@ export function step(m, inputs, dt = C.TICK, fx = NO_FX) {
   for (const p of m.players) { p.x0 = p.x; p.y0 = p.y; }
   for (let i = 0; i < 2; i++) stepPlayer(m, m.players[i], inputs[i] || {}, dt, fx);
   resolvePlayers(m);
+  // what the powers left on the pitch acts on whoever stands in it (power-zones.js)
+  if (m.zones.length) stepZones(m, dt, KIT);
 
   // NO BALL YET. After a goal the players get GOAL_BALL_DELAY of play before the ball drops in
   // at the centre (HS: players move 2.24s after the goal, the ball appears at 2.795s). It is
@@ -530,6 +535,7 @@ function chargeGauge(m, p, dt) {
   if (p.gauge < 1 && C.GAUGE_PASSIVE > 0) p.gauge = Math.min(1, p.gauge + dt * C.GAUGE_PASSIVE * rate);
 }
 
+const HELD = Object.freeze({});
 function stepPlayer(m, p, input, dt, fx) {
   // What an AILMENT does to this body (shared/hs-powers.js ailMods), or null. Every use below is
   // `md ? … : <what it always was>`: reverse swaps the stick, shock slows and grounds, freeze and
@@ -537,6 +543,9 @@ function stepPlayer(m, p, input, dt, fx) {
   tickAilment(m, p, dt);
   const md = ailMods(p);
   if (md) { input = ailInput(md, input); dt *= md.time; }
+  // HELD BY HIS OWN POWER (hs-powers powerHolds — the Cannoneer planted under his barrage): no
+  // input at all, and nobody can tackle him out of it (the barrage cannot be interrupted, Idan)
+  if (powerHolds(m, p)) { input = HELD; if (p.tackleImmune < 2 * C.TICK) p.tackleImmune = 2 * C.TICK; }
   chargeGauge(m, p, dt);
 
   // NOTE there is no `p.armed -= dt` here. The arm used to be a 4.5s countdown that lapsed
@@ -713,7 +722,7 @@ function stepPlayer(m, p, input, dt, fx) {
   if (input.power && !prev.power && p.gauge >= 1 && p.armed <= 0) {
     p.armed = 1;                       // a flag, not a clock — see the note in constants.js
     p.gauge = 0;                       // spent on the press; the refill starts now
-    m.events.push({ type: 'armed', player: p.index, shot: p.shot.id, aura: p.shot.aura });
+    m.events.push({ type: 'armed', player: p.index, shot: p.shot.id, aura: p.shot.aura, ...(p.shot.cp ? { cp: p.shot.cp } : {}) });
     // …and a character with an AURA hits a nearby opponent with it on the press (hs-powers onArm).
     onArm(m, p, KIT, fx);
   }
@@ -1047,6 +1056,8 @@ function stepBall(m, dt, fx, a0 = 0, aSpan = 1) {
     const fromX = b.x, fromY = b.y;
     b.x += b.vx * sdt;
     b.y += b.vy * sdt;
+    // a power's fence (power-zones.js) turns a ball back before the frame or a body is asked
+    if (m.zones.length) zoneBall(m, b, fromX);
     const pw = b.power;
     // A POWER SHOT THAT MEETS THE FRAME IS OVER. A post, the bar, the roof, the back of the net
     // or a wall: from there it is an ordinary ball and bounces like one. It used to stay a power
@@ -1831,9 +1842,9 @@ function checkGoal(m, fx, scorer) {
   // the net like any ball (HS M4 124.1–125.2 s: a plain white ball bounces straight back out).
   // It used to fly on as a power shot pinned against the net for the rest of its 2 s.
   b.power = null;
-  // A goal ends a Multi-Ball's extra balls. (Not the arm or the meter — those follow the
-  // ordinary rules just below.)
-  m.xballs.length = 0;
+  // A goal ends a Multi-Ball's extra balls, and whatever a power left on the pitch. (Not the arm
+  // or the meter — those follow the ordinary rules just below.)
+  m.xballs.length = 0; clearZones(m);
 
   // The goal itself does nothing to either meter. The conceder's top-up (GAUGE_CONCEDE, HS M4
   // 43.5 s) is paid when the ball drops back in, in step() — not here.
@@ -1923,6 +1934,8 @@ export function serialize(m) {
     },
     // A Multi-Ball's extra balls, when there are any.
     xb: m.xballs.map((e) => ({ x: e.x, y: e.y, vx: e.vx, vy: e.vy, spin: e.spin, pw: e.power ? { ...e.power } : null })),
+    // What the powers left on the pitch (power-zones.js): every field a scalar.
+    ...(m.zones.length ? { zn: m.zones.map((z) => ({ ...z })) } : {}),
   };
 }
 
@@ -1947,6 +1960,9 @@ export function restore(m, s) {
   b.power = o.pw ? { ...o.pw } : null;
   m.xballs.length = 0;
   for (const e of s.xb || []) m.xballs.push({ x: e.x, y: e.y, vx: e.vx, vy: e.vy, r: C.BALL_R, spin: e.spin, power: e.pw ? { ...e.pw } : null });
+  if (!m.zones) m.zones = [];
+  m.zones.length = 0;
+  for (const z of s.zn || []) m.zones.push({ ...z });
   m.events.length = 0;
   return m;
 }

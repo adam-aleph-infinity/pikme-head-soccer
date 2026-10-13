@@ -15,6 +15,7 @@ import { createReel } from './reel.js';
 import * as MN from '../shared/menu.js';
 import { HS_STAGES } from './hs-stadium.js';
 import * as TOUR from '../shared/tournament.js';
+import { powerById } from '../shared/champion-powers.js';
 
 const $ = (s) => document.querySelector(s);
 export const SCREENS = ['title', 'menu', 'champs', 'modes', 'select', 'shop', 'bracket', 'howto', 'lobby', 'match'];
@@ -24,9 +25,21 @@ const fmt = (n) => Number(n || 0).toLocaleString('en-US');
 // The five stats, in HS's two columns (SPEED KICK JUMP | DASH POWER — HS's third, SURVIVAL, is
 // not ours: there is no Survival mode).
 const STATS = [
-  ['speed', 'מהירות', '⚡', '#3ad1ff'], ['kick', 'בעיטה', '⚽', '#ffb020'], ['jump', 'קפיצה', '🦘', '#7dff5a'],
-  ['dash', 'דאש', '💨', '#c77dff'], ['power', 'כוח', '🔥', '#ff4a5c'],
+  ['speed', 'מהירות', '⚡', '#2f9bff'], ['kick', 'בעיטה', '⚽', '#ff8a1a'], ['jump', 'קפיצה', '🦘', '#3ccf4a'],
+  ['dash', 'דאש', '💨', '#8a5bff'], ['power', 'כוח', '🔥', '#ff3a3a'],
 ];
+// the same five as white line icons on a champion's page (the locker-room mockup)
+const lineSvg = (d) => `<svg viewBox="0 0 32 32" fill="none" stroke="#fff" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${d}</svg>`;
+const STAT_SVG = {
+  speed: lineSvg('<path d="M4 11h15a3.5 3.5 0 1 0-3.5-3.5M4 16.5h21a3.5 3.5 0 1 1-3.5 3.5M4 22h10"/>'),
+  kick: lineSvg('<circle cx="16" cy="16" r="11"/><path d="M16 10l5 3.6-1.9 5.9h-6.2L11 13.6z"/>'),
+  jump: lineSvg('<path d="M7 17l9-9 9 9M7 25l9-9 9 9"/>'),
+  dash: lineSvg('<path d="M18 3L8 18h7l-2 11 11-16h-7z"/>'),
+  power: lineSvg('<path d="M16 3c1 5 7 8 7 15a7 7 0 0 1-14 0c0-3 2-4.5 3-7 1 1 2 2 2.5 2.5C15 11 15 7 16 3z"/>'),
+};
+
+// What each stat does in a match, said short under its multiplier on a champion's page.
+const STAT_DOES = { speed: 'מהירות', kick: 'עוצמת בעיטה', jump: 'גובה', dash: 'מרחק דאש', power: 'מילוי כוח' };
 
 // HOW TO: HS's eight pages, ours. Each is a number, a name and a little picture.
 const HOW = [
@@ -53,7 +66,7 @@ export function createMenus(ctx) {
   let shownPts = null, ptsAnim = 0;
 
   // The symbol, everywhere HS has its own art.
-  for (const id of ['tSym', 'hmPodSym', 'chPodSym', 'mnLogo', 'oSym', 'pSym', 'vsSym', 'brSym']) { const el = document.getElementById(id); if (el) el.innerHTML = symbolSVG(); }
+  for (const id of ['tSym', 'hmPodSym', 'chPodSym', 'oSym', 'pSym', 'vsSym', 'brSym']) { const el = document.getElementById(id); if (el) el.innerHTML = symbolSVG(); }
 
   // ── SCREENS AND POPUPS ──────────────────────────────────────────────────
   function show(id) {
@@ -63,6 +76,7 @@ export function createMenus(ctx) {
     if (el?.classList.contains('m-screen')) { el.classList.remove('m-enter'); void el.offsetWidth; el.classList.add('m-enter'); }
     screen = id;
     document.body.dataset.screen = id;
+    ctx.onScreen?.(id);
     if (id !== 'match') ctx.menuMusic?.();       // HS: the music runs under every menu screen
   }
   const popOpen = (id) => !document.getElementById(id)?.classList.contains('hidden');
@@ -102,8 +116,9 @@ export function createMenus(ctx) {
     if (ctx.firstRun?.()) { ctx.startTutorial(); return; }
     const from = $('#tSym').getBoundingClientRect();
     openMenu();
-    const logo = $('#mnLogo'), to = logo.getBoundingClientRect();
-    if (!from.width || !to.width || matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+    // (the logo used to fly onto a badge on your profile; the badge was taken off, so there is no fly while it is gone)
+    const logo = $('#mnLogo'), to = logo ? logo.getBoundingClientRect() : null;
+    if (!to || !from.width || !to.width || matchMedia('(prefers-reduced-motion: reduce)').matches) return;
     const fly = document.createElement('span');
     fly.className = 'm-sym glow m-fly';
     fly.innerHTML = symbolSVG();
@@ -131,7 +146,7 @@ export function createMenus(ctx) {
     ctx.onHome?.();
   }
   // the tiles' drawn icons (home-icons.js), once
-  const ICONS = { trophy: ICON.TROPHY, gear: ICON.GEAR, shop: '<img src="img/shop-icon.png" alt="">', friends: '<img src="img/friends-icon.png" alt="">', board: ICON.BOARD, pass: ICON.PASS, quests: ICON.QUESTS };
+  const ICONS = { trophy: ICON.TROPHY, gear: ICON.GEAR, shop: '<img src="img/shop-icon.png" alt="">', friends: '<img src="img/friends-icon.png" alt="">', board: ICON.BOARD, pass: ICON.passTicket(symbolSVG()), quests: ICON.QUESTS };
   for (const el of document.querySelectorAll('#menu [data-ico]')) el.innerHTML = ICONS[el.dataset.ico] || '';
   function paintHome() {
     $('#hmName').textContent = pick.name || MN.cleanName('');
@@ -140,7 +155,8 @@ export function createMenus(ctx) {
     $('#hmCups').textContent = fmt(ctx.trophies?.() ?? state.stats.trophies ?? 0);
     const av = $('#hmAvatar');
     av.classList.toggle('photo', !ctx.characterFor?.(pick.me.rarity, pick.me.number));
-    ctx.paintHead(av, pick.me.rarity, pick.me.number, av.clientWidth || 60, { fill: 1.05 });
+    // the tile is wider than tall: fit the whole head into both sides, or its hair and chin are cut off
+    ctx.paintHead(av, pick.me.rarity, pick.me.number, av.clientWidth || 60, { h: av.clientHeight || 45, fill: 0.92 });
     ctx.paintStanding?.($('#hmHero'), pick.me);
     paintTeam();
     ctx.paintArenaHome?.();
@@ -149,7 +165,7 @@ export function createMenus(ctx) {
     ctx.paintHead(fa, 'legendary', 3, fa.clientWidth || 40, { fill: 1.05 });
     ctx.paintHead(fb, 'legendary', 2, fb.clientWidth || 40, { fill: 1.05, flip: true });
   }
-  // YOUR TEAM (team.js): its chip under your trophies, its colour round your face
+  // YOUR TEAM (team.js): its tile under the leaderboard, in its colour with its badge; its colour round your face
   function paintTeam() {
     const t = ctx.team?.(), chip = $('#hmTeam'), av = $('#hmAvatar');
     chip.classList.toggle('hidden', !t);
@@ -157,25 +173,24 @@ export function createMenus(ctx) {
     if (!t) return;
     for (const el of [chip, av]) { el.style.setProperty('--tc', t.color); el.style.setProperty('--td', t.dark); }
     $('#hmTBdg').innerHTML = ctx.badgeSVG(t);
-    $('#hmTName').textContent = t.title;
-    $('#hmTStat').textContent = ctx.teamStatus?.() || '';
+    chip.setAttribute('aria-label', t.title);
   }
   // "Coming soon", for the buttons whose screens are not built yet.
   let toastT = 0;
-  function toast(text) {
-    const t = $('#hmToast');
+  function toast(text, at = '#hmToast') {
+    const t = $(at);
     t.textContent = text;
     t.classList.remove('on'); void t.offsetWidth; t.classList.add('on');
     clearTimeout(toastT);
     toastT = setTimeout(() => t.classList.remove('on'), 1600);
   }
-  // PLAY is the arena (arena.js); the other modes are the button beside it
-  tap('#hmPlay', () => (ctx.playArena ? ctx.playArena() : openModes()));
+  // PLAY plays the mode picked on the button beside it: the arena (arena.js) until another is picked
+  tap('#hmPlay', () => (homeMode === 'arena' ? (ctx.playArena ? ctx.playArena() : openModes()) : enterMode(homeMode)));
   tap('#hmModes', () => openModes());
   on('#hmCupsBox', () => { ctx.sfx?.('tap'); ctx.openRoad?.(); });
   tap('#hmBoard', () => (ctx.openBoard ? ctx.openBoard() : toast('בקרוב!')));
   tap('#hmChars', () => openChamps());
-  for (const id of ['#hmHero', '#hmSwap']) on(id, () => { ctx.sfx?.('swish'); openChamps(); });
+  on('#hmHero', () => { ctx.sfx?.('swish'); openChamp(); });   // (you on the podium: your own page)
   tap('#hmShop', () => openShop('menu'));
   tap('#hmProfile', () => openStats({ profile: true }));
   tap('#hmTeam', () => ctx.openTeam?.());
@@ -184,85 +199,150 @@ export function createMenus(ctx) {
   tap('#mnOpt', () => openOptions());
 
   // ── MY CHAMPIONS ────────────────────────────────────────────────────────
-  // A tap on you on the podium (or the Characters tile): every champion as a tile, yours lit, the
-  // ones still to collect dark silhouettes with a lock — the collection the kids play to fill. A tap
-  // on a tile stands that champion on the big podium; CHOOSE makes it the one you play with (kept in
-  // MN.ME_KEY, game.js reads it at launch).
-  let chList = [], chAt = 0, chLeaving = false;
+  // (2026-10-12) The Characters tile opens THE COLLECTION: every champion a big tile — its
+  // face, its name, ✓ on the one you play with — the ones still to collect dark with a padlock. A tap on
+  // one opens ITS PAGE (#champs.page): the champion whole on the big podium; its rarity, name, stars and
+  // power; its OWN five stats with their upgrades (each champion has its own levels, shared/upgrades.js);
+  // and CHOOSE, which makes it the one you play with (kept in MN.ME_KEY, game.js reads it at launch).
+  // A tap on you on the home podium opens your own page straight away.
+  let chList = [], chAt = 0, chLeaving = false, chPage = false;
   const isMe = (c) => c.rarity === pick.me.rarity && c.number === pick.me.number;
-  // what a tile and the stage say about a champion: a Mythic its name and gem, a legendary its title and power
   function champLook(c) {
     if (c.rarity === 'mythic') {
       const s = ctx.shotFor(c, { arcade: true });
-      return { name: MN.charName(c), sub: '', color: s.color, power: s.name, icon: s.icon, stars: 0 };
+      return { name: MN.charName(c), sub: '', color: s.color, power: s.name, icon: s.icon, stars: 0, desc: powerById(s.cp)?.desc || '' };
     }
     const row = champs[c.number - 1];
-    return { name: row?.title || MN.charName(c), sub: `אלוף #${c.number}`, color: row?.color || '#ffb800', power: row?.powerName, icon: row?.icon, stars: row?.hs.stars || 0 };
+    return { name: row?.title || MN.charName(c), sub: `אלוף #${c.number}`, color: row?.color || '#ffb800', power: row?.powerName, icon: row?.icon, stars: row?.hs.stars || 0, desc: row?.desc || '' };
   }
   function openChamps() {
     chList = MN.charReel(ctx.owns);
+    chLeaving = false; chPage = false;
+    show('champs');
+    $('#champs').classList.remove('page', 'chosen', 'pop', 'locked', 'myth');
+    renderChampGrid();
+    chAt = Math.max(0, MN.charIndex(chList, pick.me));
+    markTile(chAt, false);
+  }
+  // straight to one champion's page: yours, from the podium; the tutorial's starter, for its first upgrade
+  function openChamp(card = pick.me) {
+    chList = MN.charReel(ctx.owns);
     chLeaving = false;
     show('champs');
-    $('#chShow').classList.remove('chosen');
+    $('#champs').classList.remove('chosen');
     renderChampGrid();
-    previewChamp(Math.max(0, MN.charIndex(chList, pick.me)), false);
+    showChamp(Math.max(0, MN.charIndex(chList, card)), false);
   }
   function renderChampGrid() {
     const grid = $('#chGrid');
     grid.innerHTML = chList.map((c, i) => {
       const L = champLook(c), lit = c.owned ? L.color : '#3a3f55';
       return `<button class="ch-tile${c.owned ? '' : ' locked'}${c.rarity === 'mythic' ? ' myth' : ''}${isMe(c) ? ' cur' : ''}" data-i="${i}" data-k="${c.rarity}_${c.number}"
-        style="--c:${lit};--d:${Math.min(i, 20) * 18}" aria-label="${c.owned ? L.name : 'נעול'}"><i class="ch-face"></i>` +
-        `<b class="ch-no">${c.rarity === 'mythic' ? '💎' : c.number}</b>${c.owned ? '' : '<i class="ch-lock"></i>'}${isMe(c) ? '<i class="ch-on">✓</i>' : ''}</button>`;
+        style="--c:${lit};--d:${Math.min(i, 20) * 18}" aria-label="${L.name}${c.owned ? '' : ' (נעול)'}"><i class="ch-face"></i>` +
+        `<b class="ch-nm">${L.name}</b>${c.owned ? tileStats(c) : '<i class="ch-lock"></i>'}${isMe(c) ? '<i class="ch-on">✓</i>' : ''}</button>`;
     }).join('');
     for (const b of grid.children) {
       const c = chList[+b.dataset.i], f = b.querySelector('.ch-face');
-      ctx.paintHead(f, c.rarity, c.number, f.clientWidth || 60, { fill: 1.0 });
-      b.addEventListener('click', () => { if (+b.dataset.i === chAt) return; ctx.sfx?.('tap'); previewChamp(+b.dataset.i); });
+      ctx.paintHead(f, c.rarity, c.number, f.clientWidth || 80, { fill: 0.96, h: f.clientHeight || undefined });   // (the box is not square: the head is fitted into its real height)
+      b.addEventListener('click', () => { if (chLeaving) return; ctx.sfx?.('tap'); showChamp(+b.dataset.i); });
     }
     const got = chList.filter((c) => c.owned).length;
     $('#chN').textContent = got;
     $('#chOf').textContent = chList.length;
     $('#chBar').style.width = `${(100 * got) / chList.length}%`;
   }
-  function previewChamp(i, anim = true) {
+  // a tile's five levels at a glance: each stat's icon over its level, lit when it has been upgraded
+  function tileStats(c) {
+    const lv = UPG.levelsOf(state.stats, c);
+    return `<span class="ch-st">${STATS.map(([k, , ico, col]) => `<i class="${lv[k] ? 'on' : ''}" style="--uc:${col}"><em>${ico}</em><b>${lv[k]}</b></i>`).join('')}</span>`;
+  }
+  // the collection's cursor (the keys move it): ringed, and scrolled into view — the grid only
+  // (scrollIntoView would scroll the whole screen too)
+  function markTile(i, anim = true) {
     chAt = i;
-    const c = chList[i], L = champLook(c), box = $('#chShow'), go = $('#chGo');
     for (const b of $('#chGrid').children) b.classList.toggle('sel', +b.dataset.i === i);
-    // bring the tile into view: the grid only (scrollIntoView would scroll the whole screen too)
     const grid = $('#chGrid'), tile = grid.children[i];
-    if (tile) {
-      const top = tile.offsetTop - grid.offsetTop, pad = tile.offsetHeight * 0.4;
-      const to = top < grid.scrollTop + pad ? top - pad : top + tile.offsetHeight > grid.scrollTop + grid.clientHeight - pad ? top + tile.offsetHeight - grid.clientHeight + pad : null;
-      if (to !== null) grid.scrollTo({ top: to, behavior: anim ? 'smooth' : 'auto' });
-    }
-    box.style.setProperty('--c', L.color);
-    $('#champs').style.setProperty('--chc', c.owned ? L.color : '#5b63a0');
-    box.classList.toggle('locked', !c.owned);
-    box.classList.toggle('myth', c.rarity === 'mythic');
+    if (!tile || chPage) return;
+    const top = tile.offsetTop - grid.offsetTop, pad = tile.offsetHeight * 0.4;
+    const to = top < grid.scrollTop + pad ? top - pad : top + tile.offsetHeight > grid.scrollTop + grid.clientHeight - pad ? top + tile.offsetHeight - grid.clientHeight + pad : null;
+    if (to !== null) grid.scrollTo({ top: to, behavior: anim ? 'smooth' : 'auto' });
+  }
+  function showChamp(i, anim = true) {
+    chAt = i; chPage = true;
+    const c = chList[i], L = champLook(c), scr = $('#champs'), go = $('#chGo');
+    markTile(i, false);
+    scr.classList.add('page');
+    scr.style.setProperty('--c', L.color);
+    scr.style.setProperty('--chc', c.owned ? L.color : '#5b63a0');
+    scr.classList.toggle('locked', !c.owned);
+    scr.classList.toggle('myth', c.rarity === 'mythic');
     ctx.paintStanding?.($('#chHero'), c);
     $('#chRar').textContent = L.sub;
     $('#chName').textContent = L.name;
     $('#chTitle').textContent = MN.charRole(c);
-    $('#chStars').classList.toggle('hidden', !L.stars);
-    if (L.stars) stars($('#chStars'), L.stars);
     $('#chPower i').textContent = L.icon || '⚡';
     $('#chPower b').textContent = L.power || '';
+    $('#chPowDesc').textContent = L.desc || '';
     const mine = isMe(c);
     go.disabled = !c.owned || mine;
     go.classList.toggle('on', mine);
     go.innerHTML = `<b>${!c.owned ? '🔒 נעול' : mine ? '✓ בשימוש' : 'בחר!'}</b>`;
     $('#chWhy').textContent = c.owned ? '' : '🃏 אספו את הקלף באלבום כדי לפתוח';
-    if (anim) { box.classList.remove('pop'); void box.offsetWidth; box.classList.add('pop'); }
+    renderUps();
+    if (anim) { scr.classList.remove('pop'); void scr.offsetWidth; scr.classList.add('pop'); }
+  }
+  function backToGrid() {
+    chPage = false;
+    $('#champs').classList.remove('page', 'pop', 'locked', 'myth');
+    markTile(chAt, false);
+  }
+  // THE PAGE'S UPGRADES: this champion's five stats as five cards side by side (Brawl Stars), each in its
+  // colour: the icon, the name, the level big, a thick bar to 10, what it does in the match (× the base
+  // body), and the next level's price on its button (grey when the points are short). A champion you do
+  // not have shows its cards, not its buttons.
+  function renderUps(bought = null) {
+    const c = chList[chAt], st = state.stats, lv = UPG.levelsOf(st, c), box = $('#chUps');
+    box.classList.toggle('off', !c.owned);
+    box.innerHTML = STATS.map(([k, name, ico, col]) => {
+      const L = lv[k], nx = UPG.nextOf(st, c, k), can = c.owned && UPG.canBuy(st, c, k);
+      const label = nx ? `שדרג ${name} לרמה ${nx.level}, ${fmt(nx.cost)} נקודות סולטיז` : 'רמה מקסימלית';
+      const boost = Math.round((ctx.statMult(k, L) - 1) * 100);
+      return `<div class="ch-up${bought === k ? ' pop' : ''}${L === 10 ? ' full' : ''}" data-k="${k}" style="--uc:${col}">` +
+        `<span class="cu-head"><i class="cu-ico">${STAT_SVG[k]}</i><b class="cu-name">${name}</b></span>` +
+        `<b class="cu-lv">${L}</b><small class="cu-lvl">רמה</small>` +
+        `<span class="m-bars cu-bars">${barHTML(L, can ? L : -1)}</span><small class="cu-x">+${boost}% ${STAT_DOES[k]}</small>` +
+        `<button class="cu-buy${nx ? '' : ' max'}"${can ? '' : ' disabled'} aria-label="${label}">${nx ? `<i class="coin"></i><b>${fmt(nx.cost)}</b>` : '<b>MAX ⭐</b>'}</button></div>`;
+    }).join('');
+    if (bought) {
+      const row = box.querySelector(`[data-k="${bought}"]`);
+      row?.querySelector('.cu-lv')?.classList.add('new');
+      row?.querySelectorAll('.cu-bars i')[lv[bought] - 1]?.classList.add('new');
+      if (row) { const f = document.createElement('span'); f.className = 'upg-float'; f.textContent = '+1'; row.appendChild(f); setTimeout(() => f.remove(), 900); }
+      const p = $('#chPtsBox'); p.classList.remove('bump'); void p.offsetWidth; p.classList.add('bump');
+    }
+    for (const btn of box.querySelectorAll('.cu-buy')) {
+      btn.addEventListener('click', () => {
+        const k = btn.closest('.ch-up').dataset.k, card = chList[chAt];
+        const r = UPG.buy(state.stats, card, k);
+        if (!r.bought) return;
+        ctx.setStats(r.st);
+        if (ctx.sfxOn()) ctx.SFX.buy(UPG.levelsOf(state.stats, card)[k] === 10);
+        renderUps(k);
+        const was = $('#chGrid').children[chAt]?.querySelector('.ch-st');   // (its tile in the collection says so too)
+        if (was) was.outerHTML = tileStats(card);
+      });
+    }
+    $('#chPts').textContent = fmt(state.stats.points);
+    $('#mnPts').textContent = fmt(state.stats.points);
   }
   function chooseChamp() {
     const c = chList[chAt];
-    if (chLeaving || !c?.owned || isMe(c)) return;
+    if (chLeaving || !chPage || !c?.owned || isMe(c)) return;
     chLeaving = true;
     pick.me = { rarity: c.rarity, number: c.number };
     try { ctx.store?.setItem(MN.ME_KEY, MN.saveMe(pick.me)); } catch { /* private mode: for this visit only */ }
     ctx.sfx?.('armed');
-    $('#chShow').classList.add('chosen');
+    $('#champs').classList.add('chosen');
     $('#chGo').classList.add('on');
     $('#chGo').innerHTML = '<b>✓ נבחר!</b>';
     $('#chGo').disabled = true;
@@ -273,18 +353,51 @@ export function createMenus(ctx) {
     }, 850);
   }
   on('#chGo', (e, el) => press(el, chooseChamp));
-  tap('#chBack', () => openMenu());
+  tap('#chBack', () => (chPage ? backToGrid() : openMenu()));
 
   // ── GAME MODES ──────────────────────────────────────────────────────────
   // What PLAY opens: every mode (shared/menu.js MODES) as a big card, its mascot over it.
+  // THE ARENA first (2026-10-12): PLAY plays the mode you last picked here, the arena until you pick
+  // another, and the long button beside PLAY says which one it is, with its symbol.
   const row = $('#mdRow');
-  const MODE_ICON = { arcade: '👑', tournament: '🏆', multi: '⚡', practice: '🎯' };
-  row.innerHTML = MN.MODES.map((m) => `<button class="mn-mode" data-mode="${m.id}">
+  const MODE_ICON = { arena: '🏟️', arcade: '👑', tournament: '🏆', multi: '⚡', practice: '🎯' };
+  const HOME_MODES = [{ id: 'arena', name: 'זירה' }, ...MN.MODES];
+  const HOME_MODE_KEY = 'hs.homemode.v1';
+  let homeMode = (() => { try { const v = localStorage.getItem(HOME_MODE_KEY); return HOME_MODES.some((m) => m.id === v) ? v : 'arena'; } catch { return 'arena'; } })();
+  function setHomeMode(id) {
+    homeMode = HOME_MODES.some((m) => m.id === id) ? id : 'arena';
+    try { localStorage.setItem(HOME_MODE_KEY, homeMode); } catch { /* private mode */ }
+    paintHomeMode();
+  }
+  function paintHomeMode() {
+    const m = HOME_MODES.find((x) => x.id === homeMode);
+    // for kids (8-13, Idan): the button SAYS it switches the mode, and its arrows show it
+    $('#hmModes').innerHTML = `<i>${MODE_ICON[m.id]}</i><span class="hm-mtx"><small>מצב משחק</small><b>${m.name}</b></span>` +
+      `<em class="hm-swap" aria-hidden="true">⇄</em>`;
+    $('#hmModes').setAttribute('aria-label', `מצב משחק: ${m.name}. לחצו כדי להחליף`);
+    $('#hmModes').dataset.mode = m.id;
+    document.body.classList.toggle('mode-other', m.id !== 'arena');   // the arena's name and stars belong to the arena only
+  }
+  paintHomeMode();
+  row.innerHTML = HOME_MODES.map((m) => `<button class="mn-mode" data-mode="${m.id}">
       <span class="mn-masc"></span><b class="mn-pill"><i class="mn-ico">${MODE_ICON[m.id]}</i><span>${m.name}</span></b><small class="mn-sub"></small></button>`).join('');
-  for (const b of row.children) b.addEventListener('click', () => press(b.querySelector('.mn-pill'), () => enterMode(b.dataset.mode)));
+  for (const b of row.children) b.addEventListener('click', () => press(b.querySelector('.mn-pill'), () => pickHomeMode(b.dataset.mode)));
+  // picking a mode only SELECTS it (Idan): back home, the button shows it, and PLAY starts it
+  function pickHomeMode(id) {
+    setHomeMode(id);
+    openMenu();
+    const btn = $('#hmModes');
+    btn.classList.remove('just-picked'); void btn.offsetWidth; btn.classList.add('just-picked');
+    toast(`${HOME_MODES.find((m) => m.id === homeMode).name} נבחר! לחצו שחק`);
+  }
   function paintMascot(b) {
     const m = b.querySelector('.mn-masc'), id = b.dataset.mode;
-    if (id === 'arcade') {
+    if (id === 'arena') {
+      m.innerHTML = '<i class="mm-face a"></i><b class="mm-deco cup">🏟️</b><i class="mm-face b"></i>';
+      const [a, c] = m.querySelectorAll('.mm-face');
+      ctx.paintHead(a, pick.me.rarity, pick.me.number, a.clientWidth || 50);
+      ctx.paintHead(c, 'legendary', 4, c.clientWidth || 50, { flip: true });
+    } else if (id === 'arcade') {
       m.innerHTML = '<i class="mm-face"></i><b class="mm-deco crown">👑</b>';
       const n = ARC.currentStage(state.prog);
       ctx.paintHead(m.querySelector('.mm-face'), 'legendary', n, m.querySelector('.mm-face').clientWidth || 60);
@@ -304,6 +417,8 @@ export function createMenus(ctx) {
     }
   }
   function enterMode(id) {
+    if (id !== 'multi') ctx.onMode?.(id);         // multiplayer is a popup: its room is the mode (openLobby)
+    if (id === 'arena') { openMenu(); ctx.playArena ? ctx.playArena() : toast('בקרוב!'); return; }
     if (id === 'arcade') openSelect('arcade');
     else if (id === 'practice') openSelect('practice');
     // a tournament under way goes straight back to its bracket
@@ -313,13 +428,14 @@ export function createMenus(ctx) {
   function openModes() {
     show('modes');
     const sub = (id) => row.querySelector(`[data-mode="${id}"] .mn-sub`);
+    sub('arena').textContent = 'מול שחקנים';
     sub('arcade').textContent = ARC.campaignComplete(state.prog) ? 'כל 45 האלופים ✓' : `שלב ${ARC.currentStage(state.prog)}/${ARC.STAGE_COUNT}`;
     const t = ctx.tour.get();
     sub('tournament').textContent = t && !TOUR.finished(t) ? `בתהליך · ${TOUR.ROUNDS[t.round]}` : '8 שחקנים · גביע';
     sub('multi').innerHTML = 'עם חבר <span class="online-count"></span>';
     sub('practice').textContent = 'נגד המחשב';
     ctx.refreshOnline?.();
-    for (const b of row.children) paintMascot(b);
+    for (const b of row.children) { paintMascot(b); b.classList.toggle('sel', b.dataset.mode === homeMode); }
   }
   tap('#mdBack', () => openMenu());
 
@@ -427,7 +543,8 @@ export function createMenus(ctx) {
     } else tip.classList.add('hidden');
     // your stats: the levels you bought (HS shows its bars empty on a fresh start, M15)
     const box = $('#selStats');
-    box.innerHTML = STATS.map(([k, name]) => `<span class="ss"><small>${name}</small><span class="m-bars">${barHTML(state.stats.lv[k])}</span></span>`).join('');
+    const lv = UPG.levelsOf(state.stats, meCard());     // (the card under your reel: each champion has its own levels)
+    box.innerHTML = STATS.map(([k, name]) => `<span class="ss"><small>${name}</small><span class="m-bars">${barHTML(lv[k])}</span></span>`).join('');
     // PLAY: only a stage that is open, with a card you own
     const play = $('#selPlay');
     const why = st === 'locked' ? '🔒 נעול' : !me.owned ? 'לא באלבום' : '';
@@ -611,54 +728,21 @@ export function createMenus(ctx) {
   // ── SHOP ────────────────────────────────────────────────────────────────
   // HS: BACK, the folder tabs, a row per stat — name, price, ten dots, Buy — and MY POINT at
   // the bottom. One tab: we have no costumes, pets or bodies.
+  // THE SHOP: BUNDLES (2026-10-12) — three offers, all "בקרוב" for now. The upgrades are each
+  // champion's own now, on its page (MY CHAMPIONS).
+  const BUNDLES = [
+    { id: 'starter', name: 'חבילת מתחילים', what: 'נקודות סולטיז + אלוף', art: '🪙', c: '#3ad1ff' },
+    { id: 'champ', name: 'חבילת אלופים', what: 'הרבה נקודות + 2 אלופים', art: '💰', c: '#c77dff' },
+    { id: 'legend', name: 'חבילת אגדות', what: 'ערימת נקודות + אלוף אגדי', art: '💎', c: '#ffc61a' },
+  ];
+  $('#bnRow').innerHTML = BUNDLES.map((b) => `<button class="bn-card" data-b="${b.id}" style="--bc:${b.c}" aria-label="${b.name}, בקרוב">` +
+    `<i class="bn-rib">בקרוב</i><span class="bn-art">${b.art}</span><b class="bn-name">${b.name}</b><small class="bn-what">${b.what}</small>` +
+    `<span class="bn-price">בקרוב</span></button>`).join('');
+  for (const b of $('#bnRow').children) tap(b, () => toast('בקרוב!', '#shopToast'));
   function openShop(from = 'select') {
     shopFrom = from;
     shownPts = state.stats.points;
     show('shop');
-    renderShop();
-    const f = $('#shopFace');
-    ctx.paintHead(f, pick.me.rarity, pick.me.number, f.clientWidth || 100);
-    $('#shopName').textContent = MN.charName(pick.me);
-  }
-  function renderShop(bought = null) {
-    const box = $('#upgRows');
-    if (!box.children.length) {
-      box.innerHTML = STATS.map(([k, name, ico, c]) => `<div class="upg-row" data-k="${k}" style="--c:${c}">
-        <span class="sh-name"><i>${ico}</i><b>${name}</b><small class="sh-mult"></small></span>
-        <span class="sh-price"><i class="coin"></i><b></b></span>
-        <span class="m-bars sh-bars"></span>
-        <button class="m-pill sm upg-buy"><b>קנה</b></button></div>`).join('');
-      box.querySelectorAll('.upg-buy').forEach((btn) => {
-        btn.addEventListener('click', () => {
-          const k = btn.closest('.upg-row').dataset.k;
-          const r = UPG.buy(state.stats, k);
-          if (!r.bought) return;
-          ctx.setStats(r.st);
-          if (ctx.sfxOn()) ctx.SFX.buy(state.stats.lv[k] === 10);
-          renderShop(k);
-        });
-      });
-    }
-    for (const row of box.children) {
-      const k = row.dataset.k, L = state.stats.lv[k], nx = UPG.nextOf(state.stats, k), can = UPG.canBuy(state.stats, k);
-      row.querySelector('.sh-bars').innerHTML = barHTML(L, can ? L : -1);
-      row.querySelector('.sh-mult').textContent = `רמה ${L} · ×${ctx.statMult(k, L)}`;
-      row.querySelector('.sh-price b').textContent = nx ? fmt(nx.cost) : 'MAX';
-      row.querySelector('.sh-price').classList.toggle('max', !nx);
-      const btn = row.querySelector('.upg-buy');
-      btn.disabled = !can;
-      btn.innerHTML = `<b>${nx ? 'קנה' : 'MAX ⭐'}</b>`;
-      btn.setAttribute('aria-label', nx ? `שדרג ${row.querySelector('.sh-name b').textContent} לרמה ${nx.level}, ${fmt(nx.cost)} נקודות סולטיז` : 'רמה מקסימלית');
-      if (bought === k) {
-        row.classList.remove('pop'); void row.offsetWidth; row.classList.add('pop');
-        const seg = row.querySelectorAll('.sh-bars i')[L - 1];
-        seg?.classList.add('new');
-        const f = document.createElement('span');
-        f.className = 'upg-float'; f.textContent = '+1';
-        row.appendChild(f); setTimeout(() => f.remove(), 900);
-      }
-    }
-    if (bought) { const p = $('#upgPtsBox'); p.classList.remove('bump'); void p.offsetWidth; p.classList.add('bump'); }
     renderPoints();
   }
   // the points run down to the new total rather than jumping
@@ -685,7 +769,17 @@ export function createMenus(ctx) {
     for (const id of ['#oSnd', '#pSnd']) $(id)?.querySelector('.m-orb').classList.toggle('off', !ctx.sfxOn());
     for (const id of ['#oMus', '#pMus']) $(id)?.querySelector('.m-orb').classList.toggle('off', !ctx.musicOn());
   }
-  function openOptions() { syncSound(); openPop('optPop'); }
+  function openOptions() { syncSound(); syncAnon(); openPop('optPop'); }
+  // ANONYMOUS USAGE DATA (analytics.js): there only when the Saltiz app has said yes — then the
+  // player can turn it off (and on again), never on by themselves
+  function syncAnon() {
+    const b = $('#oAnon'), an = ctx.analytics;
+    if (!b) return;
+    b.hidden = !an?.canToggle();
+    b.setAttribute('aria-pressed', String(!!an?.isOn()));
+    b.querySelector('b').textContent = `נתוני שימוש אנונימיים · ${an?.isOn() ? 'פועל' : 'כבוי'}`;
+  }
+  on('#oAnon', () => { ctx.analytics?.setPlayerOn(!ctx.analytics.isOn()); syncAnon(); });
   on('#oSnd', () => { ctx.setSfx(!ctx.sfxOn()); syncSound(); });
   on('#oMus', () => { ctx.setMusic(!ctx.musicOn()); syncSound(); });
   tap('#oHow', () => { closePop('optPop'); openHowTo('menu'); });
@@ -699,7 +793,7 @@ export function createMenus(ctx) {
     $('#stName').value = pick.name || '';
     const p = state.prog, rec = Object.values(p.record);
     const w = rec.reduce((s, r) => s + r.w, 0), l = rec.reduce((s, r) => s + r.l, 0);
-    const lv = Object.values(state.stats.lv).reduce((s, v) => s + v, 0);
+    const lv = Object.values(UPG.levelsOf(state.stats, pick.me)).reduce((s, v) => s + v, 0);   // (the champion you play with)
     const rows = [['אלופים שהובסו', `${p.cleared} / ${ARC.STAGE_COUNT}`], ['ניצחונות בארקייד', w], ['הפסדים בארקייד', l],
       ['נקודות סולטיז', `<i class="coin"></i> ${fmt(state.stats.points)}`], ['רמות שדרוג', `${lv} / 50`]];
     // the team and the arena (team.js, arena.js), first
@@ -788,13 +882,16 @@ export function createMenus(ctx) {
     } else if (screen === 'title') {
       if (k === 'Enter' || k === 'NumpadEnter' || k === 'Space') act = leaveTitle;
     } else if (screen === 'menu') {
-      if ((k === 'Enter' || k === 'NumpadEnter') && t?.id === 'hmHero') act = () => openChamps();
+      if ((k === 'Enter' || k === 'NumpadEnter') && t?.id === 'hmHero') act = () => openChamp();
       else if ((k === 'Enter' || k === 'NumpadEnter') && !(t?.tagName === 'BUTTON')) act = () => openModes();
     } else if (screen === 'champs') {
-      if (k === 'Escape') act = () => openMenu();
-      else if (k === 'ArrowRight' || k === 'ArrowDown') act = () => previewChamp(Math.min(chList.length - 1, chAt + 1));
-      else if (k === 'ArrowLeft' || k === 'ArrowUp') act = () => previewChamp(Math.max(0, chAt - 1));
-      else if ((k === 'Enter' || k === 'NumpadEnter') && !(t?.tagName === 'BUTTON')) act = chooseChamp;
+      // the collection: the keys move the ring and Enter opens that page; on a page they step to the next
+      // champion's page, Enter chooses and Esc goes back to the collection
+      const go = (d) => { const n = Math.max(0, Math.min(chList.length - 1, chAt + d)); if (chPage) showChamp(n); else markTile(n); };
+      if (k === 'Escape') act = () => (chPage ? backToGrid() : openMenu());
+      else if (k === 'ArrowRight' || k === 'ArrowDown') act = () => go(1);
+      else if (k === 'ArrowLeft' || k === 'ArrowUp') act = () => go(-1);
+      else if ((k === 'Enter' || k === 'NumpadEnter') && !(t?.tagName === 'BUTTON')) act = chPage ? chooseChamp : () => showChamp(chAt);
     } else if (screen === 'modes') {
       if (k === 'Escape') act = () => openMenu();
     } else if (screen === 'select') {
@@ -836,7 +933,7 @@ export function createMenus(ctx) {
     paintHome: () => { if (screen === 'menu') paintHome(); },
     toast,
     show, get screen() { return screen; },
-    openTitle, openMenu, openModes, openSelect, openShop, openHowTo, openOptions, openMp, openBracket,
+    openTitle, openMenu, openModes, openSelect, openShop, openChamps, openChamp, openHowTo, openOptions, openMp, openBracket,
     get selMode() { return selMode; },
     closePops: () => POPS.forEach(closePop),
     syncSound, renderPoints,

@@ -1,7 +1,7 @@
 // THE CUT-IN'S LIGHT — the white disc behind the shooter's head, the ring that expands off it and
 // the three layers of rays, as painted textures (public/vfx/fx-kit.js), played on HS's own fixed
 // timeline (THE CUT-IN AS HS PLAYS IT, below; docs/HS-POWER-VFX-RESEARCH.md §5).
-import { tex, pix, bloom, surface, blit, rng, noise1, sstep, mix, clamp01, TAU } from './fx-kit.js';
+import { tex, pix, bloom, surface, blit, rng, noise1, sstep, mix, clamp01, TAU, hex } from './fx-kit.js';
 // (goldRay / softRay are the textures of the earlier 16-ray wheel; the cut-in now draws rayA /
 // rayB below — see THE CUT-IN AS HS PLAYS IT.)
 
@@ -109,26 +109,29 @@ export function cutTimeline(f, fr) {
   return { f, out, disc: keys(DISC_K, f) / DISC_WHITE, discA: keys(DISC_A, f), bloom: keys(BLOOM_K, f), ringR: keys(RING_R, f), ringA: keys(RING_A, f) };
 }
 
-const rayA = () => tex('cutrayA', 256, 48, (g, w, h) => pix(g, w, h, (x, y, o) => {
+// TINT: a champion's own power can colour its cut-in (its renderer's `cutColor`): the rays take
+// that colour round the same white-hot cores; with none they are HS's lemon and cream.
+const rayA = (col = null) => { const c = col ? hex(col) : [255, 246, 96]; return tex('cutrayA' + (col || ''), 256, 48, (g, w, h) => pix(g, w, h, (x, y, o) => {
   const u = (x + 0.5) / w, v = ((y + 0.5) / h) * 2 - 1;
   const hw = 0.18 + 0.82 * Math.pow(u, 0.7);
   const core = Math.exp(-((v / (hw * 0.22 + 0.03)) ** 2)), body = Math.exp(-((v / (hw * 0.45)) ** 2)), glow = Math.exp(-((v / hw) ** 2) * 1.2);
   const along = sstep(0, 0.04, u) * (1 - sstep(0.72, 1, u));
   const wht = clamp01(core * (1.1 - u * 0.6));
-  o[0] = 255; o[1] = mix(246, 255, wht); o[2] = mix(96, 235, wht);
+  o[0] = mix(c[0], 255, wht); o[1] = mix(c[1], 255, wht); o[2] = mix(c[2], 235, wht);
   o[3] = clamp01(core + body * 0.75 + glow * 0.3) * along;
-}));
+})); };
 // wide cream beams, streaky along their length like a radial blur (B and C share it)
-const rayB = () => {
-  const n = noise1(33, 256), n2 = noise1(71, 256);
-  return tex('cutrayB', 256, 96, (g, w, h) => pix(g, w, h, (x, y, o) => {
+const rayB = (col = null) => {
+  const n = noise1(33, 256), n2 = noise1(71, 256), k = col ? hex(col) : null;
+  return tex('cutrayB' + (col || ''), 256, 96, (g, w, h) => pix(g, w, h, (x, y, o) => {
     const u = (x + 0.5) / w, v = ((y + 0.5) / h) * 2 - 1;
     const hw = 0.22 + 0.78 * u, q = v / hw;
     const across = Math.exp(-(q * q) * 2.4);
     const streak = 0.6 + 0.3 * n(q * 20 + 40) + 0.16 * n2(q * 50 + 9 + u * 3);
     const along = sstep(0, 0.1, u) * (1 - sstep(0.6, 1, u));
     const c = Math.exp(-q * q * 5);
-    o[0] = 255; o[1] = mix(240, 252, c); o[2] = mix(150, 205, c);
+    if (k) { o[0] = mix(k[0], 255, c * 0.6); o[1] = mix(k[1], 255, c * 0.6); o[2] = mix(k[2], 255, c * 0.6); }
+    else { o[0] = 255; o[1] = mix(240, 252, c); o[2] = mix(150, 205, c); }
     o[3] = clamp01(across * streak * along);
   }));
 };
@@ -140,8 +143,11 @@ function ray(g, t, hx, hy, r, deg, len, wid, alpha) {
   blit(g, t, hx + Math.cos(a) * r0, hy + Math.sin(a) * r0, (len - 0.6) * r, wid * r, a, alpha, true, 0, 0.5);
 }
 
+// paint a power's tinted rays ahead of time (champ-vfx warmTextures)
+export const warmCutTint = (col) => { rayA(col); rayB(col); return true; };
+
 // The light at the head (hx, hy), head radius r; `T` from cutTimeline; `el` seconds in (flicker).
-export function drawRays(g, hx, hy, r, T, el) {
+export function drawRays(g, hx, hy, r, T, el, col = null) {
   const f = T.f;
   if (T.out <= 0 || f < 2) return;
   // the ring: an expanding, fading shockwave from f22
@@ -149,12 +155,12 @@ export function drawRays(g, hx, hy, r, T, el) {
     const H = T.ringR * r * 2 / CUT.HALO_TEX;
     blit(g, halo(Math.floor(el * 15) & 1), hx, hy, H, H, -el * 0.3, T.ringA * 0.5 * T.out, true);
   }
-  const b = rayB();
+  const b = rayB(col);
   const inB = ease(clamp01((f - RAYS_B.on[0]) / (RAYS_B.on[1] - RAYS_B.on[0])));
   if (inB > 0) RAYS_B.at24.forEach((a0, i) => ray(g, b, hx, hy, r, a0 + RAYS_B.v * (f - 24), CUT_LEN.B * (0.55 + 0.45 * inB) * (0.93 + 0.07 * flick(i + 5, el)), CUT_LEN.WB, 0.95 * inB * flick(i, el) * T.out));
   const inC = ease(clamp01((f - RAYS_C.on[0]) / (RAYS_C.on[1] - RAYS_C.on[0])));
   if (inC > 0) RAYS_C.at24.forEach((a0, i) => ray(g, b, hx, hy, r, a0 + RAYS_C.v * (f - 24), CUT_LEN.C * (0.55 + 0.45 * inC), CUT_LEN.WC, 1.0 * inC * flick(i + 11, el) * T.out));
-  const a = rayA();
+  const a = rayA(col);
   for (const R of RAYS_A) {
     const g0 = ease(clamp01((f - R.on) / 4));
     if (g0 <= 0) continue;

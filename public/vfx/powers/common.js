@@ -68,3 +68,43 @@ export function puff(g, x, y, r, col, a) {
   g.globalAlpha = a; g.fillStyle = rg;
   g.beginPath(); g.arc(x, y, r, 0, TAU); g.fill();
 }
+
+// A stable pseudo-random number in [0, 1) for an integer `i` (and an optional salt): the same every
+// frame, so a particle laid out from it does not jump about the way Math.random's would.
+export function hash(i, salt = 0) {
+  let h = (Math.imul((i | 0) ^ 0x9e3779b9, 0x85ebca6b) ^ Math.imul(salt | 0, 0xc2b2ae35)) >>> 0;
+  h = Math.imul(h ^ (h >>> 13), 0x27d4eb2f) >>> 0;
+  return ((h ^ (h >>> 16)) >>> 0) / 4294967296;
+}
+
+// A flame tongue standing on (x, y), `h` tall and `w` wide, leaning `lean` (px at the tip),
+// flickering with `k` (0..1): a soft orange body round a yellow core, drawn additively.
+export function flame(g, x, y, h, w, lean = 0, k = 0.5, cols = ['#ff4a12', '#ff9a1a', '#fff2a0']) {
+  if (h < 2) return;
+  const tip = [x + lean, y - h * (0.85 + 0.3 * k)];
+  const shape = (s) => {
+    g.beginPath();
+    g.moveTo(x - w * s, y);
+    g.bezierCurveTo(x - w * s * 1.1, y - h * 0.45 * s, tip[0] - w * 0.25 * s, tip[1] + h * 0.35, tip[0], tip[1] + h * (1 - s) * 0.6);
+    g.bezierCurveTo(tip[0] + w * 0.35 * s, tip[1] + h * 0.4, x + w * s * 1.1, y - h * 0.4 * s, x + w * s, y);
+    g.closePath();
+  };
+  g.save(); g.globalCompositeOperation = 'lighter';
+  const lg = g.createLinearGradient(x, y, tip[0], tip[1]);
+  lg.addColorStop(0, cols[1]); lg.addColorStop(1, cols[0] + '00');
+  g.globalAlpha = 0.75; g.fillStyle = lg; shape(1); g.fill();
+  const cg = g.createLinearGradient(x, y, tip[0], tip[1]);
+  cg.addColorStop(0, cols[2]); cg.addColorStop(0.7, cols[1] + '00');
+  g.globalAlpha = 0.9; g.fillStyle = cg; shape(0.5); g.fill();
+  g.restore();
+}
+
+// A rounded rectangle path (ctx.roundRect is missing on older iOS WebViews).
+export function rrect(g, x, y, w, h, r) {
+  r = Math.max(0, Math.min(r, w / 2, h / 2));
+  g.beginPath();
+  g.moveTo(x + r, y); g.lineTo(x + w - r, y); g.quadraticCurveTo(x + w, y, x + w, y + r);
+  g.lineTo(x + w, y + h - r); g.quadraticCurveTo(x + w, y + h, x + w - r, y + h);
+  g.lineTo(x + r, y + h); g.quadraticCurveTo(x, y + h, x, y + h - r);
+  g.lineTo(x, y + r); g.quadraticCurveTo(x, y, x + r, y); g.closePath();
+}

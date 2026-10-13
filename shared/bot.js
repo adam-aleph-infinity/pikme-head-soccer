@@ -14,6 +14,7 @@ import { bootReach, bootAt } from './kick.js';
 import { headY } from './sim.js';
 import { stepPower, releaseX, releaseY, launch as launchPower, FAMILIES } from './hs-powers.js';
 import { powerById } from './champion-powers.js';
+import { WORM } from './champion-powers/stage-02.js';
 // Where the boot passes on its swing, [ahead, up] from the feet (the CPU's reach test).
 const BOOT_POINTS = bootReach();
 // CPU habits fitted to HS (test-hs-parity cpu.* rows, _cpu probe): per 0.25 s roll while it has
@@ -184,7 +185,15 @@ function botInputRaw(bot, m, index, dt) {
   if (!(m.cutin > 0)) bot.cutOnIt = undefined;
   const pw = b.power;
   if (pw && pw.owner !== index && !pw.extra && !['grind', 'grab'].includes(pw.ph)) {
-    if (bot.powerRef !== pw || bot.powerPlanOwner !== pw.owner) {
+    // A BARRAGE'S LOADED BALL (the Cannoneer's, 'load'): the shot is not out yet — only its shells
+    // are. Until it leaves, the CPU guards its goal (and a kicker parries the shells, below); the
+    // roll for the shot itself is made when it does leave (caught flat for 3 s in the back of its
+    // own net, where the first shell threw it, is no answer anybody plays).
+    // (THE WORM'S TUNNEL, Worm Tunnel Ambush 'wgrab'…'warn': the ball is under the pitch — the same:
+    // guard, and roll when it comes up. Its lob leaves from the ring, `ex`, not from the shooter.)
+    const loaded = pw.ph === 'load' || (!!pw.wk && pw.ph !== 'fly');
+    if (loaded) { bot.powerRef = null; bot.powerPlan = p.armed > 0 ? 'counter' : d.counterKick ? 'kick' : 'body'; bot.powerFrom = pw.wk ? pw.ex : m.players[pw.owner].x; bot.powerKickErr = 0; bot.powerJumpErr = 0; bot.powerSpotErr = 0; }
+    else if (bot.powerRef !== pw || bot.powerPlanOwner !== pw.owner) {
       // Decide ONCE per shot (a block's rebound is a new shot with a new owner).
       bot.powerRef = pw; bot.powerPlanOwner = pw.owner;
       const F = FAMILIES[pw.fam] || FAMILIES.straight;
@@ -203,7 +212,7 @@ function botInputRaw(bot, m, index, dt) {
       // kicking" (wiki) — and it comes off `counterRate` of the time ('kick'). A shot no boot can
       // stop keeps the old answer.
       bot.powerPlan = p.armed > 0 ? 'counter' : d.counterKick && bootStops ? 'kick' : !onIt ? 'panic' : bootStops ? 'body' : 'dodge';
-      bot.powerFrom = m.players[pw.owner].x;              // where the shooter stood (held there through the cut-in)
+      bot.powerFrom = pw.wk ? pw.ex : m.players[pw.owner].x;   // where the shooter stood (held there through the cut-in) — the worm's ring for its lob
       // SLOPPINESS (Idan's HS notes: a low-star CPU tracks the ball with an offset and jumps too
       // late): the boot and the jump early or late, and the spot it stands on off the path, all
       // re-rolled per shot — wide at the bottom of the ladder, a few frames and px even at five stars.
@@ -222,6 +231,18 @@ function botInputRaw(bot, m, index, dt) {
       }
     }
     if (p.armed > 0 && bot.powerPlan !== 'counter') bot.powerPlan = 'counter';
+    // THE STOMP (the worm's ring): a CPU that kicks shots back (stage 24+) reads the ring too — once
+    // per tunnel, at its counterRate, it follows the mound onto it (as a player reads where the mound
+    // is heading) and stomps as it bursts.
+    if (pw.wk && (pw.ph === 'tunnel' || pw.ph === 'warn') && d.counterKick && p.armed <= 0) {
+      if (bot.wormRef !== pw.bid) { bot.wormRef = pw.bid; bot.wormGo = bot.rng() < (d.counterRate ?? 0.6); }
+      if (bot.wormGo) {
+        // onto it, and the stomp just before it bursts (KICK in its last STOMP s)
+        out.kick = out.jump = out.power = false; steer(bot, p, out, pw.ex);
+        out.kick = pw.ph === 'warn' && Math.abs(p.x - pw.ex) < 24 && p.onGround && pw.k >= WORM.WARN - WORM.STOMP * 0.6 && p.kickCd <= 0 && !bot.lastKick && !(p.kickT > 0);
+        bot.lastKick = out.kick; return out;
+      }
+    }
     const path = powerPath(m, b, 1.6);
     const hy = headY(p), crown = hy - C.HEAD_R;
     // Where it crosses my line of play: the first point of its path in front of my goal that
@@ -308,6 +329,20 @@ function botInputRaw(bot, m, index, dt) {
       const tArr = (here ? here.t : (path.find((q) => !q.hidden && Math.abs(q.x - p.x) < 40)?.t ?? 9)) + tOff;
       if (tArr - lead > C.KICK_COOLDOWN + 0.15 && p.kickCd <= 0 && !bot.lastKick && bot.rng() < 0.12) out.kick = true;
       else if (tArr - lead > 0.95 && bot.rng() < 0.04) out.jump = true;
+    }
+    // THE CANNON'S SHELLS (power-zones.js 'shell', the Cannoneer's barrage while the ball is loaded):
+    // not the ball, so not on its path — read off the zone itself, flat at its height and pace. A CPU
+    // that kicks the shot back parries each one the same way, with its own roll per shell; the others
+    // take them, as they take the shot.
+    const sh = (bot.powerPlan === 'kick' || bot.powerPlan === 'counter') && m.zones ? m.zones.find((z) => z.k === 'shell' && z.own !== index && (p.x - z.x0) * z.dir > 0) : null;
+    if (sh) {
+      if (bot.shellRef !== sh) {
+        bot.shellRef = sh;
+        const hit = bot.rng() < (d.counterRate ?? 0.6);
+        bot.shellErr = hit ? (bot.rng() * 2 - 1) * 0.02 : (bot.rng() < 0.5 ? -1 : 1) * (0.15 + 0.1 * bot.rng());
+      }
+      const tArr = (Math.abs(p.x - sh.x0) - (C.HEAD_R + C.BALL_R + 6)) / sh.spd;
+      out.kick = tArr > 0 && tArr < 0.19 + bot.shellErr && p.kickCd <= 0 && !bot.lastKick;
     }
     bot.lastKick = out.kick;
     out.power = false;
@@ -453,7 +488,7 @@ function powerPath(m, b, T) {
     ball.x += ball.vx * C.TICK; ball.y += ball.vy * C.TICK;
     if (ball.y > C.GROUND_Y - ball.r) ball.y = C.GROUND_Y - ball.r;
     const ph = ball.power ? ball.power.ph : '';
-    path.push({ t, x: ball.x, y: ball.y, hidden: ph === 'up' || ph === 'wait' || ph === 'hold' || ball.y < C.CEIL_Y });
+    path.push({ t, x: ball.x, y: ball.y, hidden: ph === 'up' || ph === 'wait' || ph === 'hold' || ball.y < C.CEIL_Y || !!(ball.power && ball.power.wk && ph !== 'fly') });
   }
   return path;
 }

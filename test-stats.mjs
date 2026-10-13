@@ -92,28 +92,39 @@ for (const gap of [10, 30, 60, 75, 100, 130, 150]) {
 }
 
 // ═══ 4. POINTS, PRICES AND THE SAVE (shared/upgrades.js) ════════════════════
+// Each champion has its own levels (2026-10-12); the points are one wallet.
 {
+  const A = { rarity: 'legendary', number: 8 }, B = { rarity: 'legendary', number: 3 }, M1 = { rarity: 'mythic', number: 1 }, M3 = { rarity: 'mythic', number: 3 };
   const f = U.freshStats();
-  ok('a new player: no points, level 0 on all five stats', f.points === 0 && U.STAT_KEYS.every((k) => f.lv[k] === 0));
+  ok('a new player: no points, every champion on level 0 on all five stats', f.points === 0 && U.STAT_KEYS.every((k) => U.levelsOf(f, A)[k] === 0 && U.levelsOf(f, M1)[k] === 0));
   ok('a level costs 500 doubling: 500, 1,000 … 256,000 for the tenth (HS)', U.costOf(1) === 500 && U.costOf(2) === 1000 && U.costOf(10) === 256000);
   ok('…511,500 to take one stat from 0 to 10', [1, 2, 3, 4, 5, 6, 7, 8, 9, 10].reduce((a, L) => a + U.costOf(L), 0) === 511500);
   ok('a win over champion n pays 100 × n, a loss nothing', U.award(f, 1, true).gained === 100 && U.award(f, 45, true).gained === 4500 && U.award(f, 45, false).gained === 0 && U.award(f, 45, false).st === f);
-  const short = U.buy({ ...f, points: 499 }, 'speed');
-  ok('no buying on 499 points', !short.bought && short.st.lv.speed === 0 && short.st.points === 499);
-  const rich = { v: 1, points: 600, lv: { ...f.lv } };
-  const one = U.buy(rich, 'jump');
-  ok('500 buys level 1 and leaves 100', one.bought && one.st.lv.jump === 1 && one.st.points === 100);
-  ok('…and never touches the state it was given', rich.points === 600 && rich.lv.jump === 0);
-  const maxed = { v: 1, points: 1e9, lv: { ...f.lv, kick: 10 } };
-  ok('no buying past level 10', !U.buy(maxed, 'kick').bought && U.nextOf(maxed, 'kick') === null);
-  ok('no buying a stat that is not one of the five', !U.buy({ ...rich, points: 1e9 }, 'luck').bought);
+  const short = U.buy({ ...f, points: 499 }, A, 'speed');
+  ok('no buying on 499 points', !short.bought && U.levelsOf(short.st, A).speed === 0 && short.st.points === 499);
+  const rich = { ...f, points: 600 };
+  const one = U.buy(rich, A, 'jump');
+  ok('500 buys level 1 for THAT champion and leaves 100', one.bought && U.levelsOf(one.st, A).jump === 1 && one.st.points === 100);
+  ok('…another champion is still on level 0', U.levelsOf(one.st, B).jump === 0 && U.levelsOf(one.st, M1).jump === 0);
+  ok('…and the state it was given is untouched', rich.points === 600 && U.levelsOf(rich, A).jump === 0 && !rich.cards[U.keyOf(A)]);
+  const maxed = { v: 2, points: 1e9, cards: { [U.keyOf(A)]: { speed: 0, jump: 0, kick: 10, dash: 0, power: 0 } } };
+  ok('no buying past level 10', !U.buy(maxed, A, 'kick').bought && U.nextOf(maxed, A, 'kick') === null && U.nextOf(maxed, B, 'kick').level === 1);
+  ok('no buying a stat that is not one of the five', !U.buy({ ...rich, points: 1e9 }, A, 'luck').bought);
+  ok('every Mythic is one key: the levels follow your Mythic through a team switch', U.keyOf(M1) === U.keyOf(M3) && U.keyOf(A) === 'legendary_8');
+  ok('a dev ?lv= level is set on one champion, clamped', U.levelsOf(U.setLevel(f, A, 'power', 14), A).power === 10 && U.levelsOf(U.setLevel(f, A, 'power', 14), B).power === 0);
   // the save: its own key, round-tripped, and anything odd is a fresh start
   const store = new Map(), S = { getItem: (k) => store.get(k) ?? null, setItem: (k, v) => store.set(k, String(v)) };
-  const st = { v: 1, points: 1234, lv: { speed: 3, jump: 3, kick: 3, dash: 4, power: 3 } };
+  const st = { v: 2, points: 1234, cards: { legendary_8: { speed: 3, jump: 3, kick: 3, dash: 4, power: 3 }, mythic: { speed: 1, jump: 0, kick: 0, dash: 0, power: 0 } } };
   ok('saved under hs.stats.v1, and only that', U.saveStats(S, st) && [...store.keys()].join() === 'hs.stats.v1');
   ok('…and loads back the same', JSON.stringify(U.loadStats(S)) === JSON.stringify(st));
-  ok('a corrupt or other-version save is a fresh start', U.parseStats('{oops').points === 0 && U.parseStats({ v: 2, points: 9 }).points === 0);
-  ok('levels are clamped to 0–10 and points to whole, positive', JSON.stringify(U.parseStats({ v: 1, points: -5, lv: { speed: 14, jump: -1, kick: 2.5 } })) === JSON.stringify({ v: 1, points: 0, lv: { speed: 10, jump: 0, kick: 0, dash: 0, power: 0 } }));
+  ok('a corrupt or unknown-version save is a fresh start', U.parseStats('{oops').points === 0 && U.parseStats({ v: 3, points: 9 }).points === 0);
+  ok('levels are clamped to 0–10, points to whole and positive, odd keys dropped',
+    JSON.stringify(U.parseStats({ v: 2, points: -5, cards: { legendary_8: { speed: 14, jump: -1, kick: 2.5 }, hacker: { speed: 9 } } })) === JSON.stringify({ v: 2, points: 0, cards: { legendary_8: { speed: 10, jump: 0, kick: 0, dash: 0, power: 0 } } }));
+  // an old save (one set for everyone): its levels go to the champion in use, no one else; the points stay
+  const old = { v: 1, points: 2400, lv: { speed: 2, jump: 1, kick: 0, dash: 0, power: 0 } };
+  const mig = U.parseStats(old, A);
+  ok('an old one-set save: its levels go to the champion in use only, the points stay', mig.v === 2 && mig.points === 2400 && U.levelsOf(mig, A).speed === 2 && U.levelsOf(mig, A).jump === 1 && U.levelsOf(mig, B).speed === 0);
+  ok('…to your Mythic when you play with it', U.levelsOf(U.parseStats(old, M3), M1).speed === 2);
   ok('no storage at all: a fresh player, and the save says it failed', U.loadStats(null).points === 0 && U.saveStats(null, st) === false);
 }
 

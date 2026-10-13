@@ -5,6 +5,7 @@ import * as C from './shared/constants.js';
 import { createMatch, step } from './shared/sim.js';
 import { createBot, botInput, DIFFICULTIES } from './shared/bot.js';
 import { stageConfig } from './shared/champions.js';
+import { shotById } from './shared/hs-powers.js';
 
 let pass = 0, fail = 0;
 const ok = (name, cond, extra = '') => {
@@ -25,6 +26,11 @@ function mulberry32(a) {
 function playMatch(levelA, levelB, seed, duration = C.MATCH_DURATION) {
   const rng = mulberry32(seed);
   const m = createMatch({ rarity: 'legendary', number: 3 }, { rarity: 'legendary', number: 2 }, { duration });
+  // The ladder is measured on the two reference shots it was calibrated with — these cards' map
+  // families (a burning straight shot, a shocking grab) — not on whatever their champions' own
+  // powers are now (docs/CHAMPION-POWERS.md): this tests the bot, not the powers (_power-balance.mjs).
+  m.players[0].shot = shotById('straight', { ailment: 'burn' });
+  m.players[1].shot = shotById('grab', { ailment: 'shock' });
   const bots = [createBot(levelA, rng), createBot(levelB, rng)];
   const stats = { touches: 0, kicks: 0, powershots: 0, counters: 0, knocks: 0, tackles: 0, powerGoals: [0, 0], blocks: [0, 0], hits: [0, 0], moved: [0, 0], maxTicks: 0 };
   const startX = m.players.map((p) => p.x);

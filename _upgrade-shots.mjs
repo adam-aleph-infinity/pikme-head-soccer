@@ -1,5 +1,5 @@
-// Drive the UPGRADE SHOP through the real client in headless Chrome, and screenshot it: the points
-// on the board, the shop, buying, the prices, the save, the levels reaching the match, the +N on a
+// Drive the UPGRADES (each champion's own, on its page) through the real client in headless Chrome, and screenshot
+// them: the points on the board, the shop's bundles, buying, the prices, the save, the levels reaching the match, the +N on a
 // win, and that it all fits a small phone.   node _upgrade-shots.mjs  → PNGs in .shots/upgrade
 import { spawn } from 'node:child_process';
 import { mkdirSync, writeFileSync, rmSync } from 'node:fs';
@@ -62,12 +62,14 @@ await send('Page.enable');
 await send('Runtime.enable');
 await phone(844, 390);
 const txt = (sel) => js(`document.querySelector(${JSON.stringify(sel)}).textContent`);
-// One row of the shop: its stat, the lit segments, the level and multiplier it reads, the price
-// on it (or MAX) and whether its buy button is live.
-const rows = () => js(`[...document.querySelectorAll('#upgRows .upg-row')].map(r => { const m = r.querySelector('.sh-mult').textContent;
-  return { k: r.dataset.k, on: r.querySelectorAll('.sh-bars i.on').length, lv: (m.match(/רמה (\\d+)/) || [])[1], mult: '×' + (m.match(/×([\\d.]+)/) || [])[1],
-    btn: r.querySelector('.sh-price b').textContent, dis: r.querySelector('.upg-buy').disabled }; })`);
-const openShop = async () => { await click('#selShop'); await sleep(350); };
+// One row of a champion's page: its stat, the lit segments, the level it reads, the price on its button
+// (or MAX) and whether the button is live. (2026-10-12: each champion has its own levels, on
+// its own page — MY CHAMPIONS; the shop sells bundles.)
+const rows = () => js(`[...document.querySelectorAll('#chUps .ch-up')].map(r => ({ k: r.dataset.k, on: +r.querySelector('.cu-lv').textContent,
+    lv: r.querySelector('.cu-lv').textContent, btn: r.querySelector('.cu-buy b').textContent, dis: r.querySelector('.cu-buy').disabled }))`);
+const openPage = async () => { await js(`MENU.openChamp()`); await sleep(450); };
+const buyAt = (k) => click(`#chUps .ch-up[data-k="${k}"] .cu-buy`);
+const myKey = () => js(`import('/shared/upgrades.js').then((U) => U.keyOf(pick.me))`);
 const key = async (code) => { await send('Input.dispatchKeyEvent', { type: 'rawKeyDown', code, key: code, windowsVirtualKeyCode: code === 'Enter' ? 13 : 27 });
   await send('Input.dispatchKeyEvent', { type: 'keyUp', code, key: code, windowsVirtualKeyCode: code === 'Enter' ? 13 : 27 }); await sleep(200); };
 
@@ -76,40 +78,48 @@ await go('?resetstats&unlockall&arcade');
 await shot('01-select');
 check('Player Select has the SHOP button (HS: bottom-left)', await visible('#selShop'));
 check('…and shows your stats, all empty for a new player', await js(`document.querySelectorAll('#selStats .m-bars i.on').length`) === 0);
-await openShop();
-await shot('02-shop-empty');
+await click('#selShop'); await sleep(350);
+check('the shop sells bundles, each "coming soon"', await visible('#shop') && (await js(`[...document.querySelectorAll('#bnRow .bn-card')].filter(b => b.textContent.includes('בקרוב')).length`)) === 3);
+await click('#shopBack'); await sleep(300);
+await openPage();
+await shot('02-page-empty');
 let r = await rows();
-check('the shop opens with five stats, all on level 0 (x1)', await visible('#shop') && r.length === 5 && r.every((x) => x.on === 0 && x.lv === '0' && x.mult === '×1'), JSON.stringify(r.map((x) => x.lv + x.mult)));
+check('your champion\'s page: five stats, all on level 0', await visible('#champs') && r.length === 5 && r.every((x) => x.on === 0 && x.lv === '0'), JSON.stringify(r.map((x) => x.lv)));
 check('…every first level 500, none affordable', r.every((x) => x.btn === '500' && x.dis));
-check('MY POINT reads 0', await txt('#upgPts') === '0');
+check('your points read 0', await txt('#chPts') === '0');
 await key('Enter');
-check('Enter in the shop does not start a match', await visible('#shop') && !(await visible('#match')));
+check('Enter on your own page does not start a match', await visible('#champs') && !(await visible('#match')));
 await key('Escape');
-check('Esc goes back to Player Select', !(await visible('#shop')) && await visible('#select'));
+check('Esc goes back to the collection', await visible('#chGrid') && !(await js(`document.querySelector('#champs').classList.contains('page')`)));
 
 // ── 2. points to spend: buy, and the prices climb ───────────────────────────
 await go('?points=4000&arcade');
-await openShop();
-check('?points=4000 shows 4,000', await txt('#upgPts') === '4,000');
-await click('#upgRows .upg-row[data-k="speed"] .upg-buy'); await sleep(80);
-await click('#upgRows .upg-row[data-k="speed"] .upg-buy'); await sleep(80);
-await click('#upgRows .upg-row[data-k="kick"] .upg-buy'); await sleep(80);
+await openPage();
+check('?points=4000 shows 4,000', await txt('#chPts') === '4,000');
+await buyAt('speed'); await sleep(80);
+await buyAt('speed'); await sleep(80);
+await buyAt('kick'); await sleep(80);
 r = await rows();
 const sp = r.find((x) => x.k === 'speed'), ki = r.find((x) => x.k === 'kick');
-await sleep(500);                     // the counter runs down
-const MULT = await js(`import('/shared/hs-powers.js').then((m) => ({ s2: m.statMult('speed', 2), s3: m.statMult('speed', 3), k1: m.statMult('kick', 1) }))`);
-check('two speed levels and one kick bought: 500 + 1,000 + 500', sp.on === 2 && sp.lv === '2' && sp.mult === '×' + MULT.s2 && ki.on === 1 && await txt('#upgPts') === '2,000', `speed ${sp.lv} ${sp.mult} kick ${ki.lv} points ${await txt('#upgPts')}`);
+const MULT = await js(`import('/shared/hs-powers.js').then((m) => ({ s3: m.statMult('speed', 3), k1: m.statMult('kick', 1) }))`);
+check('two speed levels and one kick bought: 500 + 1,000 + 500', sp.on === 2 && sp.lv === '2' && ki.on === 1 && await txt('#chPts') === '2,000', `speed ${sp.lv} kick ${ki.lv} points ${await txt('#chPts')}`);
 check('…the next speed level costs 2,000, the next kick 1,000, both affordable', sp.btn === '2,000' && ki.btn === '1,000' && !sp.dis && !ki.dis);
-await shot('03-shop-bought');
-await click('#upgRows .upg-row[data-k="speed"] .upg-buy'); await sleep(500);
+await shot('03-page-bought');
+await buyAt('speed'); await sleep(500);
 r = await rows();
-check('2,000 buys speed level 3 and leaves 0; nothing affordable now', r.find((x) => x.k === 'speed').lv === '3' && await txt('#upgPts') === '0' && r.every((x) => x.dis));
-await click('#shopBack'); await sleep(300);
-check('BACK: Player Select shows the new levels', await js(`document.querySelectorAll('#selStats .m-bars i.on').length`) === 4);
+check('2,000 buys speed level 3 and leaves 0; nothing affordable now', r.find((x) => x.k === 'speed').lv === '3' && await txt('#chPts') === '0' && r.every((x) => x.dis));
+// another champion's page: its own levels, still 0
+const other = await js(`(() => { const t = [...document.querySelectorAll('#chGrid .ch-tile:not(.locked)')].find(t => !t.classList.contains('cur')); t.click(); return t.dataset.k; })()`);
+await sleep(400);
+r = await rows();
+check(`another champion (${other}) has its own levels: all 0`, r.every((x) => x.on === 0), JSON.stringify(r.map((x) => x.lv)));
+await js(`MENU.openSelect('arcade')`); await sleep(400);
+check('Player Select shows the levels of the champion under your reel', await js(`document.querySelectorAll('#selStats .m-bars i.on').length`) === 4);
 
 // ── 3. it is saved, and the arcade plays the player on it ───────────────────
 await go('?arcade');
-check('a reload keeps the points and the levels', (await js(`JSON.parse(localStorage.getItem('hs.stats.v1')).points`)) === 0 && (await js(`JSON.parse(localStorage.getItem('hs.stats.v1')).lv.speed`)) === 3);
+const k0 = await myKey();
+check('a reload keeps the points and the levels, under your champion', (await js(`JSON.parse(localStorage.getItem('hs.stats.v1')).points`)) === 0 && (await js(`JSON.parse(localStorage.getItem('hs.stats.v1')).cards[${JSON.stringify(k0)}].speed`)) === 3);
 await go('?arcade=1'); await sleep(500);
 const st = await js(`({ speed: MATCH.players[0].stats.speed, kick: MATCH.players[0].stats.kick, jump: MATCH.players[0].stats.jump, rate: MATCH.players[0].meterRate })`);
 check(`in the match the player runs on speed level 3 (${MULT.s3}x) and kicks on level 1 (${MULT.k1}x)`, st && st.speed === MULT.s3 && st.kick === MULT.k1 && st.jump === 1 && st.rate === 1, JSON.stringify(st));
@@ -118,25 +128,25 @@ await sleep(1600);
 await shot('04-win-points');
 check('a win over champion 1: REWARD 100, TOTAL 100', ok && await txt('#ovReward') === '100' && await txt('#ovTotal') === '100', `${await txt('#ovReward')} / ${await txt('#ovTotal')}`);
 await click('#again'); await sleep(500);
-await openShop();
-check('…and the shop has them', await txt('#upgPts') === '100');
+await openPage();
+check('…and your page has them', await txt('#chPts') === '100');
 
 // ── 4. it fits a small phone ────────────────────────────────────────────────
 await phone(667, 375); await go('?arcade'); await sleep(300);
-await openShop();
-await shot('06-shop-667x375');
-check('667x375: every buy button and BACK are on screen', await js(`[...document.querySelectorAll('#upgRows .upg-buy'), document.querySelector('#shopBack')].every(b => { const r = b.getBoundingClientRect(); return r.width > 0 && r.bottom <= innerHeight + 1 && r.right <= innerWidth + 1 && r.left >= -1; })`));
+await openPage();
+await shot('06-page-667x375');
+check('667x375: every buy button, CHOOSE and BACK are on screen', await js(`[...document.querySelectorAll('#chUps .cu-buy'), document.querySelector('#chGo'), document.querySelector('#chBack')].every(b => { const r = b.getBoundingClientRect(); return r.width > 0 && r.bottom <= innerHeight + 1 && r.right <= innerWidth + 1 && r.left >= -1; })`));
 
 const played = await js(`import('/audio.js').then((a) => { a.SFX.buy(false); a.SFX.buy(true); return true; }).catch((e) => String(e))`);
 check('the purchase chime plays (both the plain and the level-10 one)', played === true, String(played));
 await phone(844, 390); await go('?points=inf&arcade');
-await openShop();
-check('?points=inf gives 9,999,999,999', await txt('#upgPts') === '9,999,999,999');
-for (let i = 0; i < 10; i++) await click('#upgRows .upg-row[data-k="power"] .upg-buy');
+await openPage();
+check('?points=inf gives 9,999,999,999', await txt('#chPts') === '9,999,999,999');
+for (let i = 0; i < 10; i++) { await buyAt('power'); await sleep(40); }
 await sleep(500);
 r = await rows();
-check('…enough to take a stat to 10: MAX, and 511,500 spent', r.find((x) => x.k === 'power').lv === '10' && r.find((x) => x.k === 'power').btn === 'MAX' && await txt('#upgPts') === '9,999,488,499');
-await shot('07-shop-inf');
+check('…enough to take a stat to 10: MAX, and 511,500 spent', r.find((x) => x.k === 'power').lv === '10' && r.find((x) => x.k === 'power').btn.startsWith('MAX') && await txt('#chPts') === '9,999,488,499');
+await shot('07-page-inf');
 check('no exceptions or console errors', logs.length === 0, logs.join(' | '));
 ws.close(); chrome.kill();
 console.log(fails.length ? `upgrade-shots: ${fails.length} failed` : 'upgrade-shots: all passed');

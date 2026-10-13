@@ -1,18 +1,21 @@
-// THE CHAMPIONS' OWN POWERS — each arcade champion fires one real Head Soccer character's power
-// shot, copied: the same flight, the same look (our own canvas art — public/vfx/powers/), the same
-// effect on the defender. Stage 1 is the easiest shot in HS and they climb from there
-// (docs/hs-45-powers.json is the spec, docs/HS-45-POWERS-PROGRESS.md what is built).
+// THE CHAMPIONS' OWN POWERS — one per arcade champion, in card-number order.
 //
-// One file per stage, shared/champion-powers/stage-NN.js: the definition (what the arcade board
-// says, the family it flies on, its numbers) and any behaviour of its own as hooks the engine
-// (shared/hs-powers.js) calls — launch, step, contact, skip. A champion with no file here keeps its
-// family from the approved map (shared/hs-champion-map.js) until its turn comes.
+// ORIGINAL POWERS (Idan, 2026-10-11): each champion's power is our own, fitted to its head and its
+// card (docs/CHAMPION-POWERS.md — the 45 concepts, the balance budget, what is built). Head Soccer is
+// the benchmark for how a power looks and lands, never the thing copied. They are being rebuilt in
+// batches of five; a stage whose original power is not built yet still fires the Head Soccer copy
+// it had (docs/HS-45-POWERS.md — stage 6), in the arcade only, or its family from the approved map.
 //
-// Only in the ARCADE (shotFor(char, { arcade: true })): online and free play a legendary card
-// still plays its map family at the middle intensity, so a card is never an advantage there.
+// One file per stage, shared/champion-powers/stage-NN.js: the definition (what the board says, the
+// family it flies on, its numbers) and any behaviour of its own as hooks the engine
+// (shared/hs-powers.js) calls — launch, step, contact, skip. What a power leaves on the pitch (a
+// strip, a splat, a fence) is a zone: shared/power-zones.js.
 //
-// ROLLBACK RULES, as in hs-powers.js: this is sim code — no Math.random / sin / cos / tan; every
-// piece of state lives as a plain scalar on `ball.power` or the player.
+// WHERE: an original power (`everywhere: true`) fires everywhere — arcade, online, free play — at
+// one strength, the same for every player who owns the card (Idan: no per-stage scaling for now).
+//
+// ROLLBACK RULES, as in hs-powers.js: this is sim code — no Math.random / sin / cos; every
+// piece of state lives as a plain scalar on `ball.power`, the player or a zone.
 
 import S01 from './champion-powers/stage-01.js';
 import S02 from './champion-powers/stage-02.js';
@@ -47,10 +50,13 @@ export const powerById = (id) => BY_ID.get(id) || null;
 //   invisible  seconds it cannot be seen (× 1.5); through: it passes a defender (+0.75)
 //   above      it comes down from above the head, the hardest line to head (+0.6)
 //   blockKO    seconds a successful block still costs the blocker (× 0.5)
+//   knock      how much further its hit throws him than a plain shot's (× 1 over the first)
+//   zone       something it leaves on the pitch that costs the defender (+0.5 each)
 export function difficultyScore(def) {
   const d = (def && def.diff) || {};
   return (d.speed || 1) + 0.5 * (d.disable || 0) + 0.5 * (d.jumpers || 0) + 0.4 * (d.decoys || 0) * (d.decoyLife || 0) +
-    1.5 * (d.invisible || 0) + 0.75 * (d.through || 0) + 0.6 * (d.above || 0) + 0.5 * (d.blockKO || 0);
+    1.5 * (d.invisible || 0) + 0.75 * (d.through || 0) + 0.6 * (d.above || 0) + 0.5 * (d.blockKO || 0) +
+    Math.max(0, (d.knock || 1) - 1) + 0.5 * (d.zone || 0);
 }
 
 // ── the hooks (hs-powers.js calls these for a ball whose power has a `cp`) ──────────────
@@ -58,6 +64,7 @@ export function difficultyScore(def) {
 // step(m, b, dt, pw, S, kit, api)             undefined → the family's own step; else its result
 // contact(m, p, b, kit, pw, kicking, api)     undefined → the family's own rules; else the outcome
 // skip(pw)                                    true → this power makes no contact right now
+// holds(pw)                                   true → its shooter is held where he is (no input, no tackle)
 export function cpLaunch(m, b, p, pw, S, kit) {
   const D = BY_ID.get(pw.cp);
   if (D && D.launch) D.launch(m, b, p, pw, S, kit);
@@ -70,6 +77,10 @@ export function cpContact(m, p, b, kit, pw, kicking, api) {
   if (pw.rb || pw.hit) return undefined;           // a block's rebound is the blocker's plain shot
   const D = BY_ID.get(pw.cp);
   return D && D.contact ? D.contact(m, p, b, kit, pw, kicking, api) : undefined;
+}
+export function cpHolds(pw) {
+  const D = BY_ID.get(pw.cp);
+  return !!(D && D.holds && D.holds(pw));
 }
 export function cpSkip(pw) {
   const D = BY_ID.get(pw.cp);

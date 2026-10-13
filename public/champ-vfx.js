@@ -4,8 +4,10 @@
 // `power`, each player's `armed` and `ail`, `m.cutin`, and the sim's events) and draws. It writes
 // nothing back, so it cannot reach the sim, the bot, the server or an online room.
 //
-// Idan's rule: EXACTLY Head Soccer, nothing the footage does not show (docs/HS-POWER-SHOTS.md).
-// So the whole vocabulary is:
+// The shared vocabulary is EXACTLY Head Soccer's, nothing the footage does not show
+// (docs/HS-POWER-SHOTS.md); a champion's own power is ORIGINAL (docs/CHAMPION-POWERS.md) and brings
+// its own pieces — its flight, cut-in touch, armed touch, bursts and what it leaves on the pitch
+// (its `zone`, drawn under the heads). The shared vocabulary:
 //   the press    — a yellow glow hugging the whole silhouette, head and body, behind it, and
 //                  thin electric wisps crackling off it (§1)                    drawArmed
 //   the cut-in   — 1.34s: the screen darkens, a white disc and golden halo ring behind the
@@ -33,7 +35,7 @@ import { FAMILY_VFX, drawGrind, drawFist } from './vfx/families.js';
 import { AILMENT_VFX } from './vfx/ailments.js';
 import { POWER_VFX } from './vfx/powers/index.js';
 import { drawArmedGlow, drawStars, headPath, blit, glow, spark, ghostBall, armedGlowTex, sideFlameJobs, auraTex, starTex, orbitTex, bubble, LIVE, TAU } from './vfx/fx-kit.js';
-import { drawRays, drawDisc, cutTimeline, goldRay, softRay, disc, halo } from './vfx/cutin.js';
+import { drawRays, drawDisc, cutTimeline, goldRay, softRay, disc, halo, warmCutTint } from './vfx/cutin.js';
 
 export { FAMILY_VFX, AILMENT_VFX, POWER_VFX };
 // The canvas reaches above world y=0 (game.js SKY_TOP: the camera keeps C.VIEW_ABOVE_GROUND of
@@ -59,7 +61,7 @@ function warmTextures() {
   if (!LIVE || typeof setTimeout !== 'function') return;
   const KB = (C.BODY_H + C.HEAD_R - C.NECK) / C.HEAD_R;       // a standing player's feet, in head radii
   const jobs = [() => armedGlowTex(KB), ...sideFlameJobs(), auraTex, () => glow('#ffd21a', 0.02), starTex, orbitTex, goldRay, softRay, disc, () => halo(0), () => halo(1), ghostBall,
-    () => spark('#ffd21a'), () => spark('#ffe14a'), () => glow('#ff2a14', 0.05), () => glow('#ffd21a', 0.3), bubble, ...Object.values(POWER_VFX).filter((P) => P.warm).map((P) => () => P.warm())];
+    () => spark('#ffd21a'), () => spark('#ffe14a'), () => glow('#ff2a14', 0.05), () => glow('#ffd21a', 0.3), bubble, ...Object.values(POWER_VFX).filter((P) => P.warm).map((P) => () => P.warm()), ...Object.values(POWER_VFX).filter((P) => P.cutColor).map((P) => () => warmCutTint(P.cutColor))];
   const idle = typeof requestIdleCallback === 'function' ? (f) => requestIdleCallback(f, { timeout: 500 }) : (f) => setTimeout(f, 16);
   // a job answering false is not finished (a texture painted in slices): it runs again next time
   // Each idle slice runs as many small jobs as its spare time allows (≈ 3 ms kept back), at least one.
@@ -75,7 +77,10 @@ function warmTextures() {
 }
 let warmed = false;
 
-export function createVfx({ now = () => performance.now() / 1000, drawBall: paintBall = null, drawBody: paintBody = null, me = () => 0, headPose = null } = {}) {
+// `headArt(p)` is the game's own head picture for player p — { url, x, y, w, h, flip }, its frame in
+// world px from the head's centre, as the DOM head lays it out — for a power that wears the head
+// (its renderer's `head`: the Cannoneer turning into his cannon starts from the very same face).
+export function createVfx({ now = () => performance.now() / 1000, drawBall: paintBall = null, drawBody: paintBody = null, me = () => 0, headPose = null, headArt = null } = {}) {
   if (!warmed) { warmed = true; warmTextures(); }
   let M = null;
   let layered = false;                   // game.js drew us our own two hi-res layers (useLayers)
@@ -88,6 +93,8 @@ export function createVfx({ now = () => performance.now() / 1000, drawBall: pain
   const ailCol = [];                     // per player: the colour of what crusted him (the gem's)
   const stats = { balls: 0, drops: 0 };  // what was drawn (tests)
   const lastCut = { by: -1, at: 0 };     // the cut-in that just ended, for the dark's fade-out
+  const forms = [];                      // per player: the head a power wears (wornHead)
+  const arts = new Map();                // headArt's pictures, by url
 
   // a plain ball anywhere (a renderer's fakes and orbiting balls), in the game's own art
   const ballAt = paintBall ? (g, x, y) => paintBall(g, { x, y, r: C.BALL_R, vx: 0, vy: 0, spin: 0, power: null, fake: true }) : null;
@@ -134,6 +141,78 @@ export function createVfx({ now = () => performance.now() / 1000, drawBall: pain
       const gl = glow('#ff2a14', 0.05);
       for (const p of drops) { const f = p.t / p.life; blit(g, gl, p.x, p.y, 16 * (1 - 0.3 * f), 14 * (1 - 0.3 * f), 0, 1 - f, false); }
       stats.drops += drops.length;
+    }
+  }
+
+  // WHAT A POWER LEFT ON THE PITCH (shared/power-zones.js): each zone by its own power's renderer
+  // (`zone(g, z, s)`), on the grass under the heads — and under a cut-in's dark. `cut` is how far
+  // into its own shooter's cut-in we are (s), so a zone made at the touch can grow under it.
+  function zonesFx(g) {
+    if (!M.zones || !M.zones.length) return;
+    const t = now();
+    for (const z of M.zones) {
+      const P = POWER_VFX[z.cp];
+      if (!P || typeof P.zone !== 'function') continue;
+      const a = depthPoint(z.x0, C.GROUND_Y), c = depthPoint(z.x1, C.GROUND_Y);
+      const cut = M.cutin > C.POWER_RELEASE && M.cutinBy === z.own && z.t === 0 ? C.POWER_CUTIN - M.cutin : -1;
+      P.zone(g, z, { now: t, t: z.t, x0: a.x, x1: c.x, gy: a.y, cut, life: z.life });
+      stats.zones = (stats.zones || 0) + 1;
+    }
+  }
+
+  // THE HEAD A POWER WEARS (its renderer's `head` and `wears`): the Cannoneer turned into his cannon
+  // from the press until his last shot leaves. `wears(p, m)` says when it should be on; turning it
+  // on takes `headIn` s and off `headOut` s, the renderer drawing the change. While it is anything but
+  // off, game.js stands the DOM head aside (ownsHead) and the renderer paints the head over the heads.
+  // Client only: the form follows the sim's state (armed, the ball loaded), never the other way.
+  const wearer = (p) => { const P = p && p.shot && p.shot.cp ? POWER_VFX[p.shot.cp] : null; return P && P.head && P.wears ? P : null; };
+  function wornHead(p) {
+    const P = wearer(p);
+    if (!P || !M) return null;
+    const f = forms[p.index] || (forms[p.index] = { st: 'off', t0: 0, at: -1 });
+    artFor(p);                                       // (its face, fetched before it is needed)
+    const t = now(), want = M.phase !== 'over' && !!P.wears(p, M);
+    if (f.at === t) return f.st === 'off' ? null : f;
+    f.at = t;
+    const el = t - f.t0;
+    if (want && (f.st === 'off' || f.st === 'out')) { f.st = 'in'; f.t0 = t; }
+    else if (!want && (f.st === 'on' || f.st === 'in')) { f.st = 'out'; f.t0 = t; }
+    else if (f.st === 'in' && el >= P.headIn) f.st = 'on';
+    else if (f.st === 'out' && el >= P.headOut) f.st = 'off';
+    f.k = f.st === 'in' ? Math.min(1, (t - f.t0) / P.headIn) : f.st === 'out' ? Math.min(1, (t - f.t0) / P.headOut) : 1;
+    return f.st === 'off' ? null : f;
+  }
+  function artFor(p) {
+    const a = headArt ? headArt(p) : null;
+    if (!a || !a.url || typeof Image === 'undefined') return null;
+    let img = arts.get(a.url);
+    if (!img) { img = new Image(); img.src = a.url; arts.set(a.url, img); }
+    return img.complete && img.naturalWidth ? { ...a, img } : null;
+  }
+  function headsFx(g) {
+    for (const p of M.players) {
+      const f = wornHead(p);
+      if (!f) continue;
+      const P = wearer(p);
+      const hp = headPose ? headPose(p) : { tilt: 0, dx: 0, dy: 0 };
+      const h = depthPoint(p.x + hp.dx, headY(p) + hp.dy);
+      // (the shared cut-in's wind-up tilt, when that is what headPose is showing: a worn head may
+      // move in its own way instead)
+      const ct = cutTilt(p), own = ct && Math.abs((hp.tilt || 0) - ct) < 1e-9 ? ct : 0;
+      P.head(g, p, { now: now(), m: M, form: f, hx: h.x, hy: h.y, r: headR(M, p), tilt: hp.tilt || 0, cutTilt: own, side: p.side, art: artFor(p), ball: ballAt });
+    }
+  }
+
+  // WHAT A POWER FIRES THAT IS NOT THE BALL (a 'shell' zone, power-zones.js): in the air, drawn over
+  // the heads like the ball itself — its renderer's `flying(g, z, s)`.
+  function flyingFx(g) {
+    if (!M.zones || !M.zones.length) return;
+    for (const z of M.zones) {
+      const P = z.k === 'shell' ? POWER_VFX[z.cp] : null;
+      if (!P || typeof P.flying !== 'function') continue;
+      const d = depthPoint(z.x0, z.y), gnd = depthPoint(z.x0, C.GROUND_Y);
+      P.flying(g, z, { now: now(), m: M, x: d.x, y: d.y, gy: gnd.y, r: C.BALL_R, dir: z.dir, t: z.t, spd: z.spd });
+      stats.balls++;
     }
   }
 
@@ -191,7 +270,9 @@ export function createVfx({ now = () => performance.now() / 1000, drawBall: pain
     const fade = down * (1 - up);
     const T = cutTimeline(el * 60, rel * 60);
     const h = depthPoint(p.x, headY(p));
-    return { el, fade, T, glow: T.out, dark: DARK_MAX * fade, p, q: M.players[1 - p.index], h, r: headR(M, p) };
+    // a champion's own power tints the rays (its renderer's cutColor)
+    const P = p.shot && p.shot.cp ? POWER_VFX[p.shot.cp] : null;
+    return { el, fade, T, glow: T.out, dark: DARK_MAX * fade, p, q: M.players[1 - p.index], h, r: headR(M, p), col: (P && P.cutColor) || null };
   }
   // THE SHOOTER'S WIND-UP (§5), the head's angle frame by frame (M4 40.20 s, a rotated template
   // of the head matched on every frame; + is tipped back, face up): back smoothly f5 → f13 to 59°,
@@ -238,11 +319,24 @@ export function createVfx({ now = () => performance.now() / 1000, drawBall: pain
   const fillDark = (g, a) => { g.fillStyle = `rgba(${DARK_RGB},${a.toFixed(3)})`; g.fillRect(-20, -SKY_PAD, C.W + 40, C.H + SKY_PAD + 40); };
   const clearLayer = (g) => { g.save(); g.setTransform(1, 0, 0, 1, 0, 0); g.clearRect(0, 0, g.canvas.width, g.canvas.height); g.restore(); };
 
+  // A champion's own cut-in SET PIECE (its renderer's `cutBack`): big, behind the shooter — over the
+  // dark and the rays, under the heads — the moment that tells one power from another.
+  function cutBackFx(g, cs) {
+    if (!cs || !(cs.glow > 0)) return;
+    const pw = M.ball.power, P = powerVfx(pw);
+    if (!P || !P.cutBack || pw.owner !== cs.p.index) return;
+    const f = depthPoint(cs.p.x, cs.p.y);
+    P.cutBack(g, { pw, now: now(), el: cs.el, out: cs.T.out, hx: cs.h.x, hy: cs.h.y, hr: cs.r * 1.4, px: f.x, py: f.y, dir: cs.p.side, rel: C.POWER_CUTIN - C.POWER_RELEASE });
+  }
   // What only exists under a cut-in, painted over the dark: a champion's own cut-in pieces.
   function cutExtras(g) {
     for (const b of balls()) {
       const P = powerVfx(b.power);
-      if (P && P.cutin && M.cutin > C.POWER_RELEASE) { const o = depthPoint(b.power.x0, b.power.y0); P.cutin(g, { pw: b.power, now: now(), cut: C.POWER_CUTIN - M.cutin, fx: o.x, fy: o.y, r: b.r, ball: ballAt }); }
+      if (P && P.cutin && M.cutin > C.POWER_RELEASE) {
+        const o = depthPoint(b.power.x0, b.power.y0), a = M.players[b.power.owner], h = a ? depthPoint(a.x, headY(a)) : o, f = a ? depthPoint(a.x, a.y) : o;
+        // the ball's spot (fx, fy), and the shooter: head (hx, hy, hr), feet (px, py), facing dir
+        P.cutin(g, { pw: b.power, now: now(), cut: C.POWER_CUTIN - M.cutin, fx: o.x, fy: o.y, r: b.r, ball: ballAt, hx: h.x, hy: h.y, hr: a ? headR(M, a) : C.HEAD_R, px: f.x, py: f.y, dir: b.power.dir || 1 });
+      }
     }
   }
   // THE PRESS (§1): see fx-kit drawArmedGlow. With layers the silhouette glow goes UNDER the
@@ -286,13 +380,15 @@ export function createVfx({ now = () => performance.now() / 1000, drawBall: pain
 
   return {
     stats, track, drops, shards,
-    reset() { track.clear(); drops.length = 0; shards.length = 0; bursts.length = 0; ailCol.length = 0; },
+    reset() { track.clear(); drops.length = 0; shards.length = 0; bursts.length = 0; ailCol.length = 0; forms.length = 0; stats.zones = 0; },
     bind(m) { if (m !== M) { M = m; this.reset(); } },
     // game.js has given us the two full-resolution layers (drawUnder / drawTop).
     useLayers(on = true) { layered = !!on; },
     get layered() { return layered; },
     // The cut-in is the sim's own pause now (m.cutin); nothing on the client holds the match.
     holding() { return false; },
+    // A power is wearing this player's head (wornHead): game.js hides the DOM head and its ghosts.
+    ownsHead(p) { return !!(M && p && wornHead(p)); },
 
     onEvent(e) {
       if (!M) return;
@@ -310,8 +406,8 @@ export function createVfx({ now = () => performance.now() / 1000, drawBall: pain
           const a = -Math.PI / 2 + (i - 3) * 0.45 + (Math.random() - 0.5) * 0.3, v = 140 + Math.random() * 120;
           drops.push({ x, y, vx: Math.cos(a) * v, vy: Math.sin(a) * v, t: 0, life: 0.35 + Math.random() * 0.15 });
         }
-        // …and the ball's after-images follow it on.
-        const r = rec(M.ball); r.ghost = HIT_GHOSTS;
+        // …and the ball's after-images follow it on (not a shell's: the ball was not what hit him).
+        if (e.how !== 'shell') { const r = rec(M.ball); r.ghost = HIT_GHOSTS; }
       }
     },
 
@@ -333,7 +429,7 @@ export function createVfx({ now = () => performance.now() / 1000, drawBall: pain
           // A shot that starts moving again (the Aerial's dive, the Delay's burst) is a new release.
           // (and a blocked shot fired back off the boot flies a fresh comet: §4 "full comet tail")
           if (b.power.ph !== q.ph) {
-            if (b.power.ph === 'dive' || (b.power.ph === 'fly' && (q.ph === 'grind' || q.ph === 'rest'))) { q.hist.length = 0; q.t0 = M.t; }
+            if (b.power.ph === 'dive' || (b.power.ph === 'fly' && (q.ph === 'grind' || q.ph === 'rest' || q.ph === 'load'))) { q.hist.length = 0; q.t0 = M.t; }
             q.ph = b.power.ph;
           }
         }
@@ -397,7 +493,9 @@ export function createVfx({ now = () => performance.now() / 1000, drawBall: pain
     // drawCutin paints them over the dark — in HS the block's burst and the comet are the bright
     // things on a darkened pitch, M4 61.45 s.)
     drawOver(g) {
-      if (!M || layered || M.cutin > 0 || (lastCut.by >= 0 && now() - lastCut.at < 0.39 - C.POWER_RELEASE)) return;
+      if (!M) return;
+      if (!layered) { zonesFx(g); flyingFx(g); }
+      if (layered || M.cutin > 0 || (lastCut.by >= 0 && now() - lastCut.at < 0.39 - C.POWER_RELEASE)) return;
       pitchFx(g);
     },
     drawArmed(g, p) {
@@ -407,6 +505,7 @@ export function createVfx({ now = () => performance.now() / 1000, drawBall: pain
     // THE AILMENTS and the stars, on the layer above the heads.
     drawOverlay(g) {
       if (!M) return;
+      if (!layered) headsFx(g);
       overlays(g);
     },
 
@@ -419,7 +518,7 @@ export function createVfx({ now = () => performance.now() / 1000, drawBall: pain
       if (!s) return;
       g.save();
       fillDark(g, s.dark);
-      if (s.glow > 0) { drawRays(g, s.h.x, s.h.y, s.r, s.T, s.el); drawDisc(g, s.h.x, s.h.y, s.r, s.T); }
+      if (s.glow > 0) { drawRays(g, s.h.x, s.h.y, s.r, s.T, s.el, s.col); cutBackFx(g, s); drawDisc(g, s.h.x, s.h.y, s.r, s.T); }
       g.globalCompositeOperation = 'destination-out';
       g.fillStyle = '#000'; headPath(g, s.h.x, s.h.y, s.r); g.fill();
       const qh = depthPoint(s.q.x, headY(s.q)); headPath(g, qh.x, qh.y, headR(M, s.q)); g.fill();
@@ -452,12 +551,16 @@ export function createVfx({ now = () => performance.now() / 1000, drawBall: pain
       const s = cutState();
       if (dirty.under) { clearLayer(g); dirty.under = false; }
       const armed = M.players.some((p) => p.armed > 0);
-      if (!s && !armed) return;
+      const zoned = !!(M.zones && M.zones.length);
+      if (!s && !armed && !zoned) return;
       dirty.under = true;
+      // what the powers left on the grass, under the dark like the rest of the pitch
+      if (zoned) zonesFx(g);
       if (s) {
         fillDark(g, s.dark);
         if (s.glow > 0) {
-          drawRays(g, s.h.x, s.h.y, s.r, s.T, s.el);
+          drawRays(g, s.h.x, s.h.y, s.r, s.T, s.el, s.col);
+          cutBackFx(g, s);
           drawDisc(g, s.h.x, s.h.y, s.r, s.T);
         }
         // The other player plays on through the cut-in (sim.js step), so he stays bright too —
@@ -475,7 +578,7 @@ export function createVfx({ now = () => performance.now() / 1000, drawBall: pain
       if (!M) return;
       if (dirty.top) { clearLayer(g); dirty.top = false; }
       const s = cutState();
-      const busy = s || drops.length || shards.length || track.size || M.players.some((p) => p.armed > 0 || p.stunned > 0 || p.ail) || balls().some((b) => b.power);
+      const busy = s || drops.length || shards.length || track.size || bursts.length || (M.zones && M.zones.length) || M.players.some((p) => p.armed > 0 || p.stunned > 0 || p.ail || forms[p.index]?.st !== undefined && forms[p.index].st !== 'off') || balls().some((b) => b.power);
       if (!busy) return;
       dirty.top = true;
       onTop = true;
@@ -487,8 +590,10 @@ export function createVfx({ now = () => performance.now() / 1000, drawBall: pain
           else paintBall(g, b);
         }
       } finally { onTop = false; }
+      flyingFx(g);
       pitchFx(g);
       if (s) cutExtras(g);
+      headsFx(g);
       for (const p of M.players) armedAt(g, p);
       overlays(g);
       if (s) overHeads(g);

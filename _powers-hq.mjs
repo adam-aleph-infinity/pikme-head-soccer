@@ -7,6 +7,13 @@
 //   AX=920 ZX=160 BG=hs-arena …                  → where the shooter (AX) and the defender (ZX) stand, and the stadium
 //   node _powers-hq.mjs block                      → the kick-block burst and the rebound's stars
 //   node _powers-hq.mjs perf   [--cpu 4]           → FX ms per frame under CPU throttle
+//   node _powers-hq.mjs swap                       → the Cannoneer's DOM head against the effects' copy of
+//                                                   it (before the press / one tick after; the flip back /
+//                                                   after), from both seats: .shots/powers-hq/swap/
+//   node _powers-hq.mjs worm                       → .shots/powers-hq/worm/: the Lord of the Worms' power beat
+//                                                   by beat (her change, the cut-in's worm, the dive, the
+//                                                   tunnel, the ring, the burst, her change back), each
+//                                                   frame whole and cropped round where it happens (crop-*)
 //   node _powers-hq.mjs glow                       → .shots/glow/ours-*.png + ours-spec.json: 87 frames at
 //                                                   60 fps of the press glow, for tools/hs-glow-measure.mjs
 //   node _powers-hq.mjs armed  [--dpr 3]           → .shots/powers-hq/armed/sheet.png: HS's press glow
@@ -24,7 +31,7 @@ import { ensureServer } from './_serve.mjs';
 import { CHAMPION_POWERS } from './shared/champion-powers.js';
 
 const args = process.argv.slice(2);
-const MODE = ['stills', 'video', 'block', 'perf', 'armed', 'glow'].includes(args[0]) ? args.shift() : 'stills';
+const MODE = ['stills', 'video', 'block', 'perf', 'armed', 'glow', 'swap', 'worm'].includes(args[0]) ? args.shift() : 'stills';
 const opt = (k, d) => { const i = args.indexOf(k); if (i < 0) return d; const v = args[i + 1]; args.splice(i, 2); return v; };
 const DPR = Number(opt('--dpr', MODE === 'video' ? 2 : 2));
 const CPU = Number(opt('--cpu', 4));
@@ -114,7 +121,7 @@ const HOLD_BALL = `MATCH.ball.x = 560; MATCH.ball.y = 150; MATCH.ball.vx = MATCH
 const TOUCH = `(() => { const a = MATCH.players[1]; MATCH.ball.x = a.x - ${process.env.FEET ? 30 : 8}; MATCH.ball.y = ${process.env.FEET ? 'C.GROUND_Y - C.BALL_R' : 'a.y - C.BODY_H - C.HEAD_R * 2 + 6'}; MATCH.ball.vx = MATCH.ball.vy = 0; __tick(1); })()`;
 const HIT = `EVENTS.slice(-6).find((e) => e.type === 'powerHit' || e.type === 'blocked' || e.type === 'goal')`;
 const open = async (n) => {
-  await send('Page.navigate', { url: `http://127.0.0.1:${PORT}/?me=legendary_8&foe=legendary_${n}&play=1&solo=1&stage=${process.env.BG || 'japan'}` });
+  await send('Page.navigate', { url: `http://127.0.0.1:${PORT}/?me=legendary_8&foe=legendary_${n}&play=1&solo=1&nointro&stage=${process.env.BG || 'japan'}` });
   await sleep(1800);
   return js(HELPERS(n));
 };
@@ -137,10 +144,35 @@ if (MODE === 'stills') {
     await shot(`${OUT}/${tag}-f-impact.png`);
     if (process.env.DBG) console.log('   dbg:', JSON.stringify(await js(process.env.DBG)));
     await js('__tick(24)'); await shot(`${OUT}/${tag}-g-after.png`);
-    console.log(`  ${hit ? '✓' : '✗'} ${n} ${CHAMPION_POWERS[n].hsPower}: ${hit}`);
+    console.log(`  ${hit ? '✓' : '✗'} ${n} ${CHAMPION_POWERS[n].hsPower || CHAMPION_POWERS[n].name}: ${hit}`);
     if (!hit) bad++;
   }
   savePos();
+} else if (MODE === 'worm') {
+  // champion 2's power beat by beat, whole frames and crops (the press round her head, the rest round
+  // the ball's ground spot) — the crops 3× up for a close look
+  await open(2);
+  const crop = async (k, cx, cy, w, h) => spawnSync(FF, ['-v', 'error', '-y', '-i', `${OUT}/${k}.png`, '-vf', `crop=${w}:${h}:${Math.max(0, Math.round(cx - w / 2))}:${Math.max(0, Math.round(cy - h / 2))},scale=${w * 2}:-1:flags=lanczos`, `${OUT}/crop-${k}.png`]);
+  const cap = async (k, round = 'shooter', w = 300, h = 300) => {
+    await shot(`${OUT}/${k}.png`);
+    const P = POS[`${k}.png`], c = round === 'shooter' ? P.shooter : round === 'ball' ? { x: P.ball.x, y: P.ball.y } : round;
+    await crop(k, c.x, c.y, w, h);
+  };
+  await js(PRESS);
+  for (const [k, f] of [['p00', 1], ['p01', 4], ['p02', 4], ['p03', 4], ['p04', 4], ['p05', 4], ['p06', 4], ['p07', 4], ['p08', 4], ['p09', 10], ['p10', 20]]) { await js(`(() => { __tick(${f}); ${HOLD_BALL} })()`); await cap(k); }
+  await js(TOUCH);
+  for (const [k, f] of [['c1', 10], ['c2', 10], ['c3', 6], ['c4', 6], ['c5', 8], ['c6', 10], ['c7', 12], ['c8', 10]]) { await js(`__tick(${f})`); await cap(k, 'shooter', 420, 300); }
+  const at = async () => js(`(() => { const b = MATCH.ball, pw = b.power; return { ph: pw ? pw.ph : '-', k: pw ? +(pw.k || 0).toFixed(2) : 0 }; })()`);
+  for (const [k, f] of [['d1', 6], ['d2', 6], ['d3', 6], ['t1', 12], ['t2', 16], ['t3', 16], ['w1', 8], ['w2', 10], ['w3', 8], ['b1', 2], ['b2', 3], ['b3', 4], ['b4', 6], ['b5', 10]]) {
+    await js(`__tick(${f})`);
+    console.log('  ', k, JSON.stringify(await at()));
+    await cap(k, 'ball', 520, 300);
+  }
+  // her change back (from BACK_AFTER after the burst): the shake, the ripple down, the snake again
+  for (const [k, f] of [['o1', 6], ['o2', 4], ['o3', 4], ['o4', 4], ['o5', 4], ['o6', 4], ['o7', 6]]) { await js(`__tick(${f})`); await cap(k); }
+  // the ground's middle, wide, for the tunnel's run
+  savePos();
+  console.log(`  ✓ ${OUT}`);
 } else if (MODE === 'glow') {
   const G = `${import.meta.dirname}/.shots/glow`;
   mkdirSync(G, { recursive: true });
@@ -206,15 +238,37 @@ if (MODE === 'stills') {
     await js(PRESS);
     for (let i = 0; i < 36; i++) { await js(`(() => { __tick(1); ${HOLD_BALL} })()`); await grab(); }
     await js(TOUCH); await grab();
+    // (the Cannoneer's barrage runs on to its third shot — the ball — and his flip back; PARRY=1:
+    // the defender kicks each shell and the ball away as they come)
+    const END = n === 1 ? "EVENTS.find((e) => e.type === 'cannonFire' && e.real)" : HIT, TAIL = n === 1 ? (process.env.PARRY ? 330 : 80) : 50;
+    const STEP = process.env.PARRY ? `(() => { const z = MATCH.players[0], sh = MATCH.zones.find((q) => q.k === 'shell'), bp = MATCH.ball.power; const tx = sh ? sh.x0 : bp && bp.ph === 'fly' && bp.owner === 1 ? MATCH.ball.x : null; const d = tx == null ? 9e9 : Math.abs(tx - z.x); __tick(1, [{ kick: d < 380 && d > 340 && !(z.kickT > 0) }, {}]); })()` : '__tick(1)';
     let seen = null, after = 0;
-    for (let i = 0; i < 360 && after < 50; i++) {
-      await js('__tick(1)');
+    for (let i = 0; i < 720 && after < TAIL; i++) {
+      await js(STEP);
       await grab();
-      if (!seen) seen = await js(HIT); else after++;
+      if (!seen) seen = await js(END); else after++;
     }
     spawnSync(FF, ['-v', 'error', '-y', '-framerate', '60', '-i', `${dir}/%04d.png`, '-vf', 'scale=1688:-2', '-c:v', 'libx264', '-pix_fmt', 'yuv420p', '-crf', '18', `${OUT}/${tag}.mp4`]);
     spawnSync(FF, ['-v', 'error', '-y', '-framerate', '60', '-i', `${dir}/%04d.png`, '-vf', `select='not(mod(n\\,4))',scale=422:-1,tile=8x8:padding=2`, '-frames:v', '1', `${OUT}/${tag}-strip.png`]);
     console.log(`  ${seen ? '✓' : '✗'} ${n}: ${f} frames → ${OUT}/${tag}.mp4 (${seen ? seen.type : 'no hit'})`);
+  }
+} else if (MODE === 'swap') {
+  // champion 1 in seat 0 (facing right, his face as drawn) and seat 1 (mirrored): the DOM head the
+  // frame before the press, the effects' copy one tick after it — and the last frame of his flip
+  // back against the DOM head the frame after; each pair should be the same face in the same place
+  for (const seat of [0, 1]) {
+    const SW = Number(process.env.STAGE) || 1;               // (STAGE=2: the Lord of the Worms' change)
+    await send('Page.navigate', { url: `http://127.0.0.1:${PORT}/?me=legendary_${seat ? 8 : SW}&foe=legendary_${seat ? SW : 8}&play=1&solo=1&nointro&stage=japan` });
+    await sleep(1800);
+    await js(HELPERS(SW).replace("const [z, a] = m.players;", `const [z, a] = ${seat} ? m.players : [m.players[1], m.players[0]];`).replace("a.shot = HP.shotFor", "a.shot = a.shot || HP.shotFor"));
+    await js(`(() => { const a = MATCH.players[${seat}]; a.x = 520; MATCH.players[${1 - seat}].x = ${seat ? 200 : 840}; __tick(20); })()`);
+    await shot(`${OUT}/seat${seat}-0-dom.png`);
+    await js(`(() => { const a = MATCH.players[${seat}]; a.gauge = 1; const inp = [{}, {}]; inp[${seat}] = { power: true }; __tick(1, inp); })()`);
+    await shot(`${OUT}/seat${seat}-1-copy.png`);
+    // disarm by hand and run the flip back out to its last frame, then one more (the DOM head back)
+    await js(`(() => { MATCH.players[${seat}].armed = 0; __tick(1); let g = 0; while (g++ < 60 && VFXR.ownsHead(MATCH.players[${seat}])) { __tick(1); if (!VFXR.ownsHead(MATCH.players[${seat}])) break; window.__last = g; } })()`);
+    await shot(`${OUT}/seat${seat}-3-dom-after.png`);
+    console.log(`  seat ${seat}: flip back took ${await js('window.__last')} ticks`);
   }
 } else if (MODE === 'block') {
   // stage BSTAGE (default 1) fired at a defender who kicks into it: the grind's burst, the fire-back

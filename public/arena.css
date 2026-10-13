@@ -122,18 +122,55 @@
 .hm-stars i.on { color: #fff; text-shadow: 0 0 calc(var(--u) * 1) #fff; }
 #hmPlay b { margin-top: calc(var(--u) * 1.6); }
 /* the arena you are in, over PLAY */
-.hm-arena { position: absolute; z-index: 3; right: calc(var(--safe-r) + var(--u) * 4); bottom: calc(var(--safe-b) + var(--u) * 22.4); width: calc(var(--u) * 44);
-  display: flex; align-items: baseline; justify-content: center; gap: calc(var(--u) * 1.4); direction: rtl; font-family: var(--m-font); pointer-events: none; }
+.hm-arena { position: absolute; z-index: 3; right: calc(var(--safe-r) + var(--u) * 4); bottom: calc(var(--safe-b) + var(--u) * 22.4); width: calc(var(--u) * 36);
+  display: flex; align-items: baseline; justify-content: center; gap: calc(var(--u) * 1.4); direction: rtl; font-family: var(--m-font); pointer-events: none; white-space: nowrap; }   /* (one line, even over a narrower PLAY) */
+body.mode-other .hm-arena, body.mode-other .hm-stars { display: none; }   /* (a mode that is not the arena has no arena name or stars) */
 .hm-arena b { font-size: calc(var(--u) * 3.8); font-weight: 900; color: var(--m-gold); -webkit-text-stroke: calc(var(--u) * .6) #0d0a14; paint-order: stroke fill; }
 .hm-arena small { font-size: calc(var(--u) * 3.2); font-weight: 900; color: #fff; -webkit-text-stroke: calc(var(--u) * .5) #0d0a14; paint-order: stroke fill; }
 /* the other modes, beside PLAY */
-.hm-modes { position: absolute; z-index: 3; right: calc(var(--safe-r) + var(--u) * 51); bottom: calc(var(--safe-b) + var(--u) * 4.2); width: calc(var(--u) * 17); height: calc(var(--u) * 16); padding: 0;
-  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: calc(var(--u) * .4);
-  border-radius: calc(var(--u) * 1.4); border: calc(var(--u) * .45) solid #0d0a14; background: linear-gradient(180deg, #4d4570 0 14%, #2f2949 14%);
-  box-shadow: 0 calc(var(--u) * 1.1) 0 #0d0a14, inset 0 calc(var(--u) * .4) 0 #ffffff26; color: #fff; font-family: var(--m-font); transform: skewX(-8deg); cursor: pointer; }
+/* long and flat: the picked mode's symbol in a round badge on the LEFT, its name big beside it,
+   as long as the room between the quests tile and PLAY allows. The badge takes the mode's colour. */
+.hm-modes { --mc: #ff3a4a; --mc-hi: #ff9a8a; --mc-lo: #9a0a22;
+  position: absolute; z-index: 3; right: calc(var(--safe-r) + var(--u) * 43); bottom: calc(var(--safe-b) + var(--u) * 4.2); width: min(calc(var(--u) * 46), calc(100% - var(--safe-r) - var(--safe-l) - var(--u) * 111)); height: calc(var(--u) * 13); padding: 0 calc(var(--u) * 2.4) 0 calc(var(--u) * 1.6);
+  display: flex; flex-direction: row; align-items: center; justify-content: flex-start; gap: calc(var(--u) * 1.6); direction: ltr;
+  border-radius: calc(var(--u) * 1.4); border: calc(var(--u) * .45) solid #0d0a14; background: linear-gradient(180deg, #5a5282 0 14%, #342d52 14% 100%);
+  box-shadow: 0 calc(var(--u) * 1.1) 0 #0d0a14, inset 0 calc(var(--u) * -1.2) 0 #251f40, inset 0 calc(var(--u) * .4) 0 #ffffff30; color: #fff; font-family: var(--m-font); transform: skewX(-8deg); cursor: pointer; }
+.hm-modes[data-mode="arcade"] { --mc: #ffc61a; --mc-hi: #fff08a; --mc-lo: #b07a00; }
+.hm-modes[data-mode="tournament"] { --mc: #3a8cff; --mc-hi: #9cc8ff; --mc-lo: #1a4fa8; }
+.hm-modes[data-mode="multi"] { --mc: #ff8a1a; --mc-hi: #ffc88a; --mc-lo: #b24a00; }
+.hm-modes[data-mode="practice"] { --mc: #3cd25a; --mc-hi: #a8f5b0; --mc-lo: #16803a; }
 .hm-modes > * { transform: skewX(8deg); }
-.hm-modes i { font-style: normal; font-size: calc(var(--u) * 6); line-height: 1; }
-.hm-modes b { font-size: calc(var(--u) * 3.2); font-weight: 900; -webkit-text-stroke: calc(var(--u) * .5) #0d0a14; paint-order: stroke fill; }
+.hm-modes i { flex: none; display: grid; place-items: center; width: calc(var(--u) * 9); height: calc(var(--u) * 9); border-radius: 50%; font-style: normal; font-size: calc(var(--u) * 5); line-height: 1;
+  background: radial-gradient(circle at 35% 28%, var(--mc-hi), var(--mc) 55%, var(--mc-lo)); border: calc(var(--u) * .5) solid #0d0a14; box-shadow: 0 calc(var(--u) * .5) 0 #0d0a14, inset 0 calc(var(--u) * .5) 0 #ffffff55, 0 0 calc(var(--u) * 2) var(--mc); }
+.hm-modes b { display: block; white-space: nowrap; font-size: calc(var(--u) * 4.6); font-weight: 900; letter-spacing: .01em; line-height: 1.05;
+  -webkit-text-stroke: calc(var(--u) * .8) #0d0a14; paint-order: stroke fill; text-shadow: 0 calc(var(--u) * .5) 0 #0d0a14; }
+/* FOR KIDS (Idan): the button says what it does. A caption over the mode's name, a round ARROWS
+   badge on the right that wiggles now and then. */
+.hm-mtx { flex: 1; min-width: 0; direction: rtl; text-align: center; display: flex; flex-direction: column; align-items: center; }
+.hm-mtx small { display: block; font-size: calc(var(--u) * 2.5); font-weight: 900; color: var(--mc-hi); line-height: 1.1; white-space: nowrap;
+  -webkit-text-stroke: calc(var(--u) * .45) #0d0a14; paint-order: stroke fill; }
+.hm-swap { flex: none; display: grid; place-items: center; width: calc(var(--u) * 7.4); height: calc(var(--u) * 7.4); border-radius: 50%;
+  font-style: normal; font-weight: 900; font-size: calc(var(--u) * 5); line-height: 1; color: #1a1206;
+  background: radial-gradient(circle at 35% 28%, #fff6b0, #ffd400 55%, #e09a00); border: calc(var(--u) * .45) solid #0d0a14;
+  box-shadow: 0 calc(var(--u) * .5) 0 #0d0a14, inset 0 calc(var(--u) * .4) 0 #fff9; animation: hmSwapNudge 3.2s ease-in-out infinite; }
+@keyframes hmSwapNudge { 0%, 70%, 100% { transform: skewX(8deg) rotate(0); } 76% { transform: skewX(8deg) rotate(-18deg) scale(1.1); } 84% { transform: skewX(8deg) rotate(14deg) scale(1.1); } 92% { transform: skewX(8deg) rotate(0); } }
+/* a mode just picked: the button pops, so you see where your choice went */
+.hm-modes.just-picked { animation: hmPicked .5s ease-out; }
+@keyframes hmPicked { 0% { transform: skewX(-8deg) scale(1); } 35% { transform: skewX(-8deg) scale(1.12); filter: brightness(1.35); } 100% { transform: skewX(-8deg) scale(1); } }
+/* the modes screen: the mode you have now wears a "chosen" mark */
+.mn-mode.sel { position: relative; }
+.mn-mode.sel .mn-pill { outline: calc(var(--u) * .7) solid #ffd400; outline-offset: calc(var(--u) * .3); }
+.mn-mode.sel::after { content: '✓ נבחר'; position: absolute; top: calc(var(--u) * 1); left: 50%; transform: translateX(-50%); z-index: 2; padding: calc(var(--u) * .3) calc(var(--u) * 1.8);
+  border-radius: calc(var(--u) * 3); background: #ffd400; color: #1a1206; border: calc(var(--u) * .4) solid #0d0a14; font-weight: 900; font-size: calc(var(--u) * 2.6); white-space: nowrap; }
+@media (prefers-reduced-motion: reduce) { .hm-swap, .hm-modes.just-picked { animation: none; } }
+/* a narrow screen (4:3): the room is short, so the words are smaller and the badge too */
+@media (max-aspect-ratio: 8/5) {
+  .hm-modes { padding: 0 calc(var(--u) * 1.4) 0 calc(var(--u) * 1); gap: calc(var(--u) * .8); }
+  .hm-modes i { width: calc(var(--u) * 7); height: calc(var(--u) * 7); font-size: calc(var(--u) * 4); }
+  .hm-modes b { font-size: calc(var(--u) * 3.2); }
+  .hm-mtx small { font-size: calc(var(--u) * 2.1); }
+  .hm-swap { width: calc(var(--u) * 5.8); height: calc(var(--u) * 5.8); font-size: calc(var(--u) * 3.8); }
+}
 .hm-modes.is-pressed, .hm-modes:active { transform: skewX(-8deg) translateY(calc(var(--u) * .8)); box-shadow: 0 calc(var(--u) * .3) 0 #0d0a14; }
 .hm-cups { cursor: pointer; }
 .hm-cups.has-prize::after { content: '!'; position: absolute; right: calc(var(--u) * -1.6); top: calc(var(--u) * -1.6); width: calc(var(--u) * 5); height: calc(var(--u) * 5); border-radius: 50%;

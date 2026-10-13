@@ -24,53 +24,55 @@ How a power shot plays (docs/HS-POWER-SHOTS.md): fill the gauge, press POWER to 
 
 ## The champions
 
-| # | Tier | Champion | Theme | Family | Ailment | Aura (radius) | Intensity | Stats S/J/K/D/P | Body × (speed/jump/kick) | Gauge × | ★ |
-|---|---|---|---|---|---|---|---|---|---|---|---|
-| 1 | שכונה | התותחן | 🔵 Blue Aura | Destructive | — | — | 0.1 | 1/1/1/1/1 | 1.08/1.03/1.08 | 1.18 | ½ |
-| 2 | שכונה | אדון התולעים | ⚡ Thunderbolt | Grab (gentle) | shock (1.7s) | — | 0.1 | 2/2/2/2/1 | 1.15/1.06/1.15 | 1.18 | ★ |
-| 3 | שכונה | השף הבוער | 🌪️ Tornado | Straight | burn (1.42s) | — | 0.14 | 3/3/3/3/1 | 1.23/1.09/1.23 | 1.18 | ★½ |
-| 4 | שכונה | מלך הבוץ | 🎩 Illusion | Ground | shock (1.82s) | — | 0.16 | 4/4/4/4/1 | 1.3/1.12/1.3 | 1.18 | ★★ |
-| 5 | שכונה | בונה החומות | 🥷 Ninja | Ground | — | — | 0.18 | 5/5/5/5/1 | 1.38/1.15/1.38 | 1.18 | ★★½ |
-| 6 | שכונה | איל ההון | 🧊 Ice Ball | Multi-Ball (gentle) | — | — | 0.1 | 6/6/6/6/2 | 1.45/1.17/1.45 | 1.35 | ★★★ |
-| 7 | שכונה | הקפצן | 🌀 Spring | Aerial | — | — | 0.22 | 7/7/7/7/2 | 1.53/1.2/1.53 | 1.35 | ★★★½ |
-| 8 | שכונה | האיש המגנטי | 🧲 Magnet | Straight | — | — | 0.24 | 8/8/8/8/2 | 1.6/1.23/1.6 | 1.35 | ★★★★ |
-| 9 | שכונה | גולש הגלים | 🌊 Red Wave | Up-and-Down | — | — | 0.26 | 9/9/9/9/2 | 1.68/1.25/1.68 | 1.35 | ★★★★½ |
-| 10 | ליגה | הענק | 🗿 Big Head | Downward | — | — | 0.28 | 10/10/10/10/3 | 1.75/1.28/1.75 | 1.53 | ★★★★★ |
-| 11 | ליגה | המכווץ | 🔻 Shrink | Ailment | beheaded (1.76s) | — | 0.3 | 10/10/10/10/3 | 1.75/1.28/1.75 | 1.53 | ★★★★★ |
-| 12 | ליגה | האסטרונאוט | 🌙 Moon Shot | Aerial | — | — | 0.33 | 10/10/10/10/3 | 1.75/1.28/1.75 | 1.53 | ★★★★★ |
-| 13 | ליגה | המטפס | 🚀 Rocket | Ground | — | — | 0.35 | 10/10/10/10/3 | 1.75/1.28/1.75 | 1.53 | ★★★★★ |
-| 14 | ליגה | נהג המרוצים | ⚡ Turbo | Straight | — | — | 0.37 | 10/10/10/10/3 | 1.75/1.28/1.75 | 1.53 | ★★★★★ |
-| 15 | ליגה | מרים המשקולות | 🏋️ Heavy Ball | Downward | shock (2.28s) | — | 0.39 | 10/10/10/10/3 | 1.75/1.28/1.75 | 1.53 | ★★★★★ |
-| 16 | ליגה | מקפיץ האבנים | 🪨 Skipping Stone | Ground | — | — | 0.41 | 10/10/10/10/3 | 1.75/1.28/1.75 | 1.53 | ★★★★★ |
-| 17 | ליגה | רוכב הסערה | 🌬️ Storm | Straight | — | push (88px) | 0.43 | 10/10/10/10/3 | 1.75/1.28/1.75 | 1.53 | ★★★★★ |
-| 18 | ליגה | הסטרייקר | ⚡ Strike | Destructive | stars (0.96s) | stun (88px) | 0.45 | 10/10/10/10/3 | 1.75/1.28/1.75 | 1.53 | ★★★★★ |
-| 19 | נבחרת | הג'וקר | 🔄 Dizzy | Ailment | reverse (4.1s) | reverse (105px) | 0.47 | 10/10/10/10/3 | 1.75/1.28/1.75 | 1.53 | ★★★★★ |
-| 20 | נבחרת | איש השלג | ❄️ Freeze | Ailment | freeze (3.47s) | freeze (105px) | 0.49 | 10/10/10/10/3 | 1.75/1.28/1.75 | 1.53 | ★★★★★ |
-| 21 | נבחרת | צייד המטאורים | ☄️ Meteor | Downward | burn (2.02s) | — | 0.51 | 10/10/10/10/3 | 1.75/1.28/1.75 | 1.53 | ★★★★★ |
-| 22 | נבחרת | הגנב | 🫳 Power Steal | Ailment | shock (3.58s) | — | 0.53 | 10/10/10/10/3 | 1.75/1.28/1.75 | 1.53 | ★★★★★ |
-| 23 | נבחרת | רעם האדמה | 🌋 Earthquake | Destructive | stars (1.04s) | push (105px) | 0.55 | 10/10/10/10/3 | 1.75/1.28/1.75 | 1.53 | ★★★★★ |
-| 24 | נבחרת | האקרובט | 🤸 Trampoline | Up-and-Down | — | — | 0.57 | 10/10/10/10/4 | 1.75/1.28/1.75 | 1.7 | ★★★★★ |
-| 25 | נבחרת | המטעה | ⏯️ Stop & Go | Delay | — | — | 0.59 | 10/10/10/10/4 | 1.75/1.28/1.75 | 1.7 | ★★★★★ |
-| 26 | נבחרת | המחליק | 🧊 Ice Floor | Ground | freeze (2.72s) | — | 0.61 | 10/10/10/10/4 | 1.75/1.28/1.75 | 1.7 | ★★★★★ |
-| 27 | נבחרת | שומר הפורטל | 🌀 Portal | Delay | — | — | 0.63 | 10/10/10/10/4 | 1.75/1.28/1.75 | 1.7 | ★★★★★ |
-| 28 | אלופים | זורק הבומרנג | 🪃 Boomerang | Aerial | — | — | 0.65 | 10/10/10/10/4 | 1.75/1.28/1.75 | 1.7 | ★★★★★ |
-| 29 | אלופים | הכורה | 🔩 Drill | Destructive | — | push (123px) | 0.67 | 10/10/10/10/4 | 1.75/1.28/1.75 | 1.7 | ★★★★★ |
-| 30 | אלופים | אדון המשיכה | 🥅 Goal Magnet | Downward | — | — | 0.69 | 10/10/10/10/4 | 1.75/1.28/1.75 | 1.7 | ★★★★★ |
-| 31 | אלופים | השואב | 🌪️ Vacuum | Grab | — | push (123px) | 0.71 | 10/10/10/10/4 | 1.75/1.28/1.75 | 1.7 | ★★★★★ |
-| 32 | אלופים | הרוזן האפל | 🧛 Vampire | Grab | burn (2.37s) | stun (123px) | 0.73 | 10/10/10/10/4 | 1.75/1.28/1.75 | 1.7 | ★★★★★ |
-| 33 | אלופים | רגל הזהב | 👟 Super Kick | Critical | — | push (123px) | 0.75 | 10/10/10/10/4 | 1.75/1.28/1.75 | 1.7 | ★★★★★ |
-| 34 | אלופים | אמן הצמר | 🧶 Wool Boots | Aerial | shock (3.04s) | — | 0.77 | 10/10/10/10/4 | 1.75/1.28/1.75 | 1.7 | ★★★★★ |
-| 35 | אלופים | הנווט | 🎯 Homing Missile | Critical | — | — | 0.8 | 10/10/10/10/4 | 1.75/1.28/1.75 | 1.7 | ★★★★★ |
-| 36 | אלופים | הופך העולמות | 🙃 Gravity Flip | Up-and-Down | reverse (3.77s) | reverse (123px) | 0.82 | 10/10/10/10/4 | 1.75/1.28/1.75 | 1.7 | ★★★★★ |
-| 37 | אגדות | אדון המראות | 🪞 Mirror | Critical | reverse (3.82s) | reverse (140px) | 0.84 | 10/10/10/10/4 | 1.75/1.28/1.75 | 1.7 | ★★★★★ |
-| 38 | אגדות | המשגר | 🛸 Blast Off | Critical | — | stun (140px) | 0.86 | 10/10/10/10/4 | 1.75/1.28/1.75 | 1.7 | ★★★★★ |
-| 39 | אגדות | מלך הכדרור | 🍯 Glue | Grab | — | push (140px) | 0.88 | 10/10/10/10/4 | 1.75/1.28/1.75 | 1.7 | ★★★★★ |
-| 40 | אגדות | רוח הרפאים | 👻 Ghost | Multi-Ball | — | stun (140px) | 0.9 | 10/10/10/10/4 | 1.75/1.28/1.75 | 1.7 | ★★★★★ |
-| 41 | אגדות | שומר הזמן | 🐢 Slow Motion | Delay | shock (3.34s) | freeze (140px) | 0.92 | 10/10/10/10/4 | 1.75/1.28/1.75 | 1.7 | ★★★★★ |
-| 42 | אגדות | התאום | 👥 Clone | Multi-Ball | — | push (140px) | 0.94 | 10/10/10/10/4 | 1.75/1.28/1.75 | 1.7 | ★★★★★ |
-| 43 | אגדות | המפצל | 🔱 Split Shot | Multi-Ball | — | stun (140px) | 0.96 | 10/10/10/10/4 | 1.75/1.28/1.75 | 1.7 | ★★★★★ |
-| 44 | אגדות | עין הסערה | 🌪 Cyclone | Up-and-Down | stars (1.38s) | push (140px) | 0.98 | 10/10/10/10/4 | 1.75/1.28/1.75 | 1.7 | ★★★★★ |
-| 45 | אגדות | אדון הזמן | ⏱️ Time Stop | Delay | freeze (3.5s) | freeze (140px) | 1 | 10/10/10/10/4 | 1.75/1.28/1.75 | 1.7 | ★★★★★ |
+**Own power**: a champion whose own power is built (shared/champion-powers.js) fires it instead of the map's family, ailment and aura — an **original** power everywhere, a Head Soccer copy not yet replaced only in the arcade (docs/CHAMPION-POWERS.md).
+
+| # | Tier | Champion | Theme | Own power | Family | Ailment | Aura (radius) | Intensity | Stats S/J/K/D/P | Body × (speed/jump/kick) | Gauge × | ★ |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| 1 | שכונה | התותחן | 🦜 Broadside | Broadside (original, everywhere) | Destructive | — | — | 0.1 | 1/1/1/1/1 | 1.08/1.03/1.08 | 1.18 | ½ |
+| 2 | שכונה | אדון התולעים | 🪱 Worm Tunnel Ambush | Worm Tunnel Ambush (original, everywhere) | Grab (gentle) | shock (1.7s) | — | 0.1 | 2/2/2/2/1 | 1.15/1.06/1.15 | 1.18 | ★ |
+| 3 | שכונה | השף הבוער | 🍔 Sizzle Line | Sizzle Line (original, everywhere) | Straight | burn (1.42s) | — | 0.14 | 3/3/3/3/1 | 1.23/1.09/1.23 | 1.18 | ★½ |
+| 4 | שכונה | מלך הבוץ | 🍫 Choco Burst | Choco Burst (original, everywhere) | Ground | shock (1.82s) | — | 0.16 | 4/4/4/4/1 | 1.3/1.12/1.3 | 1.18 | ★★ |
+| 5 | שכונה | בונה החומות | 🍭 Ice Pop Wall | Ice Pop Wall (original, everywhere) | Ground | — | — | 0.18 | 5/5/5/5/1 | 1.38/1.15/1.38 | 1.18 | ★★½ |
+| 6 | שכונה | איל ההון | 🧊 Ice Ball | Ice Ball (HS copy, arcade) | Multi-Ball (gentle) | — | — | 0.1 | 6/6/6/6/2 | 1.45/1.17/1.45 | 1.35 | ★★★ |
+| 7 | שכונה | הקפצן | 🌀 Spring | — | Aerial | — | — | 0.22 | 7/7/7/7/2 | 1.53/1.2/1.53 | 1.35 | ★★★½ |
+| 8 | שכונה | האיש המגנטי | 🧲 Magnet | — | Straight | — | — | 0.24 | 8/8/8/8/2 | 1.6/1.23/1.6 | 1.35 | ★★★★ |
+| 9 | שכונה | גולש הגלים | 🌊 Red Wave | — | Up-and-Down | — | — | 0.26 | 9/9/9/9/2 | 1.68/1.25/1.68 | 1.35 | ★★★★½ |
+| 10 | ליגה | הענק | 🗿 Big Head | — | Downward | — | — | 0.28 | 10/10/10/10/3 | 1.75/1.28/1.75 | 1.53 | ★★★★★ |
+| 11 | ליגה | המכווץ | 🔻 Shrink | — | Ailment | beheaded (1.76s) | — | 0.3 | 10/10/10/10/3 | 1.75/1.28/1.75 | 1.53 | ★★★★★ |
+| 12 | ליגה | האסטרונאוט | 🌙 Moon Shot | — | Aerial | — | — | 0.33 | 10/10/10/10/3 | 1.75/1.28/1.75 | 1.53 | ★★★★★ |
+| 13 | ליגה | המטפס | 🚀 Rocket | — | Ground | — | — | 0.35 | 10/10/10/10/3 | 1.75/1.28/1.75 | 1.53 | ★★★★★ |
+| 14 | ליגה | נהג המרוצים | ⚡ Turbo | — | Straight | — | — | 0.37 | 10/10/10/10/3 | 1.75/1.28/1.75 | 1.53 | ★★★★★ |
+| 15 | ליגה | מרים המשקולות | 🏋️ Heavy Ball | — | Downward | shock (2.28s) | — | 0.39 | 10/10/10/10/3 | 1.75/1.28/1.75 | 1.53 | ★★★★★ |
+| 16 | ליגה | מקפיץ האבנים | 🪨 Skipping Stone | — | Ground | — | — | 0.41 | 10/10/10/10/3 | 1.75/1.28/1.75 | 1.53 | ★★★★★ |
+| 17 | ליגה | רוכב הסערה | 🌬️ Storm | — | Straight | — | push (88px) | 0.43 | 10/10/10/10/3 | 1.75/1.28/1.75 | 1.53 | ★★★★★ |
+| 18 | ליגה | הסטרייקר | ⚡ Strike | — | Destructive | stars (0.96s) | stun (88px) | 0.45 | 10/10/10/10/3 | 1.75/1.28/1.75 | 1.53 | ★★★★★ |
+| 19 | נבחרת | הג'וקר | 🔄 Dizzy | — | Ailment | reverse (4.1s) | reverse (105px) | 0.47 | 10/10/10/10/3 | 1.75/1.28/1.75 | 1.53 | ★★★★★ |
+| 20 | נבחרת | איש השלג | ❄️ Freeze | — | Ailment | freeze (3.47s) | freeze (105px) | 0.49 | 10/10/10/10/3 | 1.75/1.28/1.75 | 1.53 | ★★★★★ |
+| 21 | נבחרת | צייד המטאורים | ☄️ Meteor | — | Downward | burn (2.02s) | — | 0.51 | 10/10/10/10/3 | 1.75/1.28/1.75 | 1.53 | ★★★★★ |
+| 22 | נבחרת | הגנב | 🫳 Power Steal | — | Ailment | shock (3.58s) | — | 0.53 | 10/10/10/10/3 | 1.75/1.28/1.75 | 1.53 | ★★★★★ |
+| 23 | נבחרת | רעם האדמה | 🌋 Earthquake | — | Destructive | stars (1.04s) | push (105px) | 0.55 | 10/10/10/10/3 | 1.75/1.28/1.75 | 1.53 | ★★★★★ |
+| 24 | נבחרת | האקרובט | 🤸 Trampoline | — | Up-and-Down | — | — | 0.57 | 10/10/10/10/4 | 1.75/1.28/1.75 | 1.7 | ★★★★★ |
+| 25 | נבחרת | המטעה | ⏯️ Stop & Go | — | Delay | — | — | 0.59 | 10/10/10/10/4 | 1.75/1.28/1.75 | 1.7 | ★★★★★ |
+| 26 | נבחרת | המחליק | 🧊 Ice Floor | — | Ground | freeze (2.72s) | — | 0.61 | 10/10/10/10/4 | 1.75/1.28/1.75 | 1.7 | ★★★★★ |
+| 27 | נבחרת | שומר הפורטל | 🌀 Portal | — | Delay | — | — | 0.63 | 10/10/10/10/4 | 1.75/1.28/1.75 | 1.7 | ★★★★★ |
+| 28 | אלופים | זורק הבומרנג | 🪃 Boomerang | — | Aerial | — | — | 0.65 | 10/10/10/10/4 | 1.75/1.28/1.75 | 1.7 | ★★★★★ |
+| 29 | אלופים | הכורה | 🔩 Drill | — | Destructive | — | push (123px) | 0.67 | 10/10/10/10/4 | 1.75/1.28/1.75 | 1.7 | ★★★★★ |
+| 30 | אלופים | אדון המשיכה | 🥅 Goal Magnet | — | Downward | — | — | 0.69 | 10/10/10/10/4 | 1.75/1.28/1.75 | 1.7 | ★★★★★ |
+| 31 | אלופים | השואב | 🌪️ Vacuum | — | Grab | — | push (123px) | 0.71 | 10/10/10/10/4 | 1.75/1.28/1.75 | 1.7 | ★★★★★ |
+| 32 | אלופים | הרוזן האפל | 🧛 Vampire | — | Grab | burn (2.37s) | stun (123px) | 0.73 | 10/10/10/10/4 | 1.75/1.28/1.75 | 1.7 | ★★★★★ |
+| 33 | אלופים | רגל הזהב | 👟 Super Kick | — | Critical | — | push (123px) | 0.75 | 10/10/10/10/4 | 1.75/1.28/1.75 | 1.7 | ★★★★★ |
+| 34 | אלופים | אמן הצמר | 🧶 Wool Boots | — | Aerial | shock (3.04s) | — | 0.77 | 10/10/10/10/4 | 1.75/1.28/1.75 | 1.7 | ★★★★★ |
+| 35 | אלופים | הנווט | 🎯 Homing Missile | — | Critical | — | — | 0.8 | 10/10/10/10/4 | 1.75/1.28/1.75 | 1.7 | ★★★★★ |
+| 36 | אלופים | הופך העולמות | 🙃 Gravity Flip | — | Up-and-Down | reverse (3.77s) | reverse (123px) | 0.82 | 10/10/10/10/4 | 1.75/1.28/1.75 | 1.7 | ★★★★★ |
+| 37 | אגדות | אדון המראות | 🪞 Mirror | — | Critical | reverse (3.82s) | reverse (140px) | 0.84 | 10/10/10/10/4 | 1.75/1.28/1.75 | 1.7 | ★★★★★ |
+| 38 | אגדות | המשגר | 🛸 Blast Off | — | Critical | — | stun (140px) | 0.86 | 10/10/10/10/4 | 1.75/1.28/1.75 | 1.7 | ★★★★★ |
+| 39 | אגדות | מלך הכדרור | 🍯 Glue | — | Grab | — | push (140px) | 0.88 | 10/10/10/10/4 | 1.75/1.28/1.75 | 1.7 | ★★★★★ |
+| 40 | אגדות | רוח הרפאים | 👻 Ghost | — | Multi-Ball | — | stun (140px) | 0.9 | 10/10/10/10/4 | 1.75/1.28/1.75 | 1.7 | ★★★★★ |
+| 41 | אגדות | שומר הזמן | 🐢 Slow Motion | — | Delay | shock (3.34s) | freeze (140px) | 0.92 | 10/10/10/10/4 | 1.75/1.28/1.75 | 1.7 | ★★★★★ |
+| 42 | אגדות | התאום | 👥 Clone | — | Multi-Ball | — | push (140px) | 0.94 | 10/10/10/10/4 | 1.75/1.28/1.75 | 1.7 | ★★★★★ |
+| 43 | אגדות | המפצל | 🔱 Split Shot | — | Multi-Ball | — | stun (140px) | 0.96 | 10/10/10/10/4 | 1.75/1.28/1.75 | 1.7 | ★★★★★ |
+| 44 | אגדות | עין הסערה | 🌪 Cyclone | — | Up-and-Down | stars (1.38s) | push (140px) | 0.98 | 10/10/10/10/4 | 1.75/1.28/1.75 | 1.7 | ★★★★★ |
+| 45 | אגדות | אדון הזמן | ⏱️ Time Stop | — | Delay | freeze (3.5s) | freeze (140px) | 1 | 10/10/10/10/4 | 1.75/1.28/1.75 | 1.7 | ★★★★★ |
 
 ## Ailments and auras
 
@@ -83,9 +85,13 @@ How a power shot plays (docs/HS-POWER-SHOTS.md): fill the gauge, press POWER to 
 | burn (בוער) | cannot kick, 0.8× speed | 2s at intensity 0.5 (×0.6–1.4 with intensity) |
 | stars (כוכבים) | dazed, no control | 1s at intensity 0.5 (×0.6–1.4 with intensity) |
 | thrown (מושלך) | flung up out of the screen by a Grab, back down in a blue whirlwind, no control (only the Grab sets it) | 1.25s at intensity 0.5 (×0.6–1.4 with intensity) |
-| twister (סחרור) | undefined | 3s at intensity 0.5 (×0.6–1.4 with intensity) |
-| iced (קרח) | undefined | 2.5s at intensity 0.5 (×0.6–1.4 with intensity) |
+| twister (סחרור) | caught in Nigeria's tornado (the stage-3 HS copy, retired): flung up spinning, out cold | 3s at intensity 0.5 (×0.6–1.4 with intensity) |
+| iced (קרח) | frozen in Russia's ice block (stage 6, HS copy): no control, slides when pushed | 2.5s at intensity 0.5 (×0.6–1.4 with intensity) |
 | gem (אבן) | stuck in a crust of gem crystals where he stands, no control (only the Mythic Gem's shatter sets it) | 1.3s at intensity 0.5 (×0.6–1.4 with intensity) |
+| coiled (כרוך) | worms round the ankles (Worm Tunnel Ambush): half speed, no dash | 1.2s at intensity 0.5 (×0.6–1.4 with intensity) |
+| singed (חרוך) | stood on the Sizzle Line's grill: cannot kick | 1s at intensity 0.5 (×0.6–1.4 with intensity) |
+| sticky (דביק) | feet in the Choco Burst's chocolate: slow, half-height jumps, no dash | 0.35s at intensity 0.5 (×0.6–1.4 with intensity) |
+| brainfreeze (צמרמורת) | the Ice Pop Wall's hit: frozen stiff, then a shiver (slow, no jump, no dash) for its last 1.4s | 1s at intensity 0.5 (×0.6–1.4 with intensity) |
 
 | Aura | On the press, an opponent within the radius |
 |---|---|

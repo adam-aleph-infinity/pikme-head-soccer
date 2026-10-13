@@ -25,7 +25,7 @@ import { readFileSync } from 'node:fs';
 import * as C from './shared/constants.js';
 import { createMatch, step, headY, resetPositions, clearUltimate, serialize, restore } from './shared/sim.js';
 import { createBot, botInput } from './shared/bot.js';
-import { shotById, applyAilment, wave, FAMILY_ORDER } from './shared/hs-powers.js';
+import { shotById, applyAilment, wave, FAMILY_ORDER, ailMods } from './shared/hs-powers.js';
 import { CHAMPION_POWERS, BUILT_STAGES } from './shared/champion-powers.js';
 
 let pass = 0, fail = 0;
@@ -709,7 +709,9 @@ function atDefender(fam, o = {}, { kick = false, armed = false, gap = 560, atY =
   track(m, 0.4);
   ok('…grinding, the blocker pushed back a few px', m.ball.power && m.ball.power.ph === 'grind' && z.x * z.side < x0 * z.side + 1 && Math.abs(z.x - x0) < 25);
   track(m, 0.62);
-  ok('…then dead at his feet', m.ball.power && m.ball.power.ph === 'rest' && m.ball.y === C.GROUND_Y - C.BALL_R);
+  // (not dead at his feet any more — Idan 2026-10-13: it looked like a teleport — it floats up off
+  // the boot toward the spot in front of his head it fires from)
+  ok('…then rising off the boot toward his head, never on the grass', m.ball.power && m.ball.power.ph === 'rest' && m.ball.y < C.GROUND_Y - C.BALL_R - 2 && m.ball.y > headY(z) - 3 * C.HEAD_R);
   // (as the power it blocked — the shooter's, now his: Idan, 2026-09-30; tick by tick to the moment
   // it goes back out, since from his head height it is on the shooter fast)
   for (let i = 0; i < TICK_S(0.5) && !(m.ball.power && m.ball.power.owner === 1); i++) { step(m, NONE); m.events.length = 0; }
@@ -818,10 +820,12 @@ function atDefender(fam, o = {}, { kick = false, armed = false, gap = 560, atY =
   { const { m, p } = on('shock'); run(m, TICK_S(2) + 2);
     ok('an ailment ends on its clock', p.ail === '' && p.ailT === 0); }
   { const { m, p } = on('freeze'); ok('a shorter ailment does not replace a longer one', !applyAilment(m, p, 'reverse', 1) && p.ail === 'freeze'); }
-  // …and a shot's ailment lands on the player it hits: legendary 3's straight shot BURNS.
+  // …and a shot's ailment lands on the player it hits: a straight shot that BURNS (legendary 3's map
+  // family, before its own power — the Sizzle Line — took over).
   const m = fresh();
   const [a, z] = m.players;
-  ok('(legendary 3 fires a burning straight shot)', a.shot.family === 'straight' && a.shot.ailment === 'burn');
+  a.shot = shotById('straight', { ailment: 'burn' });
+  ok('(a burning straight shot)', a.shot.family === 'straight' && a.shot.ailment === 'burn');
   z.x = a.x + 300; m.gaugeLead = 0;
   arm(m, 0); m.ball.x = a.x; m.ball.y = headY(a); step(m, NONE);
   for (let i = 0; i < 120 && z.ail !== 'burn'; i++) { step(m, NONE); m.events.length = 0; }
@@ -1064,114 +1068,329 @@ const first = (log, type, f = () => true) => log.find((e) => e.type === type && 
   ok('champion-powers uses no Math.sin / cos / tan / random', !/Math\.(sin|cos|tan|random)\b/.test(src.replace(/\/\/.*$/gm, '')));
 }
 {
-  // POWER 1 — South Korea's Blue Aura Shot: the filmed comet, dead flat, a touch under 2150 px/s;
-  // standing in its way knocks you back toward your own goal, a kick blocks it.
-  for (const seat of [0, 1]) {
-    const r = fireCp(1, seat, { gap: 600, s: 0.2 });
-    const p = r.path.filter((q) => q.cp === 'blueaura');
-    const vx = (p[p.length - 1].x - p[0].x) / ((p.length - 1) * C.TICK);
-    ok(`KOREA (seat ${seat}): straight and flat at the filmed 2150 px/s`, p.length > 5 && Math.abs(Math.abs(vx) - 2150) < 40 && p.every((q) => Math.abs(q.y - p[0].y) < 0.5) && Math.sign(vx) === r.a.side, `${vx.toFixed(0)} px/s`);
-    const h = fireCp(1, seat);
-    const hit = first(h.log, 'powerHit');
-    ok(`KOREA (seat ${seat}): a standing defender is hit, pushed back toward his goal, dazed`, hit && hit.how === 'hit' && h.z.stunned >= 0 && h.path.some((q) => (q.zx - h.path[0].zx) * h.z.side < -5));
-    const k = fireCp(1, seat, { kick: true });
-    ok(`KOREA (seat ${seat}): a kick into it blocks it (the grind)`, !!first(k.log, 'blocked', (e) => e.player === 1 - seat));
+  // THE ORIGINAL POWERS FIRE EVERYWHERE (Idan, 2026-10-11): a legendary card 1–5 fires its own power
+  // in free play and online too, not only in the arcade — at one strength; a Head Soccer copy not
+  // yet replaced (stage 6) stays the arcade's.
+  for (const n of BUILT_STAGES) {
+    const d = CHAMPION_POWERS[n];
+    const free = createMatch({ rarity: 'legendary', number: n }, { rarity: 'epic', number: 1 }, {});
+    if (d.everywhere) ok(`power ${n} ${d.id}: fires everywhere (free play)`, free.players[0].shot.cp === d.id && free.players[0].shot.intensity === 0.5);
+    else ok(`power ${n} ${d.id}: a Head Soccer copy, the arcade's only`, !free.players[0].shot.cp);
   }
 }
-
 {
-  // POWER 2 — Cameroon's Thunderbolt Shot: straight, a touch quicker than Korea's; a hit leaves the
-  // shock (half speed, no jump) for 1.8 s; a kick still blocks it.
-  for (const seat of [0, 1]) {
-    const r = fireCp(2, seat, { gap: 600, s: 0.2 });
-    const p = r.path.filter((q) => q.cp === 'thunderbolt');
-    const vx = (p[p.length - 1].x - p[0].x) / ((p.length - 1) * C.TICK);
-    ok(`CAMEROON (seat ${seat}): straight and flat at Korea's 2150 px/s`, p.length > 5 && Math.abs(Math.abs(vx) - 2150) < 40 && p.every((q) => Math.abs(q.y - p[0].y) < 0.5), `${vx.toFixed(0)} px/s`);
-    const h = fireCp(2, seat, { s: 0.3 });
-    ok(`CAMEROON (seat ${seat}): a hit shocks the defender for 1.8 s`, first(h.log, 'powerHit') && first(h.log, 'ailment', (e) => e.ail === 'shock' && Math.abs(e.time - 1.8) < 1e-9) && h.z.ail === 'shock');
-    const k = fireCp(2, seat, { kick: true });
-    ok(`CAMEROON (seat ${seat}): a kick into it blocks it, and the blocker is not shocked`, !!first(k.log, 'blocked', (e) => e.player === 1 - seat) && !first(k.log, 'ailment', (e) => e.ail === 'shock' && e.player === 1 - seat));
-  }
-}
-
-{
-  // POWER 3 — Nigeria's Tornado Shot: down onto the grass and along it, the ball hopping quickly in
-  // the funnel; it catches a jumper too; caught, you are thrown up spinning and out for 3 s; a kick
-  // blocks it.
-  for (const seat of [0, 1]) {
-    const r = fireCp(3, seat, { gap: 700, s: 0.5 });
-    const roll = r.path.filter((q) => q.cp === 'tornado' && q.ph === 'roll');
-    const ys = roll.map((q) => q.y);
-    ok(`NIGERIA (seat ${seat}): runs along the grass, bouncing up and down quickly`, roll.length > 8 && Math.max(...ys) > C.GROUND_Y - C.BALL_R - 2 && Math.min(...ys) < C.GROUND_Y - C.BALL_R - 6 && Math.min(...ys) > C.GROUND_Y - C.BALL_R - 14 &&
-       (roll[roll.length - 1].x - roll[0].x) * r.a.side > 150, `${roll.length} ticks, hop ${(Math.max(...ys) - Math.min(...ys)).toFixed(1)}px`);
-    const h = fireCp(3, seat, { s: 1.0 });
-    const tw = first(h.log, 'powerHit', (e) => e.how === 'twister');
-    ok(`NIGERIA (seat ${seat}): caught, he is thrown up spinning and out for 3 s, the ball drops loose`, tw && first(h.log, 'stunned', (e) => e.player === 1 - seat && e.time === 3) &&
-       Math.min(...h.path.map((q) => q.zy)) < C.GROUND_Y - 120 && !h.m.ball.power);
-    const j = fireCp(3, seat, { jump: true, s: 1.0 });
-    ok(`NIGERIA (seat ${seat}): jumping over it is no escape — the funnel catches him in the air`, !!first(j.log, 'powerHit', (e) => e.how === 'twister'));
-    const k = fireCp(3, seat, { kick: true });
-    ok(`NIGERIA (seat ${seat}): a kick into it blocks it`, !!first(k.log, 'blocked', (e) => e.player === 1 - seat) && !first(k.log, 'powerHit', (e) => e.how === 'twister' && e.player === 1 - seat));
-    ok(`NIGERIA (seat ${seat}): …and fires the Tornado back as the blocker's — it catches Nigeria`, !!first(k.log, 'powershot', (e) => e.rebound && e.cp === 'tornado' && e.player === 1 - seat));
-  }
-}
-
-{
-  // POWER 4 — USA's Illusion Shot: slightly downward and bouncing; invisible for a while, and then it
-  // goes through the defender — only a counter stops it; visible, a kick blocks it.
-  for (const seat of [0, 1]) {
-    const r = fireCp(4, seat, { gap: 700, s: 0.7 });
-    const p = r.path.filter((q) => q.cp === 'illusion');
-    ok(`USA (seat ${seat}): slightly downward, then it bounces off the grass`, p.length > 10 && p[3].vy > 0 && Math.abs(p[3].vy / p[3].vx) < 0.2 && !!first(r.log, 'illusionBounce'));
-    // (it reaches the far goal in ≈ 0.4 s, so: invisible from ≈ 0.12 s on, for as long as it flies)
-    const i0 = p.findIndex((q) => q.inv);
-    ok(`USA (seat ${seat}): invisible from ≈ 0.12 s, after the fakes, for the rest of the flight`, i0 > 0 && Math.abs(i0 * C.TICK - 0.12) < 0.04 && p.slice(i0).every((q, i) => q.inv || (i0 + i) * C.TICK > 0.66), `from ${(i0 * C.TICK).toFixed(2)} s`);
-    const t = fireCp(4, seat, { gap: 420, s: 1.2 });
-    ok(`USA (seat ${seat}): invisible, it goes straight through the defender into the goal`, !!first(t.log, 'powerHit', (e) => e.how === 'pass') && t.z.stunned <= 0 && !!first(t.log, 'goal', (e) => e.player === seat));
-    const k = fireCp(4, seat, { gap: 420, kick: true, s: 1.2 });
-    ok(`USA (seat ${seat}): …even through a kick`, !first(k.log, 'blocked'));
-    const c = fireCp(4, seat, { gap: 180, kick: true, preKick: 0.1 });
-    ok(`USA (seat ${seat}): visible (released close), a kick still blocks it`, !!first(c.log, 'blocked', (e) => e.player === 1 - seat));
-  }
-}
-
-{
-  // POWER 5 — Japan's Ninja Shot: up over the head, hidden among five; its turn in the volley
-  // (middle, very low, highest, a little lower, middle — one every 0.13 s), then a straight line down
-  // to that height at the goal line. A kick blocks it, but knocks the blocker out.
-  const { NINJA, NINJA_HEIGHTS, ninjaTarget } = await import('./shared/champion-powers/stage-05.js');
-  ok('NINJA: the guide\'s order of heights', NINJA_HEIGHTS[0] === NINJA_HEIGHTS[4] && NINJA_HEIGHTS[1] < 0.2 && NINJA_HEIGHTS[2] === Math.max(...NINJA_HEIGHTS) && NINJA_HEIGHTS[3] < NINJA_HEIGHTS[2] && NINJA_HEIGHTS[3] > NINJA_HEIGHTS[0]);
-  const slots = new Set();
-  for (const seat of [0, 1]) {
-    const r = fireCp(5, seat, { gap: 700, s: 1.0 });
-    const pw = r.pw0;
-    slots.add(pw.slot);
-    ok(`JAPAN (seat ${seat}): the ball goes up over his head and waits, untouchable`, pw.ph === 'nwait' && pw.y0 < headY(r.a) - 100);
-    const waited = r.path.filter((q) => q.ph === 'nwait').length * C.TICK;
-    ok(`JAPAN (seat ${seat}): …for its turn in the volley`, Math.abs(waited - pw.slot * NINJA.GAP) < 0.04, `slot ${pw.slot}, ${waited.toFixed(2)} s`);
-    const fly = r.path.filter((q) => q.cp === 'ninja' && q.ph === 'fly');
-    const T = ninjaTarget(pw, pw.slot);
-    ok(`JAPAN (seat ${seat}): then a straight line down toward its height at the goal line`, fly.length > 3 && fly[1].vy > 0 && fly[1].vx * r.a.side > 0 &&
-       Math.abs(fly[2].vy / fly[2].vx - (T.y - pw.y0) / (T.x - pw.x0)) < 0.01);
-    const k = fireCp(5, seat, { gap: 300, kick: true, s: 1.5 });
-    const blk = first(k.log, 'blocked', (e) => e.player === 1 - seat);
-    ok(`JAPAN (seat ${seat}): a kick blocks it — and the blocker is knocked out for it`, !blk || !!first(k.log, 'stunned', (e) => e.player === 1 - seat && e.time === NINJA.KO));
-  }
-  // (at least once, the streak is low enough for the blocker: set a slot by hand)
-  {
-    const r = fireCp(5, 0, { gap: 10, s: 0 });
-    r.m.ball.power.slot = 1;                                    // the very low one
-    const z = r.z; z.x = ninjaTarget(r.m.ball.power, 1).x - 90;
-    let blk = null, pressed = false;
-    for (let i = 0; i < 90 && !blk; i++) {
-      const b = r.m.ball, inp = [{}, {}];
-      if (!pressed && b.power && b.power.ph === 'fly' && Math.abs(b.x - z.x) < Math.max(40, Math.abs(b.vx) * kickLead(b))) { pressed = true; inp[1] = { kick: true }; }
-      step(r.m, inp);
-      blk = r.m.events.find((e) => e.type === 'blocked');
-      if (blk) ok('JAPAN: the low streak kicked is blocked, and the blocker knocked out 1.2 s', z.stunned > 1.0 && z.ail === 'stars');
-      r.m.events.length = 0;
+  // POWER 1 — BROADSIDE (the Cannoneer, Idan 2026-10-12): the touch loads the ball down the barrel and
+  // the cannon fires three times, GAP s apart from the release — two shells (never a goal: a kick on
+  // the swing up parries one, anything else is the power hit, the arm kept) and then the ball itself,
+  // a straight power shot (counter, kick-block — fired back as ONE shot — or the heavy thud on a
+  // body). Planted and tackle-proof while loaded; full time and the golden goal clean it all up.
+  const { BROADSIDE } = await import('./shared/champion-powers/stage-01.js');
+  const { SHELL } = await import('./shared/power-zones.js');
+  const { powerHolds } = await import('./shared/hs-powers.js');
+  // seat fires at a defender `gap` px in front (negative: behind him); `foe(m, i, z)` / `me(m, i, a)`
+  // give their inputs tick by tick after the cut-in. Returns the log with tick numbers from the release.
+  const barrage = (seat, { gap = 400, s = 4.5, foe = null, me = null, armFoe = false, setup = null } = {}) => {
+    const cards = []; cards[seat] = { rarity: 'legendary', number: 1 }; cards[1 - seat] = { rarity: 'epic', number: 1 };
+    const m = createMatch(cards[0], cards[1], { duration: 600 });
+    m.freeze = 0; m.phase = 'play'; m.gaugeLead = 0; m.banner = null; m.bannerT = 0; m.ballWait = 0;
+    const a = m.players[seat], z = m.players[1 - seat];
+    const X = (x) => (seat === 0 ? x : C.W - x);
+    a.x = X(300); z.x = X(300 + gap);
+    if (armFoe) { z.armed = 1; }
+    if (setup) setup(m, a, z);
+    arm(m, seat);
+    m.ball.x = a.x; m.ball.y = headY(a); m.ball.vx = 0; m.ball.vy = 0;
+    step(m, NONE);
+    const log = m.events.map((e) => ({ ...e, i: -1 })); m.events.length = 0;
+    while (m.hitStop > 0) { step(m, NONE); log.push(...m.events.map((e) => ({ ...e, i: -1 }))); m.events.length = 0; }
+    const trace = [];
+    for (let i = 0; i < TICK_S(s) && m.phase === 'play'; i++) {
+      const inp = [{}, {}];
+      if (foe) inp[1 - seat] = foe(m, i, z) || {};
+      if (me) inp[seat] = me(m, i, a) || {};
+      step(m, inp);
+      trace.push({ i, ax: a.x, ay: a.y, zx: z.x, zst: z.stunned, ph: m.ball.power ? m.ball.power.ph : null, bx: m.ball.x, vx: m.ball.vx, vy: m.ball.vy, score: m.score[seat], held: powerHolds(m, a) });
+      log.push(...m.events.map((e) => ({ ...e, i }))); m.events.length = 0;
     }
-    ok('JAPAN: the low streak can be blocked at all', !!blk);
+    return { m, a, z, log, trace, X };
+  };
+  const all = (log, type, f = () => true) => log.filter((e) => e.type === type && f(e));
+  // a defender who walks back out to his spot (720 px from the shooter's end) whenever a shell has
+  // thrown him into his net — what anybody does — and otherwise stands
+  const walkBack = (spot = 720) => (m, i, z) => { const x = z.side < 0 ? z.x : C.W - z.x; return x > spot + 4 ? { [z.side < 0 ? 'left' : 'right']: true } : {}; };
+  // a kick timed to meet whatever of his is coming: a shell, or the ball once it flies
+  const parry = (m, i, z) => {
+    const sh = m.zones.find((q) => q.k === 'shell' && q.own !== z.index);
+    const bp = m.ball.power, tx = sh ? sh.x0 : bp && bp.ph === 'fly' && bp.owner !== z.index ? m.ball.x : null;
+    const d = tx == null ? 9e9 : Math.abs(tx - z.x);
+    return { kick: d < 380 && d > 340 && !(z.kickT > 0) };
+  };
+  for (const seat of [0, 1]) {
+    const tag = `BROADSIDE (seat ${seat})`;
+    // nobody in the way (the defender behind him): the timeline, the shells, the ball
+    const r = barrage(seat, { gap: -200, s: 4 });
+    const fires = all(r.log, 'cannonFire');
+    const gap = TICK_S(BROADSIDE.GAP);
+    ok(`${tag}: three shots — the release, +${BROADSIDE.GAP} s, +${2 * BROADSIDE.GAP} s; shells then the ball`,
+      fires.length === 3 && fires[0].i === 0 && Math.abs(fires[1].i - gap) <= 1 && Math.abs(fires[2].i - 2 * gap) <= 1 && !fires[0].real && !fires[1].real && fires[2].real,
+      fires.map((e) => `${e.n}@${e.i}`).join(' '));
+    const bursts = all(r.log, 'shellBurst'), goals = all(r.log, 'goal');
+    ok(`${tag}: the shells burst on the goal line and never score — the ball does`,
+      bursts.length === 2 && goals.length === 1 && goals[0].i > fires[2].i && goals[0].player === seat, `${bursts.length} bursts, goals at ${goals.map((g) => g.i)}`);
+    const fly = r.trace.filter((q) => q.ph === 'fly');
+    ok(`${tag}: the ball leaves dead flat at the comet's pace`, fly.length > 3 && fly.every((q) => Math.abs(q.vy) < 1) && Math.abs(fly[1].vx - r.a.side * C.POWER_SHOT_SPEED * BROADSIDE.SPEED) < 20, fly[1] && `${fly[1].vx.toFixed(0)}`);
+    ok(`${tag}: loaded, nobody touches the ball (it sits in the barrel)`, r.trace.filter((q) => q.ph === 'load').every((q, k, a) => k === 0 || q.bx === a[k - 1].bx));
+
+    // planted: his own buttons do nothing while loaded, and a tackle cannot reach him
+    const pl = barrage(seat, { gap: 60, s: 2.8, me: (m, i) => ({ right: true, left: i % 40 < 20, jump: i % 30 === 0, kick: i % 20 === 0 }), foe: (m, i) => ({ kick: i % 18 === 0, [seat === 0 ? 'left' : 'right']: i % 60 < 10 }) });
+    const held = pl.trace.filter((q) => q.held);
+    ok(`${tag}: planted while loaded — his buttons do nothing, a tackle does not touch him`,
+      held.length > 100 && held.every((q) => q.ax === held[0].ax && q.ay === held[0].ay) && !all(pl.log, 'tackle', (e) => e.on === seat).length && !(pl.a.stunned > 0),
+      `${held.length} held ticks, x ${held[0] && held[0].ax.toFixed(1)} → ${held.at(-1) && held.at(-1).ax.toFixed(1)}`);
+
+    // a shell hit is the power hit — thrown toward his goal, his face marked, his arm kept — dazed DAZE s
+    const h = barrage(seat, { gap: 400, s: 0.6, armFoe: true });
+    const hit = all(h.log, 'powerHit', (e) => e.how === 'shell' && e.player === 1 - seat)[0];
+    const st = h.trace.find((q) => q.i === (hit && hit.i));
+    ok(`${tag}: a shell hits a defender in its line — thrown, dazed, marked, still armed`,
+      !!hit && st && Math.abs(st.zst - BROADSIDE.DAZE) < 0.05 && h.z.hurt >= 1 && h.z.armed > 0 && (h.X(h.z.x) - 700) > 100,
+      hit ? `daze ${st && st.zst.toFixed(2)}, thrown ${(h.X(h.z.x) - 700).toFixed(0)} px` : 'no hit');
+    // …and still armed, he counters the ball when it comes (the shells cannot be countered)
+    const c = barrage(seat, { gap: 420, s: 4.6, armFoe: true, foe: walkBack() });
+    ok(`${tag}: an armed defender hit by the shells still counters the ball`,
+      all(c.log, 'powerHit', (e) => e.how === 'shell').length >= 1 && !!first(c.log, 'powershot', (e) => e.player === 1 - seat && e.countered),
+      `shell hits ${all(c.log, 'powerHit', (e) => e.how === 'shell').length}`);
+
+    // a kick on the swing up parries a shell: it bursts, he is nudged back, no daze
+    const p = barrage(seat, { gap: 450, s: 5.6, foe: parry });
+    const parries = all(p.log, 'shellParry', (e) => e.player === 1 - seat);
+    ok(`${tag}: a timed kick parries each shell — no hit, no daze`, parries.length === 2 && !all(p.log, 'powerHit', (e) => e.how === 'shell' && e.player === 1 - seat).length && p.trace.every((q) => q.i >= (all(p.log, 'blocked')[0]?.i ?? 9e9) || !(q.zst > 0)),
+      `${parries.length} parries`);
+    // …and the same kick blocks the ball: the grind, then the blocker fires THE WHOLE BARRAGE back
+    // (Idan 2026-10-13) — two shells of his own, then the ball, held where he stands while it plays
+    const fb = barrage(seat, { gap: 450, s: 7, foe: parry });
+    const blk = first(fb.log, 'blocked', (e) => e.player === 1 - seat && e.cp === 'broadside');
+    const back = first(fb.log, 'powershot', (e) => e.player === 1 - seat && e.rebound);
+    const his = all(fb.log, 'cannonFire', (e) => e.player === 1 - seat);
+    ok(`${tag}: the ball is kick-blocked, and the blocker fires the whole barrage back`,
+      !!blk && !!back && his.length === 3 && his.map((e) => e.n).join() === '1,2,3' && his[2].real &&
+      all(fb.log, 'zone', (e) => e.own === 1 - seat && e.k === 'shell').length === 2 &&
+      Math.abs(his[1].i - his[0].i - TICK_S(BROADSIDE.GAP)) <= 6, his.map((e) => `${e.n}@${e.i}`).join(' '));
+
+    // the ball on a body: the power hit, and the cannonball thuds down and rolls on (not back)
+    const t = barrage(seat, { gap: 420, s: 4.6, foe: walkBack() });
+    const bh = first(t.log, 'powerHit', (e) => e.how === 'cannon' && e.player === 1 - seat);
+    const after = bh && t.trace.find((q) => q.i === bh.i + 2);
+    ok(`${tag}: the ball on a body is the hit, and it thuds down rolling on (not back)`, !!bh && after && after.vx * r.a.side > 0 && after.vx * r.a.side <= BROADSIDE.THUD_VX + 5, after && `vx ${after.vx.toFixed(0)}`);
+  }
+  {
+    // FULL TIME under the barrage: the whistle ends it — no shells left, nobody held
+    const ft = barrage(0, { gap: -200, s: 2, setup: (m) => { m.clock = 1.9; m.score = [1, 0]; } });
+    ok('BROADSIDE: full time mid-barrage clears the shells and the load', ft.m.phase === 'over' && !ft.m.zones.length && !powerHolds(ft.m, ft.a));
+    // the GOLDEN GOAL's restart under it: the ball back on the spot, no shells, nobody held
+    const gg = barrage(0, { gap: -200, s: 2.2, setup: (m) => { m.clock = 1.9; m.score = [1, 1]; } });
+    ok('BROADSIDE: the golden-goal restart mid-barrage clears it too', gg.m.golden && !gg.m.zones.length && !gg.m.ball.power && !powerHolds(gg.m, gg.a));
+    // ROLLBACK: restored mid-barrage (a shell in the air, the ball in the barrel), the same future
+    const A = barrage(0, { gap: -200, s: BROADSIDE.GAP + 0.05 });
+    ok('BROADSIDE: mid-barrage there is a shell in flight and the ball is loaded', A.m.zones.some((z) => z.k === 'shell') && A.m.ball.power && A.m.ball.power.ph === 'load', `${A.m.zones.length} zones`);
+    const B = createMatch({ rarity: 'legendary', number: 1 }, { rarity: 'epic', number: 1 }, { duration: 600 });
+    restore(B, serialize(A.m));
+    for (let i = 0; i < TICK_S(3.5); i++) { step(A.m, NONE); step(B, NONE); }
+    A.m.events.length = 0; B.events.length = 0;
+    ok('BROADSIDE: restored mid-barrage, it plays out the same', JSON.stringify(serialize(A.m)) === JSON.stringify(serialize(B)));
+    // A COUNTER BY THE CANNONEER is his own shot: the barrage, from his barrel
+    const m = createMatch({ rarity: 'common', number: 0 }, { rarity: 'legendary', number: 1 }, { duration: 600 });
+    m.freeze = 0; m.phase = 'play'; m.gaugeLead = 0; m.banner = null; m.bannerT = 0; m.ballWait = 0;
+    m.players[0].x = 300; m.players[1].x = 700;
+    arm(m, 0); arm(m, 1);
+    m.ball.x = 300; m.ball.y = headY(m.players[0]); step(m, NONE);
+    let loaded = false;
+    for (let i = 0; i < TICK_S(3); i++) { step(m, NONE); if (m.ball.power && m.ball.power.owner === 1 && m.ball.power.ph === 'load') loaded = true; }
+    ok('BROADSIDE: countered by the Cannoneer, his own barrage loads', loaded);
+    ok(`BROADSIDE: a parried shell nudges the kicker back (${SHELL.PARRY_V} px/s), no daze`, SHELL.PARRY_V > 0 && SHELL.PARRY_T > 0);
+  }
+}
+{
+  // POWER 2 — WORM TUNNEL AMBUSH (Lord of the Worms, Idan 2026-10-13): the worm dives with the ball,
+  // tunnels under the pitch, holds under a ring, and spits it in a lob at the goal. Underground
+  // nobody touches it; the lob is a straight power shot with its own answers (the stomp, the early
+  // header, the swing block, the crown) and a hit coils.
+  const { WORM, emergeX } = await import('./shared/champion-powers/stage-02.js');
+  const { powerHolds } = await import('./shared/hs-powers.js');
+  // seat fires from X(300); `place(m, z, pw)` puts the defender (after the touch); `inp(m, z, pw)`
+  // his input each tick; `setup(m)` before the touch
+  function worm(seat, { place = null, inp = null, s = 3.2, setup = null, cardB = { rarity: 'epic', number: 1 } } = {}) {
+    const cards = []; cards[seat] = { rarity: 'legendary', number: 2 }; cards[1 - seat] = cardB;
+    const m = createMatch(cards[0], cards[1], { champions: true, duration: 600 });
+    m.freeze = 0; m.phase = 'play'; m.gaugeLead = 0; m.banner = null; m.bannerT = 0;
+    const a = m.players[seat], z = m.players[1 - seat];
+    a.x = seat === 0 ? 300 : C.W - 300; z.x = seat === 0 ? 120 : C.W - 120;
+    if (setup) setup(m, a, z);
+    arm(m, seat);
+    m.ball.x = a.x; m.ball.y = headY(a); m.ball.vx = 0; m.ball.vy = 0;
+    step(m, NONE);
+    const pw0 = m.ball.power ? { ...m.ball.power } : null;
+    if (place && pw0) place(m, z, pw0);
+    const log = [...m.events]; m.events.length = 0;
+    const trace = [];
+    for (let i = 0; i < TICK_S(1.5 + s) && m.phase === 'play'; i++) {
+      const b = m.ball, pw = b.power, ins = [{}, {}];
+      if (inp) ins[1 - seat] = inp(m, z, pw) || {};
+      step(m, ins);
+      trace.push({ i, x: b.x, y: b.y, vx: b.vx, vy: b.vy, ph: b.power ? b.power.ph : null, own: b.power ? b.power.owner : -1, hold: m.hitStop > 0, zst: z.stunned, zail: z.ail });
+      log.push(...m.events.map((e) => ({ ...e, i }))); m.events.length = 0;
+    }
+    return { m, a, z, pw0, log, trace, gx: seat === 0 ? C.W - C.GOAL_W : C.GOAL_W };
+  }
+  const span = (tr, ph) => tr.filter((q) => q.ph === ph && !q.hold).length * C.TICK;
+  for (const seat of [0, 1]) {
+    const tag = `WORM TUNNEL (seat ${seat})`;
+    const r = worm(seat);
+    const order = [...new Set(r.trace.filter((q) => q.ph && !q.hold).map((q) => q.ph))];
+    ok(`${tag}: dive, tunnel, ring, lob — in that order`, order.slice(0, 4).join(',') === 'wdive,tunnel,warn,fly', order.join(','));
+    ok(`${tag}: the tunnel lasts TUNNEL s and the ring WARN s`, Math.abs(span(r.trace, 'tunnel') - WORM.TUNNEL) < 2.5 * C.TICK && Math.abs(span(r.trace, 'warn') - WORM.WARN) < 2.5 * C.TICK, `${span(r.trace, 'tunnel').toFixed(2)} / ${span(r.trace, 'warn').toFixed(2)}`);
+    const D = (r.gx - r.pw0.ex) * r.a.side;
+    ok(`${tag}: comes up ${WORM.MIN_LINE}–${WORM.FAR} px out from the goal line`, D >= WORM.MIN_LINE - 0.5 && D <= WORM.FAR + 0.5, `${D.toFixed(0)} px`);
+    ok(`${tag}: underground the ball lies on the grass line, unseen`, r.trace.filter((q) => q.ph === 'tunnel').every((q) => Math.abs(q.y - (C.GROUND_Y - C.BALL_R)) < 0.01));
+    const w = first(r.log, 'wormWarn'), bu = first(r.log, 'wormBurst');
+    ok(`${tag}: the ring is up ≥ 0.4 s before the ball comes out`, !!w && !!bu && (bu.i - w.i) * C.TICK >= 0.4 - 1e-9, w && bu && `${((bu.i - w.i) * C.TICK).toFixed(2)} s`);
+    ok(`${tag}: a burrow on the pitch, gone after`, !!first(r.log, 'zone', (e) => e.k === 'burrow'));
+    ok(`${tag}: unopposed, the lob scores`, r.m.score[seat] === 1, `${r.m.score}`);
+    // standing on the tunnel's way: nothing touches him while it is under him
+    const u = worm(seat, { place: (m, z, pw) => { z.x = (pw.dx + pw.ex) / 2; } });
+    const under = u.trace.filter((q) => ['wdive', 'tunnel', 'warn'].includes(q.ph));
+    ok(`${tag}: underground it touches nobody`, under.length > 60 && under.every((q) => !(q.zst > 0)) && !u.log.some((e) => (e.type === 'powerHit' || e.type === 'blocked') && e.i <= under[under.length - 1].i));
+    // ONLY STANDING on the ring is no answer: the burst throws him aside (no daze) and the lob goes on
+    const sd = worm(seat, { place: (m, z, pw) => { z.x = pw.ex; } });
+    const sv = first(sd.log, 'wormShove');
+    ok(`${tag}: standing on the ring, the burst shoves him aside (no daze) and the lob flies on`, !!sv && !first(sd.log, 'wormSmother') && !sd.trace.some((q) => q.zst > 0) && sd.trace.some((q) => q.i > sv.i && q.ph === 'fly'));
+    // THE STOMP: KICK on the ring just before it bursts — smothered, the ball loose, he is not hit
+    let stomped = false;
+    const sm = worm(seat, { place: (m, z, pw) => { z.x = pw.ex; }, inp: (m, z, pw) => (!stomped && pw && pw.ph === 'warn' && pw.k >= WORM.WARN - 0.1 ? (stomped = true, { kick: true }) : {}) });
+    ok(`${tag}: a stomp on the ring as it bursts smothers it (no hit, no shot)`, !!first(sm.log, 'wormSmother') && !first(sm.log, 'powerHit') && !sm.z.hurt && sm.m.score[seat] === 0);
+    // …too early, and it is only standing there
+    let early = false;
+    const se = worm(seat, { place: (m, z, pw) => { z.x = pw.ex; }, inp: (m, z, pw) => (!early && pw && pw.ph === 'warn' && pw.k >= 0.05 ? (early = true, { kick: true }) : {}) });
+    ok(`${tag}: a stomp too early does not smother it`, !first(se.log, 'wormSmother') && !!first(se.log, 'wormShove'));
+    // THE CROWN: in its way near the goal, not kicking — the hit, coiled; the ball pops on over him
+    const cr = worm(seat, { place: (m, z) => { z.x = r.gx - r.a.side * 45; } });
+    const ch = first(cr.log, 'powerHit', (e) => e.player === 1 - seat);
+    ok(`${tag}: met on the crown it is the power hit, and he is coiled`, !!ch && ch.how === 'crown' && !!first(cr.log, 'ailment', (e) => e.ail === 'coiled'), ch && ch.how);
+    const after = ch && cr.trace.find((q) => q.i === ch.i);
+    ok(`${tag}: …and the ball pops on over him (not back)`, !!after && after.vx * r.a.side > 0 && after.vy < 0, after && `vx ${after.vx.toFixed(0)} vy ${after.vy.toFixed(0)}`);
+    // THE SWING BLOCK: a kick on its swing up as it drops onto him — the block, and the WHOLE TUNNEL
+    // comes back from him (no cut-in, his worm takes the ball first)
+    let pressed = false;
+    const kb = worm(seat, { s: 7, place: (m, z) => { z.x = r.gx - r.a.side * 45; }, inp: (m, z, pw) => {
+      const b = m.ball;
+      if (pressed || !pw || pw.ph !== 'fly' || pw.owner !== 1 - z.index) return {};
+      if ((z.x - b.x) / b.vx < 0.16) { pressed = true; return { kick: true }; }
+      return {};
+    } });
+    ok(`${tag}: a kick into it as it drops blocks it`, !!first(kb.log, 'blocked', (e) => e.player === 1 - seat && e.cp === 'wormtunnel'));
+    const back = kb.trace.filter((q) => q.own === 1 - seat).map((q) => q.ph);
+    // (to the lob — or to her smother, when she happens to stand on its ring: seat 1 does)
+    const bk = first(kb.log, 'wormBurst', (e) => e.player === 1 - seat);
+    ok(`${tag}: …and the blocker sends the whole tunnel back (grab, dive, tunnel, ring, burst)`, ['wgrab', 'wdive', 'tunnel', 'warn'].every((ph) => back.includes(ph)) && !!bk && (back.includes('fly') || !!first(kb.log, 'wormSmother', (e) => e.player === seat)), [...new Set(back)].join(','));
+    // THE COUNTER: armed, any touch of the lob fires his own power back
+    const co = worm(seat, { place: (m, z) => { z.x = r.gx - r.a.side * 45; z.gauge = 1; z.prev = {}; z.armed = 9; } });
+    ok(`${tag}: an armed defender counters the lob`, !!first(co.log, 'powershot', (e) => e.player === 1 - seat && e.countered));
+    // THE EARLY HEADER: in the air at it just off the ring (past the smother) — it comes off his head, no daze
+    const eh = worm(seat, { place: () => {}, inp: (m, z, pw) => {
+      const b = m.ball;
+      if (pw && pw.ph === 'fly' && pw.t > 0.17 && pw.t < 0.19 && !(z.hold)) {
+        z.hold = 1; z.x = b.x + r.a.side * (C.HEAD_R + 6); z.y = b.y + C.BODY_H + C.HEAD_R * 0.6; z.vy = 0; z.vx = 0; z.onGround = false;
+      }
+      return {};
+    } });
+    ok(`${tag}: headed right off the ring it deflects (no daze)`, !!first(eh.log, 'blocked', (e) => e.how === 'header') && !first(eh.log, 'powerHit'));
+  }
+  // where it comes up: by the dive point, never nearer than MIN_LINE; already that near, where it went down
+  ok('WORM TUNNEL: the ring is always MIN_LINE+ out, or where it went down', (() => {
+    for (let x = 100; x < C.W - 100; x += 7) for (const dir of [1, -1]) {
+      const gx = dir > 0 ? C.W - C.GOAL_W : C.GOAL_W, D = (gx - x) * dir, E = (gx - emergeX(x, dir)) * dir;
+      if (D > 0 && !(E >= Math.min(D, WORM.MIN_LINE) - 1e-9 && E <= Math.max(D, WORM.FAR) + 1e-9 && E <= D + 1e-9)) return false;
+    }
+    return true;
+  })());
+  {
+    // FULL TIME under the tunnel: the whistle ends it — no burrow left, nobody held (the match is
+    // over: the ball stops where it is, as every power's does, and her form is off — champ-vfx)
+    const ft = worm(0, { s: 2, setup: (m) => { m.clock = 0.9; m.score = [1, 0]; } });
+    ok('WORM TUNNEL: full time mid-tunnel clears the burrow', ft.m.phase === 'over' && !ft.m.zones.length && !powerHolds(ft.m, ft.a));
+    const gg = worm(0, { s: 2, setup: (m) => { m.clock = 0.9; m.score = [1, 1]; } });
+    ok('WORM TUNNEL: the golden-goal restart mid-tunnel clears it too', gg.m.golden && !gg.m.zones.length && !gg.m.ball.power);
+    // ROLLBACK: restored mid-tunnel, the same future
+    const A = worm(0, { s: 0.5 });
+    ok('WORM TUNNEL: mid-tunnel the ball is under the pitch with its burrow', A.m.ball.power && A.m.ball.power.ph === 'tunnel' && A.m.zones.some((z) => z.k === 'burrow'), A.m.ball.power && A.m.ball.power.ph);
+    const B = createMatch({ rarity: 'legendary', number: 2 }, { rarity: 'epic', number: 1 }, { champions: true, duration: 600 });
+    restore(B, serialize(A.m));
+    for (let i = 0; i < TICK_S(2.5); i++) { step(A.m, NONE); step(B, NONE); }
+    A.m.events.length = 0; B.events.length = 0;
+    ok('WORM TUNNEL: restored mid-tunnel, it plays out the same', JSON.stringify(serialize(A.m)) === JSON.stringify(serialize(B)));
+  }
+  ok('coiled: half speed, no dash', (() => { const md = ailMods({ ail: 'coiled', ailT: 1 }); return md.speed === 0.5 && md.noDash; })());
+}
+{
+  // POWER 3 — SIZZLE LINE (the Burning Chef): it dives to knee height and flies flat, searing a grill
+  // strip into the grass behind it; a defender standing on the strip is singed (no kick).
+  const { SIZZLE } = await import('./shared/champion-powers/stage-03.js');
+  for (const seat of [0, 1]) {
+    const r = fireCp(3, seat, { gap: 900, s: 0.3 });
+    const fl = r.path.filter((q) => q.cp === 'sizzle' && q.ph === 'fly');
+    ok(`SIZZLE LINE (seat ${seat}): flies flat at knee height`, fl.length > 3 && fl.every((q) => Math.abs(q.y - (C.GROUND_Y - SIZZLE.KNEE)) < 1.5));
+    const zn = r.m.zones.find((z) => z.k === 'strip' && z.cp === 'sizzle');
+    ok(`SIZZLE LINE (seat ${seat}): a strip on the grass behind it, following the ball`, !!zn && Math.abs(zn.x1 - zn.x0) > 300 && zn.own === seat, zn && `${Math.abs(zn.x1 - zn.x0).toFixed(0)} px`);
+    // the defender steps onto the strip: singed
+    const z = r.z; z.x = (zn.x0 + zn.x1) / 2; z.y = C.GROUND_Y; z.onGround = true; z.ail = ''; z.ailT = 0; z.stunned = 0;
+    step(r.m, NONE);
+    ok(`SIZZLE LINE (seat ${seat}): standing on the strip, he is singed (no kick)`, z.ail === 'singed' && ailMods(z).noKick);
+    // …and the shooter is not
+    const a = r.a; a.x = z.x; a.y = C.GROUND_Y; a.onGround = true; a.ail = '';
+    step(r.m, NONE);
+    ok(`SIZZLE LINE (seat ${seat}): its own shooter walks on it unharmed`, a.ail !== 'singed');
+  }
+}
+{
+  // POWER 4 — CHOCO BURST (King of Mud): the bar bursts BURST_AT px short of the goal line and a
+  // splat of chocolate lands ahead on the grass; feet in it are sticky. A hit glues him where he
+  // stands (sticky, not thrown).
+  const { CHOCO } = await import('./shared/champion-powers/stage-04.js');
+  for (const seat of [0, 1]) {
+    const r = fireCp(4, seat, { gap: 900, s: 0.2 });
+    const bu = first(r.log, 'chocoBurst');
+    const gx = r.a.side > 0 ? C.W - C.GOAL_W : C.GOAL_W;
+    ok(`CHOCO BURST (seat ${seat}): the bar bursts ${CHOCO.BURST_AT} px short of the goal line`, !!bu && Math.abs((gx - bu.x) * r.a.side - CHOCO.BURST_AT) < 45, bu && `${((gx - bu.x) * r.a.side).toFixed(0)}`);
+    const zn = r.m.zones.find((z) => z.k === 'splat');
+    ok(`CHOCO BURST (seat ${seat}): the splat lands ahead, in front of the goal`, !!zn && (gx - Math.max(zn.x0, zn.x1) * (r.a.side > 0 ? 1 : 0) - Math.min(zn.x0, zn.x1) * (r.a.side > 0 ? 0 : 1)) * r.a.side > 0);
+    const z = r.z; z.x = (zn.x0 + zn.x1) / 2; z.y = C.GROUND_Y; z.onGround = true; z.ail = ''; z.ailT = 0; z.stunned = 0;
+    for (let i = 0; i < 10; i++) step(r.m, NONE);
+    ok(`CHOCO BURST (seat ${seat}): feet in the splat are sticky (slow, low jumps, no dash)`, z.ail === 'sticky' && (() => { const md = ailMods(z); return md.speed < 1 && md.jump < 1 && md.noDash; })());
+    const h = fireCp(4, seat, { gap: 360, s: 0.4 });
+    const hz = h.path.find((q, i) => i > 0 && h.path[i - 1].cp === 'chocoburst' && !q.cp);
+    ok(`CHOCO BURST (seat ${seat}): a hit glues him in chocolate where he stands`, !!first(h.log, 'chocoCoat') && h.z.ail === 'sticky' && Math.abs((seat === 0 ? h.z.x : C.W - h.z.x) - 660) < 40, `${(seat === 0 ? h.z.x : C.W - h.z.x).toFixed(0)}`);
+  }
+}
+{
+  // POWER 5 — ICE POP WALL (the Wall Builder): a plain flat shot — and a fence of ice pops in front
+  // of the shooter's OWN goal for WALL s, turning back any ball coming at it lower than the pops.
+  // A hit is a brain freeze: frozen stiff, then a shiver.
+  const { ICEPOP } = await import('./shared/champion-powers/stage-05.js');
+  for (const seat of [0, 1]) {
+    const r = fireCp(5, seat, { gap: 900, s: 0.1 });
+    const zn = r.m.zones.find((z) => z.k === 'fence');
+    const own = r.a.side > 0 ? C.GOAL_W : C.W - C.GOAL_W;
+    ok(`ICE POP WALL (seat ${seat}): a fence in front of his OWN goal`, !!zn && Math.abs(zn.x0 - (own + r.a.side * ICEPOP.OUT)) < 1 && zn.dir === -r.a.side && zn.h === ICEPOP.H);
+    // a low ball rolling at his goal is turned back; a high one sails over
+    for (const [hy, stops] of [[C.GROUND_Y - 40, true], [C.GROUND_Y - ICEPOP.H - 40, false]]) {
+      const m = r.m; m.ball.power = null; m.ball.x = own + r.a.side * 200; m.ball.y = hy; m.ball.vx = -r.a.side * 900; m.ball.vy = 0;
+      r.a.x = own + r.a.side * 500; r.z.x = own + r.a.side * 800; m.events.length = 0;
+      let hit = false, minIn = 9999;
+      for (let i = 0; i < 20; i++) { step(m, NONE); hit = hit || m.events.some((e) => e.type === 'fenceHit'); m.events.length = 0; minIn = Math.min(minIn, (m.ball.x - own) * r.a.side); }
+      ok(`ICE POP WALL (seat ${seat}): a ${stops ? 'low' : 'high'} ball at his goal ${stops ? 'bounces off the pops' : 'goes over them'}`, stops ? hit && minIn > ICEPOP.OUT - C.BALL_R - 2 : !hit);
+    }
+    const h = fireCp(5, seat, { gap: 360, s: 0.4 });
+    ok(`ICE POP WALL (seat ${seat}): a hit freezes him stiff (no control), then he shivers`, h.z.ail === 'brainfreeze' && ailMods(h.z).dead && (() => { const md = ailMods({ ail: 'brainfreeze', ailT: 0.5 }); return !md.dead && md.speed < 1 && md.noJump; })());
   }
 }
 

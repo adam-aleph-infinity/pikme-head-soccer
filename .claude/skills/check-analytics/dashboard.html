@@ -1,0 +1,283 @@
+<style>
+.sa { display: grid; gap: var(--cds-gap-lg); font-family: var(--font-anthropic-sans); max-width: 72rem; margin-inline: auto; }
+.sa h1 { font-family: var(--font-anthropic-serif); font-weight: 400; font-size: var(--cds-font-size-title); margin: 0; text-wrap: balance; }
+.sa h2 { font-size: var(--cds-font-size-heading); font-weight: var(--cds-font-weight-medium); margin: var(--cds-gap-md) 0 0; text-wrap: balance; }
+.sa h3 { font-size: var(--cds-font-size-body); font-weight: var(--cds-font-weight-medium); margin: 0; }
+.sa-sub, .sa-note, .sa-empty { color: var(--color-fg-muted); font-size: var(--cds-font-size-caption); margin: 0; }
+.sa-head { display: grid; gap: var(--cds-gap-xs); }
+.sa-banner { display: flex; gap: var(--cds-gap-sm); align-items: baseline; padding: var(--cds-pad-md) var(--cds-pad-lg); border: 1px solid var(--color-border-line); border-radius: var(--cds-radius); background: var(--color-panel); }
+.sa-banner .dot { width: .5rem; height: .5rem; border-radius: 50%; flex: none; background: var(--color-ok); transform: translateY(-.1em); }
+.sa-banner[data-kind="test"] .dot { background: var(--color-warn); }
+.sa-banner[data-kind="none"] .dot { background: var(--cds-chart-muted); }
+.sa-kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 9.5rem), 1fr)); gap: var(--cds-gap-md); }
+.sa-tile { background: var(--color-panel); border: 1px solid var(--color-border-line); border-radius: var(--cds-radius); padding: var(--cds-pad-md) var(--cds-pad-lg); display: grid; gap: var(--cds-gap-xs); align-content: start; }
+.sa-tile .k { color: var(--color-fg-muted); font-size: var(--cds-font-size-caption); }
+.sa-tile .v { font-family: var(--font-anthropic-serif); font-size: var(--cds-font-size-title); font-weight: 400; font-variant-numeric: tabular-nums; line-height: 1.1; }
+.sa-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 22rem), 1fr)); gap: var(--cds-gap-md); }
+.sa-card { background: var(--color-panel); border: 1px solid var(--color-border-line); border-radius: var(--cds-radius); padding: var(--cds-pad-lg); display: grid; gap: var(--cds-gap-sm); align-content: start; min-width: 0; }
+.sa-card.wide { grid-column: 1 / -1; }
+.sa-find { margin: 0; padding-inline-start: 1.25rem; display: grid; gap: var(--cds-gap-sm); }
+.sa-find li { line-height: 1.45; }
+.sa-tw { overflow: auto; max-height: 24rem; }
+.sa table { width: 100%; border-collapse: collapse; font-size: var(--cds-font-size-caption); font-variant-numeric: tabular-nums; }
+.sa th { text-align: start; font-weight: var(--cds-font-weight-medium); color: var(--color-fg-muted); padding: var(--cds-pad-xs) var(--cds-pad-sm); border-bottom: 1px solid var(--color-border-line); position: sticky; top: 0; background: var(--color-panel); white-space: nowrap; }
+.sa td { padding: var(--cds-pad-xs) var(--cds-pad-sm); border-bottom: 1px solid var(--color-border-line); vertical-align: top; }
+.sa td.num, .sa th.num { text-align: end; }
+.sa tr:last-child td { border-bottom: 0; }
+.sa-chart { position: relative; min-height: 3rem; }
+.sa-chart svg { display: block; overflow: visible; }
+.sa-legend { display: flex; flex-wrap: wrap; gap: var(--cds-gap-sm) var(--cds-gap-md); font-size: var(--cds-font-size-caption); color: var(--color-fg-muted); margin: 0; padding: 0; list-style: none; }
+.sa-legend i { display: inline-block; width: .65rem; height: .65rem; border-radius: 2px; margin-inline-end: .35rem; vertical-align: -.05em; }
+.sa-tip { position: absolute; pointer-events: none; background: var(--cds-surface-popover); border: 1px solid var(--cds-border); border-radius: var(--cds-radius); box-shadow: var(--cds-shadow-popover); padding: var(--cds-pad-xs) var(--cds-pad-sm); font-size: var(--cds-font-size-caption); white-space: nowrap; z-index: 2; }
+.sa-tip .h { color: var(--cds-text-secondary); }
+.sa-tip i { display: inline-block; width: .55rem; height: .55rem; border-radius: 2px; margin-inline-end: .3rem; }
+.sa-meter { height: .5rem; border-radius: .25rem; background: var(--cds-chart-grid); overflow: hidden; }
+.sa-meter > span { display: block; height: 100%; min-width: 2px; border-radius: .25rem; background: var(--cds-chart-muted); }
+.sa [data-dash-source-state=empty] { color: transparent; }
+.sa [data-dash-source-state=refreshing] { opacity: .5; transition: opacity var(--cds-dur-slow); }
+.sa-fail { display: flex; align-items: center; justify-content: center; gap: .4rem; color: var(--color-fg-muted); font-size: var(--cds-font-size-caption); min-height: 3rem; }
+.sa-fail::before { content: ""; width: .375rem; height: .375rem; border-radius: 50%; background: var(--color-bad); }
+</style>
+
+<div class="sa" id="sa">
+  <header class="sa-head" id="top">
+    <h1>Salties Analytics</h1>
+    <p class="sa-sub"><span data-source="report" data-field="range" data-where="key=meta" class="dash-skeleton">—</span> · updated <span data-source="report" data-field="generated" data-where="key=meta" class="dash-skeleton">—</span></p>
+  </header>
+
+  <div class="sa-banner" id="banner" data-kind="none"><span class="dot"></span><span data-source="report" data-field="status" data-where="key=meta" class="dash-skeleton">—</span></div>
+
+  <section class="sa-card" id="findings">
+    <h3>Top findings</h3>
+    <ol class="sa-find">
+      <li data-source="report" data-field="text" data-where="key=f1" class="dash-skeleton">—</li>
+      <li data-source="report" data-field="text" data-where="key=f2" class="dash-skeleton">—</li>
+      <li data-source="report" data-field="text" data-where="key=f3" class="dash-skeleton">—</li>
+    </ol>
+  </section>
+
+  <div class="sa-kpis" id="kpis">
+    <div class="sa-tile"><span class="k">Players</span><span class="v" data-source="report" data-field="display" data-where="key=kpi-players">—</span></div>
+    <div class="sa-tile"><span class="k">New players</span><span class="v" data-source="report" data-field="display" data-where="key=kpi-new">—</span></div>
+    <div class="sa-tile"><span class="k">Sessions</span><span class="v" data-source="report" data-field="display" data-where="key=kpi-sessions">—</span></div>
+    <div class="sa-tile"><span class="k">Avg session</span><span class="v" data-source="report" data-field="display" data-where="key=kpi-avg">—</span></div>
+    <div class="sa-tile"><span class="k">Total play time</span><span class="v" data-source="report" data-field="display" data-where="key=kpi-total">—</span></div>
+    <div class="sa-tile"><span class="k">Matches</span><span class="v" data-source="report" data-field="display" data-where="key=kpi-matches">—</span></div>
+  </div>
+
+  <h2 id="play">How they play</h2>
+  <div class="sa-grid">
+    <section class="sa-card" id="modes">
+      <h3>Time in each mode</h3>
+      <p class="sa-note">Total foreground time per mode.</p>
+      <div class="sa-chart" data-source="report" data-chart="modes"></div>
+      <div class="sa-tw"><table data-source="report" data-row-key="key" data-section="mode">
+        <thead><tr><th data-field="mode">Mode</th><th data-field="players" class="num">Players</th><th data-field="visits" class="num">Visits</th><th data-field="total_time" class="num">Total</th><th data-field="avg_visit" class="num">Avg visit</th></tr></thead><tbody></tbody>
+      </table></div>
+    </section>
+    <section class="sa-card" id="matches">
+      <h3>Matches by mode</h3>
+      <p class="sa-note">How each match ended. "Closed the app" means it started and never ended.</p>
+      <ul class="sa-legend" id="matchLegend"></ul>
+      <div class="sa-chart" data-source="report" data-chart="matches"></div>
+      <div class="sa-tw"><table data-source="report" data-row-key="key" data-section="match">
+        <thead><tr><th data-field="mode">Mode</th><th data-field="started" class="num">Started</th><th data-field="win_rate" class="num">Won</th><th data-field="avg_length" class="num">Avg length</th><th data-field="goals" class="num">Goals for–against</th></tr></thead><tbody></tbody>
+      </table></div>
+    </section>
+  </div>
+
+  <h2 id="leaving">Where and why players left</h2>
+  <div class="sa-grid">
+    <section class="sa-card" id="left">
+      <h3>The last thing they did</h3>
+      <p class="sa-note">Sessions by where the player was when they left.</p>
+      <div class="sa-chart" data-source="report" data-chart="left"></div>
+    </section>
+    <section class="sa-card" id="why">
+      <h3>Why they might have left</h3>
+      <p class="sa-note">Signals, not reasons: the game doesn't ask players why.</p>
+      <div class="sa-tw"><table data-source="report" data-row-key="key" data-section="why">
+        <thead><tr><th data-field="label">Signal</th><th data-field="display" class="num">Count</th></tr></thead><tbody></tbody>
+      </table></div>
+    </section>
+  </div>
+
+  <section class="sa-card wide" id="sessions">
+    <h3>Recent sessions</h3>
+    <p class="sa-note">The 20 most recent, Israel time. A session is one visit; coming back within 30 minutes counts as the same one.</p>
+    <div class="sa-tw"><table data-source="report" data-row-key="key" data-section="session">
+      <thead><tr><th data-field="started">Started</th><th data-field="length" class="num">Length</th><th data-field="modes">Modes</th><th data-field="matches" class="num">Matches</th><th data-field="ended">How it ended</th></tr></thead><tbody></tbody>
+    </table></div>
+  </section>
+
+  <h2 id="progress">Arena and progression</h2>
+  <div class="sa-grid">
+    <section class="sa-card" id="arena">
+      <h3>Arena</h3>
+      <p class="sa-note">Matchmaking and trophies.</p>
+      <div class="sa-tw"><table data-source="report" data-row-key="key" data-section="arena">
+        <thead><tr><th data-field="label">Measure</th><th data-field="display" class="num">Value</th></tr></thead><tbody></tbody>
+      </table></div>
+    </section>
+    <section class="sa-card" id="arcade">
+      <h3>Furthest arcade stage</h3>
+      <p class="sa-note">Players by the highest stage they have unlocked (last 90 days).</p>
+      <div class="sa-chart" data-source="report" data-chart="arcade"></div>
+    </section>
+    <section class="sa-card" id="champs">
+      <h3>Champions played</h3>
+      <div class="sa-tw"><table data-source="report" data-row-key="key" data-section="champ">
+        <thead><tr><th data-field="champ">Champion</th><th data-field="matches" class="num">Matches</th><th data-field="players" class="num">Players</th></tr></thead><tbody></tbody>
+      </table></div>
+    </section>
+    <section class="sa-card" id="unlocks">
+      <h3>Unlocks</h3>
+      <p class="sa-note">Starters picked, stat levels bought, stages opened.</p>
+      <div class="sa-tw"><table data-source="report" data-row-key="key" data-section="unlock">
+        <thead><tr><th data-field="type">Type</th><th data-field="item">Item</th><th data-field="players" class="num">Players</th></tr></thead><tbody></tbody>
+      </table></div>
+    </section>
+  </div>
+
+  <h2 id="health">Players coming back, platforms and data</h2>
+  <div class="sa-grid">
+    <section class="sa-card" id="retention">
+      <h3>Coming back</h3>
+      <div class="sa-tw"><table data-source="report" data-row-key="key" data-section="retention">
+        <thead><tr><th data-field="label">Measure</th><th data-field="display" class="num">Value</th></tr></thead><tbody></tbody>
+      </table></div>
+    </section>
+    <section class="sa-card" id="platform">
+      <h3>Platforms and versions</h3>
+      <div class="sa-tw"><table data-source="report" data-row-key="key" data-section="platform">
+        <thead><tr><th data-field="platform">Platform</th><th data-field="version">Version</th><th data-field="sessions" class="num">Sessions</th><th data-field="players" class="num">Players</th></tr></thead><tbody></tbody>
+      </table></div>
+    </section>
+    <section class="sa-card" id="data">
+      <h3>Events used this month</h3>
+      <p class="sa-note">PostHog's free plan includes 1,000,000 events a month.</p>
+      <div class="sa-meter" aria-hidden="true"><span id="meter"></span></div>
+      <div class="sa-tw"><table data-source="report" data-row-key="key" data-section="health">
+        <thead><tr><th data-field="label">Measure</th><th data-field="display" class="num">Value</th></tr></thead><tbody></tbody>
+      </table></div>
+    </section>
+  </div>
+  <p class="sa-note">A player is one phone, counted by an anonymous id: a reinstall counts as a new player. Test events from development machines are left out unless there is no real data yet.</p>
+</div>
+
+<script>
+(() => {
+  const root = document.getElementById('sa');
+  const SRC = 'report';
+  const FREE = 1000000;
+  const fmt = (v) => (v == null || v === '' ? '—' : typeof v === 'number' ? d3.format(',')(v) : String(v));
+  const secsText = (s) => { s = Math.round(+s || 0); const h = Math.floor(s / 3600), m = Math.floor((s % 3600) / 60), r = s % 60; return h ? `${h}h ${m}m` : m ? `${m}m ${r}s` : `${r}s`; };
+  const MATCH_PARTS = [
+    { field: 'finished', name: 'Finished' },
+    { field: 'quit', name: 'Gave up' },
+    { field: 'dropped', name: 'Connection lost' },
+    { field: 'closed_app', name: 'Closed the app' },
+  ];
+
+  function fillMarks(all, ok) {
+    root.querySelectorAll('[data-where]').forEach((el) => {
+      const key = decodeURIComponent(el.dataset.where.slice(4));
+      const r = ok ? all.find((x) => x.key === key) : null;
+      el.textContent = fmt(r ? r[el.dataset.field] : null);
+    });
+  }
+  function fillTable(tbl, rows) {
+    const ths = [...tbl.querySelectorAll('th')];
+    const tb = tbl.tBodies[0];
+    tb.replaceChildren();
+    for (const r of rows) {
+      const tr = document.createElement('tr');
+      tr.dataset.key = r.key;
+      ths.forEach((th) => {
+        const td = document.createElement('td');
+        td.textContent = fmt(r[th.dataset.field]);
+        if (th.classList.contains('num')) td.className = 'num';
+        tr.appendChild(td);
+      });
+      tb.appendChild(tr);
+    }
+    const card = tbl.closest('.sa-card');
+    let empty = card.querySelector('.sa-empty');
+    if (!rows.length && !empty) { empty = document.createElement('p'); empty.className = 'sa-empty'; empty.textContent = 'Nothing in this period.'; card.appendChild(empty); }
+    if (empty) empty.hidden = rows.length > 0;
+  }
+
+  // Horizontal bars, stacked when there is more than one series. One shared tooltip per chart.
+  function hbar(box, rows, labelOf, series, colors, valueText) {
+    box.replaceChildren();
+    if (!rows.length) { const p = document.createElement('p'); p.className = 'sa-empty'; p.textContent = 'Nothing in this period.'; box.appendChild(p); return; }
+    const W = Math.max(240, box.clientWidth || 320), barH = 18, gap = 12, top = 2;
+    const H = top + rows.length * (barH + gap) - gap + 2;
+    const svg = d3.select(box).append('svg').attr('width', '100%').attr('viewBox', `0 0 ${W} ${H}`).attr('role', 'img');
+    const probe = svg.append('text').attr('font-size', 12);
+    const widest = (texts) => d3.max(texts, (t) => { probe.text(t); return probe.node().getComputedTextLength(); }) || 0;
+    const labels = rows.map(labelOf), totals = rows.map((r) => d3.sum(series, (s) => +r[s.field] || 0));
+    const labelW = Math.min(W * 0.42, widest(labels) + 10), valW = widest(totals.map(valueText)) + 8;
+    probe.remove();
+    const x = d3.scaleLinear([0, d3.max(totals) || 1], [labelW, W - valW]);
+    const tip = d3.select(box).append('div').attr('class', 'sa-tip').style('display', 'none');
+    rows.forEach((r, i) => {
+      const y = top + i * (barH + gap);
+      const g = svg.append('g');
+      g.append('text').attr('x', 0).attr('y', y + barH / 2).attr('dy', '0.35em').attr('font-size', 12).attr('fill', 'var(--color-fg)').text(labels[i]);
+      let x0 = labelW;
+      series.forEach((s, k) => {
+        const v = +r[s.field] || 0;
+        if (!v) return;
+        const w = Math.max(2, x(v) - x(0) - (k < series.length - 1 ? 2 : 0));
+        g.append('rect').attr('x', x0).attr('y', y).attr('width', w).attr('height', barH).attr('rx', 4).attr('fill', colors[k]);
+        x0 += x(v) - x(0);
+      });
+      g.append('text').attr('x', x(totals[i]) + 6).attr('y', y + barH / 2).attr('dy', '0.35em').attr('font-size', 12).attr('fill', 'var(--color-fg-muted)').text(valueText(totals[i]));
+      g.append('rect').attr('x', 0).attr('y', y - gap / 2).attr('width', W).attr('height', barH + gap).attr('fill', 'transparent')
+        .on('mousemove', (ev) => {
+          tip.style('display', null).html('');
+          tip.append('div').attr('class', 'h').text(labels[i]);
+          series.forEach((s, k) => {
+            const line = tip.append('div');
+            if (series.length > 1) line.append('i').style('background', colors[k]);
+            line.append('span').text(`${series.length > 1 ? s.name + ': ' : ''}${valueText(+r[s.field] || 0)}`);
+          });
+          const [mx, my] = d3.pointer(ev, box);
+          const tw = tip.node().offsetWidth;
+          tip.style('left', `${Math.min(Math.max(0, mx + 12), box.clientWidth - tw)}px`).style('top', `${my + 14}px`);
+        })
+        .on('mouseleave', () => tip.style('display', 'none'));
+    });
+  }
+
+  dash.onData(() => {
+    const d = dash.data(SRC);
+    const ok = d.status === 'ok';
+    const all = ok && Array.isArray(d.data) ? d.data : [];
+    const of = (section) => all.filter((r) => r.section === section);
+    root.querySelectorAll('.dash-skeleton').forEach((el) => { if (d.status !== 'loading') el.classList.remove('dash-skeleton'); });
+    fillMarks(all, ok);
+    const meta = all.find((r) => r.key === 'meta');
+    document.getElementById('banner').dataset.kind = meta?.data_kind || 'none';
+    root.querySelectorAll('table[data-section]').forEach((t) => fillTable(t, of(t.dataset.section)));
+    root.querySelectorAll('.sa-fail').forEach((el) => el.remove());
+
+    const charts = Object.fromEntries([...root.querySelectorAll('[data-chart]')].map((el) => [el.dataset.chart, el]));
+    if (d.status === 'error' || d.status === 'connect') {
+      Object.values(charts).forEach((el) => { el.replaceChildren(); const f = document.createElement('div'); f.className = 'sa-fail'; f.textContent = 'Failed to load'; el.appendChild(f); });
+      return;
+    }
+    if (!ok) { Object.values(charts).forEach((el) => el.replaceChildren()); return; }
+    const c = dash.colors;
+    hbar(charts.modes, of('mode'), (r) => r.mode, [{ field: 'total_secs', name: 'Time' }], [c[0]], secsText);
+    hbar(charts.matches, of('match'), (r) => r.mode, MATCH_PARTS, [c[0], c[1], c[2], 'var(--cds-chart-muted)'], (v) => d3.format(',')(v));
+    const legend = document.getElementById('matchLegend');
+    legend.replaceChildren(...MATCH_PARTS.map((p, k) => { const li = document.createElement('li'); const i = document.createElement('i'); i.style.background = [c[0], c[1], c[2], 'var(--cds-chart-muted)'][k]; li.append(i, p.name); return li; }));
+    hbar(charts.left, of('left'), (r) => (r.mode ? `${r.category} · ${r.mode}` : r.category), [{ field: 'sessions', name: 'Sessions' }], [c[0]], (v) => d3.format(',')(v));
+    hbar(charts.arcade, of('arcade'), (r) => `Stage ${r.stage}`, [{ field: 'players', name: 'Players' }], [c[0]], (v) => d3.format(',')(v));
+    const used = all.find((r) => r.key === 'health-events');
+    document.getElementById('meter').style.width = `${Math.min(100, (100 * (+used?.value || 0)) / FREE)}%`;
+  });
+})();
+</script>

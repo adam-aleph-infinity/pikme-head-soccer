@@ -188,19 +188,11 @@
   -webkit-text-stroke: calc(var(--u) * .7) var(--td); paint-order: stroke fill; text-shadow: 0 calc(var(--u) * .5) 0 #000; }
 .st-cteam .st-tbdg { width: calc(var(--u) * 7); margin: 0; }
 
-/* ─── ON THE HOME SCREEN: your team, under your profile ─────────────────── */
-.hm-team { position: absolute; z-index: 3; left: calc(var(--safe-l) + var(--u) * 23.4); top: calc(var(--safe-t) + var(--u) * 18.4);
-  display: flex; align-items: center; gap: calc(var(--u) * 1); height: calc(var(--u) * 7); padding: 0 calc(var(--u) * 2.2) 0 calc(var(--u) * 1);
-  border-radius: calc(var(--u) * 1.4); border: calc(var(--u) * .45) solid #0d0a14; color: #fff; font-family: var(--m-font); direction: rtl;
-  background: linear-gradient(180deg, color-mix(in srgb, var(--tc) 85%, #fff) 0 14%, var(--tc) 14% 70%, color-mix(in srgb, var(--tc) 70%, #000) 70%);
-  box-shadow: 0 calc(var(--u) * 1) 0 #0d0a14, inset 0 calc(var(--u) * .4) 0 #ffffff40; transform: skewX(-4deg); cursor: pointer; }
-.hm-team > * { transform: skewX(4deg); }
-.hm-team.is-pressed, .hm-team:active { transform: skewX(-4deg) translateY(calc(var(--u) * .8)); box-shadow: 0 calc(var(--u) * .3) 0 #0d0a14; }
-.hm-tbdg { width: calc(var(--u) * 6.4); margin: calc(var(--u) * -1) 0; filter: drop-shadow(0 calc(var(--u) * .4) 0 #0d0a14); }
-.hm-tname { display: flex; flex-direction: column; line-height: 1.05; }
-.hm-tname b { font-size: calc(var(--u) * 3.4); font-weight: 900; white-space: nowrap; -webkit-text-stroke: calc(var(--u) * .55) var(--td); paint-order: stroke fill; }
-.hm-tname small { font-size: calc(var(--u) * 2.5); font-weight: 900; color: #fff; white-space: nowrap; -webkit-text-stroke: calc(var(--u) * .4) var(--td); paint-order: stroke fill; }
-.hm-tname small:empty { display: none; }
+/* ─── ON THE HOME SCREEN: your team, a tile under the leaderboard ──────
+   A side tile (menus.css .hm-side .hm-tile) in the team's own colour, with only its badge in it. */
+.hm-tile.hm-team { --top: color-mix(in srgb, var(--tc) 62%, #fff); --body: var(--tc); --low: color-mix(in srgb, var(--tc) 62%, #000); }
+.hm-tile.hm-team .hm-ico { top: 50%; width: 76%; transform: translate(-50%, -54%) skewX(4deg); filter: drop-shadow(0 calc(var(--u) * .4) 0 #0d0a14); }
+.hm-tile.hm-team .hm-ico > svg { width: 100%; height: 100%; }
 .hm-team.pulse { animation: hmPulse .5s ease-in-out 3; }
 @keyframes hmPulse { 50% { transform: skewX(-4deg) scale(1.12); } }
 #menu .hm-avatar.team { box-shadow: inset 0 0 0 calc(var(--u) * .5) var(--tc), 0 0 calc(var(--u) * 1.6) var(--tc); }

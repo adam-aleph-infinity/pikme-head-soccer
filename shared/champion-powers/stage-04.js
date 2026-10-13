@@ -1,54 +1,69 @@
-// STAGE 4 — USA, "Illusion Shot" (2 stars).
+// STAGE 4 — מלך הבוץ, KING OF MUD (the new Saltiz chocolate bar, about to burst; the card: Naveh in
+// a crate of marshmallows, rare snacks flying, a glowing "?"). An ORIGINAL power
+// (docs/CHAMPION-POWERS.md, Idan 2026-10-11).
 //
-// Wiki (USA): "The ball multiplies into eight balls, which all aim for the goal. 7/8 balls are
-// fake, but after the shot has travelled a small distance, there will only be one ball left that
-// is real. For a short time after the shot, the ball becomes invisible to the opponent and
-// translucent to whoever uses the shot"; "the shot is a 100% goal when used close to the goal, as
-// the ball will go through the defender". Power_Shot_Guide: "The ball in USA's power shot travels
-// slightly downward"; "you can see it when the ball bounces"; "you can both counter or block the
-// shot; but countering works better".
-// So: one real ball (the seven fakes are only drawn — public/vfx/powers/stage-04.js), slightly
-// downward and bouncing off the grass; invisible from 0.12 s to 0.67 s, and while it is it goes
-// through whoever it meets — only the counter (an armed touch) answers it then. Visible again, it
-// is the straight family: a kick blocks it, standing in its way gets you knocked back.
+// CHOCO BURST: the ball flies dead flat at the goal wrapped as the chocolate bar, shaking harder as
+// it goes; BURST_AT px short of the goal line the wrapper bursts and a splat of melted chocolate is
+// thrown AHEAD px on, landing on the grass in front of the goal (a power zone, shared/power-zones.js)
+// for SPLAT s. Feet in it are `sticky`: slow, half-height jumps, no dash. The ball flies on.
+//   • the splat lands on a SPOT, not on a player: step off it as the bar shakes;
+//   • a HIT bursts the bar ON him (if it has not burst yet): glued where he stands (the daze, then
+//     sticky for COAT s) instead of thrown, and the ball bounces back off him, slowed;
+//   • a kick blocks the ball as any shot; a standing block does not need a jump at all.
+// Look: public/vfx/powers/stage-04.js (the wrapper, the burst, the splat, chocolate feet).
 import * as C from '../constants.js';
+import { addZone } from '../power-zones.js';
 
-export const ILLUSION = Object.freeze({
-  FAKES: 0.12,      // s the seven fakes fly beside it (≈ 260 px, "a small distance")
-  INV: 0.55,        // s it is then invisible — and passes through anyone ("go through the defender")
-  DOWN: 0.15,       // its slope, vy / vx ("slightly downward", ≈ 8.5°): from the head-height release
-                    // (constants.js POWER_RELEASE_UP) it first bounces ≈ 400 px out, where the wiki's
-                    // "you can see it when it bounces" needs it (0.075 did that from a head-centre touch)
+export const CHOCO = Object.freeze({
+  SPEED: 1.0,       // × the comet: the tutorial's counter lesson is timed to it (shared/tutorial.js)
+  BURST_AT: 430,    // px short of the goal line the wrapper bursts
+  AHEAD: 240,       // px on from the burst the splat's middle lands (kept off the goal line)
+  HALF: 95,         // px half-width of the splat
+  LAND: 0.12,       // s from the burst to the splat on the grass
+  SPLAT: 2.2,       // s the splat stays
+  STICK: 0.35,      // s sticky after stepping out of it
+  COAT: 2.4,        // s sticky after the bar bursts ON him (a hit): chocolate head to toe
+  BOUNCE: 0.65,      // …and the ball bounces back off him at this × its pace, slowed by the mess
+  DROP_VY: 260,     //   (px/s up)
 });
+const goalLineX = (dir) => (dir > 0 ? C.W - C.GOAL_W : C.GOAL_W);
+
+export function chocoBurst(m, b, pw) {
+  pw.burst = 1;
+  const gx = goalLineX(pw.dir);
+  // ahead of the ball, but its far edge short of the goal line
+  let cx = b.x + pw.dir * CHOCO.AHEAD;
+  if ((gx - cx) * pw.dir < CHOCO.HALF + 6) cx = gx - pw.dir * (CHOCO.HALF + 6);
+  addZone(m, { k: 'splat', cp: 'chocoburst', own: pw.owner, x0: cx - CHOCO.HALF, x1: cx + CHOCO.HALF, life: CHOCO.SPLAT, land: CHOCO.LAND, ail: 'sticky', ailS: CHOCO.STICK });
+  m.events.push({ type: 'chocoBurst', player: pw.owner, x: b.x, y: b.y, cx, dir: pw.dir });
+}
 
 export default Object.freeze({
-  stage: 4, id: 'illusion', hs: 'USA', hsPower: 'Illusion Shot', hsStars: 2,
-  family: 'straight', speed: 1.0, ailment: null, ailSec: 0,
-  name: 'Illusion', icon: '🎩', color: '#9fd0ff',
-  desc: 'הכדור מתפצל לשמונה, רק אחד אמיתי — והוא נעלם באוויר ועובר דרך השוער.',
-  sources: ['https://headsoccer.wiki.gg/wiki/USA', 'https://headsoccer.wiki.gg/wiki/Power_Shot_Guide'],
-  diff: { speed: 1.0, decoys: 7, decoyLife: ILLUSION.FAKES, invisible: ILLUSION.INV, through: 1 },
+  stage: 4, id: 'chocoburst', everywhere: true,
+  family: 'straight', speed: CHOCO.SPEED, ailment: null, ailSec: 0,
+  name: 'Choco Burst', icon: '🍫', color: '#c0262d',
+  desc: 'חטיף השוקולד טס לשער ומתפוצץ בדרך: שלולית דביקה נוחתת מול השער.',
+  diff: { speed: CHOCO.SPEED, disable: 0.6, zone: 1 },
 
-  launch(m, b, p, pw, S) {
-    pw.vx0 = pw.dir * S; pw.vy0 = S * ILLUSION.DOWN;
-    b.vx = pw.vx0; b.vy = pw.vy0;
+  contact(m, p, b, kit, pw, kicking, api) {
+    if (kicking) return undefined;                         // the plain block
+    if (!p.onGround && Math.abs(b.x - pw.x0) < 170) return undefined;   // the early header
+    // glued where he stands — not thrown: a daze inside a chocolate coat
+    const r = api.hit(m, p, b, pw, 'choco');
+    p.vx = 0; p.koSlide = 0; if (p.vy < 0) p.vy = 0;
+    if (!pw.burst) chocoBurst(m, b, pw);
+    p.ail = ''; p.ailT = 0;
+    api.ailment(m, p, 'sticky', CHOCO.COAT);
+    m.events.push({ type: 'chocoCoat', player: p.index, by: pw.owner, x: b.x, y: b.y });
+    // …and the ball bounces back off him, as off any body, slowed by the chocolate
+    b.power = null;
+    b.vx = -pw.dir * Math.abs(b.vx) * CHOCO.BOUNCE; b.vy = -CHOCO.DROP_VY;
+    b.x = kit.keepOutOfGoal(b.x, b.y, p.x - pw.dir * (C.BODY_W / 2 + b.r + 2), Math.min(b.y, C.GROUND_Y - b.r), b.r);
+    return r;
   },
-  step(m, b, dt, pw, S, kit, api) {
-    if (pw.ph !== 'fly' || pw.rb || pw.hit) return undefined;
-    // slightly downward, and it bounces off the grass (and the sky)
-    const floor = C.GROUND_Y - b.r;
-    if (b.y >= floor - 0.5 && pw.vy0 > 0) { pw.vy0 = -pw.vy0; m.events.push({ type: 'illusionBounce', x: b.x, y: floor }); }
-    if (b.y <= C.SKY_Y + b.r && pw.vy0 < 0) pw.vy0 = -pw.vy0;
-    b.vx = pw.vx0; b.vy = pw.vy0;
-    pw.inv = pw.t >= ILLUSION.FAKES && pw.t < ILLUSION.FAKES + ILLUSION.INV ? 1 : 0;
-    pw.t += dt;
-    if (pw.t >= pw.life || b.x < b.r + 2 || b.x > C.W - b.r - 2) return api.end(b);
-    return true;
-  },
-  contact(m, p, b, kit, pw) {
-    if (!pw.inv) return undefined;
-    pw.pass |= 1 << p.index;
-    m.events.push({ type: 'powerHit', player: p.index, by: pw.owner, fam: pw.fam, cp: pw.cp, how: 'pass' });
-    return 'pass';
+  step(m, b, dt, pw) {
+    if (pw.burst || pw.rb || pw.hit || pw.ph !== 'fly') return undefined;
+    if ((goalLineX(pw.dir) - b.x) * pw.dir <= CHOCO.BURST_AT) chocoBurst(m, b, pw);
+    return undefined;                                      // the straight family flies it on
   },
 });

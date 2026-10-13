@@ -25,7 +25,7 @@
 
 import * as C from './constants.js';
 import { HS_MAP } from './hs-champion-map.js';
-import { championPower, cpLaunch, cpStep, cpSkip, cpContact } from './champion-powers.js';
+import { championPower, cpLaunch, cpStep, cpSkip, cpContact, cpHolds } from './champion-powers.js';
 import { MYTHIC, MYTHIC_POWER, mythicGem } from './mythics.js';
 
 // ── the families ─────────────────────────────────────────────────────────────
@@ -79,8 +79,19 @@ export const AILMENTS = Object.freeze({
   // Stuck in the Mythic Gem's crust (shared/champion-powers/mythic.js): no control, where he stands.
   // Only the gem's shatter sets it; drawn in the shooter's gem colour.
   gem:      { id: 'gem',      name: 'אבן',    dur: 1.3,  color: '#ff5fd2' },
+  // ── the champions' original powers (docs/CHAMPION-POWERS.md); each set only by its own power ──
+  // wrapped round the ankles by the Worm Tunnel Ambush's worms: half speed, no dash (stage 2)
+  coiled:   { id: 'coiled',   name: 'כרוך',   dur: 1.2,  color: '#3fc25a' },
+  // stood on the Sizzle Line's grill strip: the boot is too hot to kick with (stage 3)
+  singed:   { id: 'singed',   name: 'חרוך',   dur: 1.0,  color: '#ff7a1a' },
+  // in the Choco Burst's splat: feet stuck — slow, half-height jumps, no dash (stage 4)
+  sticky:   { id: 'sticky',   name: 'דביק',   dur: 0.35, color: '#7a4422' },
+  // hit by the Ice Pop Wall's shot: a brain freeze — frozen stiff, then a shiver (stage 5, SHIVER)
+  brainfreeze: { id: 'brainfreeze', name: 'צמרמורת', dur: 1.0, color: '#8fd8ff' },
 });
 export const AILMENT_ORDER = Object.freeze(Object.keys(AILMENTS));
+// the brain freeze's last SHIVER s are a shiver (slow), the rest frozen stiff (ailMods)
+export const SHIVER = 1.4;
 export const AURA_ORDER = Object.freeze(['none', 'stun', 'push', 'reverse', 'freeze']);
 
 // ── timings ─────────────────────────────────────────────────────────────────────
@@ -136,13 +147,15 @@ export function shotFor(char, { arcade = false } = {}) {
     return makeShot(P.family, { name: P.name, icon: P.icon, color: G.color, glow: G.glow, cp: P.cp, speed: P.speed, aura: 'none' });
   }
   const row = championRow(char);
-  // A champion whose own Head Soccer power is built (shared/champion-powers.js) fires it — in the
-  // arcade only.
-  const cp = row && arcade ? championPower(row.stage) : null;
-  if (cp) {
+  // A champion whose own power is built (shared/champion-powers.js) fires it. The ORIGINAL powers
+  // (`everywhere`, docs/CHAMPION-POWERS.md) fire it everywhere — arcade, online, free play — at one
+  // strength, since a player plays the cards they own (Idan, 2026-10-11); a Head Soccer copy not
+  // yet replaced, in the arcade only.
+  const cp = row ? championPower(row.stage) : null;
+  if (cp && (arcade || cp.everywhere)) {
     return makeShot(cp.family, {
-      ailment: cp.ailment, ailSec: cp.ailSec, aura: 'none', intensity: row.intensity, stage: row.stage,
-      name: cp.name, icon: cp.icon, cp: cp.id, speed: cp.speed,
+      ailment: cp.ailment, ailSec: cp.ailSec, aura: 'none', intensity: cp.everywhere ? 0.5 : row.intensity, stage: row.stage,
+      name: cp.name, icon: cp.icon, color: cp.color, cp: cp.id, speed: cp.speed, knock: cp.knock,
     });
   }
   if (row) {
@@ -175,6 +188,8 @@ function makeShot(family, o = {}) {
     // a champion's own power (champion-powers.js): its id, its speed (× the comet, replacing the
     // family's and the intensity's) and how long its ailment lasts
     cp: o.cp || '', speed: o.speed || 0, ailSec: o.ailSec || 0,
+    // how much harder than a plain shot's its hit throws the defender (a champion's own; 1 = HS's)
+    knock: o.knock || 1,
   });
 }
 
@@ -241,7 +256,7 @@ function freshPower(p, shot, o = {}) {
     owner: p.index, src: p.index, dir: p.side, t: 0, life: C.POWER_SHOT_LIFE, ph: 'fly', k: 0,
     x0: 0, y0: 0, tx: 0, ty: 0, vx0: 0, vy0: 0, tgt: -1, pass: 0, extra: 0, rb: 0, hit: 0,
     // a champion's own power (champion-powers.js) — only then, so every other ball is unchanged
-    ...(shot.cp ? { cp: shot.cp, spd: shot.speed || 0, ailS: shot.ailSec || 0, slot: 0, inv: 0 } : {}),
+    ...(shot.cp ? { cp: shot.cp, spd: shot.speed || 0, ailS: shot.ailSec || 0, slot: 0, inv: 0, ...(shot.knock && shot.knock !== 1 ? { kmul: shot.knock } : {}) } : {}),
     color: shot.color, glow: shot.glow,
     ...o,
   };
@@ -324,16 +339,21 @@ export function stepPower(m, b, dt, kit, fx) {
       // …and it goes straight back out off the boot: there is no grass under him to lie dead on.
       // He falls from there, the tick the ball leaves him.
       if (pw.air && pw.k >= HS.BLOCK_GRIND) { fireBack(m, b, pw, q, kit, fx); pw.air = 0; return true; }
-      if (pw.k >= HS.BLOCK_GRIND) {
-        pw.ph = 'rest'; pw.k = 0;
-        b.x = kit.keepOutOfGoal(b.x, b.y, q.x - pw.dir * (C.BODY_W / 2 + b.r + 6), C.GROUND_Y - b.r, b.r);
-        b.y = C.GROUND_Y - b.r;
-      }
+      // (then it rises off the boot to where it fires from — below — instead of dropping dead at
+      // his feet and jumping up to his head the instant it fired: Idan, 2026-10-13, "it looks
+      // like it teleports")
+      if (pw.k >= HS.BLOCK_GRIND) { pw.ph = 'rest'; pw.k = 0; pw.rx0 = b.x; pw.ry0 = b.y; }
       return true;
     }
     case 'rest': {
+      // the BLOCK_REST between the grind and the fire-back: the ball floats up off the boot to the
+      // spot in front of his head it fires from (releaseX / releaseY), easing in and out
       pw.k += dt; b.vx = 0; b.vy = 0;
-      if (pw.k >= HS.BLOCK_REST) fireBack(m, b, pw, m.players[pw.tgt], kit, fx);
+      const q = m.players[pw.tgt], u = Math.min(1, pw.k / HS.BLOCK_REST), e = u * u * (3 - 2 * u);
+      const tx = releaseX(q, b.r), ty = releaseY(kit.headY(q));
+      b.x = kit.keepOutOfGoal(b.x, b.y, pw.rx0 + (tx - pw.rx0) * e, pw.ry0 + (ty - pw.ry0) * e, b.r);
+      b.y = pw.ry0 + (ty - pw.ry0) * e;
+      if (pw.k >= HS.BLOCK_REST) fireBack(m, b, pw, q, kit, fx);
       return true;
     }
     // ─ the Grab (§3 M3 74.08–74.30 s; wiki: grab shots "pull the defender back"): the hand
@@ -493,7 +513,7 @@ export function contact(m, p, b, kit, fx) {
   }
   // A champion's own power has its own answer to some contacts (champion-powers.js).
   if (pw.cp) {
-    const r = cpContact(m, p, b, kit, pw, kicking, { block: (mm, q, bb, ppw) => block(mm, q, bb, ppw, kit), ailment: applyAilment });
+    const r = cpContact(m, p, b, kit, pw, kicking, { block: (mm, q, bb, ppw) => block(mm, q, bb, ppw, kit), ailment: applyAilment, hit: (mm, q, bb, ppw, how) => hitBody(mm, q, bb, ppw, kit, how) });
     if (r !== undefined) return r;
   }
   // THE EARLY HEADER (wiki South_Korea, Cameroon, Power_Shot_Guide): jump in front of the shooter
@@ -517,7 +537,7 @@ export function contact(m, p, b, kit, fx) {
     pw.tx = pw.gentle ? Math.abs(m.players[pw.owner].x - p.x) / 3 : 2000;
     // Seized: a real champion's hand holds you, dazed — three gold stars at once (M3 74.15 s);
     // the gentle one only holds on, and a jump breaks it (see stepPower 'grab').
-    if (!pw.gentle) { kit.stun(m, p, 1.5); applyAilment(m, p, 'stars', 1.5); }
+    if (!pw.gentle) { powerStun(m, p, kit, 1.5); applyAilment(m, p, 'stars', 1.5); }
     // The ball it carried pops loose, up and on toward his goal (M3 74.08–74.3 s).
     b.vx = pw.dir * 260; b.vy = -560;
     m.events.push({ type: 'grabbed', player: p.index, by: pw.owner, gentle: !!pw.gentle, x: b.x, y: b.y });
@@ -593,18 +613,44 @@ function block(m, p, b, pw, kit) {
   if (air) { pw.air = 1; pw.hx = p.x; pw.hy = p.y; }
   // Held while it grinds — the daze HS shows (~0.5s, power.blockStun); the ball grinds on to 0.8s.
   // Up in the air the controls stay out for all of it, since he cannot move anyway.
-  kit.stun(m, p, air ? HS.BLOCK_GRIND : C.POWER_BLOCK_STUN);
+  powerStun(m, p, kit, air ? HS.BLOCK_GRIND : C.POWER_BLOCK_STUN);
   if (pw.fam === 'ailment') landAilment(m, p, pw);
   m.events.push({ type: 'blocked', player: p.index, by: pw.owner, fam: pw.fam, shot: pw.fam, ...(pw.cp ? { cp: pw.cp } : {}) });
   return 'block';
 }
 
+// THE HIT, without what becomes of the ball: thrown and dazed, the face marked, the ailment on,
+// the event sent — for a champion's own power that decides the ball's fate itself (its contact
+// hook, api.hit), and for what a power fires that is not the ball (a cannon shell, power-zones.js).
+// Returns the outcome word.
+export function hitBody(m, p, b, pw, kit, how = 'hit') {
+  m.hitStop = Math.max(m.hitStop, C.HIT_STOP_POWER);
+  knock(m, p, pw, kit, HS.HIT_KNOCK, C.POWER_HIT_STUN, HS.HIT_LIFT, HS.HIT_FLIGHT);
+  p.hurt = Math.min(4, (p.hurt | 0) + 1);
+  m.events.push({ type: 'hurt', player: p.index, by: pw.owner, level: p.hurt, ko: false, power: true });
+  landAilment(m, p, pw);
+  m.events.push({ type: 'powerHit', player: p.index, by: pw.owner, fam: pw.fam, how, x: b.x, y: b.y, ...(pw.cp ? { cp: pw.cp } : {}) });
+  return how;
+}
+
+// A POWER'S DAZE takes the longer of what is left and what it asks for. sim.js stun() refuses a
+// player already down (the kicks' anti-stun-lock rule), so a power that landed in the last few
+// frames of an earlier daze (a block's, a pass's, a knockout's) used to give him his controls
+// back milliseconds after the hit (Idan). Never a sum, so it still cannot lock anybody.
+function powerStun(m, p, kit, t) {
+  if (!(p.stunned > 0)) return kit.stun(m, p, t);
+  if (p.stunned >= t) return false;
+  p.stunned = t;
+  m.events.push({ type: 'stunned', player: p.index, time: t });
+  return true;
+}
+
 function knock(m, p, pw, kit, v, daze, lift = HS.HIT_LIFT, flight = 0) {
-  p.vx = pw.dir * v; p.vy = -lift; p.onGround = false;
-  kit.stun(m, p, daze);
+  p.vx = pw.dir * v * (pw.kmul || 1); p.vy = -lift; p.onGround = false;
+  powerStun(m, p, kit, daze);
   // a THROW keeps its speed through the air (a stunned body otherwise loses 14% a tick)
   if (flight > 0) p.koSlide = flight;
-  if (!p.ail) applyAilment(m, p, 'stars', daze);
+  if (!p.ail || p.ail === 'stars') applyAilment(m, p, 'stars', daze);
 }
 function landAilment(m, p, pw) {
   if (pw.ail) applyAilment(m, p, pw.ail, pw.ailS || ailDur(pw.ail, pw.int, pw.fam));
@@ -682,6 +728,11 @@ export function ailMods(p) {
     case 'gem': o.dead = true; o.noJump = true; o.noDash = true; break;
     case 'iced': o.dead = true; o.noJump = true; o.noDash = true; o.friction = 0.975; o.canArm = true; break;
     case 'beheaded': o.dead = true; o.noDash = true; break;   // (and sim.js drops the head's contacts)
+    case 'coiled': o.speed = 0.5; o.noDash = true; break;
+    case 'singed': o.noKick = true; break;
+    case 'sticky': o.speed = 0.55; o.jump = 0.7; o.noDash = true; break;    // jump ×0.7 at take-off ≈ half the height
+    // frozen stiff, then a shiver: slow, no jump, no dash for its last SHIVER s
+    case 'brainfreeze': if (p.ailT > SHIVER) { o.dead = true; o.canArm = true; } else o.speed = 0.5; o.noJump = true; o.noDash = true; break;
     default: break;
   }
   return o;
@@ -700,6 +751,12 @@ export function ailInput(md, input) {
   return o;
 }
 export const headless = (p) => p.ail === 'beheaded';
+// A champion power that holds its own shooter while it plays out (the Cannoneer planted under his
+// barrage): sim.js takes his input for it, and nobody can tackle him.
+export function powerHolds(m, p) {
+  const pw = m.ball && m.ball.power;
+  return !!(m.phase === 'play' && pw && pw.cp && pw.owner === p.index && cpHolds(pw));
+}
 
 // Ball-side and extra-ball helpers for the renderer and the bot.
 export const familyOf = (b) => (b && b.power ? FAMILIES[b.power.fam] : null);

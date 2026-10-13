@@ -30,7 +30,7 @@ export function createNet({ onRoom, onStart, onOver, onError, onStatus, onOppone
     ws: null, id: null, room: null, match: null,
     live: false,                // is a match actually in progress — see pump
     you: 0, tick: 0, acc: 0, acked: -1,       // acked: my newest input frame the server has used
-    vis: [[0, 0], [0, 0], [0, 0]],              // ball, p0, p1: how far the drawing is from the sim
+    vis: [[0, 0, 0, 0], [0, 0, 0, 0], [0, 0, 0, 0]],   // ball, p0, p1: how far the drawing is from the sim, and how fast that closes (game.js)
     inputs: new Map(),          // tick -> packed input (mine)
     oppInput: 0,
     lastSnap: null,
@@ -79,7 +79,7 @@ export function createNet({ onRoom, onStart, onOver, onError, onStatus, onOppone
         net.match = createMatch(msg.chars[0], msg.chars[1], { duration: msg.duration });
         net.live = true;
         net.tick = 0; net.acc = 0; net.acked = -1;
-        net.vis = [[0, 0], [0, 0], [0, 0]];
+        net.vis = [[0, 0, 0, 0], [0, 0, 0, 0], [0, 0, 0, 0]];
         net.inputs.clear();
         net.oppInput = 0;
         net.lastSnap = null;
@@ -135,7 +135,7 @@ export function createNet({ onRoom, onStart, onOver, onError, onStatus, onOppone
     bodies().forEach((o, i) => {
       const v = net.vis[i];
       v[0] += before[i][0] - o.x; v[1] += before[i][1] - o.y;
-      if (goal || Math.hypot(v[0], v[1]) > VIS_SNAP) { v[0] = 0; v[1] = 0; }
+      if (goal || Math.hypot(v[0], v[1]) > VIS_SNAP) { v[0] = v[1] = v[2] = v[3] = 0; }
     });
     net.correction = { you: me1.x - was[0], youY: me1.y - was[1], ball: Math.hypot(net.match.ball.x - was[2], net.match.ball.y - was[3]), opp: Math.hypot(op1.x - was[5], op1.y - was[6]), replayed: target - from, ack: snap.ack, snapTick: snap.tick, tick: target };
     (net.corrections ||= []).push(net.correction); if (net.corrections.length > 600) net.corrections.shift();

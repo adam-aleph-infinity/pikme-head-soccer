@@ -19,6 +19,7 @@ import * as C from '../shared/constants.js';
 import * as T from '../shared/tutorial.js';
 import { headY } from '../shared/sim.js';
 import { championFor } from '../shared/champions.js';
+import { levelsOf } from '../shared/upgrades.js';
 
 const GLOVE = `<svg viewBox="0 0 64 84" aria-hidden="true"><g stroke="#1b1f3a" stroke-width="3.5" stroke-linejoin="round" stroke-linecap="round">
   <path fill="#fff" d="M19 44 V11 a7 7 0 0 1 14 0 V36 a6 6 0 0 1 12 0 V40 a6 6 0 0 1 11 3 V60 c0 11-8 18-19 18 h-7 c-9 0-15-5-18-12 l-7-15 a6 6 0 0 1 10-6 Z"/>
@@ -442,15 +443,18 @@ export function createTutorial(ctx) {
       });
     });
   }
-  // THE SHOP: buy the first upgrade (a replay with no points to spend only explains it)
+  // THE FIRST UPGRADE (a replay with no points to spend only explains it) — on your starter's own page
+  // now (2026-10-12: each champion has its own levels; the shop sells bundles). The coach's
+  // words are the shop's as they were: they change later.
   let speed0 = 0;
+  const mySpeed = () => levelsOf(ctx.stats(), ctx.me()).speed;
   function shop() {
     phase = 'shop-wait'; guardOk = ['#tut'];
     waitTap(null); say(null); spot(null); ring(null); hand(null);
-    ctx.menu.openShop();
+    ctx.menu.openChamp(ctx.me());
     later(650, () => {
-      speed0 = ctx.stats().lv.speed;
-      const row = $('#upgRows .upg-row[data-k="speed"]'), buy = row?.querySelector('.upg-buy');
+      speed0 = mySpeed();
+      const row = $('#chUps .ch-up[data-k="speed"]'), buy = row?.querySelector('.cu-buy');
       // a replay only explains: it never spends points the player earned for real. And the guided
       // buy is the level-1 speed the reward pays for — a player who already has speed (one who had
       // played before the tutorial was for everyone) is only shown, and keeps the 500 (Idan)
@@ -466,11 +470,11 @@ export function createTutorial(ctx) {
     });
   }
   function watchShop() {
-    if (ctx.stats().lv.speed <= speed0) return;
+    if (mySpeed() <= speed0) return;
     phase = 'shop-talk'; guardOk = ['#tut'];
     ring(null); hand(null);
     check();
-    say(T.SAY.bought, { at: '#upgRows', side: 'down' });
+    say(T.SAY.bought, { at: '#chUps', side: 'down' });
     later(1900, () => talk(T.SAY.stats, teamStep));
   }
   // the coach, big, in the dark, until a tap (HB2 42 s)

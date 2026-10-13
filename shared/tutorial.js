@@ -140,7 +140,7 @@ export function aimVelocity(x, y, tx, ty, t, grav) {
 
 // THE COUNTER LESSON (Idan, 2026-10-07): after your own power, the opponent fires one at you and
 // you kick it back. Our kick-block (hs-powers.js block): a boot that meets their power ball blocks
-// it, and THEIR shot goes back out at their goal as yours. The stage-2 Thunderbolt the practice
+// it, and THEIR shot goes back out at their goal as yours. The stage-1 Broadside the practice
 // opponent fires crosses ~2150 px/s at head height and the kick swings from the knee to the face
 // in 0.26 s, but only the swing UP blocks (constants.js BLOCK_SWING, Idan 2026-10-08: "good
 // timing, like HS"; then "way too hard", so the first 0.65 of it), so a press with the ball 280–480
@@ -148,11 +148,13 @@ export function aimVelocity(x, y, tx, ty, t, grav) {
 // it was 300–520 while the leg held out at the top blocked too). The lesson freezes the shot COUNTER_GAP away and the press lets it go —
 // right in the middle of that.
 export const COUNTER_GAP = 380;
-// WHO THE PRACTICE OPPONENT CAN BE: a drawn champion whose power a kick blocks. Measured in the
-// sim (test-tutorial.mjs): champions 1 and 2 fire a straight shot a timed kick blocks;
-// 3's ground twister and 4's shot cannot be kicked back at all (HS: a Ground shot is only
-// countered). So the opponent is 2 — or 1, when your own card is 2.
-export const FOES = Object.freeze([2, 1]);
+// WHO THE PRACTICE OPPONENT CAN BE: a drawn champion whose power a timed kick blocks — a dead-flat
+// shot at head height at the comet's pace. Measured in the sim (test-tutorial.mjs): champion 4's
+// Choco Burst is, and so is 8's; 2's Worm Tunnel Ambush goes under the pitch and lobs, 3's Sizzle Line flies at
+// knee height, and 1's Broadside fires two shells before the ball (Idan 2026-10-12: not the first
+// lesson), so a press timed for one head-height ball misses them (docs/CHAMPION-POWERS.md); 5 is the
+// coach. So the opponent is 4 — or 8, when your own card is 4.
+export const FOES = Object.freeze([4, 8]);
 export const foeFor = (me) => ({ rarity: 'legendary', number: FOES.find((n) => !(me && me.rarity === 'legendary' && me.number === n)) });
 export const COUNTER_SPOTS = Object.freeze({ me: 170, foe: 860 });
 

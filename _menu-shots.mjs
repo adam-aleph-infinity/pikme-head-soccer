@@ -39,6 +39,12 @@ const screen = () => js(`MENU.screen`);
 const click = (sel) => js(`document.querySelector(${JSON.stringify(sel)})?.click(), 1`);
 const until = async (f, ms = 3000) => { const t0 = Date.now(); while (Date.now() - t0 < ms) { if (await f()) return true; await sleep(60); } return false; };
 const on = (id) => until(async () => (await screen()) === id && (await visible('#' + id)));
+// picking a mode only SELECTS it (Idan): home again, the button names it; PLAY then starts it
+const pickMode = async (m) => {
+  await click(`.mn-mode[data-mode="${m}"]`);
+  check(`picking ${m} only selects it: home, the button says ${m}`, (await on('menu')) && (await js(`document.querySelector('#hmModes').dataset.mode`)) === m);
+  await click('#hmPlay');
+};
 const KEYS = { Enter: 13, Escape: 27, ArrowLeft: 37, ArrowUp: 38, ArrowRight: 39, ArrowDown: 40, Space: 32 };
 const key = async (code) => {
   const k = code === 'Space' ? ' ' : code;
@@ -77,8 +83,9 @@ await sleep(700);
 check('the menu fits the glass', (await fits('#menu')).length === 0, (await fits('#menu')).join(','));
 await shot('02-menu');
 check('you stand on the podium: a body and a head', await js(`!!document.querySelector('#hmHero canvas') && !!document.querySelector('#hmHero .head')`));
-await click('#hmPass'); await sleep(250);
-check('BATTLE PASS says "coming soon"', await js(`document.querySelector('#hmToast').classList.contains('on')`));
+await click('#hmPass');
+// (waits for it rather than a fixed 250 ms: a busy machine runs the press's 110 ms late)
+check('BATTLE PASS says "coming soon"', await until(() => js(`document.querySelector('#hmToast').classList.contains('on')`), 1500));
 // PLAY: the game modes until the arena is live (ARENA_LIVE, Idan 2026-10-08), the arena after
 check('the trophies say "soon" until the arena is live', (await js(`document.querySelector('#hmCups').textContent`)) === 'בקרוב');
 await click('#hmPlay'); await sleep(400);
@@ -89,8 +96,8 @@ check('the modes button opens the game modes', await on('modes'));
 await sleep(500);
 check('the modes fit the glass', (await fits('#modes')).length === 0, (await fits('#modes')).join(','));
 await shot('02b-modes');
-check('every mode, in HS\'s order', (await js(`[...document.querySelectorAll('#mdRow .mn-mode')].map(b => b.dataset.mode).join()`)) === 'arcade,tournament,multi,practice');
-await click('.mn-mode[data-mode="arcade"]');
+check('every mode, in HS\'s order', (await js(`[...document.querySelectorAll('#mdRow .mn-mode')].map(b => b.dataset.mode).join()`)) === 'arena,arcade,tournament,multi,practice');
+await pickMode('arcade');
 check('arcade opens Player Select', await on('select'));
 await sleep(700);
 check('Player Select fits the glass', (await fits('#select')).length === 0, (await fits('#select')).join(','));
@@ -108,7 +115,7 @@ check('SHOP opens the shop', await on('shop'));
 await sleep(500);
 check('the shop fits the glass', (await fits('#shop')).length === 0, (await fits('#shop')).join(','));
 await shot('05-shop');
-check('five stats, each with a buy button', (await js(`document.querySelectorAll('#upgRows .upg-row .upg-buy').length`)) === 5);
+check('three bundles, each "coming soon"', (await js(`[...document.querySelectorAll('#bnRow .bn-card')].filter(b => b.textContent.includes('בקרוב')).length`)) === 3);
 await key('Escape');
 check('Esc goes back to Player Select', await on('select'));
 await click('#selRar'); await sleep(200);
@@ -144,7 +151,7 @@ await key('Escape');
 check('BACK from how to returns to the menu, options open', (await on('menu')) && await visible('#optPop'));
 await key('Escape');
 
-await js(`MENU.openModes()`); await click('.mn-mode[data-mode="multi"]'); await sleep(300);
+await js(`MENU.openModes()`); await pickMode('multi'); await sleep(300);
 check('multiplayer opens its popup', await visible('#mpPop'));
 await shot('10-multi');
 await click('#hostBtn');
@@ -156,7 +163,8 @@ await click('#lobbyBack');
 check('BACK leaves the room for the menu', await on('menu'));
 
 // practice → a match → pause → how to → give up → result → Player Select
-await click('#hmPlay'); await on('modes'); await click('.mn-mode[data-mode="practice"]');
+await click('#hmModes'); await on('modes');   // (the list: PLAY now plays the mode picked last)
+ await pickMode('practice');
 check('practice opens Player Select, practice flavour', (await on('select')) && await visible('#selDiff'));
 await click('#diffUp'); await sleep(100);
 check('the difficulty arrows move the bot', (await js(`pick.level`)) === 4);
@@ -189,7 +197,7 @@ check('NEXT goes back to Player Select (practice)', (await on('select')) && awai
 
 // arcade: win stage 1 → points, NEXT MATCH → stage 2 selected
 await click('#selBack'); await on('modes');
-await click('.mn-mode[data-mode="arcade"]');
+await pickMode('arcade');
 await on('select');
 await go('?arcade');
 await click('#selPlay');
@@ -225,7 +233,7 @@ check('…and Player Select stays on that champion', (await js(`document.querySe
 
 // ── the tournament: enter it, win the bracket, lift the cup; then a new one, knocked out ──
 await js(`localStorage.removeItem('hs.tour.v1'); MENU.openModes()`); await sleep(300);
-await click('.mn-mode[data-mode="tournament"]'); await sleep(400);
+await pickMode('tournament'); await sleep(400);
 check('the tournament opens its Player Select (HS: NEXT)', (await on('select')) && await visible('#selCup') && (await js(`document.querySelector('#selPlay').textContent`)) === 'הבא');
 await shot('17-tour-select');
 check('HS: you pick yourself from a SIDEWAYS reel', (await visible('#reelCup')) && !(await visible('#reelMe')) && await js(`document.querySelector('#reelCup').classList.contains('rl-x')`));

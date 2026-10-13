@@ -894,8 +894,10 @@ const jumpArc = (input) => {
     }
   }
   ok('every one of the eleven families is on some card', FAMILY_ORDER.every((f) => seen.has(f)), [...seen].join(','));
-  ok('champion cards fire their mapped shot', shotFor({ rarity: 'legendary', number: 3 }).family === 'straight' &&
-     shotFor({ rarity: 'legendary', number: 3 }).ailment === 'burn' && shotFor({ rarity: 'legendary', number: 2 }).family === 'grab');
+  // (a champion whose ORIGINAL power is built fires it everywhere — docs/CHAMPION-POWERS.md — and
+  // the rest still fire their mapped shot until their turn comes)
+  ok('champion cards fire their own power, or their mapped shot', shotFor({ rarity: 'legendary', number: 3 }).cp === 'sizzle' &&
+     shotFor({ rarity: 'legendary', number: 45 }).family === 'delay' && shotFor({ rarity: 'legendary', number: 45 }).ailment === 'freeze' && !shotFor({ rarity: 'legendary', number: 45 }).cp);
 }
 
 // --- determinism ------------------------------------------------------------

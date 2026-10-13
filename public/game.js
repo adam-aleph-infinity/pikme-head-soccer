@@ -14,7 +14,7 @@ import { characterFor, kitFor, charUrl, expressionFor, CHAR_BOX, EXPRESSIONS as 
 import { MYTHIC, STARTER_KEY, loadStarter, switchStarter, ownsMythic, needsStarter } from '../shared/mythics.js';
 import { createStarterPick } from './starter.js';
 import * as TEAM from '../shared/teams.js';
-import { createTeams, badgeSVG, timeLeft } from './team.js';
+import { createTeams, badgeSVG } from './team.js';
 import * as ARENA from '../shared/arena.js';
 import { createArena } from './arena.js';
 import { clockText, gaugeView } from './hud.js';
@@ -34,6 +34,7 @@ import * as TOUR from '../shared/tournament.js';
 import { createTutorial } from './tutorial.js';
 import { createLoader } from './loader.js';
 import * as TUTR from '../shared/tutorial.js';
+import { createAnalyticsClient } from './analytics.js';
 
 // What a Head Soccer power shot looks like: the aura, the cut-in, the comet, the ailments. It
 // only watches the match (see champ-vfx.js).
@@ -42,7 +43,7 @@ import * as TUTR from '../shared/tutorial.js';
 const VFXR = createVfx({ drawBall: (g, b) => drawBall(g, b), drawBody: (g, p) => {
   for (let k = GHOSTS[p.index].length - 1; k >= 0; k--) { const q = GHOSTS[p.index][k]; g.save(); g.globalAlpha = q.alpha; drawBody(g, q, true); g.restore(); }
   drawBody(g, p, true);
-}, me: () => (ONLINE && NET ? (NET.you ?? 0) : 0), headPose: (p) => headPose(p) });
+}, me: () => (ONLINE && NET ? (NET.you ?? 0) : 0), headPose: (p) => headPose(p), headArt: (p) => headArt(p) });
 
 // The eleven backdrops a match can roll: the seven Street Fighter II homages plus the four
 // original directions. DIRECTIONS uses the identical { id, name, grass, wall, draw(g, s) }
@@ -98,7 +99,28 @@ const CHAR_IMG = new Map();
 function warmCharacter(ch) {
   if (CHAR_WARM.has(ch.dir)) return;
   CHAR_WARM.add(ch.dir);
-  for (const e of CHAR_EXPRESSIONS) { const im = new Image(); im.src = charUrl(ch, e); CHAR_IMG.set(im.src, im); }
+  for (const e of CHAR_EXPRESSIONS) { const im = new Image(); im.onload = () => measureCharRadius(ch, im); im.src = charUrl(ch, e); CHAR_IMG.set(im.src, im); }
+}
+// HOW FAR THE DRAWING REACHES from the centre of its head box (frame units), read off its own
+// pixels as each face loads: a round frame (the scoreboard) sizes the head by it, since the
+// box's corners are empty on a round head and full on a top hat. The furthest 0.1% of the
+// drawn pixels are let go: a stray sparkle or speed line, not the head.
+const CHAR_RAD = new Map();
+function measureCharRadius(ch, im) {
+  try {
+    const W = im.naturalWidth, H = im.naturalHeight;
+    if (!W || !H) return;
+    const cv = document.createElement('canvas'); cv.width = W; cv.height = H;
+    const g = cv.getContext('2d', { willReadFrequently: true });
+    g.drawImage(im, 0, 0);
+    const a = g.getImageData(0, 0, W, H).data;
+    const [fx0, fy0, fx1, fy1] = ch.fit || [0, 0, CHAR_BOX.w, CHAR_BOX.h];
+    const cx = (fx0 + fx1) / 2, cy = (fy0 + fy1) / 2, sx = CHAR_BOX.w / W, sy = CHAR_BOX.h / H, d = [];
+    for (let y = 0; y < H; y += 2) for (let x = 0; x < W; x += 2) if (a[(y * W + x) * 4 + 3] > 128) d.push(Math.hypot(x * sx - cx, y * sy - cy));
+    if (!d.length) return;
+    d.sort((p, q) => p - q);
+    CHAR_RAD.set(ch.dir, Math.max(CHAR_RAD.get(ch.dir) || 0, d[Math.floor(d.length * 0.999)]));
+  } catch {}   // (a canvas that will not read back: the diagonal fit below stands in)
 }
 // A portrait (pick slot, arcade hexagons, scoreboard): the whole head, hair included, fitted
 // into the box with the drawn head box `fill` of its width, a touch above centre so the hair
@@ -110,7 +132,13 @@ function paintCharPortrait(el, ch, sizePx, opts = {}) {
   // element, centred, so nothing of the head is cut off by the element's edge
   const [fx0, fy0, fx1, fy1] = ch.fit || [0, 0, CHAR_BOX.w, CHAR_BOX.h];
   const fill = opts.fill || 1.1;           // >1: a touch of hair and chin cropped, the face bigger
-  const u = Math.min(sizePx * fill / (fx1 - fx0), hPx * fill / (fy1 - fy0));   // px per unit
+  // `opts.circle`: a round frame cuts the square's corners, where hats and crowns sit, so the
+  // drawing's measured reach (CHAR_RAD) ends at `circle` of the frame's radius; until it is
+  // measured, the head box's diagonal fits instead
+  const rad = opts.circle && CHAR_RAD.get(ch.dir);
+  const u = rad ? Math.min(sizePx, hPx) / 2 * opts.circle / rad
+    : opts.circle ? Math.min(sizePx, hPx) * 1.1 / Math.hypot(fx1 - fx0, fy1 - fy0)
+    : Math.min(sizePx * fill / (fx1 - fx0), hPx * fill / (fy1 - fy0));   // px per unit
   const w = CHAR_BOX.w * u, h = CHAR_BOX.h * u;
   const cx = (fx0 + fx1) / 2, cy = (fy0 + fy1) / 2;
   el.style.backgroundImage = `url("${charUrl(ch, opts.expr)}")`;
@@ -170,6 +198,9 @@ const IS_DEV_HOST = /^(localhost|\[::1\]|[\w-]+\.local|(127|10)(\.\d{1,3}){3}|19
 if (IS_DEV_HOST && new URLSearchParams(location.search).has('fresh')) {
   try { for (const k of [STARTER_KEY, TUTR.TUT_KEY, TEAM.TEAM_KEY, TEAM.DEVICE_KEY]) STORE?.removeItem(k); } catch { /* private mode */ }
 }
+// GAMEPLAY ANALYTICS (analytics.js, docs/ANALYTICS.md): off without a key, and nothing kept until the
+// Saltiz app says the player may be counted. Every call below is fire-and-forget.
+const AN = createAnalyticsClient({ store: STORE, devHost: IS_DEV_HOST, params: new URLSearchParams(location.search) });
 // THE MYTHIC STARTER this device chose (starter.js), or null until it has.
 let STARTER = loadStarter(STORE);
 // YOUR TEAM is your starter's, always (shared/teams.js): a switch changes both. The device keeps
@@ -193,8 +224,9 @@ const pick = {
 
 // Progress is shared/arcade.js and the stats shared/upgrades.js; the menus only draw them.
 let PROG = ARC.loadProgress(STORE);
-// The player's five stat levels and Arcade Points (shared/upgrades.js), one set for every card.
-let STATS = UPG.loadStats(STORE);
+// Each card's five stat levels and the one wallet of Arcade Points (shared/upgrades.js). An old save's
+// single set goes to the card in use now.
+let STATS = UPG.loadStats(STORE, pick.me);
 let ARC_SEL = ARC.currentStage(PROG);
 let ARCADE = null;                       // { stage } while an arcade match is being played
 // The tournament under way, if any (shared/tournament.js), saved so it survives closing the app.
@@ -236,7 +268,7 @@ const MENU = createMenus({
     get sel() { return ARC_SEL; },
     set sel(n) { ARC_SEL = n; },
   },
-  setStats: (st) => { STATS = st; UPG.saveStats(STORE, STATS); },
+  setStats: (st) => { for (const k in st.lv) if (st.lv[k] > STATS.lv[k]) AN.unlock('stat_level', k, st.lv[k]); STATS = st; UPG.saveStats(STORE, STATS); },
   play: { arcade: (n) => startArcadeStage(n), practice: () => startMatch(), tournament: () => startTournamentMatch() },
   tour: {
     get: () => TOURNEY,
@@ -244,6 +276,10 @@ const MENU = createMenus({
     clear: () => { TOURNEY = null; TOUR.saveTournament(STORE, null); },
   },
   lobby: (mode, code) => openLobby(mode, code),
+  // analytics: back on the home screen is out of a mode; the carousel is into one
+  onScreen: (id) => { if (id === 'menu' || id === 'title') AN.modeExit(); },
+  onMode: (id) => AN.modeEnter(id),
+  analytics: AN,
   sfxOn: audioEnabled, musicOn: musicEnabled,
   setSfx: (v) => { setSfxEnabled(v); saveAudio(); if (v) SFX.whistle(); },
   setMusic: (v) => { setMusicEnabled(v); saveAudio(); if (v && running && !paused) startBed(); else if (v && !running) startMenuMusic(); },
@@ -260,7 +296,6 @@ const MENU = createMenus({
   // THE TEAM (team.js): the home chip, the profile's lines, the team screen
   team: () => TEAM.teamOf(STARTER),
   badgeSVG,
-  teamStatus: () => teamStatus(),
   openTeam: () => TEAMS_UI.open(),
   onHome: () => onHome(),
   profileRows: () => profileRows(),
@@ -314,11 +349,11 @@ const STARTER_PICK = createStarterPick({ paintHead, store: STORE, sfx: (name) =>
 // replay from OPTIONS goes straight to the tutorial.
 function onboard({ replay = false } = {}) {
   const tutorial = () => {
-    if (replay || TUT.firstRun(PROG, STATS, QS)) TUT.start({ replay });
+    if (replay || TUT.firstRun(PROG, STATS, QS)) { AN.modeEnter('tutorial'); TUT.start({ replay }); }
     else { MENU.openMenu(); afterFirstLaunch(); }
   };
   if (!replay && needsStarter({ starter: STARTER, params: QS })) {
-    STARTER_PICK.open((n) => { STARTER = n; pick.me = { rarity: MYTHIC, number: n }; sendHello(); tutorial(); });
+    STARTER_PICK.open((n) => { AN.unlock('mythic', `mythic_${n}`); STARTER = n; pick.me = { rarity: MYTHIC, number: n }; sendHello(); tutorial(); });
     return;
   }
   tutorial();
@@ -346,7 +381,7 @@ const ARENA_UI = createArena({
   myName: () => pick.name || MN.cleanName(''),
   starter: () => STARTER,
   clockSkew: () => CLOCK_SKEW,
-  cancel: () => NET?.league('unqueue'),
+  cancel: () => { AN.mmCancel(); AN.modeExit(); NET?.league('unqueue'); },
   claimRoad: (i) => NET?.league('road', { i }),
   countUp: (el, a, b) => countUp(el, a, b),
   openTeam: () => TEAMS_UI.open(),
@@ -354,16 +389,6 @@ const ARENA_UI = createArena({
   live: () => arenaLive(),
 });
 let CLOCK_SKEW = 0;                  // the server's clock minus ours (the week ends by the server's)
-// The chip's second line: where your team is this week, and how long is left.
-function teamStatus() {
-  const w = PROFILE?.week;
-  if (!w || !STARTER) return '';
-  if (w.phase === 'break') return 'השבוע נגמר!';
-  const mine = w.standings.find((s) => s.team === (w.me?.team || STARTER));
-  const left = w.end - (Date.now() + CLOCK_SKEW);
-  const when = left < 24 * 3600e3 ? 'היום הסיום!' : timeLeft(left);
-  return mine?.active ? `מקום ${mine.rank} · ${when}` : when;
-}
 function profileRows() {
   const t = TEAM.teamOf(STARTER);
   const rows = [];
@@ -418,6 +443,7 @@ function sendHello() {
   if (NET?.connected) NET.hello(pick.name || 'שחקן', pick.me, { id: DEVICE, starter: STARTER });
 }
 let ARENA_RES = null;                // the server's word on the arena match just played
+let FOUND_OPP = null;                // the arena opponent's trophies (analytics' match_start)
 const PRIZES = [];                   // weeks' news waiting for the home screen
 function onLeague(msg) {
   switch (msg.type) {
@@ -429,7 +455,7 @@ function onLeague(msg) {
       MENU.paintHome(); TEAMS_UI.refresh(); ARENA_UI.refresh();
       break;
     case 'queued': break;
-    case 'found': ARENA_UI.found(msg); break;
+    case 'found': FOUND_OPP = msg.opp?.trophies; AN.mmFound(); ARENA_UI.found(msg); break;
     case 'oppLeft': ARENA_UI.oppLeft(); break;
     case 'arenaResult': arenaResult(msg); break;
     case 'road':
@@ -437,7 +463,7 @@ function onLeague(msg) {
       ARENA_UI.roadDone(msg);
       break;
     case 'switched':
-      if (msg.ok) { adoptStarter(msg.starter); saveTeamRec({ ...TEAM_REC, switched: true }); }
+      if (msg.ok) { AN.unlock('mythic', `mythic_${msg.starter}`); adoptStarter(msg.starter); saveTeamRec({ ...TEAM_REC, switched: true }); }
       SWITCHING?.(msg.ok ? { ok: true } : { ok: false, err: msg.err });
       break;
     case 'prize':
@@ -456,10 +482,13 @@ function playArena() {
   if (!NET?.connected) { MENU.toast('אין חיבור לאינטרנט'); return; }
   if (!PROFILE) { sendHello(); MENU.toast('מתחברים…'); return; }
   ARENA_UI.search();
+  AN.modeEnter('arena'); AN.mmStart(PROFILE.trophies || 0);
   NET.league('queue', { card: pick.me });
 }
 function arenaResult(msg) {
   ARENA_RES = msg;
+  anArenaEnd(msg);
+  if (msg.newArena) AN.trophyMilestone(msg.newArena);
   if (MODE !== 'arena') return;                    // given up and gone: the profile has the numbers
   const over = !$('#over').classList.contains('hidden');
   const spelled = $('#ovSpell').className.includes('win') ? 'win' : $('#ovSpell').className.includes('lose') ? 'loss' : 'draw';
@@ -927,6 +956,7 @@ function net() {
   NET = createNet({
     onStatus: (st) => {
       document.body.dataset.net = st;
+      if (st === 'offline' && ONLINE && running) AN.disconnect();
       if (st === 'online') $('#mpConn')?.classList.add('hidden');
     },
     onOnline: showOnline,
@@ -969,6 +999,7 @@ function showOnline(n) {
 
 function openLobby(mode, code) {
   const n = net();
+  AN.modeEnter('online');
   show('lobby');
   $('#codeBox').classList.toggle('hidden', mode !== 'host');
   $('#joinBox').classList.toggle('hidden', mode === 'host');
@@ -1035,6 +1066,7 @@ function startOnlineMatch(msg) {
   MODE = msg.arena ? 'arena' : 'online';
   ARENA_RES = null;
   if (msg.arena) ARENA_UI.hide();
+  anMatchStart(msg.chars?.[NET.you] || pick.me);
   STAGE = PIN_STAGE || (msg.arena && POOL.find((s) => s.id === msg.arena.stage)) || pickStage();
   bgAt = -1e9;                        // new stage, so the baked backdrop is stale
   M = NET.match;
@@ -1102,7 +1134,7 @@ function startTutorialDrills() {
   p.x = C.W / 2; p.y = C.GROUND_Y - 560; p.vy = 0; p.onGround = false;
 }
 function startTutorialMatch() {
-  const cfg = stageConfig(1, STATS.lv);
+  const cfg = stageConfig(1, UPG.levelsOf(STATS, pick.me));
   ARCADE = null;
   MODE = 'tutorial';
   STAGE = PIN_STAGE || HS_STAGES[0];              // the drills' daytime stadium, not a night one (Idan)
@@ -1125,7 +1157,7 @@ function tutorialResult(won, draw) {
 function startTournamentMatch() {
   const ym = TOURNEY && TOUR.yourMatch(TOURNEY);
   if (!ym) return false;
-  const cfg = stageConfig(ym.stage, STATS.lv);
+  const cfg = stageConfig(ym.stage, UPG.levelsOf(STATS, TOURNEY.entrants[TOUR.YOU].card));   // (the card the tournament was entered with)
   ARCADE = null;
   MODE = 'tournament';
   STAGE = PIN_STAGE || HS_STAGES[cfg.champ.arena % HS_STAGES.length];
@@ -1148,7 +1180,7 @@ function tournamentResult(won, score) {
 
 function startArcadeStage(n) {
   if (!ARC.canStart(PROG, n)) return false;          // a locked stage does not start. Ever.
-  const cfg = stageConfig(n, STATS.lv);
+  const cfg = stageConfig(n, UPG.levelsOf(STATS, pick.me));
   ARCADE = { stage: n };
   MODE = 'arcade';
   ARC_SEL = n;
@@ -1164,6 +1196,7 @@ function beginLocal(me, foe, opts, bot) {
   bgAt = -1e9;                        // new stage, so the baked backdrop is stale
   M = createMatch(me, foe, opts);
   BOT = bot;
+  if (bot) anMatchStart(me);            // not the tutorial's drills: no opponent, no end
   parts.length = 0;
   acc = 0; last = performance.now(); running = true;
   startIntro();
@@ -1191,6 +1224,27 @@ function beginLocal(me, foe, opts, bot) {
 // the two heads and the score, the points it paid and the total, and one button — NEXT MATCH
 // after a win, NEXT after a loss — back to Player Select. Online keeps two: play again (the
 // room) and leave. `forfeit`: GIVE UP from the pause menu, a loss whatever the score.
+// ANALYTICS' VIEW OF A MATCH (analytics.js): its start, its one end, the score from your side.
+const myScore = () => { if (!M) return null; const me = ONLINE ? (NET?.you ?? 0) : 0; return [M.score[me], M.score[1 - me]]; };
+let AN_PENDING = null;                   // an arena match over, its trophies not back from the server yet
+function anMatchStart(me) {
+  const arena = MODE === 'arena';
+  AN_PENDING = null;
+  AN.matchStart({ mode: MODE, me, trophies: PROFILE?.trophies, oppTrophies: arena ? FOUND_OPP : undefined, vsCpu: arena ? !!ARENA_LOCAL : undefined });
+}
+// the final whistle: every mode knows its result now except the arena, whose trophies the server sends
+function anMatchOver(result, score) {
+  AN.matchOver();
+  if (MODE !== 'arena') { AN.matchEnd({ result, score }); return; }
+  const p = AN_PENDING = { score };
+  if (ARENA_RES) anArenaEnd(ARENA_RES);
+  else setTimeout(() => { if (AN_PENDING === p) { AN_PENDING = null; AN.matchEnd({ result, score }); } }, 8000);   // no answer: the end without trophies
+}
+function anArenaEnd(res) {
+  if (!AN_PENDING) return;
+  AN.matchEnd({ result: res.result, score: AN_PENDING.score, trophyDelta: res.delta, trophies: res.trophies, ranked: !res.practice });
+  AN_PENDING = null;
+}
 let NEXT_SELECT = null;                  // the stage Player Select reopens on (arcade)
 function endMatch({ forfeit = false } = {}) {
   running = false;
@@ -1209,6 +1263,7 @@ function endMatch({ forfeit = false } = {}) {
   }
   // the arena: the server's result is the result (it also knows who left)
   if (MODE === 'arena' && ARENA_RES) { iWon = ARENA_RES.result === 'win'; draw = ARENA_RES.result === 'draw'; }
+  anMatchOver(forfeit ? 'loss' : draw ? 'draw' : iWon ? 'win' : 'loss', [mine, theirs]);
   // HS M3 92.6 s: the scores in gold either side of a gold VS, on the panel
   $('#overScore').innerHTML = `<b class="gold">${a}</b><b class="gold ov-vs">VS</b><b class="gold">${b}</b>`;
   const word = draw ? 'DRAW' : iWon ? 'WIN' : 'LOSE';
@@ -1252,6 +1307,7 @@ function arcadeResult(won, score) {
   const n = ARCADE.stage;
   const r = ARC.recordResult(PROG, n, won, score);
   if (r.accepted) { PROG = r.prog; ARC.saveProgress(STORE, PROG); }
+  if (r.unlocked) AN.unlock('arcade_stage', `stage_${r.unlocked}`, r.unlocked);
   // Arcade Points: a win over champion n pays 100 × n, a loss nothing (and only a real stage pays).
   const pay = r.accepted ? UPG.award(STATS, n, won) : { st: STATS, gained: 0 };
   if (pay.gained) { STATS = pay.st; UPG.saveStats(STORE, STATS); }
@@ -1373,6 +1429,7 @@ $('#pHow').onclick = () => MENU.openHowTo('pause');
 // and — HS M16 25.75 s — no result screen: the pills slide away and Player Select is back.
 // Online it is leaving the room; the server hands the friend a bot.
 $('#pGive').onclick = () => closePause(() => {
+  AN.matchQuit(myScore());
   if (MODE === 'online' || MODE === 'arena') { toMenu(); return; }     // the arena: the server scores it lost
   // a tournament given up is a match lost: out, and back to the bracket to see who won it
   if (MODE === 'tournament' && TOURNEY) {
@@ -1417,6 +1474,7 @@ if (new URLSearchParams(location.search).has('dev')) {
 
 // TITLE (pause) and leave (online result): to the main menu — HS M15, TITLE lands on the menu.
 function toMenu() {
+  if (running) AN.matchQuit(myScore());    // TITLE from the pause; a match already over is not a quit
   stopMatchLoop();
   // Online, leaving the result (or quitting) leaves the room too, or the friend waits forever.
   if (MODE === 'online' || MODE === 'arena') { net().leave(); ONLINE = false; }
@@ -1627,20 +1685,26 @@ function lerpIn(ahead) {
 }
 function lerpOut() { bodies().forEach((o, i) => { [o.x, o.y] = REAL[i]; }); REAL = null; }
 // ONLINE, drawn as smoothly as the arcade (2026-10-09): the same fraction-of-a-tick lead, and every
-// snapshot's correction (net.js net.vis) glided out instead of jumped — fast for your own player
-// (it is your thumb), a little slower for the opponent and the ball.
+// snapshot's correction (net.js net.vis) glided out instead of jumped.
+// THE GLIDE IS A SPRING (2026-10-11): an offset that decayed exponentially moved fastest the frame a
+// correction landed — the other player visibly popped. Now each body's offset is eased out by a
+// critically damped spring (Unity's SmoothDamp): a new correction leaves the drawn body where it was
+// AND moving as it was, then it curves in, with no kink in its speed. Your own player settles fast
+// (it is your thumb), the ball a little slower, the other player slowest (its moves are the guesses).
+const SMOOTH = { you: 0.05, ball: 0.07, opp: 0.11 };     // s: roughly how long a correction takes to settle
+function smoothDamp(v, k, T, dt) {                     // v[k] the offset, v[k + 2] its speed; eased to 0
+  const w = 2 / T, x = w * dt, e = 1 / (1 + x + 0.48 * x * x + 0.235 * x * x * x);
+  const c = v[k], t = ((v[k + 2] || 0) + w * c) * dt;
+  v[k + 2] = ((v[k + 2] || 0) - w * t) * e;
+  v[k] = (c + t) * e;
+}
 function netSmoothIn(dt) {
   if (!M || !NET?.vis) return false;
-  const you = NET.you ?? 0;
+  const you = NET.you ?? 0, S = window.NET_SMOOTH || SMOOTH;
   NET.vis.forEach((v, i) => {
-    // the half-life of a correction: your own player 30 ms (it is your thumb), the ball 40 ms,
-    // the opponent 60 ms (its dashes and kicks are the guesses that miss most) — and a bigger one
-    // glides longer (up to 100 / 140 ms), so a big miss curves into place rather than jumping
-    const mag = Math.hypot(v[0], v[1]);
-    const half = i - 1 === you ? 0.03 : Math.min(i === 0 ? 0.1 : 0.14, (i === 0 ? 0.04 : 0.06) * (1 + mag / 60));
-    const k = Math.pow(0.5, dt / half);
-    v[0] *= k; v[1] *= k;
-    if (Math.abs(v[0]) < 0.05 && Math.abs(v[1]) < 0.05) { v[0] = 0; v[1] = 0; }
+    const T = i === 0 ? S.ball : i - 1 === you ? S.you : S.opp;
+    smoothDamp(v, 0, T, dt); smoothDamp(v, 1, T, dt);
+    if (Math.abs(v[0]) < 0.05 && Math.abs(v[1]) < 0.05 && Math.abs(v[2] || 0) < 1 && Math.abs(v[3] || 0) < 1) { v[0] = v[1] = 0; v[2] = v[3] = 0; }
   });
   const ahead = lerpIn(NET.acc);                // the tick lead (it saves REAL)
   if (!ahead) REAL = bodies().map((o) => [o.x, o.y]);
@@ -3032,6 +3096,14 @@ document.documentElement.style.setProperty('--head-shape',
 // window lifted a tenth of a head so there is hair over the brow and the chin reaches the flat
 // bottom. Chosen on a lineup of the album (_charshots.mjs → heads-lineup.png).
 const HEAD_CROP = { zoom: 1.3, lift: -0.06 };
+// The head's picture for a power that wears it (champ-vfx headArt): the face file and its frame in
+// world px from the head's centre — exactly where paintPitchChar lays it in the DOM head.
+function headArt(p) {
+  const ch = p && p.char ? characterFor(p.char.rarity, p.char.number) : null;
+  if (!ch) return null;
+  const R = headR(M, p), w = 2 * R * HEAD_W, h = 2 * R * HEAD_H, f = charFrame(w, h);
+  return { url: charUrl(ch, 'normal'), x: f.x - w / 2, y: f.y - h / 2, w: f.w, h: f.h, flip: p.index === 1 };
+}
 function headBox(p) {
   const d = headR(M, p) * 2 * SC;
   return { w: d * HEAD_W, h: d * HEAD_H };
@@ -3144,7 +3216,11 @@ function drawHeads() {
     // (caught in Nigeria's tornado he spins as he flies — hs-powers `twister`)
     const hp = headPose(p);
     el.style.transform = `translate(${x + hp.dx * SC - w / 2}px, ${y + hp.dy * SC - h / 2}px) rotate(${hp.tilt}rad)`;
-    drawHeadGhosts(i, el, w, h);
+    // WORN BY A POWER (champ-vfx ownsHead — the Cannoneer turned into his cannon): the power paints
+    // the whole head on the layer over the heads, from his own face (headArt), so this one and its
+    // dash ghosts stand aside, as for no head at all (below)
+    const worn = VFXR.ownsHead(p);
+    if (worn) { for (const gh of HEAD_GHOSTS[i]) gh.hidden = true; } else drawHeadGhosts(i, el, w, h);
     // ARMED: THE PLAYER GLOWS LIKE A FULL POWER BAR.
     //
     // Deliberately the BAR's gold and not the character's shot colour, which is what this
@@ -3155,7 +3231,8 @@ function drawHeads() {
     if (p.armed > 0) el.style.setProperty('--glow', '#ffc400');
     // BEHEADED (the ailment): no head for its few seconds — champ-vfx draws the empty ring.
     const gone = p.ail === 'beheaded';
-    if (el.classList.contains('gone') !== gone) { el.classList.toggle('gone', gone); el.style.visibility = gone ? 'hidden' : ''; }
+    if (el.classList.contains('gone') !== gone) el.classList.toggle('gone', gone);
+    if ((el.style.visibility === 'hidden') !== (gone || worn)) el.style.visibility = gone || worn ? 'hidden' : '';
     // THE HIT MARKS, one per hurt that did not knock out (`hurt`, kickDamage in sim.js) — not
     // health: HS keeps them on the face through goals and knockouts to the final whistle (M3, M4).
     // In order — blue eye, red nose, violet bruise, grey cheek — the same for both players, so the
@@ -3286,10 +3363,10 @@ function paintFaces() {
     const p = M.players[i], { rarity, number } = p.char;
     // A real-face character pulls the same face up here as on the grass (and faces the middle).
     const expr = characterFor(rarity, number) ? expressionFor(M, p) : '';
-    const key = `${rarity}_${number}_${FACE_PX}_${expr}`;
+    const key = `${rarity}_${number}_${FACE_PX}_${expr}_${CHAR_RAD.get(characterFor(rarity, number)?.dir) | 0}`;   // (repaints once the face is measured)
     if (el.dataset.card === key) continue;
-    // a character fits whole inside the circle (its corners are empty), a photo keeps its close crop
-    paintHead(el.firstElementChild, rarity, number, FACE_PX, characterFor(rarity, number) ? { expr, flip: i === 1, fill: 0.9 } : { expr, flip: i === 1 });
+    // a character fits whole inside the circle (hats and crowns included), a photo keeps its close crop
+    paintHead(el.firstElementChild, rarity, number, FACE_PX, characterFor(rarity, number) ? { expr, flip: i === 1, circle: 0.86 } : { expr, flip: i === 1 });
     el.dataset.card = key;
   }
 }
@@ -3477,7 +3554,7 @@ $('#tunerCopy').onclick = async () => {
     if (q.has('resetstats')) STATS = UPG.freshStats();
     for (const part of (q.get('lv') || '').split(',')) {
       const [k, v] = part.split(':');
-      if (UPG.STAT_KEYS.includes(k) && v !== undefined) STATS = { ...STATS, lv: { ...STATS.lv, [k]: Math.max(0, Math.min(10, Math.floor(Number(v)) || 0)) } };
+      if (UPG.STAT_KEYS.includes(k) && v !== undefined) STATS = UPG.setLevel(STATS, pick.me, k, v);   // (the card in use)
     }
     if (q.get('points') === 'inf') STATS = { ...STATS, points: 9999999999 };
     else {

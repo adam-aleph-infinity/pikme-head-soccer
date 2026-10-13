@@ -117,6 +117,17 @@ const RECORD = (offline) => `(() => { window.FEEL = []; window.ON_FRAME = (M, dt
   FEEL.push([now, M.ball.x, M.ball.y, a.x, a.y, b.x, b.y, M.freeze > 0 || M.hitStop > 0 || M.ballWait > 0 ? 1 : 0]);
 }; if (window.NET) NET.corrections = []; return 1; })()`;
 const pct = (a, p) => (a.length ? a.slice().sort((x, y) => x - y)[Math.min(a.length - 1, Math.floor(a.length * p))] : 0);
+// a body's jerks (|p[i] - 2p[i-1] + p[i-2]| px) in one picture: per minute over JERK, the p99, and
+// how many over 3x JERK (a jump anyone would see)
+function jerks(F, j) {
+  const a = [];
+  for (let i = 2; i < F.length; i++) {
+    if (F[i][7] || F[i - 1][7] || F[i - 2][7] || F[i][0] - F[i - 1][0] > 40 || F[i - 1][0] - F[i - 2][0] > 40) continue;
+    a.push(Math.hypot(F[i][j] - 2 * F[i - 1][j] + F[i - 2][j], F[i][j + 1] - 2 * F[i - 1][j + 1] + F[i - 2][j + 1]));
+  }
+  const secs = (F.at(-1)?.[0] - F[0]?.[0]) / 1000 || 1;
+  return { perMin: (a.filter((v) => v > JERK).length * 60) / secs, p99: +pct(a, 0.99).toFixed(1), big: a.filter((v) => v > 3 * JERK).length };
+}
 function score(F, corr) {
   const dts = [], jumps = { ball: 0, you: 0, opp: 0 }, worst = { ball: 0, you: 0, opp: 0 };
   for (let i = 2; i < F.length; i++) {
@@ -165,6 +176,7 @@ for (const run of which) {
   } else {
     // two players in a friend room
     await Promise.all([A.home(), B.home()]);
+    if (process.env.SMOOTH) for (const P of [A, B]) await P.js(`window.NET_SMOOTH = ${process.env.SMOOTH}, 1`);   // try a glide: SMOOTH='{"you":0.05,"ball":0.07,"opp":0.11}'
     await A.js('NET.create(), 1');
     if (!(await until(() => A.js('!!(NET.room && NET.room.code)')))) { console.log(`${run}: no room`); continue; }
     const code = await A.js('NET.room.code');
@@ -173,13 +185,19 @@ for (const run of which) {
     await A.js('NET.ready(true), 1'); await B.js('NET.ready(true), 1');
     if (!(await until(() => A.js(`!!(NET.live && window.MATCH && MATCH.phase === 'play')`), 20000))) { console.log(`${run}: no match`); continue; }
     await sleep(400);
-    await A.js(RECORD(false));
+    await A.js(RECORD(false)); await B.js(RECORD(false));
     await Promise.all([A.thumb(PLAY_S * 1000), B.thumb(PLAY_S * 1000, 430)]);
-    r = { ...score(await A.js('FEEL'), await A.js('NET.corrections || []')), rtt: await A.js('NET.rtt') };
+    const FA = await A.js('FEEL'), FB = await B.js('FEEL');
+    r = { ...score(FA, await A.js('NET.corrections || []')), rtt: await A.js('NET.rtt') };
+    // THE OPPONENT AS IT REALLY MOVED: B's own picture of itself (its thumb, predicted, all but exact)
+    // against A's picture of B. What A shows beyond B's own jerks is the network's doing.
+    const self = jerks(FB, 3), seen = jerks(FA, 5);
+    r.oppExtra = { perMin: +(seen.perMin - self.perMin).toFixed(1), p99: [self.p99, seen.p99], big: [self.big, seen.big] };
     for (const P of [A, B]) await P.js('NET.leave(), 1');
   }
   await A.js('window.ON_FRAME = null, 1');
   const tag = r.rtt != null ? `rtt ${String(r.rtt).padStart(3)}ms` : r.local != null ? (r.local ? 'on-phone ' : 'server   ') : '         ';
+  if (r.oppExtra) console.log(`        the opponent, beyond its own moves: +${r.oppExtra.perMin} jerks/min · p99 ${r.oppExtra.p99[0]} → ${r.oppExtra.p99[1]} px · over ${3 * JERK} px: ${r.oppExtra.big[0]} → ${r.oppExtra.big[1]}`);
   console.log(`${run.padEnd(7)} ${tag} · ${r.fps} fps, ${r.slow}% >20ms · jumps/min you ${r.jumps.you} opp ${r.jumps.opp} ball ${r.jumps.ball} · worst px you ${r.worst.you} opp ${r.worst.opp} ball ${r.worst.ball} · ahead ${r.ahead} · corr p50/p95/max you ${r.corr.you} opp ${r.corr.opp} ball ${r.corr.ball}`);
   await sleep(600);
 }

@@ -63,7 +63,7 @@ A ball touched by a dash still travels no faster than a level-0 dash could send 
 
 ## Who is on which level
 
-**The player:** one set of five levels for every card, starting at 0. It applies in the arcade only. Online and 2-player play everyone on level 0.
+**The player:** each champion has its own five levels, starting at 0 (2026-10-12; it was one set for every card — Idan's OK needed). They are bought on the champion's own page (MY CHAMPIONS), and apply in the arcade, the tournament (the card it was entered with) and the tutorial's match only. Online, the arena, free practice and 2-player play everyone on level 0. The points are one wallet for all champions.
 
 **Arcade CPUs:**
 - Champion n is on level n for speed, jump, kick and dash: level 1 at stage 1 (0.5★), up to level 10 at stage 10 (5★) and every stage after.
@@ -74,8 +74,9 @@ A ball touched by a dash still travels no faster than a level-0 dash could send 
 
 - **Pay:** a win over champion n pays 100 × n points (stage 1 = 100 … stage 45 = 4,500), replays included. A loss pays nothing. Only the arcade pays.
 - **Prices:** level L costs 500 × 2^(L−1): 500, 1,000, 2,000 … 256,000. Taking one stat from 0 to 10 costs 511,500.
-- **Save:** the key is `hs.stats.v1`, holding `{ v, points, lv: { speed, jump, kick, dash, power } }`.
-- **Dev only:** on a dev machine or the local network, `?points=N` and `?resetstats` work.
+- **Save:** the key is `hs.stats.v1` (the name is older than the shape), holding `{ v: 2, points, cards: { [key]: { speed, jump, kick, dash, power } } }`. A card's key is `legendary_8`, `epic_3`…, and `mythic` for whichever Mythic is your starter (its levels follow it through a team switch). An old v1 save (one `lv` for everyone) gives its levels to the card in use when it loads, nobody else.
+- **Shop:** sells bundles now (all "בקרוב"); it has no upgrades.
+- **Dev only:** on a dev machine or the local network, `?points=N`, `?resetstats` and `?lv=speed:3` (the card in use) work.
 
 ## The CPU brain on a level-10 body
 

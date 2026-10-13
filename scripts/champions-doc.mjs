@@ -43,6 +43,12 @@ const AIL_TEXT = {
   beheaded: 'no head and no control for a moment: no header, the ball passes where it was', burn: 'cannot kick, 0.8× speed', stars: 'dazed, no control',
   thrown: 'flung up out of the screen by a Grab, back down in a blue whirlwind, no control (only the Grab sets it)',
   gem: 'stuck in a crust of gem crystals where he stands, no control (only the Mythic Gem\'s shatter sets it)',
+  twister: 'caught in Nigeria\'s tornado (the stage-3 HS copy, retired): flung up spinning, out cold',
+  iced: 'frozen in Russia\'s ice block (stage 6, HS copy): no control, slides when pushed',
+  coiled: 'worms round the ankles (Worm Tunnel Ambush): half speed, no dash',
+  singed: 'stood on the Sizzle Line\'s grill: cannot kick',
+  sticky: 'feet in the Choco Burst\'s chocolate: slow, half-height jumps, no dash',
+  brainfreeze: 'the Ice Pop Wall\'s hit: frozen stiff, then a shiver (slow, no jump, no dash) for its last 1.4s',
 };
 const AURA_TEXT = {
   none: '—', stun: `stuns (${HS.AURA_STUN}s, stars)`, push: `pushes away (${HS.AURA_PUSH} px/s)`,
@@ -68,13 +74,16 @@ export function render() {
   out.push('');
   out.push('## The champions');
   out.push('');
-  out.push('| # | Tier | Champion | Theme | Family | Ailment | Aura (radius) | Intensity | Stats S/J/K/D/P | Body × (speed/jump/kick) | Gauge × | ★ |');
-  out.push('|---|---|---|---|---|---|---|---|---|---|---|---|');
+  out.push('**Own power**: a champion whose own power is built (shared/champion-powers.js) fires it instead of the map\'s family, ailment and aura — an **original** power everywhere, a Head Soccer copy not yet replaced only in the arcade (docs/CHAMPION-POWERS.md).');
+  out.push('');
+  out.push('| # | Tier | Champion | Theme | Own power | Family | Ailment | Aura (radius) | Intensity | Stats S/J/K/D/P | Body × (speed/jump/kick) | Gauge × | ★ |');
+  out.push('|---|---|---|---|---|---|---|---|---|---|---|---|---|');
   for (const c of CHAMPIONS) {
     const h = c.hs, s = h.stats, b = statsFor(s);
     const ail = h.ailment ? `${h.ailment} (${r2(ailDur(h.ailment, h.intensity, h.family))}s)` : '—';
     const aura = h.aura === 'none' ? '—' : `${h.aura} (${h.auraRadius}px)`;
-    out.push(`| ${c.stage} | ${TIERS[c.tier]} | ${cell(c.title)} | ${c.icon} ${cell(c.powerName)} | ${FAMILIES[h.family].en}${h.gentle ? ' (gentle)' : ''} | ${ail} | ${aura} | ${h.intensity} | ${s.speed}/${s.jump}/${s.kick}/${s.dash}/${s.power} | ${r2(b.speed)}/${r2(b.jump)}/${r2(b.kick)} | ${r2(meterRateFor(s.power))} | ${stars(h.stars)} |`);
+    const own = c.cp ? `${c.cp.name}${c.cp.everywhere ? ' (original, everywhere)' : ' (HS copy, arcade)'}` : '—';
+    out.push(`| ${c.stage} | ${TIERS[c.tier]} | ${cell(c.title)} | ${c.icon} ${cell(c.powerName)} | ${cell(own)} | ${FAMILIES[h.family].en}${h.gentle ? ' (gentle)' : ''} | ${ail} | ${aura} | ${h.intensity} | ${s.speed}/${s.jump}/${s.kick}/${s.dash}/${s.power} | ${r2(b.speed)}/${r2(b.jump)}/${r2(b.kick)} | ${r2(meterRateFor(s.power))} | ${stars(h.stars)} |`);
   }
   out.push('');
   out.push('## Ailments and auras');
