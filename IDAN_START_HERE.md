@@ -1,5 +1,7 @@
 # Idan: set up Head Football on your Mac
 
+> **New 2026-10-13: play stats.** How many play and which modes, with no consent needed: `curl https://pikme-headsoccer.onrender.com/stats/history`. Read [docs/PLAY-STATS.md](docs/PLAY-STATS.md), including the ⚠️ about the missing disk.
+
 You have write access as **idanb-shino**. Use your own GitHub account. You can change every
 part of this game and push `main` to publish to https://pikme-headsoccer.onrender.com.
 
