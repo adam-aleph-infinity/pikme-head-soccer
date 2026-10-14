@@ -2,7 +2,9 @@
 // One table of daily counters in the league's SQLite file: (day, key) → n. No row names a device.
 //   POST /play            a page's batch of events → +n on today's counters. Always 204.
 //   GET  /stats/history   every day / week / month so far, summed (JSON). ?days=N limits it.
-import { countBatch, summarize, dayOf } from '../shared/play-stats.js';
+// The server also counts what it sees itself: the most players online at once (online), and how
+// friends' rooms go (room) — still only counters, still no row names anyone.
+import { countBatch, summarize, dayOf, hourOf, hourly, ROOM_FAILS } from '../shared/play-stats.js';
 
 const MAX_BODY = 8192;
 const PER_MIN = 60;                            // POSTs per address per minute; more are dropped
@@ -12,6 +14,8 @@ export function createPlayStats(db, { now = () => Date.now() } = {}) {
     day TEXT NOT NULL, key TEXT NOT NULL, n INTEGER NOT NULL DEFAULT 0, PRIMARY KEY (day, key))`);
   const inc = db.prepare(`INSERT INTO play_daily (day, key, n) VALUES (?, ?, ?)
     ON CONFLICT (day, key) DO UPDATE SET n = n + excluded.n`);
+  const top = db.prepare(`INSERT INTO play_daily (day, key, n) VALUES (?, ?, ?)
+    ON CONFLICT (day, key) DO UPDATE SET n = MAX(n, excluded.n)`);
   const since = db.prepare('SELECT day, key, n FROM play_daily WHERE day >= ?');
   const hits = new Map();
   setInterval(() => hits.clear(), 60000).unref();
@@ -19,10 +23,26 @@ export function createPlayStats(db, { now = () => Date.now() } = {}) {
   function add(body) {
     const c = countBatch(body);
     if (!c) return 0;
-    const day = dayOf(now());
+    const t = now(), day = dayOf(t);
+    const all = { ...c, ...hourly(c, hourOf(t)) };
     db.exec('BEGIN');
-    try { for (const [k, n] of Object.entries(c)) inc.run(day, k, n); db.exec('COMMIT'); } catch (e) { db.exec('ROLLBACK'); throw e; }
+    try { for (const [k, n] of Object.entries(all)) inc.run(day, k, n); db.exec('COMMIT'); } catch (e) { db.exec('ROLLBACK'); throw e; }
     return Object.keys(c).length;
+  }
+
+  // THE MOST PLAYERS ONLINE AT ONCE: every page holds a socket from boot, so the socket count is the
+  // number with the game open. Kept as the day's and the hour's highest.
+  function online(n) {
+    if (!Number.isInteger(n) || n < 0) return;
+    const t = now(), day = dayOf(t);
+    top.run(day, 'peak', n);
+    top.run(day, `h:${hourOf(t)}:peak`, n);
+  }
+
+  // A FRIEND'S ROOM: 'create' | 'join' | 'match' | 'fail' (with the error code the player was shown)
+  function room(what, code) {
+    const key = what === 'fail' ? `room:fail:${ROOM_FAILS.includes(code) ? code : 'other'}` : ['create', 'join', 'match'].includes(what) ? `room:${what}` : null;
+    if (key) inc.run(dayOf(now()), key, 1);
   }
 
   function history(days) {
@@ -55,5 +75,5 @@ export function createPlayStats(db, { now = () => Date.now() } = {}) {
     return false;
   }
 
-  return { add, history, handle };
+  return { add, history, handle, online, room };
 }

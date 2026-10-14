@@ -3,7 +3,13 @@
 import { readFileSync } from 'node:fs';
 
 const SECTIONS = {
-  meta: ['range', 'generated', 'status', 'data_kind'],
+  meta: ['range', 'generated', 'status', 'data_kind', 'ps_since', 'ph_note'],
+  psday: ['day', 'players', 'new_players', 'opens', 'minutes', 'matches'],
+  psmode: ['mode', 'entered', 'started', 'finished', 'quit', 'dropped', 'closed_app', 'finish_rate', 'minutes'],
+  pshour: ['hour', 'today', 'yesterday', 'peak'],
+  journey: ['step', 'players', 'share'],
+  cohort: ['day', 'new_players', 'd1', 'd7', 'd30'],
+  rooms: ['label', 'display'],
   finding: ['text'],
   kpi: ['label', 'value', 'display'],
   mode: ['mode', 'players', 'visits', 'total_secs', 'total_time', 'avg_visit'],
@@ -20,7 +26,7 @@ const SECTIONS = {
   health: ['label', 'display'],
 };
 const REQUIRED_KEYS = ['meta', 'f1', 'f2', 'f3', 'kpi-players', 'kpi-new', 'kpi-sessions', 'kpi-avg', 'kpi-total', 'kpi-matches', 'health-events'];
-const NUMERIC = new Set(['value', 'players', 'visits', 'total_secs', 'started', 'finished', 'quit', 'dropped', 'closed_app', 'sessions', 'stage', 'matches']);
+const NUMERIC = new Set(['value', 'players', 'visits', 'total_secs', 'started', 'finished', 'quit', 'dropped', 'closed_app', 'sessions', 'stage', 'matches', 'new_players', 'opens', 'minutes', 'entered', 'today', 'yesterday', 'peak']);
 
 const errs = [];
 let rows;
