@@ -1039,7 +1039,7 @@ function renderLobby(room) {
     const el = document.createElement('div');
     el.className = 'seat' + (m ? (m.ready ? ' ready' : '') : ' empty');
     el.innerHTML = `<div class="face"></div><div class="nm">${m ? m.name : 'ממתין…'}</div>
-                    <div class="st">${m ? (m.ready ? 'מוכן ✓' : 'בוחר') : ''}</div>`;
+                    <div class="seat-st">${m ? (m.ready ? 'מוכן ✓' : 'בוחר') : ''}</div>`;
     if (m) paintHead(el.querySelector('.face'), m.card.rarity, m.card.number, 64);
     seats.appendChild(el);
   }

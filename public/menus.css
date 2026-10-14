@@ -860,8 +860,9 @@
 .lob-seats .seat.empty .face { box-shadow: 0 0 0 calc(var(--u) * .6) #ffffff33; opacity: .5; }
 .lob-seats .seat .face.char-face { border-radius: 0; box-shadow: none; background-color: transparent; }
 .lob-seats .seat .nm { font-weight: 900; font-size: calc(var(--u) * 3.6); }
-.lob-seats .seat .st { font-size: calc(var(--u) * 3); color: #ffffffaa; }
-.lob-seats .seat.ready .st { color: #8dff8a; font-weight: 900; }
+/* the seat's label is .seat-st, never .st: .st is the starter pick's full-screen layer, and it once covered the whole lobby */
+.lob-seats .seat .seat-st { font-size: calc(var(--u) * 3); color: #ffffffaa; }
+.lob-seats .seat.ready .seat-st { color: #8dff8a; font-weight: 900; }
 .lob-hint { margin: 0; font-weight: 700; font-size: calc(var(--u) * 3.6); color: #fff; }
 .lob-online { margin: 0; font-size: calc(var(--u) * 3); color: #8dff8a; }
 .lob-bar { position: absolute; z-index: 3; left: 0; right: 0; bottom: calc(var(--safe-b) + var(--u) * 3); display: flex; justify-content: center; }

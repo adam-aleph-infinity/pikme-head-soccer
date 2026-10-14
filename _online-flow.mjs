@@ -54,6 +54,8 @@ async function tab(name, url, port) {
   await send('Emulation.setDeviceMetricsOverride', { width: 900, height: 520, deviceScaleFactor: 1, mobile: false });
   const visible = (sel) => js(`(() => { const e = document.querySelector(${JSON.stringify(sel)}); if (!e || e.closest('.hidden')) return false; const r = e.getBoundingClientRect(); return r.width > 0 && r.height > 0; })()`);
   const click = (sel) => js(`document.querySelector(${JSON.stringify(sel)})?.click(), 1`);
+  // on screen AND on top: nothing covers its middle (the seat label once spread a full-screen layer over the lobby)
+  const onTop = (sel) => js(`(() => { const e = document.querySelector(${JSON.stringify(sel)}); if (!e || e.closest('.hidden')) return false; const r = e.getBoundingClientRect(); const h = document.elementFromPoint(r.x + r.width / 2, r.y + r.height / 2); return !!h && (e === h || e.contains(h)); })()`);
   const text = (sel) => js(`document.querySelector(${JSON.stringify(sel)})?.textContent ?? ''`);
   // A real key, the way a keyboard sends it: keydown (with its text) then keyup.
   const key = async (code, k, type = 'both') => {
@@ -62,7 +64,7 @@ async function tab(name, url, port) {
     if (type !== 'down') await send('Input.dispatchKeyEvent', { type: 'keyUp', code, key: k, windowsVirtualKeyCode: vk });
   };
   const shot = async (n) => writeFileSync(`${OUT}/${name}-${n}.png`, Buffer.from((await send('Page.captureScreenshot', { format: 'png' })).data, 'base64'));
-  return { send, js, visible, click, text, key, shot };
+  return { send, js, visible, onTop, click, text, key, shot };
 }
 const until = async (f, ms = 8000) => { const t0 = Date.now(); while (Date.now() - t0 < ms) { if (await f()) return true; await sleep(100); } return false; };
 
@@ -78,6 +80,7 @@ await sleep(150);
 await A.click(S.host);
 check('the host gets a room code', await until(async () => /^[A-Z0-9]{4}$/.test(await A.text(S.code))));
 const code = await A.text(S.code);
+check('…and can see it: nothing covers the code or the copy-link button', (await A.onTop(S.code)) && (await A.onTop('#copyLink')));
 
 await sleep(200);
 await B.click(S.join);
@@ -90,6 +93,7 @@ await B.js(`document.querySelector('${S.codeInput}').value = '', 1`);
 for (const c of code) await B.key(/\d/.test(c) ? 'Digit' + c : 'Key' + c, c.toLowerCase());
 await B.click(S.joinGo);
 check('both seats fill', await until(async () => (await A.js(`document.querySelectorAll('${S.seats}').length`)) === 2));
+check('…and both can see the room: the seats and the ready button are not covered', (await A.onTop(S.ready)) && (await B.onTop(S.ready)) && (await A.onTop('#seats')) && (await B.onTop('#seats')));
 
 for (const T of [A, B]) await until(async () => !(await T.js(`document.querySelector('${S.ready}').disabled`)));
 await A.click(S.ready); await B.click(S.ready);
