@@ -5,7 +5,10 @@ description: Summarize The Salties' gameplay analytics from PostHog: players, se
 
 # Check analytics: The Salties
 
-You produce a short, plain-language report of how players use the game. The data is in PostHog (EU cloud). docs/ANALYTICS.md defines every event and property; read it if anything below is unclear.
+You produce a short, plain-language report of how players use the game. It draws on two sources:
+
+- **Play stats (always on, every player).** These are Adam's daily totals on the game server, with no ids. They need no permission, so they're the headline numbers. See docs/PLAY-STATS.md.
+- **PostHog (per-player detail).** This covers sessions, where and why players left, the arena, unlocks and retention. It only includes players whose parents allowed analytics in the Saltiz app (`window.SALTIZ_ANALYTICS`). docs/ANALYTICS.md defines every event and property.
 
 ## Rules
 
@@ -30,7 +33,37 @@ REAL  = coalesce(toString(properties.app_version), '') != 'dev'
 GAME  = ('session_start','session_end','mode_enter','mode_exit','matchmaking_start','matchmaking_found','matchmaking_cancel','match_start','match_end','match_quit','disconnect','item_unlock','trophy_milestone')
 ```
 
-## Step 1: is there real data? (always first)
+## Step 0: play stats (always first)
+
+Save the server's numbers to the archive, then work from that file. The archive survives a deploy that wipes the server, so earlier days are never lost:
+
+`curl -s "https://pikme-headsoccer.onrender.com/stats/history?days=N" > .claude/skills/check-analytics/archive/history-<yyyy-mm-dd>-<HHMM>.json`
+
+N is the range in days (7 by default). If a day in an older snapshot shows more than the live numbers, the server was reset by a deploy. Report that day from the snapshot, and say so.
+
+What it returns:
+- `allTime` (with `since`), `days`, `weeks` and `months`.
+- Each has: `players`, `newPlayers`, `inAppPlayers`, `opens`, `minutesPlayed`, `matches`.
+- `modes.<mode>` has: `entered`, `started`, `finished`, `quit`, `dropped`, `minutes`.
+- Added 2026-10-14 (docs/PLAY-STATS.md):
+  - `peakOnline`: the most online at once.
+  - `hours[]`: per Israel hour, on days only.
+  - `alsoPlayedDayBefore`.
+  - `newPlayerSteps`: the new player's journey.
+  - `friendRooms`: counted on the server.
+  - `errors`.
+  - top-level `retention[]`: per first day, `day1` … `day30`.
+- Team phones (7 taps on the Options logo) aren't counted. If Idan says his own checks inflate the numbers, remind him of this.
+
+Use these for the **headline numbers and the per-mode match totals**. They count every player.
+
+Two things to say plainly:
+- The server has no disk yet, so a deploy wipes these totals (docs/PLAY-STATS.md). Give `since` as "counting since …".
+- If the endpoint fails or returns nothing, say so and carry on with PostHog.
+- **The first day after a deploy is partial.** Counting restarts at the deploy. Find its time with `gh run list -R adam-aleph-infinity/pikme-head-soccer --limit 3`; the site is live about 4 minutes after the run starts. Label that day "from HH:MM" and never compare it with a full day. The same goes for today, which is partial until midnight.
+- **"New player" means new to the game, not new since counting started.** It's a phone that has no starter and no tutorial saved.
+
+## Step 1: is there real data in PostHog?
 
 ```sql
 SELECT countIf(coalesce(toString(properties.app_version), '') != 'dev') AS real_events, countIf(toString(properties.app_version) = 'dev') AS test_events, uniqIf(distinct_id, coalesce(toString(properties.app_version), '') != 'dev') AS real_players FROM events WHERE RANGE AND event IN GAME
@@ -38,11 +71,11 @@ SELECT countIf(coalesce(toString(properties.app_version), '') != 'dev') AS real_
 
 What to do with the result:
 - **`real_events > 0`:** carry on with real data only.
-- **`real_events = 0` and `test_events > 0`:**
-  1. Say in one line that there are no real players yet, and why. The game isn't deployed with analytics, or the Saltiz app isn't setting `window.SALTIZ_ANALYTICS = true` (see docs/ANALYTICS.md).
-  2. Still run the queries with `REAL = 1 = 1`, so the dashboard shows the test data with its "test data" banner (`data_kind: "test"`).
-  3. Keep the chat report to that one line plus the dashboard link.
-- **Both are 0:** say so. Refresh the dashboard with `data_kind: "none"` and empty sections.
+- **`real_events = 0`:**
+  - The per-player part is empty. Say why in `ph_note`: the Saltiz app hasn't switched on `window.SALTIZ_ANALYTICS`.
+  - Skip Q2–Q12.
+  - The play stats still make a full report.
+- **A handful of real events from `platform = web`:** these are probably a team test on the live site, not players. Say so.
 
 ## Step 2: the queries
 
@@ -184,7 +217,16 @@ Order:
 
 The dashboard is **https://claude.ai/artifact/U11p5RhQq5NaTm7GYDc6aj** ("Salties Analytics"). It's a Dashboard-type artifact. Its page is `dashboard.html` in this folder, and it's stored in the artifact as `files/index.html`. It draws everything from one attached JSON file, the dataset `report`.
 
-1. **Write the report file** to the scratchpad as `salties-report.json`.
+1. **Build the report file** from the archive snapshot. Don't copy numbers by hand.
+   - Write `extra.json` to the scratchpad with only what the script can't know:
+     - the findings `f1` `f2` `f3`
+     - `health-events` (PostHog's events this month, from Q13)
+     - the `meta` overrides (`ph_note`)
+     - every PostHog row (sections mode / match / left / session / champ / unlock / arcade, and `why` / `arena` / `retention` keys to replace)
+   - Then run: `node .claude/skills/check-analytics/build-report.mjs <snapshot> <scratchpad>/salties-report.json --extra <scratchpad>/extra.json --now HH:MM --since-time HH:MM`
+     - `--since-time` is the time counting started on its first day (the last deploy).
+     - Rows in extra replace the script's rows with the same key.
+   - The table below says what each row is, for writing extra rows.
    - It's one JSON array of rows. Every row has a `section` and a `key` that is unique across the whole file.
    - Show values as text where the page shows text: durations like `"2m 10s"`, rates like `"64%"`.
    - Leave out a row's section entirely when there's nothing in it. The page then says "Nothing in this period".
@@ -192,9 +234,15 @@ The dashboard is **https://claude.ai/artifact/U11p5RhQq5NaTm7GYDc6aj** ("Salties
 
 | section | key | fields | from |
 |---|---|---|---|
-| meta | `meta` | range ("Last 7 days"), generated ("Oct 13, 2026, 11:30 Israel time"), data_kind (`real` / `test` / `none`), status (one line for the banner) | Step 1 |
+| meta | `meta` | range ("Last 7 days"), generated ("Oct 13, 2026, 11:30 Israel time"), data_kind (`real` / `test` / `none`), status (one line for the banner), ps_since ("Oct 13, 2026"), ph_note (one line on the PostHog part: who it covers, and whether the app has switched it on) | Steps 0–1 |
+| psday | `day-<yyyy-mm-dd>` | day ("Oct 13"), players, new_players, opens, minutes, matches (numbers), oldest first | Step 0 `days` |
+| psmode | `ps-<mode>` | mode ("Friend room" for `online`), entered, started, finished, quit, dropped, closed_app (= started − finished − quit − dropped), minutes (numbers), finish_rate ("88%") | Step 0 `allTime.modes` or the range's sum |
 | finding | `f1` `f2` `f3` | text (one plain sentence each) | your Top 3 findings |
-| kpi | `kpi-players` `kpi-new` `kpi-sessions` `kpi-avg` `kpi-total` `kpi-matches` | label, value (number), display (text shown) | Q2, Q5 |
+| pshour | `hour-<HH>` | hour ("14:00"), today, yesterday (players in that hour), peak (most online at once that hour) | Step 0 `days[0].hours` vs `days[1].hours` |
+| journey | `step-<step>` | step (label), players (number), share ("77%"), new players' first steps since retention started | Step 0 `newPlayerSteps`, `retention` |
+| cohort | `cohort-<day>` | day, new_players, d1, d7, d30 ("3 (30%)" or "—" when that day hasn't come yet) | Step 0 `retention` |
+| rooms | `room-<n>` | label, display (rooms made, joined, matches, failures by reason) | Step 0 `friendRooms` |
+| kpi | `kpi-players` `kpi-new` `kpi-sessions` `kpi-avg` `kpi-total` `kpi-matches` `kpi-peak` | label (shown on the tile), value (number), display (text shown) | Step 0. These tiles are Players, New players, Game opens, Avg time per player, Total play time, Matches. Use PostHog's sessions and session length for `kpi-sessions` / `kpi-avg` only once most players are in PostHog. |
 | mode | `mode-<mode>` | mode, players, visits, total_secs (number, for the chart), total_time, avg_visit | Q6 |
 | match | `match-<mode>` | mode, started, finished, quit, dropped, closed_app (all numbers), win_rate, avg_length, goals ("2.1–1.4") | Q7 |
 | left | `left-<n>` | category, mode ("" when not mid-match or in a mode), sessions (number) | Q4 |

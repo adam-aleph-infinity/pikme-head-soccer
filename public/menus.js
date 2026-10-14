@@ -16,6 +16,7 @@ import * as MN from '../shared/menu.js';
 import { HS_STAGES } from './hs-stadium.js';
 import * as TOUR from '../shared/tournament.js';
 import { powerById } from '../shared/champion-powers.js';
+import { TEAM_KEY } from '../shared/play-stats.js';
 
 const $ = (s) => document.querySelector(s);
 export const SCREENS = ['title', 'menu', 'champs', 'modes', 'select', 'shop', 'bracket', 'howto', 'lobby', 'match'];
@@ -786,6 +787,23 @@ export function createMenus(ctx) {
   tap('#oTut', () => { closePop('optPop'); ctx.startTutorial?.(true); });
   tap('#oStats', () => openStats());
   tap('#oBack', () => closePop('optPop'));
+  // A TEAM PHONE (docs/PLAY-STATS.md): seven quick taps on the logo here, and this phone is no longer
+  // counted in the play stats; seven more and it is again. For whoever opens the game all day to check it.
+  // The ring's title says which, for two seconds.
+  let teamTaps = [], titleT = 0;
+  on('#oSym', () => {
+    const t = performance.now();
+    teamTaps = [...teamTaps.filter((x) => t - x < 4000), t];
+    if (teamTaps.length < 7) return;
+    teamTaps = [];
+    let team = false;
+    try { team = ctx.store?.getItem(TEAM_KEY) !== '1'; if (team) ctx.store.setItem(TEAM_KEY, '1'); else ctx.store.removeItem(TEAM_KEY); } catch { return; }
+    const title = $('#optPop .m-title');
+    if (!title) return;
+    clearTimeout(titleT);
+    title.textContent = team ? 'טלפון צוות' : 'נספר שוב';
+    titleT = setTimeout(() => { title.textContent = 'הגדרות'; }, 2000);
+  });
   on('#optPop', (e, el) => { if (e.target === el) closePop('optPop'); });
   function openStats({ profile = false } = {}) {
     $('#statsH').textContent = profile ? 'הפרופיל שלי' : 'סטטיסטיקה';

@@ -57,14 +57,72 @@
   </section>
 
   <div class="sa-kpis" id="kpis">
-    <div class="sa-tile"><span class="k">Players</span><span class="v" data-source="report" data-field="display" data-where="key=kpi-players">—</span></div>
-    <div class="sa-tile"><span class="k">New players</span><span class="v" data-source="report" data-field="display" data-where="key=kpi-new">—</span></div>
-    <div class="sa-tile"><span class="k">Sessions</span><span class="v" data-source="report" data-field="display" data-where="key=kpi-sessions">—</span></div>
-    <div class="sa-tile"><span class="k">Avg session</span><span class="v" data-source="report" data-field="display" data-where="key=kpi-avg">—</span></div>
-    <div class="sa-tile"><span class="k">Total play time</span><span class="v" data-source="report" data-field="display" data-where="key=kpi-total">—</span></div>
-    <div class="sa-tile"><span class="k">Matches</span><span class="v" data-source="report" data-field="display" data-where="key=kpi-matches">—</span></div>
+    <div class="sa-tile"><span class="k" data-source="report" data-field="label" data-where="key=kpi-players">—</span><span class="v" data-source="report" data-field="display" data-where="key=kpi-players">—</span></div>
+    <div class="sa-tile"><span class="k" data-source="report" data-field="label" data-where="key=kpi-new">—</span><span class="v" data-source="report" data-field="display" data-where="key=kpi-new">—</span></div>
+    <div class="sa-tile"><span class="k" data-source="report" data-field="label" data-where="key=kpi-sessions">—</span><span class="v" data-source="report" data-field="display" data-where="key=kpi-sessions">—</span></div>
+    <div class="sa-tile"><span class="k" data-source="report" data-field="label" data-where="key=kpi-avg">—</span><span class="v" data-source="report" data-field="display" data-where="key=kpi-avg">—</span></div>
+    <div class="sa-tile"><span class="k" data-source="report" data-field="label" data-where="key=kpi-total">—</span><span class="v" data-source="report" data-field="display" data-where="key=kpi-total">—</span></div>
+    <div class="sa-tile"><span class="k" data-source="report" data-field="label" data-where="key=kpi-matches">—</span><span class="v" data-source="report" data-field="display" data-where="key=kpi-matches">—</span></div>
+    <div class="sa-tile"><span class="k" data-source="report" data-field="label" data-where="key=kpi-peak">—</span><span class="v" data-source="report" data-field="display" data-where="key=kpi-peak">—</span></div>
   </div>
 
+  <h2 id="everyone">Everyone who played</h2>
+  <p class="sa-note">Counted on the game server: daily totals with no ids, so every player counts and no permission is needed. Counting since <span data-source="report" data-field="ps_since" data-where="key=meta">—</span>; a deploy resets it until the server gets a disk.</p>
+  <div class="sa-grid">
+    <section class="sa-card wide" id="perday">
+      <h3>Players per day</h3>
+      <p class="sa-note">Phones that opened the game each day (Israel days).</p>
+      <div class="sa-chart" data-source="report" data-chart="perday"></div>
+      <div class="sa-tw"><table data-source="report" data-row-key="key" data-section="psday">
+        <thead><tr><th data-field="day">Day</th><th data-field="players" class="num">Players</th><th data-field="new_players" class="num">New</th><th data-field="opens" class="num">Opens</th><th data-field="minutes" class="num">Minutes</th><th data-field="matches" class="num">Matches</th></tr></thead><tbody></tbody>
+      </table></div>
+    </section>
+    <section class="sa-card wide" id="psmodes">
+      <h3>Matches by mode, all players</h3>
+      <p class="sa-note">How each match ended. "Closed the app" means it started and never ended.</p>
+      <ul class="sa-legend" data-legend="psmode"></ul>
+      <div class="sa-chart" data-source="report" data-chart="psmode"></div>
+      <div class="sa-tw"><table data-source="report" data-row-key="key" data-section="psmode">
+        <thead><tr><th data-field="mode">Mode</th><th data-field="entered" class="num">Entered</th><th data-field="started" class="num">Matches</th><th data-field="finish_rate" class="num">Finished</th><th data-field="quit" class="num">Gave up</th><th data-field="dropped" class="num">Connection lost</th><th data-field="minutes" class="num">Minutes</th></tr></thead><tbody></tbody>
+      </table></div>
+    </section>
+  </div>
+
+  <div class="sa-grid">
+    <section class="sa-card wide" id="byhour">
+      <h3>Players by hour</h3>
+      <p class="sa-note">Today's players in each hour (Israel time), and yesterday at the same hour for a fair comparison.</p>
+      <div class="sa-chart" data-source="report" data-chart="pshour"></div>
+      <div class="sa-tw"><table data-source="report" data-row-key="key" data-section="pshour">
+        <thead><tr><th data-field="hour">Hour</th><th data-field="today" class="num">Today</th><th data-field="yesterday" class="num">Yesterday</th><th data-field="peak" class="num">Most online at once</th></tr></thead><tbody></tbody>
+      </table></div>
+    </section>
+    <section class="sa-card" id="journey">
+      <h3>New players' first steps</h3>
+      <p class="sa-note">Of the new players, how many reached each step.</p>
+      <div class="sa-chart" data-source="report" data-chart="journey"></div>
+      <div class="sa-tw"><table data-source="report" data-row-key="key" data-section="journey">
+        <thead><tr><th data-field="step">Step</th><th data-field="players" class="num">Players</th><th data-field="share" class="num">Of new players</th></tr></thead><tbody></tbody>
+      </table></div>
+    </section>
+    <section class="sa-card" id="cohorts">
+      <h3>New players coming back</h3>
+      <p class="sa-note">By the day they first played: how many came back 1, 7 and 30 days later.</p>
+      <div class="sa-tw"><table data-source="report" data-row-key="key" data-section="cohort">
+        <thead><tr><th data-field="day">First played</th><th data-field="new_players" class="num">New</th><th data-field="d1" class="num">Next day</th><th data-field="d7" class="num">Day 7</th><th data-field="d30" class="num">Day 30</th></tr></thead><tbody></tbody>
+      </table></div>
+    </section>
+    <section class="sa-card" id="rooms">
+      <h3>Friend rooms</h3>
+      <p class="sa-note">Counted by the server: rooms made, friends who joined, matches played, and why joins failed.</p>
+      <div class="sa-tw"><table data-source="report" data-row-key="key" data-section="rooms">
+        <thead><tr><th data-field="label">Step</th><th data-field="display" class="num">Count</th></tr></thead><tbody></tbody>
+      </table></div>
+    </section>
+  </div>
+
+  <h2 id="detail">Per-player detail</h2>
+  <p class="sa-note" data-source="report" data-field="ph_note" data-where="key=meta">—</p>
   <h2 id="play">How they play</h2>
   <div class="sa-grid">
     <section class="sa-card" id="modes">
@@ -78,7 +136,7 @@
     <section class="sa-card" id="matches">
       <h3>Matches by mode</h3>
       <p class="sa-note">How each match ended. "Closed the app" means it started and never ended.</p>
-      <ul class="sa-legend" id="matchLegend"></ul>
+      <ul class="sa-legend" data-legend="match"></ul>
       <div class="sa-chart" data-source="report" data-chart="matches"></div>
       <div class="sa-tw"><table data-source="report" data-row-key="key" data-section="match">
         <thead><tr><th data-field="mode">Mode</th><th data-field="started" class="num">Started</th><th data-field="win_rate" class="num">Won</th><th data-field="avg_length" class="num">Avg length</th><th data-field="goals" class="num">Goals for–against</th></tr></thead><tbody></tbody>
@@ -251,6 +309,34 @@
     });
   }
 
+  // Vertical bars, one per day, value on top.
+  function vbar(box, rows, labelOf, field, color, tipLines) {
+    box.replaceChildren();
+    if (!rows.length) { const p = document.createElement('p'); p.className = 'sa-empty'; p.textContent = 'Nothing in this period.'; box.appendChild(p); return; }
+    const W = Math.max(240, box.clientWidth || 320), H = 150, top = 18, bottom = 22;
+    const svg = d3.select(box).append('svg').attr('width', '100%').attr('viewBox', `0 0 ${W} ${H}`).attr('role', 'img');
+    const x = d3.scaleBand(rows.map(labelOf), [0, W]).paddingInner(0.25).paddingOuter(0.1);
+    const y = d3.scaleLinear([0, d3.max(rows, (r) => +r[field] || 0) || 1], [H - bottom, top]);
+    svg.append('line').attr('x1', 0).attr('x2', W).attr('y1', H - bottom).attr('y2', H - bottom).attr('stroke', 'var(--cds-chart-axis)');
+    const bw = Math.min(32, x.bandwidth()), every = Math.ceil(rows.length / Math.max(1, Math.floor(W / 56)));
+    const tip = d3.select(box).append('div').attr('class', 'sa-tip').style('display', 'none');
+    rows.forEach((r, i) => {
+      const cx = x(labelOf(r)) + x.bandwidth() / 2, v = +r[field] || 0;
+      svg.append('rect').attr('x', cx - bw / 2).attr('y', y(v)).attr('width', bw).attr('height', Math.max(0, y(0) - y(v))).attr('rx', 4).attr('fill', color);
+      svg.append('text').attr('x', cx).attr('y', y(v) - 5).attr('text-anchor', 'middle').attr('font-size', 11).attr('fill', 'var(--color-fg-muted)').text(d3.format(',')(v));
+      if (i % every === 0) svg.append('text').attr('x', cx).attr('y', H - 6).attr('text-anchor', 'middle').attr('font-size', 11).attr('fill', 'var(--color-fg-muted)').text(labelOf(r));
+      svg.append('rect').attr('x', x(labelOf(r))).attr('y', 0).attr('width', x.bandwidth()).attr('height', H).attr('fill', 'transparent')
+        .on('mousemove', (ev) => {
+          tip.style('display', null).html('');
+          tip.append('div').attr('class', 'h').text(labelOf(r));
+          tipLines(r).forEach((t) => tip.append('div').text(t));
+          const [mx, my] = d3.pointer(ev, box), tw = tip.node().offsetWidth;
+          tip.style('left', `${Math.min(Math.max(0, mx + 12), box.clientWidth - tw)}px`).style('top', `${my + 14}px`);
+        })
+        .on('mouseleave', () => tip.style('display', 'none'));
+    });
+  }
+
   dash.onData(() => {
     const d = dash.data(SRC);
     const ok = d.status === 'ok';
@@ -271,9 +357,13 @@
     if (!ok) { Object.values(charts).forEach((el) => el.replaceChildren()); return; }
     const c = dash.colors;
     hbar(charts.modes, of('mode'), (r) => r.mode, [{ field: 'total_secs', name: 'Time' }], [c[0]], secsText);
-    hbar(charts.matches, of('match'), (r) => r.mode, MATCH_PARTS, [c[0], c[1], c[2], 'var(--cds-chart-muted)'], (v) => d3.format(',')(v));
-    const legend = document.getElementById('matchLegend');
-    legend.replaceChildren(...MATCH_PARTS.map((p, k) => { const li = document.createElement('li'); const i = document.createElement('i'); i.style.background = [c[0], c[1], c[2], 'var(--cds-chart-muted)'][k]; li.append(i, p.name); return li; }));
+    const partColors = [c[0], c[1], c[2], 'var(--cds-chart-muted)'];
+    hbar(charts.matches, of('match'), (r) => r.mode, MATCH_PARTS, partColors, (v) => d3.format(',')(v));
+    hbar(charts.psmode, of('psmode'), (r) => r.mode, MATCH_PARTS, partColors, (v) => d3.format(',')(v));
+    root.querySelectorAll('[data-legend]').forEach((legend) => legend.replaceChildren(...MATCH_PARTS.map((p, k) => { const li = document.createElement('li'); const i = document.createElement('i'); i.style.background = partColors[k]; li.append(i, p.name); return li; })));
+    vbar(charts.pshour, of('pshour'), (r) => r.hour, 'today', c[0], (r) => [`Today: ${d3.format(',')(r.today)} players`, `Yesterday: ${d3.format(',')(r.yesterday)}`, `Most online at once: ${d3.format(',')(r.peak)}`]);
+    hbar(charts.journey, of('journey'), (r) => r.step, [{ field: 'players', name: 'Players' }], [c[0]], (v) => d3.format(',')(v));
+    vbar(charts.perday, of('psday'), (r) => r.day, 'players', c[0], (r) => [`${d3.format(',')(r.players)} players (${d3.format(',')(r.new_players)} new)`, `${d3.format(',')(r.opens)} opens · ${d3.format(',')(r.minutes)} min`, `${d3.format(',')(r.matches)} matches`]);
     hbar(charts.left, of('left'), (r) => (r.mode ? `${r.category} · ${r.mode}` : r.category), [{ field: 'sessions', name: 'Sessions' }], [c[0]], (v) => d3.format(',')(v));
     hbar(charts.arcade, of('arcade'), (r) => `Stage ${r.stage}`, [{ field: 'players', name: 'Players' }], [c[0]], (v) => d3.format(',')(v));
     const used = all.find((r) => r.key === 'health-events');

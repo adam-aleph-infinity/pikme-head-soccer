@@ -127,6 +127,7 @@ const send = (ws, msg) => { if (ws && ws.readyState === 1) ws.send(JSON.stringif
 const store = openStore(DATA_DIR === ':memory:' ? ':memory:' : path.join(DATA_DIR, 'league.sqlite'));
 // PLAY STATS: daily totals, no ids (docs/PLAY-STATS.md) — a table in the same file as the league
 const playStats = createPlayStats(store.db);
+const roomStat = (what, code) => { try { playStats.room(what, code); } catch { /* the stats never stop the game */ } };
 const league = createLeague({ store, reg, send, startMatch: (room, opts) => startMatch(room, opts), createBot, createRoom, seat, leave,
   dev: DEV_TOOLS, live: ARENA_LIVE, botAfter: QUEUE_BOT_MS, vsMs: ARENA_VS_MS, testScore: TEST_SCORE });
 setInterval(() => league.tick(), 250);
@@ -241,6 +242,7 @@ function announceOnline() {
   onlineTimer = setTimeout(() => {
     onlineTimer = null;
     const msg = JSON.stringify({ type: 'online', n: wss.clients.size });
+    try { playStats.online(wss.clients.size); } catch { /* the stats never stop the game */ }
     for (const c of wss.clients) if (c.readyState === 1) c.send(msg);
   }, 250);
 }
@@ -283,18 +285,20 @@ wss.on('connection', (ws) => {
         // A stale build is turned away at the door, before it holds a room or a seat. The
         // check lives on create/join rather than hello so an old page that never says hello
         // is caught too.
-        if (member.v !== PROTOCOL) { send(ws, { type: 'error', code: 'stale' }); break; }
+        if (member.v !== PROTOCOL) { roomStat('fail', 'stale'); send(ws, { type: 'error', code: 'stale' }); break; }
         const r = createRoom(reg, member);
-        if (r.error) { send(ws, { type: 'error', code: r.error }); break; }
+        if (r.error) { roomStat('fail', r.error); send(ws, { type: 'error', code: r.error }); break; }
+        roomStat('create');
         member.index = 0;
         send(ws, roomView(r.room));
         break;
       }
 
       case 'join': {
-        if (member.v !== PROTOCOL) { send(ws, { type: 'error', code: 'stale' }); break; }
+        if (member.v !== PROTOCOL) { roomStat('fail', 'stale'); send(ws, { type: 'error', code: 'stale' }); break; }
         const r = joinRoom(reg, member, msg.code);
-        if (r.error) { send(ws, { type: 'error', code: r.error }); break; }
+        if (r.error) { roomStat('fail', r.error); send(ws, { type: 'error', code: r.error }); break; }
+        roomStat('join');
         // Seat by position: members[0] defends the left goal, members[1] the right.
         r.room.members.forEach((mm, i) => { mm.index = i; });
         broadcast(r.room, roomView(r.room));
@@ -310,7 +314,7 @@ wss.on('connection', (ws) => {
         if (!room || room.phase !== 'lobby' || room.arena) break;
         setReady(reg, member.id, !!msg.v);
         broadcast(room, roomView(room));
-        if (bothReady(room)) startMatch(room);
+        if (bothReady(room)) { roomStat('match'); startMatch(room); }
         break;
       }
 
