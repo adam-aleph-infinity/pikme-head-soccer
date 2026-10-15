@@ -7,12 +7,13 @@
 // lets go the cannon fires THREE times, GAP s apart:
 //   • shots 1 and 2 are iron SHELLS (power-zones.js 'shell'): flat at the ball's height and pace,
 //     they never score; a kick on the swing up parries one, anything else it meets is hit — the
-//     power hit (thrown, a mark on the face), dazed only DAZE s, the arm kept;
+//     power hit (thrown, a mark on the face), dazed as long as any power hit (Idan, 2026-10-14:
+//     every stun the same), the arm kept;
 //   • shot 3 is THE BALL, out of the same muzzle in the same flash, and from there a straight
 //     power shot: counter it armed, kick-block it (the grind, then it fires back), or take it on
 //     the head or the body — the power hit, and the cannonball, too heavy to bounce back, thuds
 //     down and rolls on toward the goal (THUD_VX: its pace sets the power's strength, measured
-//     with _power-balance.mjs at GAP 1 s, DAZE 0.4: 95 px/s scores 28% against the CPU, 100 32%).
+//     with _power-balance.mjs at GAP 1.5 s: 100 px/s scores 27% against the CPU, 124 55%).
 // While loaded the cannon is PLANTED (`holds`: sim.js takes his input and nobody can tackle him)
 // and the ball is sealed in the barrel (`skip`) — the barrage cannot be interrupted (Idan).
 // A KICK-BLOCK FIRES IT ALL BACK (Idan, 2026-10-13: "copy it exactly"): the blocker fires the same
@@ -23,16 +24,15 @@ import { addZone } from '../power-zones.js';
 
 export const BROADSIDE = Object.freeze({
   SPEED: 1.0,       // × the comet — shells and ball alike, so the third looks like the first two
-  GAP: 1.0,         // s between the shots (Idan, 2026-10-12: 1 s, was 1.5): the release, +1, +2
+  // s between the shots: the release, +GAP, +2·GAP. (Idan 2026-10-12 made it 1 s with a 0.4 s shell
+  // daze; 2026-10-14 every stun the same — and at 1 s a defender a shell put down for the full 0.9 s
+  // was never up for the next shot: 99% goals. So 1.5 s again, his ~0.6 s to answer it.)
+  GAP: 1.5,
   SHELLS: 2,        // shells before the ball
-  // s a shell's hit dazes him (the power hit's own is 0.9): GAP s apart, a defender a shell put down
-  // must be up in time to answer the next shot — 0.4 leaves him ~0.6 s, as 0.9 did when GAP was 1.5
-  // (with the full 0.9 every shell after a hit, and the ball, landed: 99% goals against the CPU)
-  DAZE: 0.4,
   // the muzzle, in head radii from the head's centre (forward, up): the barrel runs level out of the
   // beak (public/vfx/powers/stage-01.js draws it there), and every shot leaves from its mouth
   MUZZLE_X: 2.3, MUZZLE_Y: 0.35,
-  THUD_VX: 100,     // the ball, met by a head or a body: a cannonball too heavy to bounce back — it
+  THUD_VX: 124,     // the ball, met by a head or a body: a cannonball too heavy to bounce back — it
   THUD_VY: 200,     //   thuds down where it met him and rolls on after him (px/s on, px/s up)
 });
 
@@ -70,7 +70,7 @@ export default Object.freeze({
     if (pw.k >= due - 1e-9) {
       pw.n++;
       if (pw.n <= BROADSIDE.SHELLS) {
-        addZone(m, { k: 'shell', cp: pw.cp, own: pw.owner, x0: b.x, x1: b.x, y: b.y, dir: pw.dir, life: 2, spd: C.POWER_SHOT_SPEED * BROADSIDE.SPEED, daze: BROADSIDE.DAZE });
+        addZone(m, { k: 'shell', cp: pw.cp, own: pw.owner, x0: b.x, x1: b.x, y: b.y, dir: pw.dir, life: 2, spd: C.POWER_SHOT_SPEED * BROADSIDE.SPEED });
         fire(m, b, pw, pw.n);
       } else {
         // THE BALL: out of the muzzle as a straight power shot, its 2 s of flight from here

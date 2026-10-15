@@ -98,6 +98,8 @@ export function createAnalyticsClient({ store, devHost, params }) {
   let mmAt = 0;
   const waited = () => Math.max(0, Math.round((performance.now() - mmAt) / 1000));
   return {
+    // the player left for the app through יציאה: the WebView may be torn down without a pagehide
+    leaving: safe(() => core.hidden()),
     // the Options switch: shown only when the app has said yes; it can turn analytics off and on again
     canToggle: () => !!core && hostConsent() === 'granted',
     isOn: () => !!core && core.consent === 'granted',

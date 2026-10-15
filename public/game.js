@@ -309,10 +309,11 @@ const MENU = createMenus({
   badgeSVG,
   openTeam: () => TEAMS_UI.open(),
   onHome: () => onHome(),
-  profileRows: () => profileRows(),
+  teamBadges: () => TEAM_REC.badges || 0,
   // THE ARENA (arena.js): PLAY, the trophies, the road, the leaderboard
   playArena: () => playArena(),
   trophies: () => PROFILE?.trophies ?? 0,
+  bestTrophies: () => PROFILE?.best ?? 0,
   paintArenaHome: () => paintArenaHome(),
   openRoad: () => (arenaLive() ? ARENA_UI.openRoad() : MENU.toast('בקרוב!')),
   openBoard: () => (arenaLive() ? ARENA_UI.openBoard() : MENU.toast('בקרוב!')),
@@ -400,13 +401,6 @@ const ARENA_UI = createArena({
   live: () => arenaLive(),
 });
 let CLOCK_SKEW = 0;                  // the server's clock minus ours (the week ends by the server's)
-function profileRows() {
-  const t = TEAM.teamOf(STARTER);
-  const rows = [];
-  if (t) rows.push(['הקבוצה שלי', `<span style="color:${t.color}">${t.title}</span>`]);
-  if (TEAM_REC.badges) rows.push(['אליפויות שבועיות', `🏅 ${TEAM_REC.badges}`]);
-  return rows;
-}
 // Every visit to the home screen: a player who had a starter before teams existed meets their team
 // once (the tutorial's three cards), then any week's prize that is waiting.
 function onHome() {

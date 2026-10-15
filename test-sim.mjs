@@ -418,6 +418,7 @@ function kickInto(m, i, reach = 130, ticks = 90) {
 {
   const m = fresh();
   const p = m.players[0];
+  p.shot = shotById('straight');      // (the plain shot: card 3's own power holds the ball first)
   m.hitStop = 0;
   firePower(m, 0);
   ok('a touch on the ball is what fires it', !!m.ball.power);
@@ -896,7 +897,7 @@ const jumpArc = (input) => {
   ok('every one of the eleven families is on some card', FAMILY_ORDER.every((f) => seen.has(f)), [...seen].join(','));
   // (a champion whose ORIGINAL power is built fires it everywhere — docs/CHAMPION-POWERS.md — and
   // the rest still fire their mapped shot until their turn comes)
-  ok('champion cards fire their own power, or their mapped shot', shotFor({ rarity: 'legendary', number: 3 }).cp === 'sizzle' &&
+  ok('champion cards fire their own power, or their mapped shot', shotFor({ rarity: 'legendary', number: 3 }).cp === 'volley' &&
      shotFor({ rarity: 'legendary', number: 45 }).family === 'delay' && shotFor({ rarity: 'legendary', number: 45 }).ailment === 'freeze' && !shotFor({ rarity: 'legendary', number: 45 }).cp);
 }
 
@@ -1008,6 +1009,7 @@ const jumpArc = (input) => {
 {
   const m = fresh();
   const p = m.players[0];
+  p.shot = shotById('straight');      // (the plain shot: card 3's own power holds the ball first)
   ok('power arms the player', armPower(m, 0) && p.armed > 0);
   firePower(m, 0);
   ok('the touch fires a power shot', !!m.ball.power);
@@ -1142,6 +1144,7 @@ const jumpArc = (input) => {
   // spent on the press (HS M4 36.49 s), so the refill runs while the player finds the ball.
   const m = fresh();
   const p = m.players[0];
+  p.shot = shotById('straight');      // (the plain shot: card 3's own power holds the ball first)
   p.x = 400; p.facing = 1; p.gauge = 1;
   m.ball.x = 460; m.ball.y = C.GROUND_Y - 20;
   const ballWas = { x: m.ball.x, y: m.ball.y };

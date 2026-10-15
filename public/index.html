@@ -85,8 +85,14 @@
     </div>
   </div>
   <div class="hm-wallet m-drop">
-    <span class="hm-cur" title="כסף"><i class="hm-cash">$</i><b id="hmMoney">0</b><button class="hm-plus" id="hmMoneyPlus" aria-label="עוד כסף">+</button></span>
     <span class="hm-cur" title="נקודות סולטיז"><i class="coin hm-coin"></i><b id="mnPts">0</b><button class="hm-plus" id="hmPtsPlus" aria-label="עוד נקודות סולטיז">+</button></span>
+    <!-- gems: a blue diamond, each cut face its own blue (lit from the top-left), so it reads 3D -->
+    <span class="hm-cur" title="יהלומים"><i class="hm-gem"><svg viewBox="0 0 40 36" aria-hidden="true">
+      <path d="M2 13 10 3l5 10z" fill="#8fdcff"/><path d="M10 3h10l-5 10z" fill="#c8f1ff"/><path d="M20 3l-5 10h10z" fill="#6ccaff"/>
+      <path d="M20 3h10l-5 10z" fill="#a4e4ff"/><path d="M30 3l8 10H25z" fill="#3aa6ee"/>
+      <path d="M2 13h13l5 21z" fill="#52b9f6"/><path d="M15 13h10l-5 21z" fill="#2a8ee0"/><path d="M25 13h13L20 34z" fill="#1557bd"/>
+      <path d="M2 13h36M10 3l5 10 5-10 5 10 5-10M15 13l5 21 5-21" fill="none" stroke="#06205a" stroke-width="1" stroke-linejoin="round" stroke-opacity=".45"/>
+      <path d="M10 3h20l8 10L20 34 2 13z" fill="none" stroke="#06205a" stroke-width="2.6" stroke-linejoin="round"/></svg></i><b id="hmMoney">0</b><button class="hm-plus" id="hmMoneyPlus" aria-label="עוד יהלומים">+</button></span>
   </div>
   <button class="hm-tile sq hm-opt m-drop" id="mnOpt" aria-label="הגדרות"><span class="hm-ico" data-ico="gear"></span></button>
   <nav class="hm-side hm-left m-rise">
@@ -114,7 +120,8 @@
 
 <!-- GAME MODES · what PLAY opens: every mode as a big card -->
 <section id="modes" class="screen m-screen hidden">
-  <i class="m-rays" aria-hidden="true"></i>
+  <!-- the red backdrop, its mode symbols drifting slowly down-right (images_up/mode_select_bg_red.png) -->
+  <i class="md-sym" aria-hidden="true"></i>
   <button class="m-back m-drop" id="mdBack"><i></i>חזרה</button>
   <h1 class="sel-h m-drop"><b class="m-title">בחר מצב משחק</b></h1>
   <nav class="md-row m-rise" id="mdRow" aria-label="מצבי משחק"></nav>
@@ -160,6 +167,42 @@
     <div class="ch-grid" id="chGrid" aria-label="האלופים"></div>
   </div>
 </section>
+
+<!-- MY PROFILE (2026-10-14; images_up/try_proifle.jpg): what the profile button on the home screen opens.
+     LEFT, in your team's colour: your name (tap to change it), your team's badge big behind, and your FAVORITE
+     champion on the podium — only for showing off, it does not change who you play with. A tap on them (or on
+     the pill under them) picks another from the ones you have.
+     RIGHT: your stats — only the ones the game really counts. -->
+<section id="profile" class="screen m-screen hidden">
+  <button class="m-back m-drop" id="pfBack"><i></i>חזרה</button>
+  <div class="pf-left">
+    <i class="pf-bdg" id="pfBdg" aria-hidden="true"></i>
+    <label class="pf-nm m-drop"><input id="pfName" maxlength="10" autocomplete="nickname" spellcheck="false" aria-label="השם שלך · עד 10 תווים"><i class="pf-pen" aria-hidden="true">✎</i></label>
+    <span class="pf-team m-drop" id="pfTeam"></span>
+    <div class="pf-stage">
+      <div class="hm-podium pf-podium"><i class="hm-pod-side"></i><i class="hm-pod-top"></i><span class="m-sym hm-pod-sym" id="pfPodSym"></span></div>
+      <div class="pf-hero" id="pfHero" role="button" tabindex="0" aria-label="בחר דמות אהובה"></div>
+    </div>
+    <button class="pf-fav m-rise" id="pfFav"><span>הדמות האהובה: <b id="pfFavName"></b></span><i aria-hidden="true">✎</i></button>
+  </div>
+  <div class="pf-right m-rise">
+    <b class="pf-h">סטטיסטיקות</b>
+    <div class="pf-cups">
+      <span class="pf-best"><small>שיא אישי</small><b id="pfBest">0</b></span>
+      <span class="pf-cupn"><small>גביעים</small><b id="pfCups">0</b></span>
+      <i class="pf-cupi" id="pfCupIco" aria-hidden="true"></i>
+    </div>
+    <div class="pf-grid" id="pfGrid"></div>
+    <div class="pf-coll"><span><small>דמויות שנאספו</small><b id="pfColN">0 / 0</b></span><i class="pf-bar"><i id="pfColBar"></i></i></div>
+  </div>
+</section>
+
+<!-- THE FAVORITE PICKER: the champions you have, a tile each; a tap makes it your favorite -->
+<div class="m-pop hidden" id="favPop" role="dialog" aria-modal="true" aria-label="הדמות האהובה">
+  <div class="m-panel plain fav-panel"><button class="m-x" id="favX" aria-label="סגור">✕</button>
+    <b class="m-title sm">הדמות האהובה</b>
+    <div class="fav-grid" id="favGrid"></div></div>
+</div>
 
 <!-- PLAYER SELECT · HS: two reels (you left, the CPU right), MATCH n, the last score, the stats, SHOP / PLAY -->
 <section id="select" class="screen m-screen hidden">
@@ -260,7 +303,9 @@
     <button class="m-pill ring-btn ob o3" id="oHow"><i class="m-orb">❔</i><b>איך משחקים</b></button>
     <button class="m-pill ring-btn ob o4" id="oStats"><i class="m-orb">📊</i><b>סטטיסטיקה</b></button>
     <button class="m-pill ring-btn ob o6" id="oTut"><i class="m-orb">🎓</i><b>הדרכה</b></button>
-    <button class="m-pill ring-btn ob o5" id="oBack"><b>חזרה</b></button>
+    <button class="m-pill ring-btn ob o5" id="oBack"><i class="m-orb">↩️</i><b>חזרה</b></button>
+    <!-- back to the Saltiz app: here, two taps deep, so it cannot be hit by mistake mid-game -->
+    <button class="m-pill ring-btn ob o7" id="oExit" hidden><i class="m-orb">🚪</i><b>יציאה</b></button>
   </div>
   <div class="opt-foot">
     <!-- bug reports and ideas (server/feedback.js): only when the server has a form to send them to -->
@@ -300,8 +345,7 @@
 <!-- STATS · HS: SINGLE / VICTORY / … -->
 <div class="m-pop hidden" id="statsPop" role="dialog" aria-modal="true" aria-label="סטטיסטיקה">
   <div class="m-panel plain stats-panel"><button class="m-x" id="statsX" aria-label="סגור">✕</button>
-    <b class="m-title sm" id="statsH">סטטיסטיקה</b>
-    <label class="pf-name" id="stNameRow"><span>שם · עד 10 תווים</span><input id="stName" maxlength="10" autocomplete="nickname" spellcheck="false"></label>
+    <b class="m-title sm">סטטיסטיקה</b>
     <dl class="stats-list" id="statsList"></dl></div>
 </div>
 

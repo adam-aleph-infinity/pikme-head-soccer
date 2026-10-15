@@ -499,9 +499,10 @@
   box-shadow: 0 calc(var(--u) * .7) 0 #000b, inset 0 calc(var(--u) * .4) 0 #ffffff1c; transform: skewX(-12deg); }
 .hm-cur > * { transform: skewX(12deg); }
 .hm-cur > b { flex: 1; text-align: center; font-weight: 900; font-size: calc(var(--u) * 4.4); color: #fff; -webkit-text-stroke: calc(var(--u) * .6) #000; paint-order: stroke fill; }
-.hm-cash, .hm-coin { position: absolute; left: calc(var(--u) * -3.4); top: 50%; width: calc(var(--u) * 9.5); height: calc(var(--u) * 9.5); margin-top: calc(var(--u) * -4.75); }
-.hm-cash { display: grid; place-items: center; border-radius: 50%; font-style: normal; font-weight: 900; font-size: calc(var(--u) * 5.6); color: #0b3d16;
-  background: radial-gradient(circle at 35% 30%, #d8ffc8, #4cd964 50%, #1e8a3a); border: calc(var(--u) * .45) solid #0b2a10; box-shadow: inset 0 calc(var(--u) * -.8) 0 #157a30, 0 calc(var(--u) * .4) 0 #000a; }
+.hm-gem, .hm-coin { position: absolute; left: calc(var(--u) * -3.4); top: 50%; width: calc(var(--u) * 9.5); height: calc(var(--u) * 9.5); margin-top: calc(var(--u) * -4.75); }
+/* the gem: a blue diamond, cut faces in different blues (3D, no shine), a little bigger than the coin */
+.hm-gem { display: grid; place-items: center; left: calc(var(--u) * -4); width: calc(var(--u) * 10.5); height: calc(var(--u) * 10.5); margin-top: calc(var(--u) * -5.25); filter: drop-shadow(0 calc(var(--u) * .5) 0 #000); }
+.hm-gem svg { display: block; width: 100%; height: auto; }
 .hm-coin { vertical-align: 0; filter: drop-shadow(0 calc(var(--u) * .4) 0 #000) drop-shadow(0 0 calc(var(--u) * .8) #ffd40066); }
 .hm-plus { flex: none; display: grid; place-items: center; width: calc(var(--u) * 5.8); height: calc(var(--u) * 5.8); border-radius: calc(var(--u) * .8); padding: 0;
   font: 900 calc(var(--u) * 5.4) / 1 var(--m-font); color: #fff; -webkit-text-stroke: calc(var(--u) * .5) #0b3d16; paint-order: stroke fill;
@@ -562,44 +563,58 @@
   font-weight: 900; font-size: calc(var(--u) * 5); color: var(--m-gold); transition: opacity .18s, transform .18s; }
 .hm-toast.on { opacity: 1; transform: translate(-50%, -50%) scale(1); }
 
-/* the profile popup: your name over the stats */
-.pf-name { display: flex; flex-direction: column; gap: calc(var(--u) * .8); margin: calc(var(--u) * 2) 0 calc(var(--u) * 1); font-weight: 700; font-size: calc(var(--u) * 2.8); color: #ffffffb0; }
-.pf-name[hidden] { display: none; }
-.pf-name input { font: 900 calc(var(--u) * 4.4) var(--m-font); color: #fff; background: #0008; border: calc(var(--u) * .4) solid var(--m-gold); border-radius: calc(var(--u) * 1.6);
-  padding: calc(var(--u) * 1) calc(var(--u) * 2); text-align: center; }
-
 /* ─── GAME MODES ────────────────────────────────────────────────────────── */
-/* What PLAY opens: every mode as a big card in a row, its mascot popping over it. */
-#modes { background: radial-gradient(ellipse 80% 70% at 50% 45%, #24183e, #120c22 55%, #07050d 100%); }
-.md-row { position: absolute; z-index: 2; left: calc(var(--safe-l) + var(--u) * 3); right: calc(var(--safe-r) + var(--u) * 3); top: calc(var(--safe-t) + var(--u) * 20); bottom: calc(var(--safe-b) + var(--u) * 6);
-  display: flex; align-items: center; justify-content: center; gap: calc(var(--u) * 3); }
-.mn-mode { width: calc(var(--u) * 30.5); display: flex; flex-direction: column; align-items: center; gap: calc(var(--u) * 1); transition: transform .12s; }
-.mn-mode:hover { transform: translateY(calc(var(--u) * -1)) scale(1.03); }
-.mn-mode:focus-visible { outline: calc(var(--u) * .6) solid #fff; outline-offset: calc(var(--u) * .6); border-radius: calc(var(--u) * 3); }
-.mn-ico { font-style: normal; font-size: .9em; margin-inline-end: .35em; filter: drop-shadow(0 2px 0 #0008); }
-.mn-pill {
-  display: flex; align-items: center; justify-content: center; width: 100%; height: calc(var(--u) * 12); border-radius: 999px;
-  font-weight: 900; font-size: calc(var(--u) * 3.7); color: #fff; letter-spacing: .01em; white-space: nowrap; text-shadow: 0 calc(var(--u) * .4) 0 #000a;
-  background: linear-gradient(180deg, #ff8a7a, var(--m-red-hi) 16%, var(--m-red) 50%, #b8002a 80%, var(--m-red-lo));
-  border: calc(var(--u) * .7) solid #fff; box-shadow: 0 0 0 calc(var(--u) * .6) #3a0009, 0 calc(var(--u) * 1) 0 calc(var(--u) * .6) #000a, inset 0 calc(var(--u) * .6) 0 #fff6;
-}
-.mn-pill > span { transform: skewX(-9deg); display: inline-block; }
-.mn-mode[data-mode="multi"] .mn-pill { background: linear-gradient(180deg, #ffd08a, #ffa23a 18%, #ff7a00 50%, #e05a00 80%, #8a3000); }
-.mn-mode[data-mode="practice"] .mn-pill { background: linear-gradient(180deg, #b8ffb0, #5fe05a 18%, #22b14c 50%, #16903a 80%, #0b5a22); }
-.mn-pill.is-pressed { filter: brightness(.55); transform: translateY(calc(var(--u) * .5)); }
-.mn-sub { font-weight: 700; font-size: calc(var(--u) * 3); color: #fff; text-shadow: 0 1px 2px #000; white-space: nowrap; }
+/* What PLAY opens (2026-10-14): every mode as a big picture card (images_up/card_*.png), its name
+   along the bottom, in a row you swipe sideways — three on the screen and the fourth peeking in, so it says
+   "there is more". The scroll is free (no snapping to a card) and starts at the arena, on the left. The mode
+   you have now wears a gold frame that glows. */
+/* THE BACKDROP (images_up/mode_select_bg_red.png): the red glow, and the six mode symbols over it,
+   faint and tilted, drifting slowly from the top-left to the bottom-right in a straight line. The symbols are
+   one seamless tile (img/modes/symbols.webp, cut from images_up/symbols_sheet.png); the layer is a tile bigger
+   than the screen and slides exactly one tile, so the loop never jumps. */
+#modes { --md-t: calc(var(--u) * 78); background: url(img/modes/bg-red.webp) 50% 50% / cover no-repeat #3a0612; }
+.md-sym { position: absolute; z-index: 0; pointer-events: none; left: calc(var(--md-t) * -1); top: calc(var(--md-t) * -1);
+  width: calc(100% + var(--md-t)); height: calc(100% + var(--md-t));
+  background: url(img/modes/symbols.webp) 0 0 / var(--md-t) var(--md-t) repeat; animation: mdDrift 40s linear infinite; will-change: transform; }
+@keyframes mdDrift { to { transform: translate(var(--md-t), var(--md-t)); } }
+@media (prefers-reduced-motion: reduce) { .md-sym { animation: none; } }
+/* the title in solid gold with its outline UNDER the letters (the gradient title's outline ate them: the letters
+   looked "half cut") */
+#modes .sel-h .m-title { font-size: calc(var(--u) * 7.5); transform: skewX(-4deg); background: none; color: var(--m-gold); -webkit-text-fill-color: var(--m-gold);
+  -webkit-text-stroke: calc(var(--u) * 1.4) #3a0009; paint-order: stroke fill; text-shadow: 0 calc(var(--u) * .6) 0 #3a0009; filter: drop-shadow(0 0 calc(var(--u) * 2) #ff203a55); }
+.md-row { position: absolute; z-index: 2; left: 0; right: 0; top: calc(var(--safe-t) + var(--u) * 10); bottom: var(--safe-b);
+  display: flex; align-items: center; gap: calc(var(--u) * 4); padding: 0 calc(var(--safe-r) + var(--u) * 7) 0 calc(var(--safe-l) + var(--u) * 7);
+  overflow-x: auto; overflow-y: hidden; overscroll-behavior-x: contain; -webkit-overflow-scrolling: touch; scrollbar-width: none;
+  -webkit-mask: linear-gradient(90deg, transparent, #000 calc(var(--u) * 5), #000 calc(100% - var(--u) * 5), transparent);
+  mask: linear-gradient(90deg, transparent, #000 calc(var(--u) * 5), #000 calc(100% - var(--u) * 5), transparent); }
+.md-row::-webkit-scrollbar { display: none; }
+.md-row.drag { cursor: grabbing; }
+/* a card: square like its picture, as big as three fit across (or as the height allows) */
+.mn-mode { --cs: min(calc((100vw - var(--safe-l) - var(--safe-r)) / 2.8 - var(--u) * 4), calc(100vh - var(--safe-t) - var(--safe-b) - var(--u) * 23));
+  position: relative; flex: none; width: var(--cs); aspect-ratio: 1; padding: 0; border-radius: 8.5%; cursor: pointer;
+  -webkit-tap-highlight-color: transparent; transition: transform .15s, filter .15s, box-shadow .2s; filter: drop-shadow(0 calc(var(--u) * 1.2) calc(var(--u) * 1.4) #000a); }
+.mn-mode:hover { transform: translateY(calc(var(--u) * -1)); }
+.mn-mode.is-pressed { transform: scale(.95); filter: brightness(.8); }
+.mn-mode:focus-visible { outline: calc(var(--u) * .6) solid #fff; outline-offset: calc(var(--u) * .6); }
+.mn-art { position: absolute; inset: 0; border-radius: inherit; background: var(--img) center / cover no-repeat; }
+/* its name on a dark band along the bottom of the picture, the small line under it */
+.mn-cap { position: absolute; left: 4.5%; right: 4.5%; bottom: 4.5%; display: flex; flex-direction: column; align-items: center; gap: calc(var(--cs) * .006);
+  padding: calc(var(--cs) * .1) 0 calc(var(--cs) * .03); border-radius: 0 0 calc(var(--cs) * .045) calc(var(--cs) * .045);
+  background: linear-gradient(180deg, transparent, #0a0618b0 40%, #0a0618ee); pointer-events: none; }
+.mn-name { font-weight: 900; font-size: calc(var(--cs) * .12); line-height: 1; color: #fff; white-space: nowrap; transform: skewX(-6deg);
+  -webkit-text-stroke: calc(var(--cs) * .016) #0d0a1c; paint-order: stroke fill; text-shadow: 0 calc(var(--cs) * .012) 0 #0d0a1c; }
+.mn-sub { font-weight: 800; font-size: calc(var(--cs) * .055); color: #ffffffd8; text-shadow: 0 1px 2px #000; white-space: nowrap; }
 .mn-sub .online-count { color: #8dff8a; }
-.mn-masc { height: calc(var(--u) * 18); display: flex; align-items: flex-end; justify-content: center; gap: calc(var(--u) * .5); position: relative; }
-.m-enter .mn-masc { animation: mnPop .35s cubic-bezier(.2, 1.5, .4, 1) both; }
-@keyframes mnPop { from { transform: translateY(40%) scale(.4); opacity: 0; } }
-.mm-face { display: block; width: calc(var(--u) * 16); height: calc(var(--u) * 16); border-radius: 50%; background-repeat: no-repeat; background-color: #2a1015;
-  box-shadow: 0 0 0 calc(var(--u) * .6) var(--m-gold), 0 calc(var(--u) * 1) calc(var(--u) * 2) #000b; }
-.mm-face.char-face { border-radius: 0; box-shadow: none; background-color: transparent; }
-.mm-face.a, .mm-face.b { width: calc(var(--u) * 13); height: calc(var(--u) * 13); }
-.mm-deco { font-size: calc(var(--u) * 6); line-height: 1; filter: drop-shadow(0 2px 0 #000); }
-.mm-deco.crown { position: absolute; top: calc(var(--u) * -3); left: 50%; transform: translateX(-50%) rotate(-12deg); }
-.mm-deco.bolt, .mm-deco.cup { align-self: center; }
-.mm-deco.cone { position: absolute; right: calc(var(--u) * 4); bottom: 0; font-size: calc(var(--u) * 5); }
+/* THE CHOSEN ONE: a thick gold frame with a warm glow breathing round it, and its name in gold */
+.mn-mode.sel { box-shadow: 0 0 0 calc(var(--u) * 1) #ffd400, 0 0 0 calc(var(--u) * 1.6) #7a4a00, 0 0 calc(var(--u) * 4) calc(var(--u) * 1.2) #ffc400cc;
+  animation: mnGlow 2.2s ease-in-out infinite; }
+.mn-mode.sel .mn-name { color: var(--m-gold); }
+@keyframes mnGlow { 50% { box-shadow: 0 0 0 calc(var(--u) * 1) #ffd400, 0 0 0 calc(var(--u) * 1.6) #7a4a00, 0 0 calc(var(--u) * 6.5) calc(var(--u) * 2.2) #ffd400ee; } }
+.m-enter .mn-mode { animation: mnIn .4s cubic-bezier(.2, 1.4, .4, 1) backwards; }
+.m-enter .mn-mode.sel { animation: mnIn .4s cubic-bezier(.2, 1.4, .4, 1) backwards, mnGlow 2.2s ease-in-out .4s infinite; }
+.mn-mode:nth-child(2) { animation-delay: .05s; } .mn-mode:nth-child(3) { animation-delay: .1s; } .mn-mode:nth-child(4) { animation-delay: .15s; } .mn-mode:nth-child(5) { animation-delay: .2s; }
+@keyframes mnIn { from { transform: translateY(calc(var(--u) * 8)) scale(.85); opacity: 0; } }
+@media (prefers-reduced-motion: reduce) { .mn-mode, .mn-mode.sel { animation: none !important; } }
 
 /* confetti, in the logo's colours and the crowd's (the tournament screens) */
 .mn-confetti i { position: absolute; top: -6%; width: calc(var(--u) * 2); height: calc(var(--u) * 3.4); box-shadow: 0 0 2px #0006; border-radius: 2px; opacity: .9; animation: mnConf 7s linear infinite; }
@@ -953,6 +968,11 @@
 .orbit .o3 { left: calc(var(--u) * 125.0); top: calc(var(--u) * 16.1); --fx: calc(var(--u) * -37.0); --fy: calc(var(--u) * 25.9); animation-delay: 0.09s; }
 .orbit .o4 { left: calc(var(--u) * 147.9); top: calc(var(--u) * 51.9); --fx: calc(var(--u) * -59.9); --fy: calc(var(--u) * -9.9); animation-delay: 0.12s; }
 .orbit .o5 { left: calc(var(--u) * 88.0); top: calc(var(--u) * 74.0); --fx: calc(var(--u) * 0.0); --fy: calc(var(--u) * -32.0); animation-delay: 0.15s; }
+/* in the app, יציאה joins חזרה along the bottom: חזרה to the right (RTL's first), יציאה to the left —
+   the same yellow as the rest, so it does not draw a kid's thumb (Idan) */
+.orbit.has-exit .o5 { left: calc(var(--u) * 116.0); top: calc(var(--u) * 76.0); --fx: calc(var(--u) * -28.0); --fy: calc(var(--u) * -34.0); }
+.orbit .o7 { left: calc(var(--u) * 60.0); top: calc(var(--u) * 76.0); --fx: calc(var(--u) * 28.0); --fy: calc(var(--u) * -34.0); animation-delay: .21s; }
+.orbit .o7[hidden] { display: none; }
 @keyframes orbOut { from { transform: translate(calc(-50% + var(--fx)), calc(-50% + var(--fy))) scale(.2); opacity: 0; } }
 /* HS's ball turns: so does the symbol, in the options and the pause, the word staying still */
 .ring-mid .m-sym > svg { animation: symRoll 3.2s linear infinite; }
@@ -999,9 +1019,6 @@
 #fbPop:has(#fbText:focus) { place-items: start center; padding-top: calc(var(--safe-t) + var(--u) * 4); }
 
 /* ─── TOURNAMENT ────────────────────────────────────────────────────────── */
-/* the tournament's colour on the carousel: royal blue (HS's TOURNAMENT is cyan) */
-.mn-mode[data-mode="tournament"] .mn-pill { background: linear-gradient(180deg, #9ad8ff, #3aa0ff 18%, #1667e0 50%, #0f4fb8 80%, #082a6a); }
-.mm-deco.cup { align-self: center; font-size: calc(var(--u) * 7); }
 
 /* THE TOURNAMENT'S OWN SKY (Idan: colourful, for kids): bright blue into purple, rainbow rays
    turning, confetti, the Saltiz symbol spinning behind the cup */
@@ -1442,3 +1459,88 @@
 #champs:not(.hidden) .ch-tile > * { animation: chIn .4s cubic-bezier(.3, 1.5, .5, 1) backwards; animation-delay: calc(var(--d, 0) * 1ms); }
 @keyframes chIn { from { opacity: 0; transform: scale(.6); } }
 @media (prefers-reduced-motion: reduce) { #champs *, .hm-hero.arrive { animation: none !important; } }
+
+/* ─── MY PROFILE (2026-10-14; images_up/try_proifle.jpg) ───────────
+   Left, in your team's colour (--tc, its dark --td): your name, your team, your team's badge big behind
+   your FAVORITE champion on the podium, and the pill that picks another. Right, on navy: your stats. */
+#profile { --tc: #ffc21a; --td: #6b4300; background: linear-gradient(180deg, #2a2560, #1d1946 60%, #17133a); }
+.pf-left { position: absolute; left: 0; top: 0; bottom: 0; width: 46%; z-index: 1; overflow: hidden;
+  display: flex; flex-direction: column; align-items: center; gap: calc(var(--u) * 1.2);
+  padding: calc(var(--safe-t) + var(--u) * 3) calc(var(--u) * 5) calc(var(--safe-b) + var(--u) * 3) calc(var(--safe-l) + var(--u) * 3);
+  clip-path: polygon(0 0, 100% 0, 92% 100%, 0 100%);
+  background:
+    repeating-linear-gradient(125deg, #ffffff14 0 calc(var(--u) * 3.5), transparent calc(var(--u) * 3.5) calc(var(--u) * 7)),
+    radial-gradient(ellipse 80% 60% at 50% 45%, color-mix(in srgb, var(--tc) 85%, #fff), var(--tc) 55%, color-mix(in srgb, var(--tc) 65%, #000) 100%); }
+/* the seam: a dark line along the slanted edge */
+#profile::after { content: ""; position: absolute; z-index: 1; top: 0; bottom: 0; left: 0; width: 46%; pointer-events: none;
+  clip-path: polygon(calc(100% - var(--u) * 1) 0, 100% 0, 92% 100%, calc(92% - var(--u) * 1) 100%); background: var(--td); }
+/* your team's badge, big and faint behind you */
+.pf-bdg { position: absolute; left: 50%; top: 54%; width: calc(var(--u) * 64); transform: translate(-50%, -50%); opacity: .2; pointer-events: none; }
+.pf-bdg svg { display: block; width: 100%; height: auto; }
+/* your name: tap it to change it (the same name the online box keeps) */
+.pf-nm { position: relative; flex: none; display: flex; align-items: center; gap: calc(var(--u) * 1); margin-top: calc(var(--u) * 1); }
+.pf-nm input { width: calc(var(--n, 6) * 1ch + var(--u) * 3); max-width: calc(var(--u) * 52); padding: 0 calc(var(--u) * 1); text-align: center; background: transparent; border: 0; border-radius: calc(var(--u) * 1.4); outline: none;
+  font: 900 calc(var(--u) * 7) var(--m-font); color: #fff; -webkit-text-stroke: calc(var(--u) * .9) #120e2a; paint-order: stroke fill; text-shadow: 0 calc(var(--u) * .7) 0 #120e2a; }
+.pf-nm input:focus { background: #0006; box-shadow: 0 0 0 calc(var(--u) * .5) #fff; }
+.pf-pen { position: absolute; left: 100%; font-style: normal; font-size: calc(var(--u) * 3.4); color: #fff; text-shadow: 0 calc(var(--u) * .3) 0 #120e2a; pointer-events: none; }
+/* your team, in a dark pill under the name */
+.pf-team { flex: none; display: inline-flex; align-items: center; gap: calc(var(--u) * 1); padding: calc(var(--u) * .4) calc(var(--u) * 2) calc(var(--u) * .4) calc(var(--u) * .8);
+  border-radius: 999px; background: #1d1946; border: calc(var(--u) * .4) solid #0d0a1c; box-shadow: inset 0 calc(var(--u) * .3) 0 #ffffff55;
+  font-weight: 900; font-size: calc(var(--u) * 3); color: #fff; }
+.pf-team:empty { display: none; }
+.pf-team i { display: block; width: calc(var(--u) * 4.2); }
+.pf-team svg { display: block; width: 100%; height: auto; }
+/* the favorite, whole on the podium (the home screen's own) */
+.pf-stage { position: relative; flex: 1 1 0; min-height: 0; width: calc(var(--u) * 56); }
+.pf-podium { transform: translateX(-50%) scale(.8); transform-origin: 50% 100%; }
+.pf-hero { position: absolute; left: 50%; bottom: calc(var(--u) * 9.5); width: calc(var(--u) * 54); height: calc(100% - var(--u) * 9.5); transform: translateX(-50%);
+  cursor: pointer; -webkit-tap-highlight-color: transparent; animation: hmBob 2.6s ease-in-out infinite; filter: drop-shadow(0 0 calc(var(--u) * 2.5) #fff8); }
+.pf-hero > canvas { position: absolute; inset: 0; width: 100%; height: 100%; }
+.pf-hero > .head { will-change: auto; }
+.pf-hero.arrive { animation: chArrive .5s cubic-bezier(.3, 1.6, .5, 1) both, hmBob 2.6s ease-in-out .5s infinite; }
+.pf-fav { flex: none; display: inline-flex; align-items: center; gap: calc(var(--u) * 1.4); padding: calc(var(--u) * 1.2) calc(var(--u) * 3); cursor: pointer;
+  border-radius: calc(var(--u) * 1.6); background: linear-gradient(180deg, #3a3470, #241f4c); border: calc(var(--u) * .45) solid #0d0a1c;
+  box-shadow: inset 0 calc(var(--u) * .4) 0 #ffffffaa, 0 calc(var(--u) * .6) 0 #0d0a14aa; font: 900 calc(var(--u) * 3.2) var(--m-font); color: #fff; }
+.pf-fav span { direction: rtl; }
+.pf-fav b { color: var(--m-gold); }
+.pf-fav i { font-style: normal; font-size: calc(var(--u) * 3); color: #ffffffaa; }
+.pf-fav:active { transform: translateY(calc(var(--u) * .4)); box-shadow: inset 0 calc(var(--u) * .4) 0 #ffffffaa, 0 calc(var(--u) * .2) 0 #0d0a14aa; }
+#pfBack { background: linear-gradient(180deg, #4a4378, #2f2a58); border: calc(var(--u) * .45) solid #15112c; border-radius: calc(var(--u) * 1.6); padding: calc(var(--u) * 1) calc(var(--u) * 2.4); box-shadow: inset 0 calc(var(--u) * .4) 0 #ffffffcc, 0 calc(var(--u) * .5) 0 #0d0a14aa; }
+
+/* the stats: the trophies big on top, six tiles, the collection along the bottom */
+.pf-right { position: absolute; z-index: 1; left: 48%; right: calc(var(--safe-r) + var(--u) * 4); top: calc(var(--safe-t) + var(--u) * 3); bottom: calc(var(--safe-b) + var(--u) * 3);
+  display: flex; flex-direction: column; justify-content: center; gap: calc(var(--u) * 2.2); direction: rtl; }
+.pf-h { flex: none; text-align: center; font-weight: 900; font-size: calc(var(--u) * 5.4); color: #fff; -webkit-text-stroke: calc(var(--u) * .8) #0d0a1c; paint-order: stroke fill; text-shadow: 0 calc(var(--u) * .5) 0 #0d0a1c; }
+.pf-cups, .pf-tile, .pf-coll { border-radius: calc(var(--u) * 1.8); background: linear-gradient(180deg, #2e2960, #221e4a); border: calc(var(--u) * .45) solid #0d0a1c;
+  box-shadow: inset 0 calc(var(--u) * .5) 0 #ffffffdd, 0 calc(var(--u) * .6) 0 #0d0a14aa; }
+.pf-cups { flex: none; display: flex; align-items: center; gap: calc(var(--u) * 3); padding: calc(var(--u) * 2) calc(var(--u) * 3); }
+.pf-cupi { order: -1; flex: none; width: calc(var(--u) * 13); }
+.pf-cupi svg { display: block; width: 100%; height: auto; }
+.pf-cupn { display: flex; flex-direction: column; flex: 1; }
+.pf-cupn small, .pf-best small, .pf-tile small, .pf-coll small { font-weight: 800; font-size: calc(var(--u) * 2.8); color: #c9c4ff; }
+.pf-cupn b { font-weight: 900; font-size: calc(var(--u) * 10); line-height: 1; color: var(--m-gold); -webkit-text-stroke: calc(var(--u) * 1) #1a0a3a; paint-order: stroke fill; text-shadow: 0 calc(var(--u) * .6) 0 #1a0a3a; direction: ltr; text-align: right; }
+.pf-best { order: 1; flex: none; display: flex; flex-direction: column; align-items: center; padding: calc(var(--u) * 1.4) calc(var(--u) * 4);
+  border-radius: calc(var(--u) * 1.4); background: #17133a; border: calc(var(--u) * .35) solid #0d0a1c; box-shadow: inset 0 calc(var(--u) * .3) 0 #ffffff33; }
+.pf-best b { font-weight: 900; font-size: calc(var(--u) * 5.4); color: #fff; -webkit-text-stroke: calc(var(--u) * .7) #0d0a1c; paint-order: stroke fill; direction: ltr; }
+/* (the tiles keep a phone's height on a taller screen, and the column sits in the middle) */
+.pf-grid { flex: 0 1 auto; min-height: 0; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); grid-auto-rows: minmax(0, calc(var(--u) * 19)); gap: calc(var(--u) * 2); }
+.pf-tile { --sc: #3ccf4a; position: relative; min-width: 0; display: flex; flex-direction: column; justify-content: space-between; padding: calc(var(--u) * 1.4) calc(var(--u) * 4) calc(var(--u) * 1.4) calc(var(--u) * 2); }
+.pf-tile::before { content: ""; position: absolute; right: calc(var(--u) * 1.4); top: 18%; bottom: 18%; width: calc(var(--u) * 1); border-radius: 999px; background: var(--sc); box-shadow: 0 0 calc(var(--u) * 1.2) var(--sc); }
+.pf-tile small { line-height: 1.15; }
+.pf-tile b { font-weight: 900; font-size: calc(var(--u) * 6.4); line-height: 1; color: #fff; -webkit-text-stroke: calc(var(--u) * .8) #0d0a1c; paint-order: stroke fill; text-shadow: 0 calc(var(--u) * .5) 0 #0d0a1c; direction: ltr; text-align: right; white-space: nowrap; }
+.pf-tile b .coin { width: .7em; height: .7em; vertical-align: -.05em; }
+.pf-coll { flex: none; display: flex; flex-direction: column; gap: calc(var(--u) * 1.2); padding: calc(var(--u) * 1.6) calc(var(--u) * 3) calc(var(--u) * 2); }
+.pf-coll span { display: flex; justify-content: space-between; align-items: baseline; }
+.pf-coll span b { font-weight: 900; font-size: calc(var(--u) * 3.2); color: var(--m-gold); direction: ltr; }
+.pf-bar { display: block; height: calc(var(--u) * 2.8); border-radius: 999px; background: #0d0a1c; overflow: hidden; }
+.pf-bar > i { display: block; height: 100%; width: 0; border-radius: inherit; background: linear-gradient(180deg, #ffd27a, #ffa23a 55%, #e07a10); transition: width .6s; }
+#profile:not(.hidden) .pf-tile { animation: chIn .4s cubic-bezier(.3, 1.5, .5, 1) backwards; animation-delay: calc(var(--d, 0) * 1ms); }
+
+/* the favorite picker: the champions you have, five to a row */
+.fav-panel { width: calc(var(--u) * 130); max-width: 92vw; max-height: 86vh; display: flex; flex-direction: column; align-items: center; gap: calc(var(--u) * 2.4); padding: calc(var(--u) * 4) calc(var(--u) * 4) calc(var(--u) * 3); }
+.fav-grid { flex: 1; min-height: 0; width: 100%; overflow-y: auto; overscroll-behavior: contain; -webkit-overflow-scrolling: touch; scrollbar-width: none;
+  display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: calc(var(--u) * 2.2); padding: calc(var(--u) * 1); align-content: start; }
+.fav-grid::-webkit-scrollbar { display: none; }
+.fav-grid .ch-tile .ch-face { bottom: 24%; }
+.fav-grid .ch-tile .ch-nm { bottom: calc(var(--u) * 1.6); font-size: calc(var(--u) * 2.8); }
+@media (prefers-reduced-motion: reduce) { #profile *, .pf-hero.arrive { animation: none !important; } }

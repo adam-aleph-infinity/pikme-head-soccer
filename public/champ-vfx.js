@@ -115,7 +115,8 @@ export function createVfx({ now = () => performance.now() / 1000, drawBall: pain
         const f = depthPoint(q.x, q.y - 34), o = depthPoint(a.x, headY(a));
         drawFist(g, f.x, f.y, pw.dir, o.x, o.y, t);
       }
-      if (pw && pw.fam === 'aerial' && (pw.ph === 'wait' || pw.ph === 'dive')) FAMILY_VFX.aerial.warn(g, { pw, now: t });
+      // (a champion power on the aerial flight — the Chef's volley — draws its own instead of the lances)
+      if (pw && pw.fam === 'aerial' && !pw.cp && (pw.ph === 'wait' || pw.ph === 'dive')) FAMILY_VFX.aerial.warn(g, { pw, now: t });
       const r = track.get(b);
       // the hit ball's after-images: soft motion-blurred copies of it down its path (§4)
       if ((!pw || pw.hit) && r && r.ghost > 0 && r.hist.length > 3) {
@@ -208,7 +209,7 @@ export function createVfx({ now = () => performance.now() / 1000, drawBall: pain
   function flyingFx(g) {
     if (!M.zones || !M.zones.length) return;
     for (const z of M.zones) {
-      const P = z.k === 'shell' ? POWER_VFX[z.cp] : null;
+      const P = z.k === 'shell' || z.k === 'cp' ? POWER_VFX[z.cp] : null;
       if (!P || typeof P.flying !== 'function') continue;
       const d = depthPoint(z.x0, z.y), gnd = depthPoint(z.x0, C.GROUND_Y);
       P.flying(g, z, { now: now(), m: M, x: d.x, y: d.y, gy: gnd.y, r: C.BALL_R, dir: z.dir, t: z.t, spd: z.spd });
@@ -407,7 +408,7 @@ export function createVfx({ now = () => performance.now() / 1000, drawBall: pain
           drops.push({ x, y, vx: Math.cos(a) * v, vy: Math.sin(a) * v, t: 0, life: 0.35 + Math.random() * 0.15 });
         }
         // …and the ball's after-images follow it on (not a shell's: the ball was not what hit him).
-        if (e.how !== 'shell') { const r = rec(M.ball); r.ghost = HIT_GHOSTS; }
+        if (e.how !== 'shell' && e.how !== 'spatula') { const r = rec(M.ball); r.ghost = HIT_GHOSTS; }
       }
     },
 

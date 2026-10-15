@@ -19,8 +19,8 @@ import { powerById } from '../shared/champion-powers.js';
 import { TEAM_KEY } from '../shared/play-stats.js';
 
 const $ = (s) => document.querySelector(s);
-export const SCREENS = ['title', 'menu', 'champs', 'modes', 'select', 'shop', 'bracket', 'howto', 'lobby', 'match'];
-const POPS = ['welcomePop', 'fbPop', 'cardsPop', 'statsPop', 'optPop', 'mpPop'];      // the order Esc closes them in
+export const SCREENS = ['title', 'menu', 'profile', 'champs', 'modes', 'select', 'shop', 'bracket', 'howto', 'lobby', 'match'];
+const POPS = ['welcomePop', 'fbPop', 'favPop', 'cardsPop', 'statsPop', 'optPop', 'mpPop'];      // the order Esc closes them in
 const fmt = (n) => Number(n || 0).toLocaleString('en-US');
 
 // The five stats, in HS's two columns (SPEED KICK JUMP | DASH POWER — HS's third, SURVIVAL, is
@@ -67,7 +67,7 @@ export function createMenus(ctx) {
   let shownPts = null, ptsAnim = 0;
 
   // The symbol, everywhere HS has its own art.
-  for (const id of ['tSym', 'hmPodSym', 'chPodSym', 'oSym', 'pSym', 'vsSym', 'brSym', 'wcSym']) { const el = document.getElementById(id); if (el) el.innerHTML = symbolSVG(); }
+  for (const id of ['tSym', 'hmPodSym', 'chPodSym', 'pfPodSym', 'oSym', 'pSym', 'vsSym', 'brSym', 'wcSym']) { const el = document.getElementById(id); if (el) el.innerHTML = symbolSVG(); }
 
   // ── SCREENS AND POPUPS ──────────────────────────────────────────────────
   function show(id) {
@@ -154,10 +154,11 @@ export function createMenus(ctx) {
     $('#mnPts').textContent = fmt(state.stats.points);
     $('#hmMoney').textContent = fmt(state.stats.money || 0);
     $('#hmCups').textContent = fmt(ctx.trophies?.() ?? state.stats.trophies ?? 0);
-    const av = $('#hmAvatar');
-    av.classList.toggle('photo', !ctx.characterFor?.(pick.me.rarity, pick.me.number));
+    // the profile button shows your favorite (MY PROFILE): the one you play with until you pick one
+    const av = $('#hmAvatar'), fav = favorite();
+    av.classList.toggle('photo', !ctx.characterFor?.(fav.rarity, fav.number));
     // the tile is wider than tall: fit the whole head into both sides, or its hair and chin are cut off
-    ctx.paintHead(av, pick.me.rarity, pick.me.number, av.clientWidth || 60, { h: av.clientHeight || 45, fill: 0.92 });
+    ctx.paintHead(av, fav.rarity, fav.number, av.clientWidth || 60, { h: av.clientHeight || 45, fill: 0.92 });
     ctx.paintStanding?.($('#hmHero'), pick.me);
     paintTeam();
     ctx.paintArenaHome?.();
@@ -193,11 +194,91 @@ export function createMenus(ctx) {
   tap('#hmChars', () => openChamps());
   on('#hmHero', () => { ctx.sfx?.('swish'); openChamp(); });   // (you on the podium: your own page)
   tap('#hmShop', () => openShop('menu'));
-  tap('#hmProfile', () => openStats({ profile: true }));
+  tap('#hmProfile', () => openProfile());
   tap('#hmTeam', () => ctx.openTeam?.());
   for (const id of ['#hmPass', '#hmQuests', '#hmFriends', '#hmMoneyPlus']) tap(id, () => toast('בקרוב!'));
   tap('#hmPtsPlus', () => openShop('menu'));          // more points: the shop is where they are spent
   tap('#mnOpt', () => openOptions());
+
+  // ── MY PROFILE ──────────────────────────────────────────────────────────
+  // (2026-10-14; images_up/try_proifle.jpg) The profile button opens it. Left, in your team's
+  // colour: your name (tap to change it), your team, its badge big behind your FAVORITE champion on the
+  // podium. The favorite is only for showing (and the profile button's face): who you play with stays as
+  // it is, and until you pick a favorite it is that one. Right: your stats, only what the game really counts.
+  const FAV_KEY = 'hs.fav.v1';
+  function favorite() {
+    let raw = null;
+    try { raw = ctx.store?.getItem(FAV_KEY); } catch { /* private mode */ }
+    return (raw && MN.loadMe(raw, ctx.owns, ctx.team?.()?.id)) || pick.me;     // (one you no longer have: the one you play with)
+  }
+  function openProfile() {
+    show('profile');
+    paintProfile();
+  }
+  function paintProfile() {
+    const t = ctx.team?.(), scr = $('#profile'), fav = favorite();
+    scr.style.setProperty('--tc', t?.color || '#ffc21a');
+    scr.style.setProperty('--td', t?.dark || '#6b4300');
+    $('#pfBdg').innerHTML = t ? ctx.badgeSVG(t) : '';
+    $('#pfTeam').innerHTML = t ? `<i>${ctx.badgeSVG(t)}</i>${t.title}` : '';
+    const nm = $('#pfName');
+    if (document.activeElement !== nm) nm.value = pick.name || '';
+    nm.placeholder = MN.cleanName('');
+    fitName();
+    ctx.paintStanding?.($('#pfHero'), fav);
+    $('#pfFavName').textContent = champLook(fav).name;
+    // the trophies (the arena's; 0 until it is live) and the most you ever had
+    const cups = ctx.trophies?.() ?? 0;
+    $('#pfCupIco').innerHTML = ICON.TROPHY;
+    $('#pfCups').textContent = fmt(cups);
+    $('#pfBest').textContent = fmt(Math.max(cups, ctx.bestTrophies?.() || 0));
+    const p = state.prog, rec = Object.values(p.record);
+    const w = rec.reduce((s, r) => s + r.w, 0), games = w + rec.reduce((s, r) => s + r.l, 0);
+    const tiles = [
+      ['ניצחונות בארקייד', fmt(w), '#3ccf4a'], ['משחקי ארקייד', fmt(games), '#2f9bff'], ['אחוז ניצחון', games ? `${Math.round((100 * w) / games)}%` : '–', '#ffd23a'],
+      ['אלופים שהובסו', `${p.cleared}/${ARC.STAGE_COUNT}`, '#ff4a5a'], ['נקודות סולטיז', `<i class="coin"></i>${fmt(state.stats.points)}`, '#a46bff'], ['אליפויות שבועיות', fmt(ctx.teamBadges?.() || 0), '#ff9a2a'],
+    ];
+    $('#pfGrid').innerHTML = tiles.map(([k, v, c], i) => `<div class="pf-tile" style="--sc:${c};--d:${i * 50}"><small>${k}</small><b>${v}</b></div>`).join('');
+    const all = MN.charReel(ctx.owns), got = all.filter((c) => c.owned).length;
+    $('#pfColN').textContent = `${got} / ${all.length}`;
+    $('#pfColBar').style.width = `${(100 * got) / all.length}%`;
+  }
+  // the box is as wide as the name, so the pencil sits right beside it
+  const fitName = () => { const nm = $('#pfName'); nm.style.setProperty('--n', Math.max(3, [...(nm.value || nm.placeholder)].length + 1)); };
+  // the same name the multiplayer popup keeps ("MAX 10 · AUTO SAVE")
+  $('#pfName').addEventListener('input', (e) => {
+    fitName();
+    pick.name = MN.cleanName(e.target.value);
+    try { ctx.store?.setItem(MN.NAME_KEY, pick.name); } catch { /* private mode */ }
+    $('#hmName').textContent = pick.name;
+  });
+  $('#pfName').addEventListener('keydown', (e) => { if (e.key === 'Enter') e.target.blur(); });
+  // THE FAVORITE PICKER: the champions you have, a tile each; a tap makes it your favorite
+  function openFav() {
+    const fav = favorite(), list = MN.charReel(ctx.owns).filter((c) => c.owned), grid = $('#favGrid');
+    grid.innerHTML = list.map((c, i) => {
+      const L = champLook(c), on = c.rarity === fav.rarity && c.number === fav.number;
+      return `<button class="ch-tile${c.rarity === 'mythic' ? ' myth' : ''}${on ? ' cur' : ''}" data-i="${i}" style="--c:${L.color}" aria-label="${L.name}"><i class="ch-face"></i><b class="ch-nm">${L.name}</b>${on ? '<i class="ch-on">✓</i>' : ''}</button>`;
+    }).join('');
+    openPop('favPop');
+    for (const b of grid.children) {
+      const c = list[+b.dataset.i], f = b.querySelector('.ch-face');
+      ctx.paintHead(f, c.rarity, c.number, f.clientWidth || 80, { fill: 0.96, h: f.clientHeight || undefined });
+      b.addEventListener('click', () => setFav(c));
+    }
+  }
+  function setFav(c) {
+    try { ctx.store?.setItem(FAV_KEY, MN.saveMe(c)); } catch { /* private mode: for this visit only */ }
+    ctx.sfx?.('armed');
+    closePop('favPop');
+    paintProfile();
+    const hero = $('#pfHero');
+    hero.classList.remove('arrive'); void hero.offsetWidth; hero.classList.add('arrive');
+  }
+  on('#pfHero', () => { ctx.sfx?.('tap'); openFav(); });
+  tap('#pfFav', openFav);
+  on('#favX', () => closePop('favPop'));
+  tap('#pfBack', () => openMenu());
 
   // ── MY CHAMPIONS ────────────────────────────────────────────────────────
   // (2026-10-12) The Characters tile opens THE COLLECTION: every champion a big tile — its
@@ -357,7 +438,9 @@ export function createMenus(ctx) {
   tap('#chBack', () => (chPage ? backToGrid() : openMenu()));
 
   // ── GAME MODES ──────────────────────────────────────────────────────────
-  // What PLAY opens: every mode (shared/menu.js MODES) as a big card, its mascot over it.
+  // What PLAY opens: every mode (shared/menu.js MODES) as a big picture card (img/modes), its
+  // name along the bottom, in a row you swipe freely sideways (from the arena, on the left); the mode you
+  // have now in a glowing gold frame.
   // THE ARENA first (2026-10-12): PLAY plays the mode you last picked here, the arena until you pick
   // another, and the long button beside PLAY says which one it is, with its symbol.
   const row = $('#mdRow');
@@ -380,9 +463,26 @@ export function createMenus(ctx) {
     document.body.classList.toggle('mode-other', m.id !== 'arena');   // the arena's name and stars belong to the arena only
   }
   paintHomeMode();
-  row.innerHTML = HOME_MODES.map((m) => `<button class="mn-mode" data-mode="${m.id}">
-      <span class="mn-masc"></span><b class="mn-pill"><i class="mn-ico">${MODE_ICON[m.id]}</i><span>${m.name}</span></b><small class="mn-sub"></small></button>`).join('');
-  for (const b of row.children) b.addEventListener('click', () => press(b.querySelector('.mn-pill'), () => pickHomeMode(b.dataset.mode)));
+  row.innerHTML = HOME_MODES.map((m) => `<button class="mn-mode" data-mode="${m.id}" style="--img:url(img/modes/${m.id}.webp)" aria-label="${m.name}">
+      <i class="mn-art"></i><span class="mn-cap"><b class="mn-name">${m.name}</b><small class="mn-sub"></small></span></button>`).join('');
+  for (const b of row.children) b.addEventListener('click', () => { if (!rowDragged) press(b, () => pickHomeMode(b.dataset.mode)); });
+  // a mouse (the desktop) drags the row and its wheel scrolls it sideways; a finger just swipes it
+  let rowDragged = false;
+  {
+    let x0 = null, s0 = 0;
+    row.addEventListener('pointerdown', (e) => { if (e.pointerType !== 'mouse') return; x0 = e.clientX; s0 = row.scrollLeft; rowDragged = false; });
+    addEventListener('pointermove', (e) => {
+      if (x0 === null) return;
+      if (Math.abs(e.clientX - x0) > 6) { rowDragged = true; row.classList.add('drag'); }
+      if (rowDragged) row.scrollLeft = s0 - (e.clientX - x0);
+    });
+    addEventListener('pointerup', () => {
+      if (x0 === null) return;
+      x0 = null;
+      if (rowDragged) { row.classList.remove('drag'); setTimeout(() => { rowDragged = false; }, 0); }
+    });
+    row.addEventListener('wheel', (e) => { if (Math.abs(e.deltaY) > Math.abs(e.deltaX)) { row.scrollLeft += e.deltaY; e.preventDefault(); } }, { passive: false });
+  }
   // picking a mode only SELECTS it (Idan): back home, the button shows it, and PLAY starts it
   function pickHomeMode(id) {
     setHomeMode(id);
@@ -390,32 +490,6 @@ export function createMenus(ctx) {
     const btn = $('#hmModes');
     btn.classList.remove('just-picked'); void btn.offsetWidth; btn.classList.add('just-picked');
     toast(`${HOME_MODES.find((m) => m.id === homeMode).name} נבחר! לחצו שחק`);
-  }
-  function paintMascot(b) {
-    const m = b.querySelector('.mn-masc'), id = b.dataset.mode;
-    if (id === 'arena') {
-      m.innerHTML = '<i class="mm-face a"></i><b class="mm-deco cup">🏟️</b><i class="mm-face b"></i>';
-      const [a, c] = m.querySelectorAll('.mm-face');
-      ctx.paintHead(a, pick.me.rarity, pick.me.number, a.clientWidth || 50);
-      ctx.paintHead(c, 'legendary', 4, c.clientWidth || 50, { flip: true });
-    } else if (id === 'arcade') {
-      m.innerHTML = '<i class="mm-face"></i><b class="mm-deco crown">👑</b>';
-      const n = ARC.currentStage(state.prog);
-      ctx.paintHead(m.querySelector('.mm-face'), 'legendary', n, m.querySelector('.mm-face').clientWidth || 60);
-    } else if (id === 'multi') {
-      m.innerHTML = '<i class="mm-face a"></i><b class="mm-deco bolt">⚡</b><i class="mm-face b"></i>';
-      const [a, c] = m.querySelectorAll('.mm-face');
-      ctx.paintHead(a, pick.me.rarity, pick.me.number, a.clientWidth || 50);
-      ctx.paintHead(c, 'legendary', 2, c.clientWidth || 50, { flip: true });
-    } else if (id === 'tournament') {
-      m.innerHTML = '<i class="mm-face a"></i><b class="mm-deco cup">🏆</b><i class="mm-face b"></i>';
-      const [a, c] = m.querySelectorAll('.mm-face');
-      ctx.paintHead(a, 'legendary', 3, a.clientWidth || 50);
-      ctx.paintHead(c, 'legendary', 5, c.clientWidth || 50, { flip: true });
-    } else {
-      m.innerHTML = '<i class="mm-face"></i><b class="mm-deco cone">🎯</b>';
-      ctx.paintHead(m.querySelector('.mm-face'), pick.me.rarity, pick.me.number, m.querySelector('.mm-face').clientWidth || 60);
-    }
   }
   function enterMode(id) {
     if (id !== 'multi') ctx.onMode?.(id);         // multiplayer is a popup: its room is the mode (openLobby)
@@ -436,7 +510,8 @@ export function createMenus(ctx) {
     sub('multi').innerHTML = 'עם חבר <span class="online-count"></span>';
     sub('practice').textContent = 'נגד המחשב';
     ctx.refreshOnline?.();
-    for (const b of row.children) { paintMascot(b); b.classList.toggle('sel', b.dataset.mode === homeMode); }
+    for (const b of row.children) b.classList.toggle('sel', b.dataset.mode === homeMode);
+    row.scrollLeft = 0;                // always from the left, the arena first
   }
   tap('#mdBack', () => openMenu());
 
@@ -804,6 +879,12 @@ export function createMenus(ctx) {
     title.textContent = team ? 'טלפון צוות' : 'נספר שוב';
     titleT = setTimeout(() => { title.textContent = 'הגדרות'; }, 2000);
   });
+  // EXIT to the Saltiz app. The app's own back arrow sat over the pitch and a stray thumb left
+  // the game, so the way out lives here; the app closes the screen when it gets {type:'exit'}.
+  // Outside the app (a browser) there is nothing to go back to, so the pill is not shown.
+  const appBridge = () => window.ReactNativeWebView;
+  if (appBridge()) { $('#oExit').hidden = false; $('#optPop .orbit').classList.add('has-exit'); }
+  tap('#oExit', () => { ctx.analytics?.leaving?.(); appBridge()?.postMessage(JSON.stringify({ type: 'exit' })); });
   on('#optPop', (e, el) => { if (e.target === el) closePop('optPop'); });
   // ── REPORT A BUG / SEND AN IDEA (server/feedback.js → an anonymous Google Form) ──
   // The pill shows only once the server says a form is set up: no player meets a form that goes
@@ -858,27 +939,16 @@ export function createMenus(ctx) {
   tap('#welcomeGo', closeWelcome);
   on('#welcomeX', closeWelcome);
 
-  function openStats({ profile = false } = {}) {
-    $('#statsH').textContent = profile ? 'הפרופיל שלי' : 'סטטיסטיקה';
-    $('#stNameRow').hidden = !profile;
-    $('#stName').value = pick.name || '';
+  function openStats() {
     const p = state.prog, rec = Object.values(p.record);
     const w = rec.reduce((s, r) => s + r.w, 0), l = rec.reduce((s, r) => s + r.l, 0);
     const lv = Object.values(UPG.levelsOf(state.stats, pick.me)).reduce((s, v) => s + v, 0);   // (the champion you play with)
     const rows = [['אלופים שהובסו', `${p.cleared} / ${ARC.STAGE_COUNT}`], ['ניצחונות בארקייד', w], ['הפסדים בארקייד', l],
       ['נקודות סולטיז', `<i class="coin"></i> ${fmt(state.stats.points)}`], ['רמות שדרוג', `${lv} / 50`]];
-    // the team and the arena (team.js, arena.js), first
-    if (profile && ctx.profileRows) rows.unshift(...ctx.profileRows());
     $('#statsList').innerHTML = rows.map(([k, v]) => `<dt>${k}</dt><dd>${v}</dd>`).join('');
     openPop('statsPop');
   }
   on('#statsX', () => closePop('statsPop'));
-  // the same name the multiplayer popup keeps ("MAX 10 · AUTO SAVE")
-  $('#stName').addEventListener('input', (e) => {
-    pick.name = MN.cleanName(e.target.value);
-    try { ctx.store?.setItem(MN.NAME_KEY, pick.name); } catch { /* private mode */ }
-    $('#hmName').textContent = pick.name;
-  });
 
   // ── HOW TO ──────────────────────────────────────────────────────────────
   // HS: card pages that slide sideways, the next one peeking in; its number and name on a
@@ -965,6 +1035,9 @@ export function createMenus(ctx) {
       else if ((k === 'Enter' || k === 'NumpadEnter') && !(t?.tagName === 'BUTTON')) act = chPage ? chooseChamp : () => showChamp(chAt);
     } else if (screen === 'modes') {
       if (k === 'Escape') act = () => openMenu();
+    } else if (screen === 'profile') {
+      if (k === 'Escape') act = () => openMenu();
+      else if ((k === 'Enter' || k === 'NumpadEnter') && t?.id === 'pfHero') act = openFav;
     } else if (screen === 'select') {
       const reel = selMode === 'tournament' ? reelCup : e.shiftKey ? reelMe : reelFoe;
       if (k === 'ArrowDown' || (selMode === 'tournament' && k === 'ArrowRight')) act = () => reel.step(1);
@@ -996,6 +1069,7 @@ export function createMenus(ctx) {
   addEventListener('resize', () => {
     if (screen === 'select') { reelMe?.repaint(); reelFoe?.repaint(); reelCup?.repaint(); }
     if (screen === 'menu') paintHome();
+    if (screen === 'profile') paintProfile();
     if (screen === 'modes') openModes();
   });
 
@@ -1004,7 +1078,7 @@ export function createMenus(ctx) {
     paintHome: () => { if (screen === 'menu') paintHome(); },
     toast,
     show, get screen() { return screen; },
-    openTitle, openMenu, openModes, openSelect, openShop, openChamps, openChamp, openHowTo, openOptions, openMp, openBracket,
+    openTitle, openMenu, openProfile, openModes, openSelect, openShop, openChamps, openChamp, openHowTo, openOptions, openMp, openBracket,
     get selMode() { return selMode; },
     openWelcome, get welcomeOn() { return popOpen('welcomePop'); },
     closePops: () => POPS.forEach(closePop),

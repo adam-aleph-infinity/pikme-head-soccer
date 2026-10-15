@@ -242,6 +242,7 @@ function arm(m, i) {
   for (const i of [0, 1]) {
     const m = fresh();
     const p = m.players[i];
+    p.shot = shotById('straight');    // (the plain shot: card 3's own power holds the ball first)
     arm(m, i);
     for (let t = 0; t < 30 && !m.ball.power; t++) touchBall(m, p);
     ok(`player ${i}'s ultimate fires`, !!m.ball.power);
@@ -1148,12 +1149,13 @@ const first = (log, type, f = () => true) => log.find((e) => e.type === type && 
       held.length > 100 && held.every((q) => q.ax === held[0].ax && q.ay === held[0].ay) && !all(pl.log, 'tackle', (e) => e.on === seat).length && !(pl.a.stunned > 0),
       `${held.length} held ticks, x ${held[0] && held[0].ax.toFixed(1)} → ${held.at(-1) && held.at(-1).ax.toFixed(1)}`);
 
-    // a shell hit is the power hit — thrown toward his goal, his face marked, his arm kept — dazed DAZE s
+    // a shell hit is the power hit — thrown toward his goal, his face marked, his arm kept — dazed as
+    // long as any power hit (Idan: every stun the same)
     const h = barrage(seat, { gap: 400, s: 0.6, armFoe: true });
     const hit = all(h.log, 'powerHit', (e) => e.how === 'shell' && e.player === 1 - seat)[0];
     const st = h.trace.find((q) => q.i === (hit && hit.i));
     ok(`${tag}: a shell hits a defender in its line — thrown, dazed, marked, still armed`,
-      !!hit && st && Math.abs(st.zst - BROADSIDE.DAZE) < 0.05 && h.z.hurt >= 1 && h.z.armed > 0 && (h.X(h.z.x) - 700) > 100,
+      !!hit && st && Math.abs(st.zst - C.POWER_HIT_STUN) < 0.05 && h.z.hurt >= 1 && h.z.armed > 0 && (h.X(h.z.x) - 700) > 100,
       hit ? `daze ${st && st.zst.toFixed(2)}, thrown ${(h.X(h.z.x) - 700).toFixed(0)} px` : 'no hit');
     // …and still armed, he counters the ball when it comes (the shells cannot be countered)
     const c = barrage(seat, { gap: 420, s: 4.6, armFoe: true, foe: walkBack() });
@@ -1168,7 +1170,7 @@ const first = (log, type, f = () => true) => log.find((e) => e.type === type && 
       `${parries.length} parries`);
     // …and the same kick blocks the ball: the grind, then the blocker fires THE WHOLE BARRAGE back
     // (Idan 2026-10-13) — two shells of his own, then the ball, held where he stands while it plays
-    const fb = barrage(seat, { gap: 450, s: 7, foe: parry });
+    const fb = barrage(seat, { gap: 450, s: 8.5, foe: parry });
     const blk = first(fb.log, 'blocked', (e) => e.player === 1 - seat && e.cp === 'broadside');
     const back = first(fb.log, 'powershot', (e) => e.player === 1 - seat && e.rebound);
     const his = all(fb.log, 'cannonFire', (e) => e.player === 1 - seat);
@@ -1211,20 +1213,22 @@ const first = (log, type, f = () => true) => log.find((e) => e.type === type && 
   }
 }
 {
-  // POWER 2 — WORM TUNNEL AMBUSH (Lord of the Worms, Idan 2026-10-13): the worm dives with the ball,
-  // tunnels under the pitch, holds under a ring, and spits it in a lob at the goal. Underground
-  // nobody touches it; the lob is a straight power shot with its own answers (the stomp, the early
-  // header, the swing block, the crown) and a hit coils.
-  const { WORM, emergeX } = await import('./shared/champion-powers/stage-02.js');
+  // POWER 2 — WORM TUNNEL AMBUSH (Lord of the Worms; Idan 2026-10-14, after France's in his HS clip):
+  // the worm drives down at a slant with the ball, tunnels a FIXED distance, and bursts up shooting
+  // it straight and slanting into the goal — or, come up inside the goal, straight into the net; past
+  // the back wall, no goal and the ball back at the centre. Underground nobody touches it; the shot
+  // is a straight power shot (the stomp on its ring, the early header, the kick-block, the counter)
+  // and a hit coils.
+  const { WORM, tunnelOf } = await import('./shared/champion-powers/stage-02.js');
   const { powerHolds } = await import('./shared/hs-powers.js');
   // seat fires from X(300); `place(m, z, pw)` puts the defender (after the touch); `inp(m, z, pw)`
   // his input each tick; `setup(m)` before the touch
-  function worm(seat, { place = null, inp = null, s = 3.2, setup = null, cardB = { rarity: 'epic', number: 1 } } = {}) {
+  function worm(seat, { place = null, inp = null, s = 3.2, setup = null, ax = 300, cardB = { rarity: 'epic', number: 1 } } = {}) {
     const cards = []; cards[seat] = { rarity: 'legendary', number: 2 }; cards[1 - seat] = cardB;
     const m = createMatch(cards[0], cards[1], { champions: true, duration: 600 });
     m.freeze = 0; m.phase = 'play'; m.gaugeLead = 0; m.banner = null; m.bannerT = 0;
     const a = m.players[seat], z = m.players[1 - seat];
-    a.x = seat === 0 ? 300 : C.W - 300; z.x = seat === 0 ? 120 : C.W - 120;
+    a.x = seat === 0 ? ax : C.W - ax; z.x = seat === 0 ? 120 : C.W - 120;
     if (setup) setup(m, a, z);
     arm(m, seat);
     m.ball.x = a.x; m.ball.y = headY(a); m.ball.vx = 0; m.ball.vy = 0;
@@ -1247,15 +1251,25 @@ const first = (log, type, f = () => true) => log.find((e) => e.type === type && 
     const tag = `WORM TUNNEL (seat ${seat})`;
     const r = worm(seat);
     const order = [...new Set(r.trace.filter((q) => q.ph && !q.hold).map((q) => q.ph))];
-    ok(`${tag}: dive, tunnel, ring, lob — in that order`, order.slice(0, 4).join(',') === 'wdive,tunnel,warn,fly', order.join(','));
+    ok(`${tag}: dive, tunnel, ring, shot — in that order`, order.slice(0, 4).join(',') === 'wdive,tunnel,warn,fly', order.join(','));
     ok(`${tag}: the tunnel lasts TUNNEL s and the ring WARN s`, Math.abs(span(r.trace, 'tunnel') - WORM.TUNNEL) < 2.5 * C.TICK && Math.abs(span(r.trace, 'warn') - WORM.WARN) < 2.5 * C.TICK, `${span(r.trace, 'tunnel').toFixed(2)} / ${span(r.trace, 'warn').toFixed(2)}`);
-    const D = (r.gx - r.pw0.ex) * r.a.side;
-    ok(`${tag}: comes up ${WORM.MIN_LINE}–${WORM.FAR} px out from the goal line`, D >= WORM.MIN_LINE - 0.5 && D <= WORM.FAR + 0.5, `${D.toFixed(0)} px`);
+    const run = (r.pw0.ex - r.pw0.dx) * r.a.side, slant = (r.pw0.dx - r.pw0.bx) * r.a.side / Math.max(1, C.GROUND_Y - C.BALL_R - r.pw0.by);
+    ok(`${tag}: in at the dive's slant, up UNDER px on`, Math.abs(run - WORM.UNDER) < 0.5 && Math.abs(slant - WORM.DIVE_RUN) < 0.01, `${run.toFixed(0)} px, ${slant.toFixed(2)}`);
+    const shot = r.trace.filter((q) => q.ph === 'fly');
+    ok(`${tag}: the shot goes straight and slanting up at the goal`, shot.length > 2 && shot.every((q) => q.vx * r.a.side > 0 && q.vy < 0 && Math.abs(q.vx - shot[0].vx) < 1e-6 && Math.abs(q.vy - shot[0].vy) < 1e-6));
     ok(`${tag}: underground the ball lies on the grass line, unseen`, r.trace.filter((q) => q.ph === 'tunnel').every((q) => Math.abs(q.y - (C.GROUND_Y - C.BALL_R)) < 0.01));
     const w = first(r.log, 'wormWarn'), bu = first(r.log, 'wormBurst');
-    ok(`${tag}: the ring is up ≥ 0.4 s before the ball comes out`, !!w && !!bu && (bu.i - w.i) * C.TICK >= 0.4 - 1e-9, w && bu && `${((bu.i - w.i) * C.TICK).toFixed(2)} s`);
+    ok(`${tag}: the ring is up WARN s (≥ 0.2, the telegraph rule) before the ball comes out`, !!w && !!bu && (bu.i - w.i) * C.TICK >= Math.max(0.2, WORM.WARN) - 1e-9, w && bu && `${((bu.i - w.i) * C.TICK).toFixed(2)} s`);
     ok(`${tag}: a burrow on the pitch, gone after`, !!first(r.log, 'zone', (e) => e.k === 'burrow'));
-    ok(`${tag}: unopposed, the lob scores`, r.m.score[seat] === 1, `${r.m.score}`);
+    ok(`${tag}: unopposed, the shot scores`, r.m.score[seat] === 1, `${r.m.score}`);
+    // COME UP INSIDE THE GOAL: it bursts at the mouth and shoots into the net — a goal
+    const gIn = [...Array(80)].map((_, i) => 560 + i * 2).find((x) => tunnelOf(x + C.POWER_RELEASE_AT * C.HEAD_R, headY({ y: C.GROUND_Y }) - C.POWER_RELEASE_UP * C.HEAD_R, 1).end === 1);
+    const ig = worm(seat, { ax: gIn });
+    ok(`${tag}: tunnelling into the goal, it comes up at the mouth and scores`, ig.pw0 && ig.pw0.end === 1 && ig.m.score[seat] === 1 && !!first(ig.log, 'wormBurst'), ig.pw0 && `end ${ig.pw0.end}, ${ig.m.score}`);
+    // PAST THE BACK WALL: it hits the wall — no goal, the ball back in at the centre spot
+    const lo = worm(seat, { ax: gIn + 80 });
+    const ll = first(lo.log, 'wormLost');
+    ok(`${tag}: tunnelling past the goal, it hits the wall: no goal, the ball at the centre`, lo.pw0 && lo.pw0.end === 2 && !!ll && lo.m.score[seat] === 0 && !first(lo.log, 'wormBurst') && lo.trace.some((q) => q.i === ll.i && Math.abs(q.x - C.BALL_SPAWN.x) < 1 && q.ph === null), lo.pw0 && `end ${lo.pw0.end}`);
     // standing on the tunnel's way: nothing touches him while it is under him
     const u = worm(seat, { place: (m, z, pw) => { z.x = (pw.dx + pw.ex) / 2; } });
     const under = u.trace.filter((q) => ['wdive', 'tunnel', 'warn'].includes(q.ph));
@@ -1272,44 +1286,40 @@ const first = (log, type, f = () => true) => log.find((e) => e.type === type && 
     let early = false;
     const se = worm(seat, { place: (m, z, pw) => { z.x = pw.ex; }, inp: (m, z, pw) => (!early && pw && pw.ph === 'warn' && pw.k >= 0.05 ? (early = true, { kick: true }) : {}) });
     ok(`${tag}: a stomp too early does not smother it`, !first(se.log, 'wormSmother') && !!first(se.log, 'wormShove'));
-    // THE CROWN: in its way near the goal, not kicking — the hit, coiled; the ball pops on over him
+    // THE HIT: in its way near the goal, not kicking — the power hit, and coiled
     const cr = worm(seat, { place: (m, z) => { z.x = r.gx - r.a.side * 45; } });
     const ch = first(cr.log, 'powerHit', (e) => e.player === 1 - seat);
-    ok(`${tag}: met on the crown it is the power hit, and he is coiled`, !!ch && ch.how === 'crown' && !!first(cr.log, 'ailment', (e) => e.ail === 'coiled'), ch && ch.how);
-    const after = ch && cr.trace.find((q) => q.i === ch.i);
-    ok(`${tag}: …and the ball pops on over him (not back)`, !!after && after.vx * r.a.side > 0 && after.vy < 0, after && `vx ${after.vx.toFixed(0)} vy ${after.vy.toFixed(0)}`);
-    // THE SWING BLOCK: a kick on its swing up as it drops onto him — the block, and the WHOLE TUNNEL
-    // comes back from him (no cut-in, his worm takes the ball first)
-    let pressed = false;
-    const kb = worm(seat, { s: 7, place: (m, z) => { z.x = r.gx - r.a.side * 45; }, inp: (m, z, pw) => {
-      const b = m.ball;
-      if (pressed || !pw || pw.ph !== 'fly' || pw.owner !== 1 - z.index) return {};
-      if ((z.x - b.x) / b.vx < 0.16) { pressed = true; return { kick: true }; }
-      return {};
-    } });
-    ok(`${tag}: a kick into it as it drops blocks it`, !!first(kb.log, 'blocked', (e) => e.player === 1 - seat && e.cp === 'wormtunnel'));
+    ok(`${tag}: in its way it is the power hit, and he is coiled`, !!ch && !!first(cr.log, 'ailment', (e) => e.ail === 'coiled'), ch && ch.how);
+    // THE KICK-BLOCK: the block, and the WHOLE TUNNEL comes back from him (no cut-in, his worm takes
+    // the ball first)
+    // (the press timed a few ways — a player has a window, not one frame)
+    let kb = null;
+    for (const lead of [0.06, 0.08, 0.1, 0.12, 0.14, 0.16]) {
+      let pressed = false;
+      kb = worm(seat, { s: 7, place: (m, z) => { z.x = r.gx - r.a.side * 45; }, inp: (m, z, pw) => {
+        const b = m.ball;
+        if (pressed || !pw || pw.ph !== 'fly' || pw.owner !== 1 - z.index) return {};
+        if ((z.x - b.x) / b.vx < lead) { pressed = true; return { kick: true }; }
+        return {};
+      } });
+      if (first(kb.log, 'blocked', (e) => e.player === 1 - seat && e.cp === 'wormtunnel')) break;
+    }
+    ok(`${tag}: a kick into it blocks it`, !!first(kb.log, 'blocked', (e) => e.player === 1 - seat && e.cp === 'wormtunnel'));
     const back = kb.trace.filter((q) => q.own === 1 - seat).map((q) => q.ph);
-    // (to the lob — or to her smother, when she happens to stand on its ring: seat 1 does)
-    const bk = first(kb.log, 'wormBurst', (e) => e.player === 1 - seat);
-    ok(`${tag}: …and the blocker sends the whole tunnel back (grab, dive, tunnel, ring, burst)`, ['wgrab', 'wdive', 'tunnel', 'warn'].every((ph) => back.includes(ph)) && !!bk && (back.includes('fly') || !!first(kb.log, 'wormSmother', (e) => e.player === seat)), [...new Set(back)].join(','));
-    // THE COUNTER: armed, any touch of the lob fires his own power back
+    // (to its burst, its wall, or her smother — wherever the blocker's own tunnel takes it)
+    ok(`${tag}: …and the blocker sends the whole tunnel back`, ['wgrab', 'wdive', 'tunnel'].every((ph) => back.includes(ph)) && !!(first(kb.log, 'wormBurst', (e) => e.player === 1 - seat) || first(kb.log, 'wormLost', (e) => e.player === 1 - seat)), [...new Set(back)].join(','));
+    // THE COUNTER: armed, any touch of the shot fires his own power back
     const co = worm(seat, { place: (m, z) => { z.x = r.gx - r.a.side * 45; z.gauge = 1; z.prev = {}; z.armed = 9; } });
-    ok(`${tag}: an armed defender counters the lob`, !!first(co.log, 'powershot', (e) => e.player === 1 - seat && e.countered));
-    // THE EARLY HEADER: in the air at it just off the ring (past the smother) — it comes off his head, no daze
-    const eh = worm(seat, { place: () => {}, inp: (m, z, pw) => {
-      const b = m.ball;
-      if (pw && pw.ph === 'fly' && pw.t > 0.17 && pw.t < 0.19 && !(z.hold)) {
-        z.hold = 1; z.x = b.x + r.a.side * (C.HEAD_R + 6); z.y = b.y + C.BODY_H + C.HEAD_R * 0.6; z.vy = 0; z.vx = 0; z.onGround = false;
-      }
-      return {};
-    } });
-    ok(`${tag}: headed right off the ring it deflects (no daze)`, !!first(eh.log, 'blocked', (e) => e.how === 'header') && !first(eh.log, 'powerHit'));
+    ok(`${tag}: an armed defender counters the shot`, !!first(co.log, 'powershot', (e) => e.player === 1 - seat && e.countered));
   }
-  // where it comes up: by the dive point, never nearer than MIN_LINE; already that near, where it went down
-  ok('WORM TUNNEL: the ring is always MIN_LINE+ out, or where it went down', (() => {
-    for (let x = 100; x < C.W - 100; x += 7) for (const dir of [1, -1]) {
-      const gx = dir > 0 ? C.W - C.GOAL_W : C.GOAL_W, D = (gx - x) * dir, E = (gx - emergeX(x, dir)) * dir;
-      if (D > 0 && !(E >= Math.min(D, WORM.MIN_LINE) - 1e-9 && E <= Math.max(D, WORM.FAR) + 1e-9 && E <= D + 1e-9)) return false;
+  // where it comes up: UNDER px on from where it went in — at the goal's mouth if that is inside the
+  // goal, at the wall (end 2) if it is past it
+  ok('WORM TUNNEL: up UNDER px on, at the mouth inside the goal, at the wall past it', (() => {
+    for (let x = 60; x < C.W - 60; x += 7) for (const dir of [1, -1]) {
+      const t = tunnelOf(x, C.GROUND_Y - 100, dir), gx = dir > 0 ? C.W - C.GOAL_W : C.GOAL_W, raw = t.dx + dir * WORM.UNDER;
+      if (t.end === 0 && !(Math.abs(t.ex - raw) < 1e-9 && (gx - t.ex) * dir >= C.BALL_R + 1)) return false;
+      if (t.end === 1 && !((raw - gx) * dir >= -(C.BALL_R + 1) && Math.abs((gx - t.ex) * dir - (C.BALL_R + 1)) < 1e-9)) return false;
+      if (t.end === 2 && !(((dir > 0 ? C.W : 0) - raw) * dir <= C.BALL_R + 2)) return false;
     }
     return true;
   })());
@@ -1332,24 +1342,119 @@ const first = (log, type, f = () => true) => log.find((e) => e.type === type && 
   ok('coiled: half speed, no dash', (() => { const md = ailMods({ ail: 'coiled', ailT: 1 }); return md.speed === 0.5 && md.noDash; })());
 }
 {
-  // POWER 3 — SIZZLE LINE (the Burning Chef): it dives to knee height and flies flat, searing a grill
-  // strip into the grass behind it; a defender standing on the strip is singed (no kick).
-  const { SIZZLE } = await import('./shared/champion-powers/stage-03.js');
-  for (const seat of [0, 1]) {
-    const r = fireCp(3, seat, { gap: 900, s: 0.3 });
-    const fl = r.path.filter((q) => q.cp === 'sizzle' && q.ph === 'fly');
-    ok(`SIZZLE LINE (seat ${seat}): flies flat at knee height`, fl.length > 3 && fl.every((q) => Math.abs(q.y - (C.GROUND_Y - SIZZLE.KNEE)) < 1.5));
-    const zn = r.m.zones.find((z) => z.k === 'strip' && z.cp === 'sizzle');
-    ok(`SIZZLE LINE (seat ${seat}): a strip on the grass behind it, following the ball`, !!zn && Math.abs(zn.x1 - zn.x0) > 300 && zn.own === seat, zn && `${Math.abs(zn.x1 - zn.x0).toFixed(0)} px`);
-    // the defender steps onto the strip: singed
-    const z = r.z; z.x = (zn.x0 + zn.x1) / 2; z.y = C.GROUND_Y; z.onGround = true; z.ail = ''; z.ailT = 0; z.stunned = 0;
-    step(r.m, NONE);
-    ok(`SIZZLE LINE (seat ${seat}): standing on the strip, he is singed (no kick)`, z.ail === 'singed' && ailMods(z).noKick);
-    // …and the shooter is not
-    const a = r.a; a.x = z.x; a.y = C.GROUND_Y; a.onGround = true; a.ail = '';
-    step(r.m, NONE);
-    ok(`SIZZLE LINE (seat ${seat}): its own shooter walks on it unharmed`, a.ail !== 'singed');
+  // POWER 3 — INFERNO SPATULA VOLLEY (the Burning Chef; Idan 2026-10-14, from his footage of Head
+  // Soccer's United Kingdom): the Moon Shot's clock (champion 12's — up, the wait, the dive) and its 11
+  // shots — ten spatulas, then the ball — all down parallel lines over WHERE HE TOUCHED IT, so the
+  // distance to the goal decides where they land; each spatula is the power hit to whoever it meets.
+  const { VOLLEY, spatAt, lineEnd } = await import('./shared/champion-powers/stage-03.js');
+  // card `n` fires from X(300); the defender at X(zx); `inp(m, z, pw)` his input a tick
+  function volley(seat, { n = 3, ax = 300, zx = 120, inp = null, s = 3, setup = null, champions = true } = {}) {
+    const cards = []; cards[seat] = { rarity: 'legendary', number: n }; cards[1 - seat] = { rarity: 'epic', number: 1 };
+    const m = createMatch(cards[0], cards[1], { champions, duration: 600 });
+    m.freeze = 0; m.phase = 'play'; m.gaugeLead = 0; m.banner = null; m.bannerT = 0;
+    const X = (x) => (seat === 0 ? x : C.W - x);
+    const a = m.players[seat], z = m.players[1 - seat];
+    a.x = X(ax); z.x = X(zx);
+    if (setup) setup(m, a, z);
+    arm(m, seat);
+    m.ball.x = a.x; m.ball.y = headY(a); m.ball.vx = 0; m.ball.vy = 0;
+    step(m, NONE);
+    const log = [...m.events]; m.events.length = 0;
+    while (m.hitStop > 0) { step(m, NONE); log.push(...m.events); m.events.length = 0; }
+    const trace = [];
+    for (let i = 0; i < TICK_S(s) && m.phase === 'play'; i++) {
+      const b = m.ball, pw = b.power, ins = [{}, {}];
+      if (inp) ins[1 - seat] = inp(m, z, pw) || {};
+      step(m, ins);
+      trace.push({ i, x: b.x, y: b.y, ph: b.power ? b.power.ph : null, own: b.power ? b.power.owner : -1, cp: b.power ? b.power.cp : '', hold: m.hitStop > 0, zx: z.x, zvx: z.vx, zst: z.stunned, zsh: z.shoved, zhurt: z.hurt | 0, vz: (m.zones || []).some((q) => q.k === 'cp'), vdown: (m.zones || []).some((q) => q.k === 'cp' && q.w0 >= 0 && [...Array(VOLLEY.SPATS).keys()].some((n) => { const sp = spatAt(q, n, q.t - q.w0); return sp && sp.seg === 'down'; })) });
+      log.push(...m.events.map((e) => ({ ...e, i }))); m.events.length = 0;
+    }
+    return { m, a, z, log, trace };
   }
+  const armZ = (m, a, z) => { z.gauge = 1; z.prev = {}; const ins = [{}, {}]; ins[z.index] = { power: true }; step(m, ins); m.events.length = 0; };
+  for (const seat of [0, 1]) {
+    const tag = `SPATULA VOLLEY (seat ${seat})`;
+    const r = volley(seat), r12 = volley(seat, { n: 12, champions: false });
+    // THE MOON SHOT'S CLOCK, tick for tick (Idan: the same timing as champion 12's — his everywhere but
+    // the arcade, where the map plays it a little weaker): up off the screen, the wait, the dive's start
+    const up = (t) => t.filter((q) => q.ph === 'up' || q.ph === 'wait');
+    const d3 = r.trace.findIndex((q) => q.ph === 'dive'), d12 = r12.trace.findIndex((q) => q.ph === 'dive');
+    ok(`${tag}: up and the wait are champion 12's, and it dives on the same tick`, up(r.trace).length > 60 && up(r.trace).length === up(r12.trace).length && up(r.trace).every((q, k) => Math.abs(q.x - up(r12.trace)[k].x) < 1e-6 || q.ph === 'wait') && d3 > 0 && d3 === d12, `${d3} vs ${d12}`);
+    ok(`${tag}: …straight up over where he touched it`, r.trace.filter((q) => q.ph === 'up').every((q) => Math.abs(q.x - r.trace[0].x) < 1e-6));
+    // ELEVEN SHOTS: ten spatulas, 0.1 s apart from the wait's start, then the ball
+    const w0 = (r.trace.find((q) => q.ph === 'wait') || { i: 0 }).i;
+    const rn = r.log.filter((e) => e.type === 'spatRain' && e.player === seat);
+    ok(`${tag}: ten spatulas, in order, one every GAP s from the start of the wait`, rn.length === VOLLEY.SPATS && (rn[0].i - w0) * C.TICK <= 0.05 && rn.every((e, k) => e.n === k && Math.abs((e.i - rn[0].i) * C.TICK - k * VOLLEY.GAP) <= 1.01 * C.TICK), rn.map((e) => ((e.i - w0) * C.TICK).toFixed(2)).join(' '));
+    const vb = first(r.log, 'volleyBall');
+    ok(`${tag}: …then the ball, the 11th, dives after the last`, !!vb && rn.length && vb.i >= rn[rn.length - 1].i);
+    // THE BALL'S LINE PASSES OVER THE TOUCH POINT, at the spatulas' angle
+    const dv = r.trace.filter((q) => q.ph === 'dive' && q.y > -52);           // (on screen: the view's top is ≈ −52)
+    const xs = r.trace[0].x, k0 = dv[0], k1 = dv[dv.length - 1];
+    const lineY = (x) => VOLLEY.Y0 + VOLLEY.TAN * (x - xs) * r.a.side;
+    ok(`${tag}: the ball comes down its line through the touch point's column`, dv.length > 3 && dv.every((q) => Math.abs(q.y - lineY(q.x)) < 1.5), dv.length && `${k0.y.toFixed(0)} vs ${lineY(k0.x).toFixed(0)}, ${k1.y.toFixed(0)} vs ${lineY(k1.x).toFixed(0)}`);
+    ok(`${tag}: from the sweet spot, unopposed, it scores`, !(r.m.xballs && r.m.xballs.length) && r.m.score[seat] === 1, `${r.m.score}`);
+    // FROM THE SWEET SPOT (a little inside his own half): the keeper on his line takes the spatulas —
+    // each a small hit, NO STUN (Idan: every stun is the same, and a spatula is not one), its knock and
+    // stagger growing with each he takes
+    const kp = volley(seat, { zx: 985, s: 1.6 });
+    const hs = kp.log.filter((e) => e.type === 'spatHit' && e.player === 1 - seat);
+    const at = hs.map((e) => kp.trace.find((q) => q.i === e.i));
+    ok(`${tag}: from the sweet spot the spatulas hit the keeper on his line (several)`, hs.length >= 3, `${hs.length}`);
+    ok(`${tag}: …none of them stuns him`, at.length && at.every((q) => q && !(q.zst > 0)));
+    ok(`${tag}: …each pushes him harder toward his goal, the stagger growing, short of a stun`, at.length >= 3 && at.every((q, k) => q.zvx * (seat === 0 ? 1 : -1) > 100 && (k === 0 || Math.abs(q.zvx) > Math.abs(at[k - 1].zvx)) && q.zsh <= VOLLEY.SHOVE_MAX + 1e-9 && q.zsh < C.POWER_HIT_STUN), at.map((q) => q && `${q.zvx.toFixed(0)}/${q.zsh.toFixed(2)}`).join(' '));
+    ok(`${tag}: …the 10th would throw him like the power hit (≈ 1000 px/s), still no stun`, VOLLEY.KNOCK + VOLLEY.KNOCK_N * 9 >= 950 && VOLLEY.SHOVE_MAX < C.POWER_HIT_STUN);
+    // TOO FAR BACK: the ball comes down on the grass short of the goal (then a loose ball)
+    const far = volley(seat, { ax: 100, s: 2.5 });
+    const fe = far.trace.findIndex((q, k) => k > 0 && far.trace[k - 1].ph === 'dive' && q.ph !== 'dive');
+    const fq = fe > 0 && far.trace[fe - 1];
+    ok(`${tag}: from too far back it lands on the grass short of the goal`, !!fq && fq.y > C.GROUND_Y - C.BALL_R - 40 && (seat === 0 ? fq.x < C.W - C.GOAL_W : fq.x > C.GOAL_W), fq && `${fq.x.toFixed(0)},${fq.y.toFixed(0)}`);
+    // TOO CLOSE: it meets the crossbar / the wall over the goal, and no goal off the shot
+    const near = volley(seat, { ax: 640, s: 2.5 });
+    const ne = near.trace.findIndex((q, k) => k > 0 && near.trace[k - 1].ph === 'dive' && q.ph !== 'dive');
+    const nq = ne > 0 && near.trace[ne - 1];
+    ok(`${tag}: from too close it meets the crossbar or the wall over the goal`, !!nq && nq.y < C.GROUND_Y - C.GOAL_H + C.BALL_R + 4 && first(near.log, 'goal') == null, nq && `${nq.x.toFixed(0)},${nq.y.toFixed(0)}`);
+    // THE SPATULAS FLY ON TO THE ENDS OF THEIR LINES whatever becomes of the ball (Idan: "to the end"):
+    // the ball's power over the moment it dives (as a counter or a block would end it)
+    let cut = -1;
+    const fo = volley(seat, { zx: 985, s: 1.8, inp: (m) => { const pw = m.ball.power; if (cut < 0 && pw && pw.ph === 'dive') { cut = m.t; m.ball.power = null; } return {}; } });
+    const after = fo.trace.filter((q) => q.i > 0 && q.ph == null && q.vdown);
+    ok(`${tag}: the spatulas fly on after the ball's power is over`, cut >= 0 && after.length > 3 && fo.log.filter((e) => e.type === 'spatRain').length === VOLLEY.SPATS, `${after.length} ticks`);
+    // THE REAL BALL CAN BE COUNTERED: an armed keeper in its way once the spatulas are down
+    let placed = false;
+    const c = volley(seat, { ax: 200, zx: 600, setup: armZ, inp: (m, z, pw) => {
+      // (where its line is at a standing head's height, once the last spatula is down)
+      if (!placed && pw && pw.ph === 'dive' && pw.t > 0.2) { placed = true; for (const q of m.zones) if (q.k === 'cp') q.sp = (1 << VOLLEY.SPATS) - 1; z.x = pw.xs + pw.dir * (headY(z) - VOLLEY.Y0) / VOLLEY.TAN; z.y = C.GROUND_Y; z.stunned = 0; z.ail = ''; z.vx = 0; }
+      return {};
+    } });
+    const cb = first(c.log, 'volleyBall');
+    ok(`${tag}: armed, he can counter the real ball`, !!cb && !!first(c.log, 'powershot', (e) => e.player === 1 - seat && e.i > cb.i));
+  }
+  {
+    // a restore mid-rain plays out the same (online: everything is on the ball's power)
+    const A = createMatch({ rarity: 'legendary', number: 3 }, { rarity: 'epic', number: 1 }, { champions: true, duration: 600 });
+    A.freeze = 0; A.phase = 'play'; A.gaugeLead = 0; A.banner = null; A.bannerT = 0;
+    A.players[0].x = 300; A.players[1].x = 990;
+    arm(A, 0);
+    A.ball.x = 300; A.ball.y = headY(A.players[0]); A.ball.vx = 0; A.ball.vy = 0;
+    for (let i = 0; i < TICK_S(1.27 + 0.6); i++) step(A, NONE);
+    A.events.length = 0;
+    ok('SPATULA VOLLEY: mid-rain the ball waits above the screen', A.ball.power && A.ball.power.ph === 'wait', A.ball.power && A.ball.power.ph);
+    const B = createMatch({ rarity: 'legendary', number: 3 }, { rarity: 'epic', number: 1 }, { champions: true, duration: 600 });
+    restore(B, serialize(A));
+    for (let i = 0; i < TICK_S(2.5); i++) { step(A, [{}, { jump: i === 3 }]); step(B, [{}, { jump: i === 3 }]); }
+    A.events.length = 0; B.events.length = 0;
+    ok('SPATULA VOLLEY: restored mid-rain, it plays out the same', JSON.stringify(serialize(A)) === JSON.stringify(serialize(B)));
+  }
+  ok('SPATULA VOLLEY: the lines land by the distance — the grass from far, the keeper\'s height from the sweet spot, over the goal from close', (() => {
+    const gx = C.W - C.GOAL_W, far = lineEnd(1, 150, VOLLEY.Y0), sweet = lineEnd(1, 360, VOLLEY.Y0), near = lineEnd(1, 700, VOLLEY.Y0);
+    const atLine = VOLLEY.Y0 + VOLLEY.TAN * (gx - 360);
+    return far.kind === 'grass' && far.x < gx && sweet.kind === 'net' && atLine > C.GROUND_Y - 80 && atLine < C.GROUND_Y && (near.kind === 'roof' || near.kind === 'wall');
+  })());
+  // over the crossbar a line runs on over the goal — no invisible wall at the goal line (Idan): onto the
+  // roof, or to the side wall at the edge of the screen
+  ok('SPATULA VOLLEY: from close the spatulas fly on past the goal line, to the roof or the screen\'s edge', [640, 760, 900, 990].every((xs) => {
+    const e = lineEnd(1, xs, VOLLEY.Y0); return (e.kind === 'roof' && e.x > C.W - C.GOAL_W) || (e.kind === 'wall' && e.x >= C.W - 3);
+  }) && [70, 300, 420].every((xs) => { const e = lineEnd(-1, C.W - xs, VOLLEY.Y0); return e.kind !== 'roof' || e.x < C.GOAL_W; }));
 }
 {
   // POWER 4 — CHOCO BURST (King of Mud): the bar bursts BURST_AT px short of the goal line and a

@@ -30,7 +30,7 @@ How a power shot plays (docs/HS-POWER-SHOTS.md): fill the gauge, press POWER to 
 |---|---|---|---|---|---|---|---|---|---|---|---|---|
 | 1 | שכונה | התותחן | 🦜 Broadside | Broadside (original, everywhere) | Destructive | — | — | 0.1 | 1/1/1/1/1 | 1.08/1.03/1.08 | 1.18 | ½ |
 | 2 | שכונה | אדון התולעים | 🪱 Worm Tunnel Ambush | Worm Tunnel Ambush (original, everywhere) | Grab (gentle) | shock (1.7s) | — | 0.1 | 2/2/2/2/1 | 1.15/1.06/1.15 | 1.18 | ★ |
-| 3 | שכונה | השף הבוער | 🍔 Sizzle Line | Sizzle Line (original, everywhere) | Straight | burn (1.42s) | — | 0.14 | 3/3/3/3/1 | 1.23/1.09/1.23 | 1.18 | ★½ |
+| 3 | שכונה | השף הבוער | 🍔 Inferno Spatula Volley | Inferno Spatula Volley (original, everywhere) | Straight | burn (1.42s) | — | 0.14 | 3/3/3/3/1 | 1.23/1.09/1.23 | 1.18 | ★½ |
 | 4 | שכונה | מלך הבוץ | 🍫 Choco Burst | Choco Burst (original, everywhere) | Ground | shock (1.82s) | — | 0.16 | 4/4/4/4/1 | 1.3/1.12/1.3 | 1.18 | ★★ |
 | 5 | שכונה | בונה החומות | 🍭 Ice Pop Wall | Ice Pop Wall (original, everywhere) | Ground | — | — | 0.18 | 5/5/5/5/1 | 1.38/1.15/1.38 | 1.18 | ★★½ |
 | 6 | שכונה | איל ההון | 🧊 Ice Ball | Ice Ball (HS copy, arcade) | Multi-Ball (gentle) | — | — | 0.1 | 6/6/6/6/2 | 1.45/1.17/1.45 | 1.35 | ★★★ |
@@ -89,7 +89,7 @@ How a power shot plays (docs/HS-POWER-SHOTS.md): fill the gauge, press POWER to 
 | iced (קרח) | frozen in Russia's ice block (stage 6, HS copy): no control, slides when pushed | 2.5s at intensity 0.5 (×0.6–1.4 with intensity) |
 | gem (אבן) | stuck in a crust of gem crystals where he stands, no control (only the Mythic Gem's shatter sets it) | 1.3s at intensity 0.5 (×0.6–1.4 with intensity) |
 | coiled (כרוך) | worms round the ankles (Worm Tunnel Ambush): half speed, no dash | 1.2s at intensity 0.5 (×0.6–1.4 with intensity) |
-| singed (חרוך) | stood on the Sizzle Line's grill: cannot kick | 1s at intensity 0.5 (×0.6–1.4 with intensity) |
+| singed (חרוך) | stood on a burning grill strip (the retired Sizzle Line; nothing sets it now): cannot kick | 1s at intensity 0.5 (×0.6–1.4 with intensity) |
 | sticky (דביק) | feet in the Choco Burst's chocolate: slow, half-height jumps, no dash | 0.35s at intensity 0.5 (×0.6–1.4 with intensity) |
 | brainfreeze (צמרמורת) | the Ice Pop Wall's hit: frozen stiff, then a shiver (slow, no jump, no dash) for its last 1.4s | 1s at intensity 0.5 (×0.6–1.4 with intensity) |
 

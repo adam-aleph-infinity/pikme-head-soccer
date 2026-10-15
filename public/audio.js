@@ -542,10 +542,15 @@ const CP_VOICE = {
     if (t) { sweep({ from: 230, to: 120, type: 'sine', peak: 0.16, dur: 0.14, t: up + 0.36 }); sweep({ from: 210, to: 105, type: 'sine', peak: 0.14, dur: 0.14, t: up + 0.52 }); }
     whoosh({ lo: 500, hi: 3800, peak: 0.18, at: 0.08, dur: 0.22, t: dive - 0.08, body: 2 });
   },
-  // the Burning Chef: a fat sizzle hitting the grill and a gas-flame whoosh
-  sizzle(t) {
-    whoosh({ lo: 2600, hi: 9000, peak: 0.24, at: 0.02, dur: 0.75, t, body: 3 });
-    whoosh({ lo: 300, hi: 2400, peak: 0.28, at: 0.06, dur: 0.35, t, body: 2 });
+  // the Burning Chef's volley (t = the release; the ball itself is SFX.volleyBall): under the
+  // cut-in his lid clanks open on a gas burner's roar and the spatulas tap a drum-roll on the bun;
+  // a fire-back (t = 0) starts straight on its roar
+  volley(t) {
+    const open = t ? t - 1.05 : 0;
+    if (t) { thud({ freq: 1500, q: 4, peak: 0.16, decay: 0.05, t: open }); thud({ freq: 900, q: 3, peak: 0.12, decay: 0.08, t: open + 0.02 }); }
+    whoosh({ lo: 180, hi: 1600, peak: 0.24, at: 0.1, dur: 0.6, t: open + 0.03, body: 3 });
+    whoosh({ lo: 2600, hi: 9000, peak: 0.12, at: 0.05, dur: 0.5, t: open + 0.05, body: 2 });
+    if (t) for (let i = 0; i < 8; i++) thud({ freq: 2400 + (i % 2) * 500, q: 5, peak: 0.07 + i * 0.008, decay: 0.025, t: t - 0.5 + i * 0.06 });
   },
   // the King of Mud: a wrapper's crinkle and a rush
   chocoburst(t) {
@@ -602,8 +607,33 @@ function wormTransform() {
   thud({ freq: 95, q: 0.9, peak: 0.42, decay: 0.12, t: 0.44 });
   sweep({ from: 620, to: 940, type: 'sine', peak: 0.05, dur: 0.3, t: 0.46 });
 }
+// THE BURNING CHEF IGNITES: a pilot light's tick and a gas "fwoomp" climbing him, three quick
+// "shk"s as the arms unfold, the crown's clack on the bun and the flare (the same beats as
+// public/vfx/powers/stage-03.js)
+function chefTransform() {
+  thud({ freq: 3200, q: 5, peak: 0.08, decay: 0.02 });
+  whoosh({ lo: 140, hi: 1400, peak: 0.22, at: 0.12, dur: 0.38, t: 0.08, body: 3 });
+  for (let i = 0; i < 3; i++) whoosh({ lo: 2500, hi: 7500, peak: 0.08, at: 0.015, dur: 0.07, t: 0.3 + i * 0.06, body: 1 });
+  thud({ freq: 1800, q: 4, peak: 0.12, decay: 0.04, t: 0.55 });
+  thud({ freq: 110, q: 0.9, peak: 0.32, decay: 0.12, t: 0.6 });
+  whoosh({ lo: 300, hi: 2600, peak: 0.16, at: 0.04, dur: 0.3, t: 0.6, body: 2 });
+}
 const baseArmed = SFX.armed;
-SFX.armed = (e) => { baseArmed(e); if (e && e.cp === 'broadside') cannonTransform(); else if (e && e.cp === 'wormtunnel') wormTransform(); };
+SFX.armed = (e) => { baseArmed(e); if (e && e.cp === 'broadside') cannonTransform(); else if (e && e.cp === 'wormtunnel') wormTransform(); else if (e && e.cp === 'volley') chefTransform(); };
+// THE CHEF'S VOLLEY: each spatula a quick airy flip off the hand (its pitch a step along the
+// volley), a metal tick on every third; a nudge — a clank and a hiss; a parry — a bright clang;
+// the tell — the kitchen bell, "order up!"; the ball — a whip and a big flame whoosh with a thump
+// the rain: a falling whistle for each spatula (as each of Head Soccer's lasers); the golden 11th flung up
+SFX.spatRain = (e) => { const n = (e && e.n) || 0; sweep({ from: 2700 - (n % 3) * 150, to: 900, type: 'sine', peak: 0.04, dur: 0.22 }); if (n % 2) whoosh({ lo: 1500, hi: 7000, peak: 0.05, at: 0.02, dur: 0.15, body: 1 }); };
+SFX.volleyUp = () => { whoosh({ lo: 900, hi: 7000, peak: 0.16, at: 0.02, dur: 0.25, body: 2 }); blip({ freq: 3136, type: 'sine', peak: 0.08, dur: 0.18, t: 0.02 }); };
+SFX.spatHit = (e) => { const n = Math.min(10, (e && e.hits) || 1); thud({ freq: 760 - n * 40, q: 2.5, peak: 0.22 + n * 0.04, decay: 0.06 + n * 0.01 }); blip({ freq: 1320, type: 'triangle', peak: 0.1, dur: 0.12 }); whoosh({ lo: 3000, hi: 9000, peak: 0.08, at: 0.01, dur: 0.3, t: 0.02, body: 1 }); };   // (heavier with every hit he takes)
+SFX.spatParry = () => { [2093, 3136, 4186].forEach((f, i) => blip({ freq: f, type: 'sine', peak: 0.15 - i * 0.035, dur: 0.3 })); thud({ freq: 420, q: 1.2, peak: 0.4, decay: 0.07 }); };
+SFX.volleyBall = () => {
+  whoosh({ lo: 1500, hi: 8000, peak: 0.14, at: 0.01, dur: 0.12, body: 1 });
+  thud({ freq: 85, q: 0.8, peak: 0.55, decay: 0.2, t: 0.02 });
+  whoosh({ lo: 250, hi: 3200, peak: 0.26, at: 0.04, dur: 0.45, t: 0.02, body: 3 });
+  for (let i = 0; i < 4; i++) thud({ freq: 4200 + i * 500, q: 4, peak: 0.07, decay: 0.02, t: 0.05 + i * 0.03 });
+};
 SFX.cannonFire = (e) => {
   const big = !!(e && e.real);
   cannonBoom(big, (e && e.n) || 1);
@@ -637,6 +667,8 @@ SFX.wormBurst = () => {
   whoosh({ lo: 380, hi: 5200, peak: 0.3, at: 0.02, dur: 0.32, body: 3 });
   sweep({ from: 320, to: 1250, type: 'triangle', peak: 0.2, dur: 0.1, t: 0.04 }); thud({ freq: 1900, q: 2, peak: 0.16, decay: 0.03, t: 0.05 });
 };
+// past the goal: the worm slams into the wall behind it — a dull boom and a slide of earth
+SFX.wormLost = () => { thud({ freq: 70, q: 0.8, peak: 0.7, decay: 0.3 }); thud({ freq: 260, q: 1, peak: 0.3, decay: 0.08, t: 0.02 }); whoosh({ lo: 150, hi: 1800, peak: 0.16, at: 0.05, dur: 0.5, t: 0.05, body: 4 }); };
 // the burst threw someone off the ring: a heave of earth and a grunt of air
 SFX.wormShove = () => { thud({ freq: 130, q: 0.9, peak: 0.5, decay: 0.14 }); whoosh({ lo: 600, hi: 3200, peak: 0.12, at: 0.01, dur: 0.18, body: 2 }); };
 // a stomp on the ring smothered it: a muffled, buried thump

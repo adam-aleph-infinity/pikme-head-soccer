@@ -215,12 +215,10 @@ export const AILMENT_VFX = {
   coiled: {
     draw(g, p, s) {
       const r = s.r, fy = s.fy, x = s.hx, t = s.t;
-      for (let i = 0; i < 3; i++) {
-        const y = fy - 4 - i * 7, rx = r * (0.62 - i * 0.06), a0 = t * 5 + i * 2;
-        const pts = [];
-        for (let k = 0; k <= 14; k++) { const a = a0 + (k / 14) * TAU * 0.9; pts.push({ x: x + Math.cos(a) * rx, y: y + Math.sin(a) * rx * 0.3 }); }
-        wormTube(g, pts, 4.6, t, 0.5);
-      }
+      // one worm wound 1.6 times round them, climbing (each point a little higher)
+      const rx = r * 0.6, a0 = t * 5, pts = [];
+      for (let k = 0; k <= 9; k++) { const f = k / 9, a = a0 + f * TAU * 1.6; pts.push({ x: x + Math.cos(a) * rx * (1 - 0.12 * f), y: fy - 4 - f * 12 + Math.sin(a) * rx * 0.3 }); }
+      wormTube(g, pts, 5.4, t, 0.5);
       const hx = x + r * 0.66, hy = fy - 21 + Math.sin(t * 6) * 1.5;
       g.fillStyle = WORM_COL.mid; g.strokeStyle = '#1b120d'; g.lineWidth = 1.2;
       g.beginPath(); g.ellipse(hx, hy, 3.6, 3, 0, 0, TAU); g.fill(); g.stroke();

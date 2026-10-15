@@ -46,7 +46,7 @@ const AIL_TEXT = {
   twister: 'caught in Nigeria\'s tornado (the stage-3 HS copy, retired): flung up spinning, out cold',
   iced: 'frozen in Russia\'s ice block (stage 6, HS copy): no control, slides when pushed',
   coiled: 'worms round the ankles (Worm Tunnel Ambush): half speed, no dash',
-  singed: 'stood on the Sizzle Line\'s grill: cannot kick',
+  singed: 'stood on a burning grill strip (the retired Sizzle Line; nothing sets it now): cannot kick',
   sticky: 'feet in the Choco Burst\'s chocolate: slow, half-height jumps, no dash',
   brainfreeze: 'the Ice Pop Wall\'s hit: frozen stiff, then a shiver (slow, no jump, no dash) for its last 1.4s',
 };

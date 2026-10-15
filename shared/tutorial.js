@@ -149,12 +149,14 @@ export function aimVelocity(x, y, tx, ty, t, grav) {
 // right in the middle of that.
 export const COUNTER_GAP = 380;
 // WHO THE PRACTICE OPPONENT CAN BE: a drawn champion whose power a timed kick blocks — a dead-flat
-// shot at head height at the comet's pace. Measured in the sim (test-tutorial.mjs): champion 4's
-// Choco Burst is, and so is 8's; 2's Worm Tunnel Ambush goes under the pitch and lobs, 3's Sizzle Line flies at
-// knee height, and 1's Broadside fires two shells before the ball (Idan 2026-10-12: not the first
-// lesson), so a press timed for one head-height ball misses them (docs/CHAMPION-POWERS.md); 5 is the
-// coach. So the opponent is 4 — or 8, when your own card is 4.
-export const FOES = Object.freeze([4, 8]);
+// shot at head height at the comet's pace. Measured in the sim (test-tutorial.mjs): champion 8's
+// is, and so are 6, 11, 14, 17, 19 and 20; 2's Worm Tunnel Ambush goes under the pitch, 3's Spatula
+// Volley comes down from above the screen, 1's Broadside fires two shells before the ball (Idan
+// 2026-10-12: not the first lesson) and 4's Salties Snack Pinball zigzags off two bumpers (Idan
+// 2026-10-14: out of the lesson), so a press timed for one head-height ball misses them
+// (docs/CHAMPION-POWERS.md); 5 is the coach. So the opponent is 8 — or 11, when your own card is 8
+// (11, not 6: 6–10 are the next batch of original powers).
+export const FOES = Object.freeze([8, 11]);
 export const foeFor = (me) => ({ rarity: 'legendary', number: FOES.find((n) => !(me && me.rarity === 'legendary' && me.number === n)) });
 export const COUNTER_SPOTS = Object.freeze({ me: 170, foe: 860 });
 

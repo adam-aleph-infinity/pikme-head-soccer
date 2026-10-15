@@ -157,11 +157,6 @@ body.mode-other .hm-arena, body.mode-other .hm-stars { display: none; }   /* (a 
 /* a mode just picked: the button pops, so you see where your choice went */
 .hm-modes.just-picked { animation: hmPicked .5s ease-out; }
 @keyframes hmPicked { 0% { transform: skewX(-8deg) scale(1); } 35% { transform: skewX(-8deg) scale(1.12); filter: brightness(1.35); } 100% { transform: skewX(-8deg) scale(1); } }
-/* the modes screen: the mode you have now wears a "chosen" mark */
-.mn-mode.sel { position: relative; }
-.mn-mode.sel .mn-pill { outline: calc(var(--u) * .7) solid #ffd400; outline-offset: calc(var(--u) * .3); }
-.mn-mode.sel::after { content: '✓ נבחר'; position: absolute; top: calc(var(--u) * 1); left: 50%; transform: translateX(-50%); z-index: 2; padding: calc(var(--u) * .3) calc(var(--u) * 1.8);
-  border-radius: calc(var(--u) * 3); background: #ffd400; color: #1a1206; border: calc(var(--u) * .4) solid #0d0a14; font-weight: 900; font-size: calc(var(--u) * 2.6); white-space: nowrap; }
 @media (prefers-reduced-motion: reduce) { .hm-swap, .hm-modes.just-picked { animation: none; } }
 /* a narrow screen (4:3): the room is short, so the words are smaller and the badge too */
 @media (max-aspect-ratio: 8/5) {

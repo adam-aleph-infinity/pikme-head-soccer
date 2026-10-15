@@ -21,10 +21,13 @@
 //                     the power hit (its daze cut to `daze` s if set) — unless his boot meets it
 //                     on the swing up, which parries it.
 //                     It bursts on the goal line. (The Cannoneer's barrage, champion-powers/stage-01.js)
+//          'cp'     — a champion power's own piece, stepped by its definition's `zoneStep(m, z, dt,
+//                     kit)` (true: it is done) — the Chef's volley of spatulas (stage-03.js)
 
 import * as C from './constants.js';
 import { applyAilment, hitBody, headless } from './hs-powers.js';
 import { bootPose } from './kick.js';
+import { powerById } from './champion-powers.js';
 
 const SX = C.HS_STRETCH;
 const clamp = (v, lo, hi) => (v < lo ? lo : v > hi ? hi : v);
@@ -53,7 +56,7 @@ const onIt = (z, p) => {
 // What of player p a shell of radius r at (x, y) meets, as the ball's contacts judge it (sim.js
 // resolveBallPlayers, in HS's stretched space): 'parry' — the boot, on the swing up (BLOCK_SWING);
 // 'hit' — the head, the body, or the boot held out at the top; '' — nothing.
-function shellMeets(p, x, y, r, kit) {
+export function shellMeets(p, x, y, r, kit) {
   if (p.kickT > C.KICK_TIME * 0.08) {
     const dir = p.kickDir || p.side, k = (C.KICK_TIME - p.kickT) / C.KICK_TIME, pose = bootPose(k);
     const br = r * (1 + SX) / 2, bx = p.x + dir * pose[0] * C.HEAD_R, by = p.y - pose[1] * C.HEAD_R;
@@ -107,6 +110,8 @@ export function stepZones(m, dt, kit) {
     z.t += dt;
     if (z.t >= z.life) { m.zones.splice(i, 1); continue; }
     if (z.k === 'shell') { if (stepShell(m, z, dt, kit)) m.zones.splice(i, 1); continue; }
+    // a champion power's own piece on the pitch (the Chef's volley): its definition steps it
+    if (z.k === 'cp') { const D = powerById(z.cp); if (!D || !D.zoneStep || D.zoneStep(m, z, dt, kit)) m.zones.splice(i, 1); continue; }
     if (z.grow) {
       const b = m.ball, pw = b.power;
       if (pw && pw.cp === z.cp && pw.owner === z.own && pw.strip) z.x1 = b.x;

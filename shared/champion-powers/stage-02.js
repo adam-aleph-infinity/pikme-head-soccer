@@ -2,64 +2,64 @@
 // of red-eyed brown worms). An ORIGINAL power (docs/CHAMPION-POWERS.md §1c, redesigned with Idan
 // 2026-10-13).
 //
-// WORM TUNNEL AMBUSH: pressing POWER turns the snake into her worm form (drawn:
-// public/vfx/powers/stage-02.js — the sim does not change the arm). Her touch is the shared cut-in,
-// under which a giant worm bursts up beside her and coils round the ball; when it lets go:
-//   • DIVE    the worm plunges into the turf with the ball (DIVE s);
-//   • TUNNEL  under the pitch toward the other goal, a mound in the grass, its pace winding (TUNNEL s);
-//   • WARN    it stops under the spot it will come up — the ring (WARN s): the ball cannot be touched
-//             in any of these three, and nobody can score with it;
-//   • the LOB the worm bursts out and spits THE BALL up in a high arc that drops into the mouth — from
-//             here a straight power shot: counter it armed, kick-block it (the blocker sends the whole
-//             tunnel back, Idan), head it right off the ring (the early header), or take the hit
-//             (thrown, dazed, coiled: half speed, no dash, COIL s from the hit).
+// WORM TUNNEL AMBUSH (Idan 2026-10-14: like France's in his Head Soccer clip): pressing POWER turns the
+// snake into her worm form (drawn: public/vfx/powers/stage-02.js — the sim does not change the arm).
+// Her touch is the shared cut-in, under which a giant worm bursts up beside her and coils round the
+// ball; when it lets go:
+//   • DIVE    the worm drives down at a steep slant into the turf ahead of her with the ball (DIVE s);
+//   • TUNNEL  on under the pitch a FIXED distance (UNDER px) from where it went in — a mound running
+//             in the grass (TUNNEL s). Where it comes up is only where she fired from:
+//               – on the pitch: WARN s held under a ring, then it bursts up and SHOOTS THE BALL straight
+//                 and slanting up into the goal's mouth — a straight power shot from there: counter it
+//                 armed, kick-block it (the blocker sends the whole tunnel back), head it right off the
+//                 ring, or take the hit (thrown, dazed, coiled: half speed, no dash, COIL s);
+//               – inside the goal: it bursts at the goal's mouth and shoots it into the net — a goal;
+//               – past the back wall: it hits the wall — no shot, no goal, the ball dropped back in at
+//                 the centre spot as at a restart (Idan);
 //   • STOMP   on the ring with KICK pressed in the STOMP s before it bursts: smothered, the ball pops
-//             up loose — no hit, no shot. Only standing there is no answer (Idan, 2026-10-13: too easy):
-//             the burst shoves him aside (no daze) and the lob goes on through.
-// Where it comes up is fixed at the touch, from where she touched it (no randomness: the same on
-// every screen), NEAR–FAR px out from the goal line, never nearer than MIN_LINE.
-// The shooter is free to move (no `holds`); a fire-back (src ≠ owner) starts with GRAB s of the worm
-// taking the ball off the blocker, there being no cut-in for it.
+//             up loose — no hit, no shot. Only standing there is no answer: the burst shoves him aside
+//             (no daze) and the shot goes on through.
+// Underground the ball cannot be touched and nobody can score with it. All of it fixed at the touch,
+// the same on every screen. The shooter is free to move (no `holds`); a fire-back (src ≠ owner)
+// starts with GRAB s of the worm taking the ball off the blocker, there being no cut-in for it.
 import * as C from '../constants.js';
 import { addZone } from '../power-zones.js';
 
 export const WORM = Object.freeze({
   GRAB: 0.3,        // s a fire-back's worm takes the ball (the touch's own grab is under the cut-in)
   DIVE: 0.28,       // s down into the turf
-  TUNNEL: 0.9,      // s under the pitch, whatever the distance
-  WARN: 0.45,       // s held under the ring before it bursts (the telegraph rule: 0.2–0.7)
-  AHEAD: 24,        // px past the release point it goes down
-  NEAR: 260, FAR: 380,   // px from the goal line it comes up (by where she touched it)
-  MIN_LINE: 220,    // …never nearer the line than this
-  MIN_RUN: 160,     // px it tunnels at least, when there is room
+  DIVE_RUN: 0.6,    // px on per px down: the dive's slant (~60° below level, as in the clip)
+  UNDER: 250,       // px it tunnels from where it went in (the clip: ~200–260)
+  TUNNEL: 0.65,     // s under the pitch (Idan: between the clip's ~0.4 and the old 0.9)
+  WARN: 0.25,       // s held under the ring before it bursts (the telegraph rule: 0.2–0.7)
   WEAVE: 0.07,      // the tunnel's winding pace (a fraction of the run, back and forth)
-  APEX: 1.15,       // × a jumping head's reach: the lob's top (the ball's centre above the grass)
-  APEX_AT: 0.32,    // …reached this far along: spat up fast, then a longer, floatier fall into the mouth
-  LOB_T: 0.6,       // s from the burst to the goal line
-  CROSS: 0.3,      // × the goal's height it crosses the line at (a standing head on the line meets it)
+  BURST_STOP: 0.05, // s of hit-stop at the burst (the ground's jolt: game.js shakes the pitch with it)
+  SPEED: 1.2,       // × the comet: the shot out of the ground
+  IN: 30,           // px inside the goal line it is aimed at…
+  CROSS: 0.42,      // …at this fraction of the goal's height
   RING: 1.7,        // × HEAD_R: the ring's radius round where it comes up
   STOMP: 0.15,      // s before the burst a kick pressed on the ring stomps it (smothers it)
   SMOTHER_VY: 420,  // px/s the smothered ball pops up
   SHOVE_V: 380, SHOVE_UP: 260, SHOVE_T: 0.3,   // the burst under a defender who only stood there: thrown aside, no daze
-  OVER_VX: 180,     // the lob met by a crown on its way down: the power hit, and the ball pops on OVER
-  OVER_VY: 195,     //   him toward the goal (px/s on, px/s up) — its pace sets the power's strength
+  THROUGH: 142, THROUGH_UP: 160,   // the shot met by a head or a body: the power hit, and the ball goes on past
+                    //   him toward his goal at THROUGH px/s, popped up THROUGH_UP (0: it bounces off him)
   COIL: 1.5,        // s coiled from the hit (the daze's 0.9 s inside it: it has to outlast it to land)
 });
 const goalLineX = (dir) => (dir > 0 ? C.W - C.GOAL_W : C.GOAL_W);
+const backX = (dir) => (dir > 0 ? C.W : 0);                // the wall behind the goal
 const UNDER = { wgrab: 1, wdive: 1, tunnel: 1, warn: 1 };
 export const underground = (pw) => !!(pw && pw.wk && UNDER[pw.ph]);
-// the lob's top, the ball's centre above the grass
-const apexH = () => WORM.APEX * ((C.JUMP_V * C.JUMP_V) / (2 * C.PLAYER_GRAV) + C.BODY_H + 2 * C.HEAD_R - C.NECK);
 
-// Where it comes up, from the dive point: NEAR–FAR px out by the whole px it went down at (a fixed
-// spread, the same on every screen), at least MIN_RUN on from the dive, never nearer than MIN_LINE.
-export function emergeX(dx, dir) {
-  const gx = goalLineX(dir), D = (gx - dx) * dir;
-  const f = ((Math.floor(Math.abs(dx)) * 37) % 100) / 100;
-  let E = WORM.NEAR + (WORM.FAR - WORM.NEAR) * f;
-  E = Math.max(WORM.MIN_LINE, Math.min(E, D - WORM.MIN_RUN));
-  if (E > D) E = D;                                        // already that near: up where it went down
-  return gx - dir * E;
+// WHERE IT GOES IN AND COMES UP, from the release point (bx, by): in at the dive's slant, up UNDER px on.
+// → { dx, ex, end }: end 0 on the pitch, 1 inside the goal (it comes up at the mouth), 2 past the
+// wall (it stops at the wall). `r` the ball's radius.
+export function tunnelOf(bx, by, dir, r = C.BALL_R) {
+  const gx = goalLineX(dir), bk = backX(dir);
+  const dx = Math.min(C.W - r - 2, Math.max(r + 2, bx + dir * Math.max(0, C.GROUND_Y - r - by) * WORM.DIVE_RUN));
+  const raw = dx + dir * WORM.UNDER;
+  if ((bk - raw) * dir <= r + 2) return { dx, ex: bk - dir * (r + 2), end: 2 };
+  if ((gx - raw) * dir < r + 1) return { dx, ex: gx - dir * (r + 1), end: 1 };
+  return { dx, ex: raw, end: 0 };
 }
 
 // the burrow (an inert zone: power-zones.js only ages it): the mound's track on the grass, drawn
@@ -80,8 +80,8 @@ export default Object.freeze({
   family: 'straight', speed: 1, ailment: 'coiled', ailSec: WORM.COIL,
   name: 'Worm Tunnel Ambush', icon: '🪱', color: '#c0703a',
   desc: 'תולעת ענקית חופרת עם הכדור מתחת למגרש ויורקת אותו לשער! עמדו על הטבעת כדי לעצור.',
-  // the ball unseen for the tunnel (a mound to read), then a lob from above; a hit coils
-  diff: { speed: 0.5, disable: WORM.COIL * 0.5, above: 1 },
+  // the ball unseen for the tunnel (a mound to read), then a straight shot up out of the ground; a hit coils
+  diff: { speed: WORM.SPEED, disable: WORM.COIL * 0.5, jumpers: 1 },
   answer: { kick: true, jump: true },
   ballAt: WORM.DIVE + WORM.TUNNEL + WORM.WARN,             // s after the release the ball comes up
 
@@ -89,8 +89,8 @@ export default Object.freeze({
     const fb = pw.src !== pw.owner;
     pw.wk = 1; pw.ph = fb ? 'wgrab' : 'wdive'; pw.k = 0;
     pw.bx = b.x; pw.by = b.y;
-    pw.dx = Math.min(C.W - C.GOAL_W - b.r, Math.max(C.GOAL_W + b.r, b.x + pw.dir * WORM.AHEAD));
-    pw.ex = emergeX(pw.dx, pw.dir);
+    const tn = tunnelOf(b.x, b.y, pw.dir, b.r);
+    pw.dx = tn.dx; pw.ex = tn.ex; pw.end = tn.end;
     pw.bid = (m.t || 0) + pw.owner * 1e-3;                 // its burrow's tag
     b.vx = pw.dir; b.vy = 0;                               // (held: only its heading, toward the goal)
     addZone(m, { k: 'burrow', cp: pw.cp, own: pw.owner, x0: pw.dx, x1: pw.dx, y: C.GROUND_Y, dir: pw.dir, life: 6, bid: pw.bid, ex: pw.ex, st: 0, sk: 0, fb: fb ? 1 : 0 });
@@ -108,36 +108,46 @@ export default Object.freeze({
         if (pw.k >= WORM.GRAB) { pw.ph = 'wdive'; pw.k = 0; stage(m, pw, 1); }
       } else if (pw.ph === 'wdive') {
         if (z && z.st < 1) stage(m, pw, 1);
-        const u = Math.min(1, pw.k / WORM.DIVE), e = u * u * (3 - 2 * u);
-        b.x = pw.bx + (pw.dx - pw.bx) * e; b.y = pw.by + (gy - pw.by) * u * u;
+        // a straight slant down into the turf, gathering pace
+        const u = Math.min(1, pw.k / WORM.DIVE), e = u * u;
+        b.x = pw.bx + (pw.dx - pw.bx) * e; b.y = pw.by + (gy - pw.by) * e;
         if (pw.k >= WORM.DIVE) {
           pw.ph = 'tunnel'; pw.k = 0; b.x = pw.dx; b.y = gy; stage(m, pw, 2, pw.dx);
           m.events.push({ type: 'wormDive', player: pw.owner, cp: pw.cp, x: b.x, y: C.GROUND_Y, dir: pw.dir });
         }
       } else if (pw.ph === 'tunnel') {
+        // (a winding pace; the same TUNNEL s whatever the distance, a wall included)
         const u = Math.min(1, pw.k / WORM.TUNNEL), s = u + WORM.WEAVE * api.wave(2 * u);
         b.x = pw.dx + (pw.ex - pw.dx) * s; b.y = gy;
         if (z) z.x1 = b.x;
+        if (pw.k >= WORM.TUNNEL && pw.end === 2) {
+          // PAST THE GOAL: it hits the wall — no shot; the ball back in at the centre spot (Idan)
+          stage(m, pw, 5, pw.ex);
+          m.events.push({ type: 'wormLost', player: pw.owner, cp: pw.cp, x: pw.ex, y: C.GROUND_Y, dir: pw.dir });
+          b.x = C.BALL_SPAWN.x; b.y = C.BALL_SPAWN.y; b.vx = 0; b.vy = 0; b.spin = 0;
+          return api.end(b);
+        }
         if (pw.k >= WORM.TUNNEL) {
           pw.ph = 'warn'; pw.k = 0; b.x = pw.ex; stage(m, pw, 3, pw.ex);
           m.events.push({ type: 'wormWarn', player: pw.owner, cp: pw.cp, x: pw.ex, y: C.GROUND_Y, dir: pw.dir });
         }
       } else if (pw.k >= WORM.WARN) {
-        // THE BURST: the lob solved from the ring to the goal line — up to its top APEX_AT of the way
-        // there on one gravity, down to CROSS of the goal's height at the line on a lighter one, in
-        // LOB_T s (a shorter way, a shorter time), at an even pace across
+        // THE BURST: straight up out of the ground and slanting into the goal's mouth (from inside
+        // the goal, at its mouth: straight into the net)
         b.x = pw.ex; b.y = gy;
-        const gx = goalLineX(pw.dir), A = apexH(), h0 = C.GROUND_Y - b.y, h1 = C.GOAL_H * WORM.CROSS;
-        const T = WORM.LOB_T * Math.min(1, Math.max(0.35, Math.abs(gx - pw.ex) / 300));
-        const t1 = T * WORM.APEX_AT, t2 = T - t1;
-        pw.ag = (2 * Math.max(1, A - h0)) / (t1 * t1); pw.ag2 = (2 * Math.max(1, A - h1)) / (t2 * t2);
-        pw.avx = (gx - pw.ex) / T;
+        const gx = goalLineX(pw.dir), tx = gx + pw.dir * WORM.IN, ty = C.GROUND_Y - C.GOAL_H * WORM.CROSS;
+        const ddx = tx - b.x, ddy = ty - b.y, d = Math.hypot(ddx, ddy) || 1, v = C.POWER_SHOT_SPEED * WORM.SPEED;
+        pw.avx = (ddx / d) * v; pw.avy = (ddy / d) * v;
         pw.ph = 'fly'; pw.t = 0; pw.k = 0; pw.x0 = pw.ex; pw.y0 = b.y;
-        b.vx = pw.avx; b.vy = -pw.ag * t1;
+        b.vx = pw.avx; b.vy = pw.avy;
         stage(m, pw, 4, pw.ex);
-        m.events.push({ type: 'wormBurst', player: pw.owner, cp: pw.cp, x: pw.ex, y: C.GROUND_Y, dir: pw.dir });
+        { const z4 = burrow(m, pw); if (z4) z4.ig = pw.end === 1 ? 1 : 0; }
+        // (`ig`: up inside the goal — the goal clears the burrow the next tick, so the renderer draws
+        // that worm off this event instead)
+        m.events.push({ type: 'wormBurst', player: pw.owner, cp: pw.cp, x: pw.ex, y: C.GROUND_Y, dir: pw.dir, ig: pw.end === 1 ? 1 : 0 });
         // WHO IS ON THE RING (the match only: the bot's look-ahead flies a copy over the real players)
         if (m.zones) {
+          m.hitStop = Math.max(m.hitStop, WORM.BURST_STOP);
           for (const q of m.players) {
             if (q.index === pw.owner || Math.abs(q.x - pw.ex) > WORM.RING * C.HEAD_R + C.BODY_W / 2 || q.y < C.GROUND_Y - 30) continue;
             const since = q.kickT > 0 ? C.KICK_TIME - q.kickT : 9;
@@ -148,7 +158,7 @@ export default Object.freeze({
               m.events.push({ type: 'blocked', player: q.index, by: pw.owner, fam: pw.fam, how: 'smother', cp: pw.cp });
               return api.end(b);
             }
-            // only standing there: the burst throws him aside, and the lob goes on through him
+            // only standing there: the burst throws him aside, and the shot goes on through him
             const away = Math.sign(q.x - pw.ex) || -pw.dir;
             q.vx = away * WORM.SHOVE_V; q.vy = -WORM.SHOVE_UP; q.onGround = false; q.shoved = Math.max(q.shoved || 0, WORM.SHOVE_T);
             pw.pass |= 1 << q.index;
@@ -160,30 +170,25 @@ export default Object.freeze({
       return true;
     }
     if (pw.ph !== 'fly' || pw.hit) return undefined;
-    // THE LOB: on across, falling on its own gravity, until the grass (then a loose ball)
-    b.vx = pw.avx; b.vy += (b.vy < 0 ? pw.ag : pw.ag2) * dt;
+    // THE SHOT: dead straight along its slant (the frame, a body or a boot ends it — the family's rules)
+    b.vx = pw.avx; b.vy = pw.avy;
     pw.t += dt;
-    if (pw.t > 0.1 && b.vy > 0 && b.y >= gy - 0.5) return api.end(b);
     if (pw.t >= pw.life || b.x < b.r + 2 || b.x > C.W - b.r - 2) return api.end(b);
     return true;
   },
 
-  // THE DROP BLOCKED: it comes down onto a defender from above, so it meets the crown before the boot
-  // can come round — a kick on its swing up (as a cannon shell's parry, power-zones.js) facing it
-  // blocks it all the same (the family's block: the grind, then the whole tunnel back).
-  // (the ring itself is settled at the burst, in `step`: the stomp, or the shove)
+  // (the ring is settled at the burst, in `step`: the stomp, or the shove)
+  // THE SHOT ON A BODY (not a boot, not in the air off the ring — the family's block and early
+  // header): the power hit, and it goes on past him toward the goal, a loose ball at THROUGH px/s,
+  // popped up THROUGH_UP px/s (its pace sets the power's strength)
   contact(m, p, b, kit, pw, kicking, api) {
-    if (!pw.wk || pw.ph !== 'fly' || kicking || !(b.vy > 0)) return undefined;   // (rising: the family's rules)
-    const k = p.kickT > 0 ? (C.KICK_TIME - p.kickT) / C.KICK_TIME : 9;
-    if (k <= C.BLOCK_SWING && (b.x - p.x) * (p.kickDir || p.side) > -C.BODY_W / 2) return api.block(m, p, b, pw);
-    // (a jump right off the ring is the family's early header: met first, no daze)
+    if (!WORM.THROUGH || !pw.wk || pw.ph !== 'fly' || kicking) return undefined;
     if (!p.onGround && Math.abs(b.x - pw.x0) < 170) return undefined;
-    // THE CROWN: dropping onto a head, it is the power hit — and the ball pops on over him
-    if (b.y >= p.y - C.BODY_H) return undefined;        // (a body: the family's hit, it bounces off)
-    const r = api.hit(m, p, b, pw, 'crown');
+    const r = api.hit(m, p, b, pw, 'through');
+    // (a loose ball from here, carried on past him: its own gravity, his goal behind him)
     b.power = null;
-    b.vx = pw.dir * WORM.OVER_VX; b.vy = -WORM.OVER_VY;
-    b.y = Math.min(b.y, kit.headY(p) - C.HEAD_R - b.r - 1);
+    b.vx = pw.dir * WORM.THROUGH; b.vy = -WORM.THROUGH_UP;
+    b.x = kit.keepOutOfGoal(b.x, b.y, p.x - pw.dir * (C.BODY_W / 2 + b.r + 2), b.y, b.r);
     return r;
   },
   skip: (pw) => underground(pw),

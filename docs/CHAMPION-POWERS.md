@@ -18,9 +18,9 @@ copied (no HS powers, characters, art, animation or names). This replaces the HS
 
 | # | Champion | Power | What it does (as built) | Measured goal % |
 |---|---|---|---|---|
-| 1 | התותחן (pirate parrot) | **Broadside** 🦜 | Redesigned 2026-10-12 (§1b): pressing POWER turns the parrot into his own cannon; his touch loads the ball and the cannon fires three times, 1 s apart — two iron shells (a kick parries one, anything else is the power hit with a 0.4 s daze; never a goal), then the ball itself, a straight power shot (counter, kick-block — which fires the whole barrage back from the blocker — or the heavy thud on a body). | 32% |
-| 2 | אדון התולעים (green snake) | **Worm Tunnel Ambush** 🪱 | Redesigned 2026-10-13 (§1c): pressing POWER turns the snake into her worm form; her touch calls up a giant worm that coils round the ball, dives with it, tunnels under the pitch (a mound), holds under a glowing ring (0.45 s) and spits the real ball in a lob at the goal. Stomp it (KICK on the ring as it bursts — only standing there, the burst shoves you aside), head it off the ring, kick it as it drops (the whole tunnel comes back), counter it — or take it on the crown: the hit, coiled, and the ball pops on over you. | 34% |
-| 3 | השף הבוער (burger) | **Sizzle Line** 🍔 | Dives to knee height and flies flat as a fireball, searing a burning grill strip into the grass behind it (2.2 s). Standing on the strip = singed (no kick, 1.4 s); its shooter is immune. | 32% |
+| 1 | התותחן (pirate parrot) | **Broadside** 🦜 | Redesigned 2026-10-12 (§1b): pressing POWER turns the parrot into his own cannon; his touch loads the ball and the cannon fires three times, 1.5 s apart — two iron shells (a kick parries one, anything else is the power hit with the standard daze; never a goal), then the ball itself, a straight power shot (counter, kick-block — which fires the whole barrage back from the blocker — or the heavy thud on a body). | 55% |
+| 2 | אדון התולעים (green snake) | **Worm Tunnel Ambush** 🪱 | Redesigned 2026-10-13, reworked 2026-10-14 after France's power in Idan's HS clip (§1c): pressing POWER turns the snake into her worm form; her touch calls up a giant worm that drives the ball down at a slant into the turf, tunnels a fixed 250 px (a running mound), and bursts up shooting the ball straight and slanting into the goal. Up inside the goal: straight into the net. Past the back wall: no goal, the ball dropped back in at the centre. Stomp its ring (0.25 s), kick-block it (the whole tunnel comes back), counter it — or take it on the body: the hit, coiled, and the ball rolls on past you. | 55% |
+| 3 | השף הבוער (burger) | **Inferno Spatula Volley** 🍔 | Rebuilt 2026-10-14 on Head Soccer's United Kingdom (§1d): the Inferno Chef; the Moon Shot's clock (up, the 1 s wait, the dive); 11 shots — ten spatulas one every 0.1 s, then the ball (the biggest glowing spatula) — all down parallel 32.6° lines over WHERE HE TOUCHED IT: from a little inside his own half they push the keeper back into his goal (a small hit each, growing; no stun) and the ball comes in at him; from too far they land on the grass short; from too close they meet the crossbar. | 58% |
 | 4 | מלך הבוץ (Saltiz chocolate bar) | **Choco Burst** 🍫 | The wrapped bar flies flat, shaking harder until it bursts 430 px short of the goal line: foil confetti, marshmallows and a chocolate splat on the grass ahead (2.2 s, sticky: slow, half-height jumps, no dash). A hit glues him in chocolate where he stands (sticky 2.4 s) and the ball bounces off him slowed. | 35% |
 | 5 | בונה החומות (ice pop) | **Ice Pop Wall** 🍭 | A flat shot trailing a three-flavour ribbon — and three giant ice pops sprout in front of the shooter's OWN goal for 4 s, turning back any ball lower than 92 px (fire-backs and counters must go over). A hit freezes him stiff in an ice block, then he shivers (2.4 s); the ball pings up off the ice. | 30% |
 
@@ -47,7 +47,8 @@ the tutorial's practice opponent is no longer champion 1.
 
 - **Damage**: there is no health in the game; "damage" is the power hit (`hitBody`, exported for
   the shells) — the throw, the daze, the face's mark (a dent on the cannon while he is one).
-- **Balance**: `ONLY=1 node _power-balance.mjs 480` → 32% (the harness counts its window from the
+- **Every stun the same (Idan, 2026-10-14)**: a shell's hit dazes the full 0.9 s like any power hit (no shorter `DAZE`). At 1 s apart that scored 99% (a defender put down was never up for the next shot), so the shots are **1.5 s apart** again (Idan's choice). Balance at 50%+ (Idan 2026-10-13): THUD_VX 124 → 55% (100 → 27%, 120 → 50%).
+- (Superseded:) THUD_VX 120 → 54% at GAP 1 s with the 0.4 s daze (115 → 48%, 130 → 62%, 160 → 95%). Before: `ONLY=1 node _power-balance.mjs 480` → 32% (the harness counts its window from the
   ball, `ballAt`, and shell hits apart). The knobs: THUD_VX (95 px/s 28%, 100 32%) and the shells'
   DAZE; their speed and knock move nothing measurable. Without the thud the CPU body-blocks the ball
   at its goal line (11%). **At 1 s apart the shells' daze is 0.4 s, not the power hit's 0.9:** with
@@ -59,7 +60,27 @@ the tutorial's practice opponent is no longer champion 1.
 - **Ends safely**: full time and the golden goal clear shells and load (`powerHolds` only in play);
   a goal cannot happen while loaded; serialize/restore mid-barrage plays out the same (PROTOCOL 10).
 
-### 1c. Worm Tunnel Ambush, redesigned (Idan, 2026-10-13)
+### 1c. Worm Tunnel Ambush, redesigned (Idan, 2026-10-13; reworked 2026-10-14)
+
+**2026-10-14 rework (Idan's HS clip, France's power — `uploaded-images/ScreenRecording_10-14-2026…`):**
+the ball is driven down at a slant into the turf, runs on underground, and comes up shooting at the
+goal — inside the goal it is a goal. Idan's answers: where it comes up = a **fixed distance** from
+where it went in (`UNDER` 250 px, as in the clip — so where she fires from decides it); **past the
+back wall: reset** (no goal, the ball dropped at the centre spot); tunnel time **between the clip and
+ours** (dive 0.28 s, tunnel 0.65 s, ring 0.25 s); strength **tuned to 55–60%**.
+- Sim (`tunnelOf`): in at `DIVE_RUN` 0.6 px on per px down; `end` 0 on the pitch, 1 inside the goal
+  (it comes up just outside the line and crosses it at once: the sim's own goal rule), 2 past the wall
+  (`wormLost`, `C.BALL_SPAWN`). The shot: dead straight at `SPEED` 1.2× the comet to 30 px inside the
+  line at 0.42 of the goal's height.
+- Balance: the CPU always gets its body in the line, and the family bounce gave 38%; a longer tunnel
+  (430 px → 56%) would have made every shot from past halfway overshoot and reset. So instead, like
+  Broadside's cannonball: a body or head it meets takes the hit and the ball rolls on past him at
+  `THROUGH` 142 px/s (140 → 47%, 142 → 55%, 144 → 64%: sensitive).
+- No early header any more (the shot leaves the ring low and flat); the lob's crown pop-over and swing
+  block are gone. Look: the worm bursts slanting along the shot; inside the goal its worm is drawn off
+  the `wormBurst` event (the goal clears the burrow); a wall-hit leaves a crater and a dirt burst.
+
+**The first design (2026-10-13), for the record:**
 
 Idan's brief: the Lord of the Worms transforms when armed (the change in her look, not a glow), and
 her touch sends a worm under the pitch that comes up near the goal and spits the real ball at it,
@@ -74,10 +95,19 @@ the whole tunnel back, a hit coils, and only the smarter CPUs (stage 24+) go for
 | Press POWER | arms, as every power | her own face squashes down, coils tightening; a ripple runs up her from the coil to the crown (dirt spraying off its edge) and behind it she is a glossy brown ringed worm — the same hood arch, head, coil and tail curl, her lids, smirk and tongue kept, her eyes lit red; she stretches tall, the rings jiggle in turn, mud drops (0.6 s). Armed, the rings breathe and two little red-eyed worms poke out of the turf by her feet |
 | Touch | the shared cut-in (1.27 s hold); the ball held where it leaves from | her own move instead of the shared nod: she rears and whips her head down at the turf in front; it cracks, a giant worm bursts out, climbs and winds two coils round the ball (its face showing between them), squeezes, rears |
 | release → +0.28 s | `wdive`: the ball goes down into the turf 24 px ahead; no contact | the worm plunges back down its hole with the ball, dirt fountaining |
-| +0.28 → +1.18 s | `tunnel`: the ball (on the grass line, unseen, no shadow) runs to the ring spot `ex` at a winding pace (`api.wave`); no contact. A `burrow` zone (inert, `zn`) carries its track | a mound of turf runs along under the players' layer, the grass parting over it, clods popping, a soil crack left behind |
-| +1.18 → +1.63 s | `warn`: held under `ex`; no contact | the mound heaves, cracks run out (longer toward the goal), a red-and-green ring glows (r = 1.7 head radii), red eyes glint through the split |
-| +1.63 s | `fly`: the burst — a lob from `ex`, up to its top (1.15× a jumping head's reach) a third of the way, then down on a lighter gravity to cross the line at 0.3 of the goal's height, 0.6 s at 300 px | the worm erupts, spits (mouth wide), sinks back; the real ball in a dark red rim, soil crumbs falling off it; her change back 0.3 s later (a wet-dog shake, the ripple running down) |
+| +0.28 → +1.18 s | `tunnel`: the ball (on the grass line, unseen, no shadow) runs to the ring spot `ex` at a winding pace, running on past it and doubling back (`OVERRUN`, `api.wave`); no contact. A `burrow` zone (inert, `zn`) carries its track | a mound of turf runs along under the players' layer, the grass parting over it, clods popping, a soil crack left behind |
+| +1.18 → +1.48 s | `warn` (0.3 s): held under `ex`; no contact | the mound heaves, cracks run out (longer toward the goal), a red-and-green ring glows (r = 1.7 head radii), red eyes glint through the split |
+| +1.48 s | `fly`: the burst (a 0.05 s jolt: hit-stop, the pitch shakes) — a lob from `ex`, up to its top (1.15× a jumping head's reach) a third of the way, then down on a lighter gravity to cross the line at 0.3 of the goal's height, 0.6 s at 300 px | the worm erupts, spits (mouth wide), sinks back; the real ball in a dark red rim, soil crumbs falling off it; her change back 0.3 s later (a wet-dog shake, the ripple running down) |
 
+- **Look, second pass (Idan: "cooler, more realistic", 2026-10-13)**: the rings are shaded as a tube lit
+  from above (each flipped to keep its lit side up, the head too, so it is never upside down), with a
+  wet streak along the top and bounce light under the belly; every big worm comes out of torn turf
+  (lifted green-topped chunks, a soil lip) and casts a soft shadow; soil slides off it as it climbs,
+  dives and towers; the dive pulls straight down its hole head first, the ball in a loop of its tail;
+  the burst whips up thin, recoils as it spits (mouth wide, a red throat, slime strings), sways and
+  slithers back down; the tunnel leaves a ridge of upturned soil with flipped tufts, a dust haze
+  behind the mound; the ring's cracks glow red from below; the burst throws streaking dirt, tumbling
+  turf chunks and a hanging haze. Cost: below Broadside's (`PHASES=1 … perf 1 2`).
 - **The ring's spot**: 260–380 px from the goal line by the whole px of the dive point (`emergeX`),
   at least 160 px of tunnel, never nearer the line than 220 (already nearer: where it went down).
 - **Answers to the lob** (all with the real ball, the family's rules unless said): the **stomp**
@@ -88,11 +118,14 @@ the whole tunnel back, a hit coils, and only the smarter CPUs (stage 24+) go for
   **kick-block** — dropping from above it meets the crown before the boot comes round, so a kick on
   its swing up facing it blocks it (as a shell's parry), and the blocker sends the whole tunnel back
   (a 0.3 s `wgrab` first, no form for him); and the **crown**: the power hit (thrown, the 0.9 s daze,
-  the face's mark, then `coiled` to 1.5 s) and the ball pops on over him (OVER_VX 180, OVER_VY 195).
+  the face's mark, then `coiled` to 1.5 s) and the ball pops on over him (OVER_VX 180, OVER_VY 186).
   A body below the head: the family's hit, the ball bouncing off.
-- **Balance**: `ONLY=2 node _power-balance.mjs 480` → 34% (Broadside 32%). The knob is OVER_VY: 170
-  → 61%, 195 → 34%, 200 → 30%, 230 → 19% (a low pop stays under the bar). Without the pop-over (the
-  family's bounce) it is 16%: the CPU meets it on its line, under the drop.
+- **Balance**: Idan, after playing it (2026-10-13): stronger and harder to read — ~45%, above the
+  other champions (Broadside 32%), under the Mythic Gem (61%); the ring 0.3 s (was 0.45), the tunnel
+  overrunning its spot, and the worm twice as big (the ball always drawn over it).
+  `ONLY=2 node _power-balance.mjs 480` → 52% at OVER_VY 186 (Idan, after: 50%+ for both of the first two). The knob is OVER_VY: 184 → 55%, 186 → 52%, 175 → 62%, 185 → 54%, 188 → 45%,
+  190 → 41%, 195 → 34%, 230 → 19% (a low pop stays under the bar). Without the pop-over (the family's
+  bounce) it is 16%: the CPU meets it on its line, under the drop.
 - **CPU** (shared/bot.js): under the tunnel it guards, as under the cannon's load (the lob's path is
   `hidden` until it bursts, and is measured from the ring); a counter-kicker (stage 24+) walks onto the
   ring — following the mound from the tunnel on — at its counterRate and stomps (counterRate 1: 38 of 60 stomped).
@@ -100,6 +133,45 @@ the whole tunnel back, a hit coils, and only the smarter CPUs (stage 24+) go for
   clears the burrow and the match stops where it is (as for every power) with her form off; serialize
   /restore mid-tunnel plays out the same (PROTOCOL 11). Look check: `_powers-hq.mjs worm` (each beat,
   cropped), `STAGE=2 … swap` (no face jump at the change, both seats).
+
+### 1d. Inferno Spatula Volley (Idan, 2026-10-13; rebuilt 2026-10-14 on Head Soccer's United Kingdom)
+
+The burger transforms into the Inferno Chef on POWER (six arms with spatulas, the card's emblem as a
+crown) and his cut-in opens his top bun like a grill lid (Idan, 2026-10-13: transform the burger).
+**2026-10-14, from Idan's own 1-min footage against Head Soccer's United Kingdom** (the Hawk-Eye
+Shot, which champion 12's Moon Shot already copies): "the same number of shots and the same timing as
+Head Soccer, only spatulas; every one does damage and knockback; the last is bigger and glowing — the
+hidden ball". The footage, frame by frame (and the wiki): the ball goes up on a beam at the release,
+ten red-yellow laser arrows come down diagonally one every ~0.1 s onto the goal, then the 11th — a
+big fire comet carrying the ball — dives in; the arrows end over a standing defender's head; the
+wiki: they stop him jumping, "massive damage".
+
+| When (R = the release) | Sim (shared/champion-powers/stage-03.js) | Look (public/vfx/powers/stage-03.js) |
+|---|---|---|
+| R → ≈ R + 0.29 | the aerial family's own flight (the Moon Shot's: up at 1600 px/s off the screen) | a column of spatulas rockets up with a big glowing gold spatula (the ball) |
+| ≈ R + 0.29 → + 1.29 | the wait above the screen; TEN SPATULAS, one every 0.1 s, each down its own line — 32.6° (tan 0.64), 2600 px/s — through the touch point's column at Y0 + DY[i] (Y0 −30, DY a ±35 px band), the whole line to the grass, the crossbar/wall over the goal or the net (`lineEnd`). Whoever one meets: THE POWER HIT (hitBody: thrown toward his goal, the 0.9 s daze, a mark); a boot on the swing up parries | the spatulas tumble down on long fire streaks; stuck blade-first in the grass, or a burst on the frame |
+| ≈ R + 1.29 | the dive (our own step): from above the screen down the ball's line through (xs, Y0) at 1.05 × the flight's pace, a power shot until the grass, the crossbar/wall or past the goal line — then a loose ball (the pitch's bounce) | the biggest glowing gold spatula — the ball hidden — dives in |
+
+- **Where he touched it decides it** (Idan, from his clip: "where the player touched the ball it goes
+  up there and comes down there"; measured: the ball's line ≈ 32° through the touch point's column just
+  over the view's top). From a little inside his own half (the touch ≈ 640–680 px from the goal line)
+  the lines reach a standing keeper's head at his line — the spatulas hit him one after another and the
+  ball comes in at him; from further back they come down on the grass short of the goal (the ball
+  bounces on, easier to stop); from closer they meet the crossbar or the wall over the goal.
+- **The clock is champion 12's** (test-ultimate: up and the wait tick for tick, the dive on the same
+  tick, both seats).
+- **A spatula is a small hit, growing — never a stun** (Idan, 2026-10-14: every stun is the same 0.9 s,
+  and a spatula is not one): the n-th he takes this volley knocks him toward his goal at 140 + 95(n−1)
+  px/s, lifts him, and owns his body for 0.06 n s (`shoved`, ≤ 0.6 s); a mark on the face at the 4th
+  and 8th. Nearly all ten: a power-hit throw (≈ 1000 px/s) and nearly a stun's loss of control. Answers:
+  step out of the lines (forward: they are higher there), the counter (armed) on the ball, a parry on a
+  spatula. No kick-block of the dive (12's neither); the whole-volley fire-back stays wired for a block.
+- **To the end of their lines**: the volley is a power zone of its own (power-zones kind `'cp'`, stepped
+  by the definition's `zoneStep`), so every spatula flies its whole line whatever becomes of the ball.
+- **Balance**: `_power-balance.mjs 480` → 58%, even across the CPU tiers (60% → 57%; the Moon Shot 42%).
+  Knobs: Y0 (moves the sweet spot), DY's band (how many hit), the dive's pace.
+- **Ends safely**: the spatulas live on the ball's power (`spatAt` of its own clock) — nothing left
+  behind; serialize/restore mid-rain plays the same.
 
 ## 2. How it is built
 

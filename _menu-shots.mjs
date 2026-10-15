@@ -57,7 +57,7 @@ const go = async (q = '') => { await send('Page.navigate', { url: `http://127.0.
 // Everything inside the glass: no visible element of the screen sticks out past the viewport.
 const fits = (sel) => js(`(() => { const root = document.querySelector(${JSON.stringify(sel)}); const bad = [];
   for (const e of root.querySelectorAll('button, .m-title, .m-panel, .m-pill, .m-chip, .sel-stats, .m-points')) {
-    if (e.closest('.hidden') || e.closest('.rl-item') || e.closest('.how-page:not(.on)')) continue;
+    if (e.closest('.hidden') || e.closest('.rl-item') || e.closest('.how-page:not(.on)') || e.closest('.md-row')) continue;   // (the mode cards scroll sideways: _modes-shots.mjs checks them)
     const r = e.getBoundingClientRect(); if (!r.width) continue;
     if (r.left < -1 || r.top < -1 || r.right > innerWidth + 1 || r.bottom > innerHeight + 1) bad.push((e.id || e.className).toString().slice(0, 30));
   } return bad; })()`);

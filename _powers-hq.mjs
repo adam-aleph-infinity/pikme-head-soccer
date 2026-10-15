@@ -14,6 +14,10 @@
 //                                                   by beat (her change, the cut-in's worm, the dive, the
 //                                                   tunnel, the ring, the burst, her change back), each
 //                                                   frame whole and cropped round where it happens (crop-*)
+//   node _powers-hq.mjs volley                     → .shots/powers-hq/volley/: the Burning Chef's power beat by
+//                                                   beat (the ignition, armed, the lid opening under the cut-in,
+//                                                   the volley, the tell, the ball's reveal, his change back),
+//                                                   each frame whole and cropped (crop-*)
 //   node _powers-hq.mjs glow                       → .shots/glow/ours-*.png + ours-spec.json: 87 frames at
 //                                                   60 fps of the press glow, for tools/hs-glow-measure.mjs
 //   node _powers-hq.mjs armed  [--dpr 3]           → .shots/powers-hq/armed/sheet.png: HS's press glow
@@ -31,7 +35,7 @@ import { ensureServer } from './_serve.mjs';
 import { CHAMPION_POWERS } from './shared/champion-powers.js';
 
 const args = process.argv.slice(2);
-const MODE = ['stills', 'video', 'block', 'perf', 'armed', 'glow', 'swap', 'worm'].includes(args[0]) ? args.shift() : 'stills';
+const MODE = ['stills', 'video', 'block', 'perf', 'armed', 'glow', 'swap', 'worm', 'volley'].includes(args[0]) ? args.shift() : 'stills';
 const opt = (k, d) => { const i = args.indexOf(k); if (i < 0) return d; const v = args[i + 1]; args.splice(i, 2); return v; };
 const DPR = Number(opt('--dpr', MODE === 'video' ? 2 : 2));
 const CPU = Number(opt('--cpu', 4));
@@ -123,6 +127,8 @@ const HIT = `EVENTS.slice(-6).find((e) => e.type === 'powerHit' || e.type === 'b
 const open = async (n) => {
   await send('Page.navigate', { url: `http://127.0.0.1:${PORT}/?me=legendary_8&foe=legendary_${n}&play=1&solo=1&nointro&stage=${process.env.BG || 'japan'}` });
   await sleep(1800);
+  // (a cold server can take longer: wait for the match itself, up to 10 s more)
+  await js('new Promise((r) => { let n = 0; const t = setInterval(() => { if (window.MATCH || n++ > 100) { clearInterval(t); r(); } }, 100); })');
   return js(HELPERS(n));
 };
 
@@ -171,6 +177,44 @@ if (MODE === 'stills') {
   // her change back (from BACK_AFTER after the burst): the shake, the ripple down, the snake again
   for (const [k, f] of [['o1', 6], ['o2', 4], ['o3', 4], ['o4', 4], ['o5', 4], ['o6', 4], ['o7', 6]]) { await js(`__tick(${f})`); await cap(k); }
   // the ground's middle, wide, for the tunnel's run
+  savePos();
+  console.log(`  ✓ ${OUT}`);
+} else if (MODE === 'volley') {
+  // champion 3's power beat by beat, whole frames and crops (the press and the cut-in round his head,
+  // the volley wide between the two players, the reveal round the ball)
+  await open(3);
+  // (the game's own frame loop runs VFXR.update off the fake clock as well as __tick: a burst then
+  // ages twice as fast as the match. Here only __tick ages them, so a spatula flies at its real pace.)
+  await js(`(() => { const up = VFXR.update.bind(VFXR); VFXR.update = () => {}; const tick = window.__tick; window.__tick = (n, inp) => { for (let i = 0; i < n; i++) { VFXR.update = () => {}; tick(1, typeof inp === 'function' ? () => inp(i) : inp); up(C.TICK); } }; })()`);
+  const crop = async (k, cx, cy, w, h) => spawnSync(FF, ['-v', 'error', '-y', '-i', `${OUT}/${k}.png`, '-vf', `crop=${w}:${h}:${Math.max(0, Math.round(cx - w / 2))}:${Math.max(0, Math.round(cy - h / 2))},scale=${w * 2}:-1:flags=lanczos`, `${OUT}/crop-${k}.png`]);
+  const cap = async (k, round = 'shooter', w = 300, h = 300) => {
+    await shot(`${OUT}/${k}.png`);
+    const P = POS[`${k}.png`];
+    const c = round === 'shooter' ? { x: P.shooter.x, y: P.shooter.y - 20 } : round === 'ball' ? P.ball : round === 'wide' ? { x: (P.shooter.x + P.defender.x) / 2, y: P.shooter.y - 60 } : round;
+    await crop(k, c.x, c.y, w, h);
+  };
+  const at = async () => js(`(() => { const b = MATCH.ball, pw = b.power; return { ph: pw ? pw.ph : '-', k: pw ? +(pw.k || 0).toFixed(2) : 0, cut: +(MATCH.cutin || 0).toFixed(2) }; })()`);
+  await js(PRESS);
+  for (const [k, f] of [['p00', 1], ['p01', 4], ['p02', 4], ['p03', 4], ['p04', 4], ['p05', 4], ['p06', 4], ['p07', 4], ['p08', 4], ['p09', 4], ['p10', 20], ['p11', 20]]) { await js(`(() => { __tick(${f}); ${HOLD_BALL} })()`); await cap(k); }
+  await js(TOUCH);
+  for (const [k, f] of [['c1', 6], ['c2', 8], ['c3', 8], ['c4', 8], ['c5', 8], ['c6', 10], ['c7', 12], ['c8', 12], ['c9', 6]]) { await js(`__tick(${f})`); await cap(k, 'shooter', 420, 360); }
+  await js(`(() => { let g = 0; while (MATCH.cutin > C.POWER_RELEASE && g++ < 200) __tick(1); })()`);
+  for (const [k, f] of [['v01', 2], ['v02', 4], ['v03', 4], ['v04', 5], ['v05', 5], ['v06', 5], ['v07', 5], ['v08', 5], ['v09', 5], ['v10', 6], ['v11', 6], ['v12', 6], ['t1', 4], ['t2', 6], ['t3', 6]]) {
+    await js(`__tick(${f})`);
+    console.log('  ', k, JSON.stringify(await at()));
+    await cap(k, 'wide', 760, 380);
+  }
+  await js(`(() => { let g = 0; while (MATCH.ball.power && MATCH.ball.power.ph !== 'dive' && g++ < 90) __tick(1); })()`);
+  for (const [k, f] of [['r0', 0], ['r1', 2], ['r2', 2], ['r3', 3], ['r4', 4]]) { if (f) await js(`__tick(${f})`); console.log('  ', k, JSON.stringify(await at())); await cap(k, 'ball', 520, 340); }
+  if (!process.env.FB) for (const [k, f] of [['o1', 6], ['o2', 5], ['o3', 5], ['o4', 5], ['o5', 6], ['o6', 10]]) { await js(`__tick(${f})`); await cap(k); }
+  else {
+    // FB=1 (with ZX near his goal, e.g. ZX=100): he kick-blocks it, and throws the whole volley back
+    // from a ring of grill fire over his head
+    const KB = `(i) => { const b = MATCH.ball, pw = b.power, z = MATCH.players[0]; const go = pw && pw.ph === 'fly' && pw.owner === 1 && b.vx && (z.x - b.x) / b.vx < 0.14 && !window.__kb; if (go) window.__kb = 1; return [go ? { kick: true } : {}, {}]; }`;
+    await js(`__tick(30, ${KB})`);
+    console.log('   blocked:', await js(`EVENTS.filter((e) => e.type === 'blocked').length`));
+    for (const [k, f] of [['fb1', 30], ['fb2', 12], ['fb3', 14], ['fb4', 14], ['fb5', 30], ['fb6', 12]]) { await js(`__tick(${f})`); console.log('  ', k, JSON.stringify(await at())); await cap(k, 'wide', 760, 380); }
+  }
   savePos();
   console.log(`  ✓ ${OUT}`);
 } else if (MODE === 'glow') {
@@ -298,10 +342,10 @@ if (MODE === 'stills') {
     // A second number: the frame's whole wall time, rAF to rAF, FX frames against plain ones.)
     const r = await js(`(async () => {
       performance.now = window.__realNow;
-      const REP = 10, T = [], U = VFXR.drawUnder.bind(VFXR), P = VFXR.drawTop.bind(VFXR);
+      const REP = 10, T = [], PH = [], U = VFXR.drawUnder.bind(VFXR), P = VFXR.drawTop.bind(VFXR);
       let acc = 0;
       VFXR.drawUnder = (g) => { const t0 = performance.now(); for (let i = 0; i < REP; i++) U(g); acc += (performance.now() - t0) / REP; };
-      VFXR.drawTop = (g) => { const t0 = performance.now(); for (let i = 0; i < REP; i++) P(g); acc += (performance.now() - t0) / REP; T.push(acc); acc = 0; };
+      VFXR.drawTop = (g) => { const t0 = performance.now(); for (let i = 0; i < REP; i++) P(g); acc += (performance.now() - t0) / REP; T.push(acc); PH.push((MATCH.cutin > C.POWER_RELEASE ? 'cut' : (MATCH.ball.power ? MATCH.ball.power.ph : '-'))); acc = 0; };
       const wait = (ms) => new Promise((r) => setTimeout(r, ms));
       const frameTimes = async (ms, step) => { const out = []; let last = performance.now(); const t0 = last; while (performance.now() - t0 < ms) { if (step) __tick(1); await new Promise((r) => requestAnimationFrame(r)); const now = performance.now(); out.push(now - last); last = now; } return out.sort((a, b) => a - b); };
       const plain = await frameTimes(1000, false);
@@ -311,9 +355,11 @@ if (MODE === 'stills') {
       const fx = await frameTimes(2600, true);
       const s = T.slice(frames0).sort((a, b) => a - b);
       const q = (a, p) => a[Math.min(a.length - 1, Math.floor(a.length * p))];
-      return { n: s.length, med: q(s, 0.5), p95: q(s, 0.95), max: s[s.length - 1], plain: q(plain, 0.5), fxf: q(fx, 0.5), fx95: q(fx, 0.95) };
+      const by = {}; T.slice(frames0).forEach((v, i) => { const k = PH[frames0 + i]; (by[k] = by[k] || []).push(v); });
+      const per = Object.entries(by).map(([k, a]) => k + ' ' + (a.reduce((x, y) => x + y, 0) / a.length).toFixed(2)).join(', ');
+      return { per, n: s.length, med: q(s, 0.5), p95: q(s, 0.95), max: s[s.length - 1], plain: q(plain, 0.5), fxf: q(fx, 0.5), fx95: q(fx, 0.95) };
     })()`);
-    console.log(`  stage ${n} @${CPU}x CPU: FX draw (JS) median ${r.med.toFixed(2)} ms, p95 ${r.p95.toFixed(2)}, max ${r.max.toFixed(2)} (${r.n} frames); frame time plain ${r.plain.toFixed(1)} ms, with FX median ${r.fxf.toFixed(1)} / p95 ${r.fx95.toFixed(1)} ms`);
+    console.log(`  stage ${n} @${CPU}x CPU: FX draw (JS) median ${r.med.toFixed(2)} ms, p95 ${r.p95.toFixed(2)}, max ${r.max.toFixed(2)} (${r.n} frames); frame time plain ${r.plain.toFixed(1)} ms, with FX median ${r.fxf.toFixed(1)} / p95 ${r.fx95.toFixed(1)} ms${process.env.PHASES ? `\n    mean ms by phase: ${r.per}` : ''}`);
   }
 }
 if (errs.length) { console.log('page exceptions:', errs.slice(0, 4).join(' | ')); bad++; }

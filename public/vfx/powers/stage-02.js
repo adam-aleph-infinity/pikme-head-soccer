@@ -23,13 +23,15 @@
 //                 where it will come up, red eyes glinting through the cracks
 //   a stomp       KICK on the ring as it bursts smothers it (a muffled burst of dirt); only standing
 //                 there, the burst throws him aside
-//   the burst     the worm erupts straight up, spits THE BALL in a high arc (the real ball, a dark red
+//   past the goal it hits the back wall: a crater against it, dirt flung up — and the ball drops back
+//                 in at the centre (no goal)
+//   the burst     the worm erupts slanting at the goal, spits THE BALL in a high arc (the real ball, a dark red
 //                 rim and crumbs of soil falling off it) and sinks back into the ground
 //   after         she shakes herself off like a wet dog and the ripple runs back down: the snake again
 //   a fire-back   the worm comes up under the BLOCKER (no form for him), takes the ball and dives
 // Client only: Math.random is fine here — nothing drawn feeds back into the sim.
 
-import { TAU, hash, puff } from './common.js';
+import { TAU, hash, puff, streak } from './common.js';
 import { blit, glow, spark, tex } from '../fx-kit.js';
 // (the engine first: the stage file is part of its registry's import cycle)
 import '../../../shared/hs-powers.js';
@@ -50,57 +52,109 @@ const ease = (u) => { u = clamp01(u); return u * u * (3 - 2 * u); };
 const outBack = (u) => { u = clamp01(u); const c = 1.9; return 1 + (c + 1) * (u - 1) ** 3 + c * (u - 1) ** 2; };
 
 // ── the sprites (painted once) ─────────────────────────────────────────────────────────────────
-// ONE RING of a worm's body: a glossy brown bead, lit from the upper left, a crease round its front
-// edge (where the next ring tucks in), the keyline round it. Drawn stretched along the body.
+// ONE RING of a worm's body, seen side on and shaded as a TUBE: lit along its top edge (local −y,
+// turned to face the light by `rings`), its belly in shade, a bright wet streak along the top and a
+// soft bounce of light under the belly; a crease round its front edge where the next ring tucks in.
+// The keyline only along the two edges, so overlapping rings read as one body, scalloped.
 function paintSeg(g, S, saddle) {
   const c = S / 2, R = S * 0.46;
-  const rg = g.createRadialGradient(c - R * 0.32, c - R * 0.42, R * 0.08, c, c, R);
-  rg.addColorStop(0, saddle ? '#ffd9c8' : WORM_COL.hi); rg.addColorStop(0.5, saddle ? WORM_COL.saddle : WORM_COL.mid); rg.addColorStop(1, saddle ? WORM_COL.saddleD : WORM_COL.dark);
+  const lg = g.createLinearGradient(0, c - R, 0, c + R);
+  lg.addColorStop(0, saddle ? '#ffdccb' : WORM_COL.hi); lg.addColorStop(0.32, saddle ? WORM_COL.saddle : '#c27a52');
+  lg.addColorStop(0.62, saddle ? '#c47766' : WORM_COL.mid); lg.addColorStop(0.88, saddle ? WORM_COL.saddleD : WORM_COL.dark); lg.addColorStop(1, WORM_COL.deep);
+  g.fillStyle = lg; g.beginPath(); g.ellipse(c, c, R, R, 0, 0, TAU); g.fill();
+  // the round of each ring: darker toward its two ends (it bulges between the creases)
+  const rg = g.createRadialGradient(c - R * 0.1, c, R * 0.35, c, c, R);
+  rg.addColorStop(0, 'rgba(0,0,0,0)'); rg.addColorStop(1, 'rgba(30,10,4,0.42)');
   g.fillStyle = rg; g.beginPath(); g.ellipse(c, c, R, R, 0, 0, TAU); g.fill();
-  // the keyline only along the body's two edges (the rings overlap into one body, scalloped)
+  // bounce light off the ground under the belly
+  g.strokeStyle = 'rgba(255,170,120,0.22)'; g.lineWidth = S * 0.05;
+  g.beginPath(); g.ellipse(c, c, R * 0.86, R * 0.86, 0, 0.7, Math.PI - 0.7); g.stroke();
+  // the keyline along the two edges
   g.strokeStyle = INK; g.lineWidth = S * 0.06; g.lineCap = 'round';
   g.beginPath(); g.ellipse(c, c, R, R, 0, Math.PI + 0.75, TAU - 0.75); g.stroke();
   g.beginPath(); g.ellipse(c, c, R, R, 0, 0.75, Math.PI - 0.75); g.stroke();
   // the crease on the leading edge, and its lit lip
-  g.strokeStyle = 'rgba(40,14,6,0.55)'; g.lineWidth = S * 0.05;
-  g.beginPath(); g.ellipse(c + R * 0.42, c, R * 0.38, R * 0.86, 0, -1.25, 1.25); g.stroke();
-  g.strokeStyle = 'rgba(255,220,190,0.35)'; g.lineWidth = S * 0.025;
-  g.beginPath(); g.ellipse(c + R * 0.3, c, R * 0.38, R * 0.8, 0, -1.1, 0.2); g.stroke();
-  // the wet shine
-  g.fillStyle = 'rgba(255,255,255,0.42)';
-  g.beginPath(); g.ellipse(c - R * 0.2, c - R * 0.5, R * 0.36, R * 0.13, -0.15, 0, TAU); g.fill();
+  g.strokeStyle = 'rgba(36,12,5,0.6)'; g.lineWidth = S * 0.055;
+  g.beginPath(); g.ellipse(c + R * 0.44, c, R * 0.36, R * 0.88, 0, -1.3, 1.3); g.stroke();
+  g.strokeStyle = 'rgba(255,215,180,0.4)'; g.lineWidth = S * 0.025;
+  g.beginPath(); g.ellipse(c + R * 0.3, c, R * 0.36, R * 0.82, 0, -1.2, -0.2); g.stroke();
+  // the wet streak along the top (it runs on from ring to ring), and a sparkle on it
+  g.fillStyle = 'rgba(255,248,236,0.55)';
+  g.beginPath(); g.ellipse(c - R * 0.05, c - R * 0.56, R * 0.62, R * 0.1, 0, 0, TAU); g.fill();
+  g.fillStyle = 'rgba(255,255,255,0.85)';
+  g.beginPath(); g.ellipse(c - R * 0.22, c - R * 0.58, R * 0.13, R * 0.06, 0, 0, TAU); g.fill();
 }
-const segTex = (v) => tex(`wmSeg${v}`, 96, 96, (g) => paintSeg(g, 96, v === 1));
-// A BIG WORM'S HEAD (the card's worms), facing +x: a blunt glossy snout, rings at the back, a mouth
-// slit, two eye pits (their red light is drawn live on top).
+const segTex = (v) => tex(`wmSeg2${v}`, 96, 96, (g) => paintSeg(g, 96, v === 1));
+// A BIG WORM'S HEAD (the card's worms), facing +x, lit from above (local −y): a blunt glossy snout
+// going pink at its tip, rings at the back, its lips (the mouth itself is live: wormMouth), two eye
+// pits (their red light is live too: wormEyes).
 const WH = { w: 1.5, h: 1.0 };                           // in body widths
 function paintWormHead(g, S) {
   const U = S / WH.w, cx = U * 0.66, cy = S * WH.h / WH.w / 2, rx = U * 0.68, ry = U * 0.46;
-  const rg = g.createRadialGradient(cx - rx * 0.3, cy - ry * 0.55, U * 0.04, cx, cy, rx);
-  rg.addColorStop(0, WORM_COL.hi); rg.addColorStop(0.55, WORM_COL.mid); rg.addColorStop(1, WORM_COL.dark);
-  g.fillStyle = rg; g.strokeStyle = INK; g.lineWidth = U * 0.06;
-  g.beginPath(); g.ellipse(cx, cy, rx, ry, 0, 0, TAU); g.fill(); g.stroke();
-  g.strokeStyle = 'rgba(40,14,6,0.55)'; g.lineWidth = U * 0.045;
-  for (const k of [-0.42, -0.2]) { g.beginPath(); g.ellipse(cx + rx * k, cy, rx * 0.22, ry * 0.92, 0, -1.3, 1.3); g.stroke(); }
-  // the mouth: a dark slit round the snout's tip, lips catching the light
+  const lg = g.createLinearGradient(0, cy - ry, 0, cy + ry);
+  lg.addColorStop(0, WORM_COL.hi); lg.addColorStop(0.35, '#c27a52'); lg.addColorStop(0.7, WORM_COL.mid); lg.addColorStop(1, WORM_COL.dark);
+  g.fillStyle = lg; g.strokeStyle = INK; g.lineWidth = U * 0.06;
+  g.beginPath(); g.ellipse(cx, cy, rx, ry, 0, 0, TAU); g.fill();
+  // the snout's tip, pinker and fleshier
+  const sg = g.createRadialGradient(cx + rx * 0.72, cy - ry * 0.1, U * 0.02, cx + rx * 0.72, cy, rx * 0.5);
+  sg.addColorStop(0, 'rgba(240,150,140,0.75)'); sg.addColorStop(1, 'rgba(240,150,140,0)');
+  g.fillStyle = sg; g.beginPath(); g.ellipse(cx, cy, rx, ry, 0, 0, TAU); g.fill();
+  g.stroke();
+  g.strokeStyle = 'rgba(36,12,5,0.55)'; g.lineWidth = U * 0.045;
+  for (const k of [-0.62, -0.42, -0.22]) { g.beginPath(); g.ellipse(cx + rx * k, cy, rx * 0.2, ry * 0.94, 0, -1.3, 1.3); g.stroke(); }
+  // the lips: a dark seam round the snout's tip, the lower lip catching the light
   g.strokeStyle = WORM_COL.deep; g.lineWidth = U * 0.07; g.lineCap = 'round';
-  g.beginPath(); g.moveTo(cx + rx * 0.35, cy + ry * 0.32); g.quadraticCurveTo(cx + rx * 0.82, cy + ry * 0.36, cx + rx * 0.97, cy + ry * 0.05); g.stroke();
-  // two eye pits
-  g.fillStyle = WORM_COL.deep;
-  for (const [ex, ey] of [[0.38, -0.36], [0.64, -0.3]]) { g.beginPath(); g.ellipse(cx + rx * ex, cy + ry * ey, U * 0.1, U * 0.08, 0, 0, TAU); g.fill(); }
-  g.fillStyle = 'rgba(255,255,255,0.45)';
-  g.beginPath(); g.ellipse(cx - rx * 0.1, cy - ry * 0.62, rx * 0.32, ry * 0.12, -0.1, 0, TAU); g.fill();
+  g.beginPath(); g.moveTo(cx + rx * 0.3, cy + ry * 0.3); g.quadraticCurveTo(cx + rx * 0.8, cy + ry * 0.36, cx + rx * 0.98, cy + ry * 0.04); g.stroke();
+  g.strokeStyle = 'rgba(255,200,180,0.45)'; g.lineWidth = U * 0.03;
+  g.beginPath(); g.moveTo(cx + rx * 0.36, cy + ry * 0.44); g.quadraticCurveTo(cx + rx * 0.78, cy + ry * 0.5, cx + rx * 0.94, cy + ry * 0.22); g.stroke();
+  // two eye pits, deep
+  for (const [ex, ey] of [[0.38, -0.36], [0.64, -0.3]]) {
+    g.fillStyle = WORM_COL.deep; g.beginPath(); g.ellipse(cx + rx * ex, cy + ry * ey, U * 0.11, U * 0.09, 0, 0, TAU); g.fill();
+    g.strokeStyle = 'rgba(255,210,180,0.35)'; g.lineWidth = U * 0.02; g.beginPath(); g.ellipse(cx + rx * ex, cy + ry * ey + U * 0.01, U * 0.12, U * 0.1, 0, 0.3, Math.PI - 0.3); g.stroke();
+  }
+  // the wet shine along the top
+  g.fillStyle = 'rgba(255,248,236,0.55)';
+  g.beginPath(); g.ellipse(cx - rx * 0.05, cy - ry * 0.66, rx * 0.5, ry * 0.1, -0.05, 0, TAU); g.fill();
+  g.fillStyle = 'rgba(255,255,255,0.85)'; g.beginPath(); g.ellipse(cx + rx * 0.12, cy - ry * 0.68, rx * 0.1, ry * 0.05, 0, 0, TAU); g.fill();
 }
-const wormHeadTex = () => tex('wmHead', 144, 96, (g) => paintWormHead(g, 144));
-// the two red eyes of a big worm's head at (x, y), facing angle a, w its body width
-function wormEyes(g, x, y, a, w, k = 1, now = 0) {
+const wormHeadTex = () => tex('wmHead2', 144, 96, (g) => paintWormHead(g, 144));
+// whether a piece heading along `a` must be flipped so its lit side (local −y) faces the light
+// (from above and a little to the left, the stadium's)
+const flips = (a) => -0.45 * Math.sin(a) + 0.9 * Math.cos(a) < 0;
+// the two red eyes of a big worm's head at (x, y), facing angle a, w its body width (fl: flipped)
+function wormEyes(g, x, y, a, w, k = 1, now = 0, fl = false) {
   const ca = Math.cos(a), sa = Math.sin(a), f = 0.85 + 0.15 * Math.sin(now * 13);
   for (const [ex, ey] of [[0.38, -0.36], [0.64, -0.3]]) {
-    const lx = (0.66 - 0.75 + ex * 0.68) * w, ly = ey * 0.46 * w;
+    const lx = (0.66 - 0.75 + ex * 0.68) * w, ly = ey * 0.46 * w * (fl ? -1 : 1);
     const px = x + ca * lx - sa * ly, py = y + sa * lx + ca * ly;
-    blit(g, glow(WORM_COL.eye, 0.3), px, py, w * 0.9 * f, w * 0.9 * f, 0, 0.75 * k);
-    blit(g, glow('#ffd8b0', 0.6), px, py, w * 0.22, w * 0.22, 0, k);
+    blit(g, glow(WORM_COL.eye, 0.3), px, py, w * 0.55 * f, w * 0.55 * f, 0, 0.9 * k);
+    g.fillStyle = '#ffe2c8'; g.beginPath(); g.arc(px, py, Math.max(0.8, w * 0.045), 0, TAU); g.fill();
   }
+}
+// THE MOUTH, open `o` (0–1), in the head's own frame (facing +x, hw its size): the lips parted, a
+// red throat going dark, strings of slime between the lips
+function wormMouth(g, hw, o, now) {
+  if (o <= 0.02) return;
+  const mx = hw * 0.62, my = hw * 0.1, rx = hw * 0.2 * (0.6 + 0.4 * o), ry = hw * 0.3 * o;
+  g.fillStyle = INK; g.beginPath(); g.ellipse(mx, my, rx + hw * 0.04, ry + hw * 0.04, 0, 0, TAU); g.fill();
+  const tg = g.createRadialGradient(mx - rx * 0.3, my, 1, mx, my, Math.max(rx, ry));
+  tg.addColorStop(0, '#1a0302'); tg.addColorStop(0.6, '#6a0d0a'); tg.addColorStop(1, '#c4362a');
+  g.fillStyle = tg; g.beginPath(); g.ellipse(mx, my, rx, ry, 0, 0, TAU); g.fill();
+  // slime strings across it, sagging
+  g.strokeStyle = 'rgba(240,255,220,0.65)'; g.lineWidth = Math.max(0.8, hw * 0.025); g.lineCap = 'round';
+  g.beginPath();
+  for (const k of [-0.4, 0.35]) { const x = mx + rx * k; g.moveTo(x, my - ry * 0.8); g.quadraticCurveTo(x + rx * 0.15, my + ry * (0.2 + 0.2 * Math.sin(now * 9 + k * 5)), x, my + ry * 0.85); }
+  g.stroke();
+}
+// a whole big worm's head at (x, y) along `a`, hw its size (squash: −1…1, mouth open 0–1)
+function bigHead(g, x, y, a, hw, now, open = 0, squash = 0) {
+  const fl = flips(a);
+  g.save(); g.translate(x, y); g.rotate(a); if (fl) g.scale(1, -1);
+  g.scale(1 - 0.18 * squash, 1 + 0.22 * squash);
+  g.drawImage(wormHeadTex(), -hw * 0.75, -hw * 0.5, hw * WH.w, hw * WH.h);
+  if (open > 0) { if (fl) g.scale(1, -1); wormMouth(g, hw, open, now); }
+  g.restore();
+  wormEyes(g, x, y, a, hw, 1, now, fl);
 }
 // a soil clod (a rough dark lump with a lit top)
 function paintClod(g, S) {
@@ -160,14 +214,20 @@ function rings(g, pts, w, sad = -1, alpha = 1) {
   g.beginPath(); g.moveTo(pts[0].x, pts[0].y); for (let i = 1; i < n; i++) g.lineTo(pts[i].x, pts[i].y);
   g.strokeStyle = INK; g.lineWidth = wm * 1.02; g.stroke();
   g.strokeStyle = WORM_COL.dark; g.lineWidth = wm * 0.84; g.stroke();
+  // (each ring placed by its own matrix on the canvas's — no save/restore per ring)
+  // (an older WebView without getTransform: save/restore round each one instead)
+  const T = typeof g.getTransform === 'function' ? g.getTransform() : null;
   for (let i = 0; i < n; i++) {
     const p = pts[i], f = p.f ?? i / Math.max(1, n - 1), W = w(f);
     if (!(W > 0.5)) continue;
-    const L = W * 0.78, c = Math.cos(p.a), sn = Math.sin(p.a);
-    g.save(); g.transform(c, sn, -sn, c, p.x, p.y);
-    g.drawImage(sad >= 0 && Math.abs(f - sad) < 0.06 ? s1 : s0, -L / 2, -W / 2, L, W);
-    g.restore();
+    const L = W * 0.78, c = Math.cos(p.a), sn = Math.sin(p.a), img = sad >= 0 && Math.abs(f - sad) < 0.06 ? s1 : s0;
+    const fy = flips(p.a) ? -1 : 1;                      // (its lit side up, whichever way it heads)
+    if (T) g.setTransform(T.a * c + T.c * sn, T.b * c + T.d * sn, fy * (T.c * c - T.a * sn), fy * (T.d * c - T.b * sn), T.a * p.x + T.c * p.y + T.e, T.b * p.x + T.d * p.y + T.f);
+    else { g.save(); g.transform(c, sn, -sn, c, p.x, p.y); g.scale(1, fy); }
+    g.drawImage(img, -L / 2, -W / 2, L, W);
+    if (!T) g.restore();
   }
+  if (T) g.setTransform(T);
   g.restore();
 }
 // a small worm as one path (the ailment's coils, the armed worms): the body, its rings, its shine
@@ -192,9 +252,10 @@ export function wormTube(g, pts, w0, now, amp = 0) {
   g.fillStyle = WORM_COL.mid; outline(1); g.fill();
   g.strokeStyle = WORM_COL.hi; g.lineWidth = Math.max(1, w0 * 0.22);
   g.beginPath(); for (let i = 0; i < P.length; i++) g.lineTo(P[i].x - P[i].nx * W(i) * 0.4, P[i].y - P[i].ny * W(i) * 0.4); g.stroke();
+  if (w0 < 6) { g.restore(); return; }                    // (thin: its rings are too small to see)
   g.strokeStyle = 'rgba(40,14,6,0.6)'; g.lineWidth = Math.max(0.8, w0 * 0.1);
   g.beginPath();
-  for (let i = 1; i < P.length - 1; i++) { const q = P[i]; g.moveTo(q.x + q.nx * W(i) * 0.9, q.y + q.ny * W(i) * 0.9); g.lineTo(q.x - q.nx * W(i) * 0.9, q.y - q.ny * W(i) * 0.9); }
+  for (let i = 1; i < P.length - 1; i += P.length > 8 ? 2 : 1) { const q = P[i]; g.moveTo(q.x + q.nx * W(i) * 0.9, q.y + q.ny * W(i) * 0.9); g.lineTo(q.x - q.nx * W(i) * 0.9, q.y - q.ny * W(i) * 0.9); }
   g.stroke();
   g.restore();
 }
@@ -320,7 +381,7 @@ function wormForm(g, W, H, o) {
     const j = o.jig ? Math.sin(now * 26 - i * 0.9) * o.jig * W * 0.025 * (0.3 + f) : 0;
     return { x: u * W + j, y: v * H - j * 0.6 };
   });
-  const pts = along(spline(P, 24), W * 0.1);
+  const pts = along(spline(P, 12), W * 0.17);
   rings(g, pts, (f) => {
     const base = (ARCH_W0 + (ARCH_W1 - ARCH_W0) * f) * W;
     return base * (1 + (o.amp || 0) * Math.sin((o.rip || 0) - f * 9));
@@ -334,8 +395,7 @@ function wormForm(g, W, H, o) {
   if (o.eye > 0) {
     const f = 0.85 + 0.15 * Math.sin(now * 9);
     for (const [u, v] of EYES) {
-      blit(g, glow(WORM_COL.eye, 0.25), u * W + W * 0.012, v * H + H * 0.008, W * 0.24 * f, W * 0.2 * f, 0, 0.7 * o.eye);
-      blit(g, glow('#ffb08a', 0.6), u * W + W * 0.012, v * H + H * 0.012, W * 0.06, W * 0.07, 0, 0.8 * o.eye);
+      blit(g, glow(WORM_COL.eye, 0.25), u * W + W * 0.012, v * H + H * 0.008, W * 0.24 * f, W * 0.2 * f, 0, 0.75 * o.eye);
     }
   }
   // the forked tongue, flicking out of the smirk's end now and then
@@ -359,12 +419,13 @@ function wormForm(g, W, H, o) {
 function rippleEdge(g, W, y, k, now) {
   const cl = clodTex();
   blit(g, glow(WORM_COL.green, 0.25), W * 0.52, y, W * 1.05, W * 0.16, 0, 0.55 * k);
-  for (let i = 0; i < 7; i++) {
-    const u = 0.1 + 0.12 * i + 0.03 * Math.sin(now * 20 + i), j = Math.sin(now * 31 + i * 2.3) * W * 0.02;
+  g.globalAlpha = k;
+  for (let i = 0; i < 6; i++) {
+    const u = 0.1 + 0.15 * i + 0.03 * Math.sin(now * 20 + i), j = Math.sin(now * 31 + i * 2.3) * W * 0.02;
     const s = W * (0.045 + 0.025 * hash(i, 3));
-    g.save(); g.globalAlpha = k; g.translate(u * W, y + j); g.rotate(now * 6 + i);
-    g.drawImage(cl, -s / 2, -s / 2, s, s); g.restore();
+    g.drawImage(cl, u * W - s / 2, y + j - s / 2, s, s);
   }
+  g.globalAlpha = 1;
 }
 
 // ── the head (worn) ─────────────────────────────────────────────────────────────────────────────
@@ -383,8 +444,8 @@ const seen = [{ arm: -9, last: -9 }, { arm: -9, last: -9 }];
 
 // ── the giant worm (the cut-in's grab, a fire-back's, the dive) ──────────────────────────────────
 // a coil wound round the ball at (bx, by): `turns` of it, its points in world px with a depth sign
-function coilPts(bx, by, br, dir, turns, squeeze, n) {
-  const pts = [], R = br * (1.42 - 0.12 * squeeze);
+function coilPts(bx, by, rr, dir, turns, squeeze, n, br = rr) {
+  const pts = [], R = rr * (1 - 0.1 * squeeze);
   for (let i = 0; i < n; i++) {
     const f = i / (n - 1), a = Math.PI * 0.62 + dir * f * turns * TAU;
     // a helix seen from the side: round the ball, creeping up it as it winds
@@ -398,11 +459,11 @@ function coilPts(bx, by, br, dir, turns, squeeze, n) {
 // px its column leans back (the rear before the dive); `sink` 0→1 how far into the ground it is
 // (the dive: the ball goes with it). `ballFn` paints the ball where it is.
 function grabWorm(g, o) {
-  const { hx, gy, bx, by, br, dir, k, now } = o, W = br * 1.5;
+  const { hx, gy, bx, by, br, dir, k, now } = o, W = br * 2.6;
   const climb = ease(k / 0.45), wind = ease((k - 0.45) / 0.55);
-  const coil = wind > 0 ? coilPts(bx, by, br, dir, 1.35 * wind, o.sq || 0, Math.max(2, Math.round(4 + 14 * wind))) : [];
+  const coil = wind > 0 ? coilPts(bx, by, br + W * 0.55, dir, 1.2 * wind, o.sq || 0, Math.max(2, Math.round(4 + 14 * wind)), br) : [];
   // the column: from under the grass up to where the coil starts (or, still climbing, to its head)
-  const top = coil.length ? coil[0] : { x: bx - dir * br * 1.3, y: by + br * 0.9 };
+  const top = coil.length ? coil[0] : { x: bx - dir * (br + W * 0.6), y: by + br * 0.9 };
   const lean = o.lean || 0;
   const colTop = { x: hx + (top.x - hx) * climb - dir * lean, y: gy + (top.y - gy) * climb };
   const C0 = [{ x: hx + dir * 4, y: gy + W }, { x: hx, y: gy - W * 0.2 }, { x: (hx + colTop.x) / 2 - dir * W * 0.5 * climb - dir * lean * 0.5, y: (gy + colTop.y) / 2 }, colTop];
@@ -413,21 +474,84 @@ function grabWorm(g, o) {
   g.save();
   // nothing of it (nor the ball) shows under the grass
   g.beginPath(); g.rect(-400, -2000, C.W + 800, gy + 2000 + 1); g.clip();
-  // the coil's back runs behind the ball, its front runs over it (the ball's face shows between)
+  // the coil's back runs, then its front runs, wound round the ball
   const runs = (front) => { const out = []; let cur = null; for (const q of pts) { const f = !(q.z < 0); if (f === front) { if (!cur) out.push(cur = []); cur.push(q); } else cur = null; } return out; };
   for (const r of runs(false)) rings(g, r, wOf);
-  if (o.ballFn) o.ballFn(g, bx, by);
   for (const r of runs(true)) rings(g, r, wOf, 0.2);
-  // the head at the end of it, big and blunt, eyes lit, looking along it
-  const h = pts[pts.length - 1], hw = W * 1.3;
-  g.save(); g.translate(h.x, h.y); g.rotate(h.a);
-  g.drawImage(wormHeadTex(), -hw * 0.75, -hw * 0.5, hw * WH.w, hw * WH.h); g.restore();
-  wormEyes(g, h.x, h.y, h.a, hw, 1, now);
+  // the head at the end of it, big and blunt, eyes lit, looking along it — hissing open as it
+  // reaches the ball and again as it squeezes
+  const h = pts[pts.length - 1], hw = W * 1.25;
+  const open = Math.max(Math.sin(Math.PI * clamp01((k - 0.36) / 0.22)), 0.6 * (o.sq || 0));
+  bigHead(g, h.x, h.y, h.a, hw, now, open);
+  // soil sliding off it as it climbs out
+  if (climb < 1 || k < 0.6) shedding(g, pts, k * 0.9, 6, W * 0.45, 3);
+  // THE BALL ON TOP, always (the true-ball rule: a worm this big would hide it in its coils)
+  if (o.ballFn) o.ballFn(g, bx, by);
   g.restore();
-  // the hole it came out of, a dirt rim round it (over its root)
-  g.fillStyle = WORM_COL.soilD; g.beginPath(); g.ellipse(hx, gy + 1, W * 1.05, W * 0.28, 0, 0, TAU); g.fill();
-  g.fillStyle = WORM_COL.soil;
-  for (let i = 0; i < 5; i++) { const a = Math.PI + (i / 4) * Math.PI; g.beginPath(); g.arc(hx + Math.cos(a) * W * 1.15, gy + 1 + Math.sin(a) * W * 0.25, W * 0.18, 0, TAU); g.fill(); }
+  // the hole it came out of, torn turf round it, its shadow (over its root)
+  groundOut(g, hx, gy, W, Math.max(0, gy - by) * climb);
+}
+// a rotated rectangle (centre x, y; w × h, from its top edge down to dy0…dy1 of h) into the current path
+function rrectPath(g, x, y, w, h, rot, dy0 = -0.6, dy1 = 0.4) {
+  const c = Math.cos(rot), sn = Math.sin(rot), P = [[-w / 2, h * dy0], [w / 2, h * dy0], [w / 2, h * dy1], [-w / 2, h * dy1]];
+  g.moveTo(x + P[0][0] * c - P[0][1] * sn, y + P[0][0] * sn + P[0][1] * c);
+  for (let i = 1; i < 4; i++) g.lineTo(x + P[i][0] * c - P[i][1] * sn, y + P[i][0] * sn + P[i][1] * c);
+  g.closePath();
+}
+// WHERE A BIG WORM COMES OUT OF THE GRASS at (x, gy), W its width: the hole's dark mouth round it,
+// the torn turf lifted round the rim (green on top, soil under), and its soft shadow cast on the
+// grass away from the light (`h` how tall it stands)
+function groundOut(g, x, gy, W, h, a = 1) {
+  if (a <= 0) return;
+  g.save(); g.globalAlpha = a;
+  blit(g, glow('#000000', 0.2), x + h * 0.28 + W * 0.2, gy + 3, W * 1.6 + h * 0.6, W * 0.42, 0, 0.32, false);
+  g.fillStyle = WORM_COL.soilD; g.beginPath(); g.ellipse(x, gy + 1, W * 0.95, W * 0.26, 0, 0, TAU); g.fill();
+  // the torn turf round the rim: soil chunks under green tops, leaning out
+  const flap = (top) => {
+    g.beginPath();
+    for (let i = 0; i < 3; i++) {
+      const s = i === 1 ? 1 : -1, f = i === 2 ? 1 : 0, px = x + s * W * (0.62 + 0.38 * f), py = gy + 1 - W * 0.1 * (1 - f);
+      rrectPath(g, px, py, W * (0.36 - 0.08 * f), W * (0.2 - 0.04 * f), s * (0.35 + 0.25 * f), -0.6, top ? -0.28 : 0.4);
+    }
+    g.fill();
+  };
+  g.fillStyle = WORM_COL.soil; flap(false);
+  g.fillStyle = WORM_COL.grassL; flap(true);
+  // the soil thrown up into a lip round its front
+  g.fillStyle = WORM_COL.soilL;
+  g.beginPath(); g.ellipse(x, gy + W * 0.12, W * 0.9, W * 0.14, 0, 0, Math.PI); g.fill();
+  g.restore();
+}
+// clods of soil sliding and dropping off a worm's body (`pts` along it), `t` s on, `n` of them
+function shedding(g, pts, t, n, R, salt = 0) {
+  if (pts.length < 3 || t <= 0) return;
+  const cl = clodTex();
+  for (let i = 0; i < n; i++) {
+    const t0 = hash(i, 71 + salt) * 0.25, dt = t - t0;
+    if (dt <= 0 || dt > 0.55) continue;
+    const q = pts[Math.min(pts.length - 1, Math.floor((0.35 + 0.6 * hash(i, 83 + salt)) * pts.length))];
+    const z = R * (0.45 + 0.5 * hash(i, 97 + salt));
+    g.globalAlpha = 1 - dt / 0.55;
+    g.drawImage(cl, q.x + (hash(i, 5) - 0.5) * R * 2 + dt * 30 * (hash(i, 7) - 0.5) - z / 2, q.y + 1100 * dt * dt - z / 2, z, z);
+  }
+  g.globalAlpha = 1;
+}
+// THE PLUNGE (the dive, `k` 0→1): it pulls back down its hole head first, the ball held in a loop of
+// its tail on top — the body a column from the ball down into the grass, wobbling as it pours in
+function diveWorm(g, o) {
+  const { hx, gy, bx, by, br, dir, k, now } = o, W = br * 2.6, Wt = W * 0.62;
+  const coil = coilPts(bx, by, br + Wt * 0.6, dir, 0.75, 1, 9, br);
+  const c1 = coil[coil.length - 1], wob = Math.sin(k * 14) * W * 0.25 * (1 - k);
+  const col = spline([c1, { x: (c1.x + hx) / 2 + wob, y: (c1.y + gy) / 2 }, { x: hx, y: gy - W * 0.2 }, { x: hx, y: gy + W * 3 }], 12);
+  const pts = along(coil.concat(col.slice(1)), W * 0.42);
+  if (pts.length < 2) return;
+  g.save();
+  g.beginPath(); g.rect(-400, -2000, C.W + 800, gy + 2000 + 1); g.clip();
+  rings(g, pts, (f) => Wt + (W - Wt) * clamp01(f * 1.8), 0.7);
+  shedding(g, pts, k * 0.8 + 0.1, 5, W * 0.4, 21);
+  if (o.ballFn) o.ballFn(g, bx, by);
+  g.restore();
+  groundOut(g, hx, gy, W, Math.max(0, gy - by));
 }
 // the dirt it throws up as it bursts out of the turf (a fixed spray laid out by hash, `t` s in)
 function spray(g, x, gy, t, n, R, up, salt = 0) {
@@ -440,7 +564,7 @@ function spray(g, x, gy, t, n, R, up, salt = 0) {
     if (py > gy + 4) continue;
     const s = R * (0.5 + 0.7 * hash(i, 31 + salt));
     g.globalAlpha = Math.max(0, 1 - t / 0.7);
-    g.save(); g.translate(px, py); g.rotate(t * (8 + 6 * h1)); g.drawImage(cl, -s / 2, -s / 2, s, s); g.restore();
+    g.drawImage(cl, px - s / 2, py - s / 2, s, s);
   }
   g.restore();
   if (t < 0.3) puff(g, x, gy - 4, 14 + t * 90, '#8a6a4a', 0.35 * (1 - t / 0.3));
@@ -451,12 +575,17 @@ function spray(g, x, gy, t, n, R, up, salt = 0) {
 // the mound of turf over the tunnelling worm at (x, gy): `h` its height, `heave` 0–1 its swell
 function mound(g, x, gy, w, h, now, heave = 0) {
   const H = h * (1 + 0.12 * Math.sin(now * (14 + 16 * heave)) + 0.5 * heave), Wd = w * (1 + 0.25 * heave);
-  blit(g, glow('#000000', 0.2), x, gy + 2, Wd * 1.5, H * 0.9, 0, 0.35, false);
+  blit(g, glow('#000000', 0.2), x + Wd * 0.12, gy + 2, Wd * 1.6, H * 0.9, 0, 0.4, false);
   // the dome: grass over it, its top split, soil showing
   const rg = g.createLinearGradient(0, gy - H, 0, gy);
   rg.addColorStop(0, WORM_COL.grassL); rg.addColorStop(1, WORM_COL.grass);
   g.fillStyle = rg; g.strokeStyle = 'rgba(20,40,10,0.7)'; g.lineWidth = 1.2;
   g.beginPath(); g.moveTo(x - Wd / 2, gy + 1); g.bezierCurveTo(x - Wd * 0.32, gy - H * 1.25, x + Wd * 0.32, gy - H * 1.25, x + Wd / 2, gy + 1); g.closePath(); g.fill(); g.stroke();
+  // lit from the upper left, its right flank in shade
+  g.save(); g.clip();
+  g.fillStyle = 'rgba(255,255,220,0.22)'; g.beginPath(); g.ellipse(x - Wd * 0.18, gy - H * 0.75, Wd * 0.22, H * 0.25, -0.3, 0, TAU); g.fill();
+  g.fillStyle = 'rgba(10,30,5,0.28)'; g.beginPath(); g.ellipse(x + Wd * 0.38, gy - H * 0.2, Wd * 0.3, H * 0.75, 0.2, 0, TAU); g.fill();
+  g.restore();
   g.fillStyle = WORM_COL.soil;
   g.beginPath(); g.moveTo(x - Wd * 0.26, gy - H * 0.62);
   for (let i = 1; i <= 6; i++) { const f = i / 6; g.lineTo(x - Wd * 0.26 + Wd * 0.52 * f, gy - H * (0.82 + 0.12 * Math.sin(f * 9 + now * 3)) - (i % 2 ? 2 : -1)); }
@@ -471,21 +600,34 @@ function mound(g, x, gy, w, h, now, heave = 0) {
   }
   g.stroke();
 }
-// a crack in the turf from (x0) to (x1) at gy: a soil seam that zigzags, `a` its strength
+// THE TUNNEL'S TRACK from (x0) to (x1) at gy: a ridge of upturned soil, tallest just behind the
+// mound and settling back toward where it went down, tufts of turf flipped over along it
 function seam(g, x0, x1, gy, a, salt, wd = 2.4) {
-  const n = Math.max(2, Math.round(Math.abs(x1 - x0) / 14));
-  g.save(); g.globalAlpha = a; g.strokeStyle = WORM_COL.soilD; g.lineWidth = wd; g.lineJoin = 'round';
+  const n = Math.max(2, Math.round(Math.abs(x1 - x0) / 24));
+  const hAt = (f) => wd * (0.5 + 1.6 * f * f);                     // f 0 at the hole → 1 at the mound
+  const ys = []; for (let i = 0; i <= n; i++) ys.push((hash(i, salt) - 0.5) * 2.2);
+  g.save(); g.globalAlpha = a; g.lineJoin = 'round'; g.lineCap = 'round';
+  // its shadow side, its body, its lit crest
+  g.fillStyle = WORM_COL.soilD;
   g.beginPath();
-  for (let i = 0; i <= n; i++) { const f = i / n; g.lineTo(x0 + (x1 - x0) * f, gy - 1 + (hash(i, salt) - 0.5) * 3.5); }
-  g.stroke();
-  g.strokeStyle = WORM_COL.soilL; g.lineWidth = wd * 0.4;
+  for (let i = 0; i <= n; i++) { const f = i / n; g.lineTo(x0 + (x1 - x0) * f, gy + 1 + ys[i] * 0.3); }
+  for (let i = n; i >= 0; i--) { const f = i / n; g.lineTo(x0 + (x1 - x0) * f, gy - hAt(f) + ys[i]); }
+  g.closePath(); g.fill();
+  g.strokeStyle = WORM_COL.soilL; g.lineWidth = Math.max(1, wd * 0.45);
+  g.beginPath(); for (let i = 0; i <= n; i++) { const f = i / n; g.lineTo(x0 + (x1 - x0) * f, gy - hAt(f) + ys[i] + 0.6); } g.stroke();
+  // tufts of turf flipped over along it
+  if (a < 0.95) { g.restore(); return; }                   // (fading: the tufts gone first)
+  g.fillStyle = WORM_COL.grass;
   g.beginPath();
-  for (let i = 0; i <= n; i++) { const f = i / n; g.lineTo(x0 + (x1 - x0) * f, gy - 2 + (hash(i, salt) - 0.5) * 3.5); }
-  g.stroke();
+  for (let i = 1; i < n; i += 4) {
+    const f = i / n, px = x0 + (x1 - x0) * f + (hash(i, salt + 3) - 0.5) * 6, sz = 2 + 3 * hash(i, salt + 5);
+    rrectPath(g, px, gy - hAt(f) * 0.7, sz * 2, sz * 0.8, (hash(i, salt + 9) - 0.5) * 1.6, -0.5, 0.5);
+  }
+  g.fill();
   g.restore();
 }
 // cracks running out from (x, gy), `k` how far they have run, longer toward the goal (dir)
-function cracks(g, x, gy, R, k, dir, a = 1) {
+function cracks(g, x, gy, R, k, dir, a = 1, lit = 0) {
   if (k <= 0) return;
   g.save(); g.globalAlpha = a; g.strokeStyle = WORM_COL.soilD; g.lineWidth = 2.6; g.lineJoin = 'round';
   g.beginPath();
@@ -494,7 +636,10 @@ function cracks(g, x, gy, R, k, dir, a = 1) {
     g.moveTo(x + s * R * 0.25, gy);
     for (let j = 1; j <= 3; j++) { const q = j / 3; g.lineTo(x + s * (R * 0.25 + L * q), gy + (f - 0.4) * 5 * q + (hash(i * 3 + j, 61) - 0.5) * 3); }
   }
-  g.stroke(); g.restore();
+  g.stroke();
+  // (the worm's red light leaking up through them, from underneath)
+  if (lit > 0) { g.globalCompositeOperation = 'lighter'; g.globalAlpha = a * lit; g.strokeStyle = '#ff4a22'; g.lineWidth = 1.3; g.stroke(); }
+  g.restore();
 }
 // the ring where it will come up: a red rim on the grass in a green glow, quickening
 function ringAt(g, x, gy, R, k, now, a = 1) {
@@ -509,50 +654,85 @@ function ringAt(g, x, gy, R, k, now, a = 1) {
   g.beginPath(); g.ellipse(x, gy, rx * (0.96 - 0.05 * p), ry * (0.96 - 0.05 * p), 0, 0, TAU); g.stroke();
   g.restore();
 }
-// THE BURST: the worm shooting up out of the ring (it has spat the ball by 0.06 s), then sinking back
-function burstWorm(g, x, gy, sk, dir, now) {
-  if (sk > 0.62) return;
-  const W = C.HEAD_R * 0.9, Hmax = C.HEAD_R * 3.4;
-  const up = sk < 0.07 ? outBack(sk / 0.07) : 1, sink = ease((sk - 0.22) / 0.4);
+// THE BURST: the worm whipping up out of the ring — stretched thin as it shoots, the spit (its
+// head snapping back, mouth wide, the body squashing), a sway as it looms, then it slithers back
+// down its hole, soil sliding off it. (It has spat the ball by 0.06 s; the ball is drawn over it.)
+function burstWorm(g, x, gy, sk, dir, now, aim = 0.9) {
+  if (sk > 0.75) return;
+  const W0 = C.HEAD_R * 1.7, Hmax = C.HEAD_R * 5.4;
+  const up = sk < 0.08 ? outBack(sk / 0.08) : 1, sink = ease((sk - 0.3) / 0.42);
   const H = Hmax * up * (1 - sink);
   if (H < 2) return;
-  const squash = sk > 0.05 && sk < 0.17 ? Math.sin(Math.PI * (sk - 0.05) / 0.12) : 0;
-  const lean = dir * W * 0.9 * (1 - sink);
-  const P = [{ x, y: gy + W }, { x: x + lean * 0.1, y: gy - H * 0.3 }, { x: x + lean * 0.5, y: gy - H * 0.7 }, { x: x + lean, y: gy - H }];
-  const pts = along(spline(P, 10), W * 0.42);
+  const stretch = sk < 0.08 ? 1 - sk / 0.08 : 0;                    // thin while it shoots up
+  const spit = sk > 0.05 && sk < 0.18 ? Math.sin(Math.PI * (sk - 0.05) / 0.13) : 0;
+  const W = W0 * (1 - 0.2 * stretch + 0.1 * spit);
+  // it comes up SLANTING at the goal (Idan): its body along the shot's line (never flatter than
+  // ~45°), the head bent onto the line itself; snapped back a little by the spit's recoil; a sway
+  // across it, dying as it sinks
+  const phi = Math.min(1.35, Math.max(0.8, aim)) + 0.25 * spit;
+  const ux = dir * Math.cos(phi), uy = -Math.sin(phi), px = -uy, py = ux;
+  const sway = W0 * 0.45 * (1 - 0.5 * sink) * Math.min(1, sk / 0.12);
+  const P = [];
+  for (let i = 0; i <= 5; i++) {
+    const f = i / 5, s = Math.sin(f * Math.PI * 1.3 - sk * 13) * sway * f, L = -W + (H + W) * f;
+    P.push({ x: x + ux * L + px * s, y: gy + uy * L + py * s });
+  }
+  // (the head turned onto the shot's own line)
+  const tip = P[P.length - 1];
+  P.push({ x: tip.x + dir * Math.cos(aim) * W0 * 0.7, y: tip.y - Math.sin(aim) * W0 * 0.7 });
+  const pts = along(spline(P, 14), W * 0.42);
   if (pts.length < 2) return;
-  g.save(); g.beginPath(); g.rect(x - 300, gy - 400, 600, 400 + 1); g.clip();
-  rings(g, pts, (f) => W * (1 + 0.1 * Math.sin(now * 20 - f * 8)), 0.55);
-  const h = pts[pts.length - 1], hw = W * (1.3 + 0.25 * squash);
-  g.save(); g.translate(h.x, h.y); g.rotate(h.a); g.scale(1 - 0.2 * squash, 1 + 0.25 * squash);
-  g.drawImage(wormHeadTex(), -hw * 0.75, -hw * 0.5, hw * WH.w, hw * WH.h);
-  // the mouth wide open at the spit
-  if (sk < 0.2) { const o = Math.sin(Math.PI * Math.min(1, sk / 0.2)); g.fillStyle = '#3a0a06'; g.beginPath(); g.ellipse(hw * 0.68, 0, hw * 0.16 * o, hw * 0.3 * o, 0, 0, TAU); g.fill(); }
-  g.restore();
-  wormEyes(g, h.x, h.y, h.a, hw, 1, now);
+  // its shadow and the torn ground round it
+  groundOut(g, x, gy, W0, H);
+  g.save(); g.beginPath(); g.rect(x - 400, gy - 600, 800, 600 + 1); g.clip();
+  rings(g, pts, (f) => W * (1 + 0.1 * Math.sin(now * 20 - f * 8)) * (1 - 0.12 * f), 0.55);
+  const h = pts[pts.length - 1], hw = W0 * 1.3;
+  bigHead(g, h.x, h.y, h.a, hw, now, sk < 0.3 ? Math.max(spit, 0.35 * (1 - sk / 0.3)) : 0, spit);
+  shedding(g, pts, sk, 8, W0 * 0.4, 11);
   g.restore();
 }
 
+// the shot's slant (rad above level) from where it comes up at world x, toward the goal `dir` faces
+const aimAt = (x, dir) => {
+  const tx = (dir > 0 ? C.W - C.GOAL_W : C.GOAL_W) + dir * WORM.IN, ty = C.GROUND_Y - C.GOAL_H * WORM.CROSS;
+  return Math.atan2(C.GROUND_Y - C.BALL_R - ty, Math.abs(tx - x) || 1);
+};
 // ── the ball's own burst bursts ─────────────────────────────────────────────────────────────────
-function clodBurst(x, gy, { n = 12, up = 520, R = 8, life = 0.7, flash = 0, salt = 0 } = {}) {
+function clodBurst(x, gy, { n = 12, up = 520, R = 8, life = 0.7, flash = 0, salt = 0, cone = 2.4, haze = 0 } = {}) {
   const bits = [];
   for (let i = 0; i < n; i++) {
-    const a = -Math.PI / 2 + (Math.random() - 0.5) * 2.4, v = up * (0.5 + 0.6 * Math.random());
-    bits.push({ x, y: gy - 2, vx: Math.cos(a) * v, vy: Math.sin(a) * v, s: R * (0.5 + 0.8 * Math.random()), r: Math.random() * TAU, w: (Math.random() - 0.5) * 18, grass: i % 4 === 0 });
+    const a = -Math.PI / 2 + (Math.random() - 0.5) * cone, v = up * (0.5 + 0.6 * Math.random());
+    bits.push({ x: x + (Math.random() - 0.5) * R, y: gy - 2, vx: Math.cos(a) * v, vy: Math.sin(a) * v, s: R * (0.5 + 0.8 * Math.random()), r: Math.random() * TAU, w: (Math.random() - 0.5) * 18, kind: i % 5 === 0 ? 1 : i % 7 === 3 ? 2 : 0 });
   }
   return {
     t: 0, life,
-    step(dt) { for (const q of bits) { q.vy += 1300 * dt; q.x += q.vx * dt; q.y += q.vy * dt; q.r += q.w * dt; if (q.y > gy) { q.y = gy; q.vy *= -0.25; q.vx *= 0.6; } } },
+    step(dt) { for (const q of bits) { q.vy += 1300 * dt; q.x += q.vx * dt; q.y += q.vy * dt; q.r += q.w * dt; if (q.y > gy) { q.y = gy; q.vy *= -0.25; q.vx *= 0.6; q.w *= 0.5; } } },
     draw(g, t) {
       const f = t / life, cl = clodTex();
       if (flash && t < 2 / 60) blit(g, glow('#fff0d8', 0.5), x, gy - 10, flash * 2.2, flash, 0, 0.3);
       if (t < 0.35) puff(g, x, gy - 6, 18 + t * 150 * (R / 8), '#8a6a4a', 0.45 * (1 - t / 0.35));
+      // the haze of dust that hangs over the hole, drifting up and thinning
+      if (haze) for (let i = 0; i < 2; i++) puff(g, x + (i - 0.5) * R * 2.6, gy - 8 - t * 40 - i * 4, R * (2.4 + t * 3), '#a08a6a', haze * 0.3 * (1 - f));
       g.save();
       g.globalAlpha = Math.max(0, 1 - f * f);
-      for (const q of bits) {
-        if (q.grass) { g.strokeStyle = WORM_COL.grassL; g.lineWidth = 1.5; g.beginPath(); g.moveTo(q.x, q.y); g.lineTo(q.x + Math.cos(q.r) * q.s, q.y + Math.sin(q.r) * q.s); g.stroke(); continue; }
-        g.save(); g.translate(q.x, q.y); g.rotate(q.r); g.drawImage(cl, -q.s / 2, -q.s / 2, q.s, q.s); g.restore();
-      }
+      g.lineCap = 'round';
+      // the fast ones streaked along their flight (the eye smears them), all in one stroke
+      g.strokeStyle = 'rgba(74,44,24,0.7)'; g.lineWidth = R * 0.45; g.beginPath();
+      for (const q of bits) if (q.kind === 0 && Math.hypot(q.vx, q.vy) > 300) { g.moveTo(q.x - q.vx * 0.016, q.y - q.vy * 0.016); g.lineTo(q.x, q.y); }
+      g.stroke();
+      // blades of grass
+      g.strokeStyle = WORM_COL.grassL; g.lineWidth = 1.5; g.beginPath();
+      for (const q of bits) if (q.kind === 2) { g.moveTo(q.x, q.y); g.lineTo(q.x + Math.cos(q.r) * q.s, q.y + Math.sin(q.r) * q.s); }
+      g.stroke();
+      // chunks of turf: soil under, green on top, tumbling
+      g.fillStyle = WORM_COL.soil; g.beginPath();
+      for (const q of bits) if (q.kind === 1) rrectPath(g, q.x, q.y, q.s * 1.2, q.s * 0.6, q.r, -0.5, 0.5);
+      g.fill();
+      g.fillStyle = WORM_COL.grassL; g.beginPath();
+      for (const q of bits) if (q.kind === 1) rrectPath(g, q.x, q.y, q.s * 1.2, q.s * 0.6, q.r, -0.5, -0.17);
+      g.fill();
+      // the clods
+      for (const q of bits) if (q.kind === 0) g.drawImage(cl, q.x - q.s / 2, q.y - q.s / 2, q.s, q.s);
       g.restore(); g.globalAlpha = 1;
     },
   };
@@ -636,7 +816,7 @@ export default {
         const px = s.hx + Math.cos(a) * v * fling * (out ? 1 : 0.4) + (out ? 0 : (hash(i, 4) - 0.5) * r * 1.6);
         const py = s.hy + Math.sin(a) * v * fling + r * (out ? 3 : 4) * fling * fling + (out ? 0 : -r * 0.3);
         const z = r * (0.22 + 0.12 * hash(i, 2));
-        g.save(); g.translate(px, py); g.rotate(fling * 9 + i); g.drawImage(cl, -z / 2, -z / 2, z, z); g.restore();
+        g.drawImage(cl, px - z / 2, py - z / 2, z, z);
       }
       g.restore();
     }
@@ -652,16 +832,20 @@ export default {
       return true;
     }
     if (pw.ph === 'wdive') {
-      // the plunge: the head already down its hole, the body after it, the ball in its coils
+      // THE PLUNGE: head first — it arcs over and down its hole, the body after it, the ball held in
+      // its tail's coils until they follow it under
       const k = Math.min(1, (pw.k || 0) / WORM.DIVE);
-      grabWorm(g, { hx: pw.dx, gy, bx: s.x, by: s.y, br: s.r, dir, k: 1 - 0.55 * k, now, sq: 1, ballFn: (gg, x, y) => s.ball && s.ball(gg, x, y) });
-      spray(g, pw.dx, gy, k * WORM.DIVE, 7, s.r * 0.55, 380, 9);
+      diveWorm(g, { hx: pw.dx, gy, bx: s.x, by: s.y, br: s.r, dir, k, now, ballFn: (gg, x, y) => s.ball && s.ball(gg, x, y) });
+      spray(g, pw.dx, gy, k * WORM.DIVE, 6, s.r * 0.8, 420, 9);
       return true;
     }
     if (pw.ph !== 'fly') return true;                       // under the pitch: the mound shows it
     // THE LOB: the real ball (drawn on top by the game) — a dark red rim of light behind it, soil
     // crumbs dropping off it down its path, a green glint off its burst for a moment
     const x = s.x, y = s.y, r = s.r, t = s.t || 0, h = s.hist || [];
+    // a streak of soil and dark red light behind it, along its line
+    const sv = Math.hypot(b.vx || 0, b.vy || 0) || 1;
+    streak(g, x, y, (b.vx || dir) / sv, (b.vy || 0) / sv, Math.min(r * 8, 12 + t * 2400), ['#ffd0b0', '#c4362a', '#4a2c18'], r / 13, 0.9);
     blit(g, glow('#ff3a1a', 0.2), x, y, r * 3.4, r * 3.4, 0, 0.42);
     if (t < 0.2) blit(g, glow(WORM_COL.green, 0.3), x, y, r * 5, r * 5, 0, 0.5 * (1 - t / 0.2));
     const cl = clodTex();
@@ -690,7 +874,7 @@ export default {
     if (c > 0.22) cracks(g, pw.dx, gy, C.HEAD_R * 1.3, ease((c - 0.22) / 0.15), dir);
     if (k > 0) grabWorm(g, { hx: pw.dx, gy, bx: s.fx, by: s.fy, br: s.r, dir, k, now, sq, lean, ballFn: s.ball });
     else if (s.ball) s.ball(g, s.fx, s.fy);
-    spray(g, pw.dx, gy, c - 0.3, 10, s.r * 0.7, 520, 1);
+    spray(g, pw.dx, gy, c - 0.3, 9, s.r * 1.2, 620, 1);
   },
 
   // ARMED: two little red-eyed worms poking up out of the turf by her feet, swaying
@@ -714,10 +898,10 @@ export default {
     const gy = s.gy, dir = z.dir || 1, now = s.now, st = z.st | 0, sk = z.sk || 0, R = WORM.RING * C.HEAD_R;
     const hole = s.x0, at = s.x1;
     // the hole it went down (from the cut-in's crack on), closing over after it
-    const holeA = st === 0 ? (s.cut >= 0 ? ease((s.cut - 0.3) / 0.12) : z.fb ? ease(sk / 0.1) : 0) : st === 1 ? 1 : Math.max(0, 1 - ((st === 2 ? sk : 1) / 1.1));
+    const holeA = st === 0 ? (s.cut >= 0 ? ease((s.cut - 0.3) / 0.12) : z.fb ? ease(sk / 0.1) : 0) : st === 1 ? 1 : st === 2 ? Math.max(0, 1 - sk / 0.9) : 0;
     if (holeA > 0) {
       g.save(); g.globalAlpha = holeA;
-      g.fillStyle = WORM_COL.soilD; g.beginPath(); g.ellipse(hole, gy + 1, C.HEAD_R * 0.7, C.HEAD_R * 0.2, 0, 0, TAU); g.fill();
+      g.fillStyle = WORM_COL.soilD; g.beginPath(); g.ellipse(hole, gy + 1, C.HEAD_R * 1.1, C.HEAD_R * 0.3, 0, 0, TAU); g.fill();
       g.fillStyle = WORM_COL.soil; for (let i = 0; i < 5; i++) { const a = Math.PI + (i / 4) * Math.PI; g.beginPath(); g.arc(hole + Math.cos(a) * C.HEAD_R * 0.78, gy + 1 + Math.sin(a) * C.HEAD_R * 0.18, 2.6, 0, TAU); g.fill(); }
       g.restore();
       cracks(g, hole, gy, C.HEAD_R * 1.3, 1, dir, holeA);
@@ -729,7 +913,9 @@ export default {
     if (st === 2) {
       // the mound, running; its depth weave (a visual sway on the grass, from the same clock both screens run)
       const wv = Math.sin(sk * 9.5) * 1.6;
-      mound(g, at, gy + wv, C.HEAD_R * 2.6, C.HEAD_R * 0.72, now);
+      for (let i = 0; i < 2; i++) puff(g, at - dir * C.HEAD_R * (1.2 + 0.9 * i), gy - 6 - 3 * i, C.HEAD_R * (0.7 + 0.25 * i), '#9a8466', 0.22 - 0.07 * i);
+      g.globalAlpha = 1;
+      mound(g, at, gy + wv, C.HEAD_R * 3.4, C.HEAD_R * 1.0, now);
       // clods popping off its front
       const cl = clodTex();
       for (let i = 0; i < 3; i++) {
@@ -740,28 +926,39 @@ export default {
     }
     if (st === 3) {
       const k = clamp01(sk / WORM.WARN);
-      cracks(g, at, gy, R * 1.05, ease(k * 1.4), dir);
+      cracks(g, at, gy, R * 1.05, ease(k * 1.4), dir, 1, (0.5 + 0.5 * Math.sin(now * (12 + 20 * k))) * Math.min(1, k * 2));
       ringAt(g, at, gy, R, k, now, Math.min(1, sk / 0.08));
-      mound(g, at, gy, C.HEAD_R * 2.6, C.HEAD_R * 0.72, now, k);
+      mound(g, at, gy, C.HEAD_R * 3.4, C.HEAD_R * 1.0, now, k);
       // red eyes glinting up through the split in its top
-      if (sk > 0.25) { const q = Math.min(1, (sk - 0.25) / 0.06) * (0.8 + 0.2 * Math.sin(now * 30)); for (const ex of [-4, 4]) blit(g, glow(WORM_COL.eye, 0.4), at + ex + dir * 2, gy - C.HEAD_R * (0.75 + 0.3 * k), 12, 9, 0, q); }
+      if (sk > 0.25) { const q = Math.min(1, (sk - 0.25) / 0.06) * (0.8 + 0.2 * Math.sin(now * 30)); for (const ex of [-6, 6]) { blit(g, glow(WORM_COL.eye, 0.4), at + ex + dir * 2, gy - C.HEAD_R * (0.8 + 0.4 * k), 18, 13, 0, q); g.fillStyle = `rgba(255,226,200,${(0.9 * q).toFixed(2)})`; g.beginPath(); g.arc(at + ex + dir * 2, gy - C.HEAD_R * (0.8 + 0.4 * k), 1.6, 0, TAU); g.fill(); } }
       return;
     }
     // the burst: a crater where it came up, the ring flaring out, the worm up and back down
     const a = Math.max(0, 1 - sk / 0.9);
-    g.save(); g.globalAlpha = a; g.fillStyle = WORM_COL.soilD; g.beginPath(); g.ellipse(at, gy + 1, C.HEAD_R * 0.95, C.HEAD_R * 0.26, 0, 0, TAU); g.fill(); g.restore();
-    cracks(g, at, gy, R * 1.05, 1, dir, a);
+    if (sk > 0.72) groundOut(g, at, gy, C.HEAD_R * 1.7, 0, a);
     if (sk < 0.3) ringAt(g, at, gy, R * (1 + sk * 1.6), 1, now, 1 - sk / 0.3);
-    burstWorm(g, at, gy, sk, dir, now);
+    if (st === 5) {
+      // PAST THE GOAL: it hit the wall — a crater against it, cracks, the worm's tail whipping back down
+      const a5 = Math.max(0, 1 - sk / 1.0);
+      groundOut(g, at, gy, C.HEAD_R * 1.4, 0, a5);
+      cracks(g, at, gy, R * 0.8, 1, -dir, a5);
+      return;
+    }
+    if (!z.ig) burstWorm(g, at, gy, sk, dir, now, aimAt(z.x1, dir));
   },
 
   event(e, at) {
-    if (e.type === 'wormDive') { const d = at(e.x, e.y); return clodBurst(d.x, d.y, { n: 10, up: 460, R: 7, life: 0.65, salt: 1 }); }
+    if (e.type === 'wormDive') { const d = at(e.x, e.y); return clodBurst(d.x, d.y, { n: 18, up: 560, R: 10, life: 0.85, salt: 1, cone: 2.0, haze: 0.7 }); }
     if (e.type === 'wormWarn') { const d = at(e.x, e.y); return clodBurst(d.x, d.y, { n: 5, up: 240, R: 5, life: 0.45, salt: 2 }); }
-    if (e.type === 'wormBurst') { const d = at(e.x, e.y); return clodBurst(d.x, d.y, { n: 16, up: 640, R: 9, life: 0.85, flash: C.HEAD_R * 3, salt: 3 }); }
+    if (e.type === 'wormBurst' && e.ig) {
+      // UP INSIDE THE GOAL: the goal clears the burrow at once, so its worm is drawn off this burst
+      const d = at(e.x, e.y), cb = clodBurst(d.x, d.y, { n: 14, up: 900, R: 12, life: 1.1, flash: C.HEAD_R * 4, salt: 3, cone: 1.6, haze: 1 }), aim = aimAt(e.x, e.dir || 1);
+      return { ...cb, life: Math.max(cb.life, 0.78), draw(g, t) { burstWorm(g, d.x, d.y, t, e.dir || 1, t + 3, aim); cb.draw(g, t); } };
+    }
+    if (e.type === 'wormBurst') { const d = at(e.x, e.y); return clodBurst(d.x, d.y, { n: 14, up: 900, R: 12, life: 1.1, flash: C.HEAD_R * 4, salt: 3, cone: 1.6, haze: 1 }); }
+    if (e.type === 'wormLost') { const d = at(e.x, e.y); return clodBurst(d.x, d.y, { n: 16, up: 520, R: 10, life: 0.8, salt: 7, cone: 1.4, haze: 0.8 }); }
     if (e.type === 'wormShove') { const d = at(e.x, C.GROUND_Y); return clodBurst(d.x, d.y, { n: 7, up: 380, R: 6, life: 0.55, salt: 6 }); }
     if (e.type === 'wormSmother') { const d = at(e.x, C.GROUND_Y); return clodBurst(d.x, d.y, { n: 9, up: 300, R: 7, life: 0.6, salt: 4 }); }
-    if (e.type === 'powerHit' && e.cp === 'wormtunnel') { const d = at(e.x, e.y); return clodBurst(d.x, d.y + 10, { n: 8, up: 360, R: 6, life: 0.6, salt: 5 }); }
     return null;
   },
 

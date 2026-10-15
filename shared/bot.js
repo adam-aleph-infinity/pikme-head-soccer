@@ -15,6 +15,7 @@ import { headY } from './sim.js';
 import { stepPower, releaseX, releaseY, launch as launchPower, FAMILIES } from './hs-powers.js';
 import { powerById } from './champion-powers.js';
 import { WORM } from './champion-powers/stage-02.js';
+import { VOLLEY, spatAt, volleyClock } from './champion-powers/stage-03.js';
 // Where the boot passes on its swing, [ahead, up] from the feet (the CPU's reach test).
 const BOOT_POINTS = bootReach();
 // CPU habits fitted to HS (test-hs-parity cpu.* rows, _cpu probe): per 0.25 s roll while it has
@@ -343,6 +344,22 @@ function botInputRaw(bot, m, index, dt) {
       }
       const tArr = (Math.abs(p.x - sh.x0) - (C.HEAD_R + C.BALL_R + 6)) / sh.spd;
       out.kick = tArr > 0 && tArr < 0.19 + bot.shellErr && p.kickCd <= 0 && !bot.lastKick;
+    }
+    // THE CHEF'S SPATULAS (Inferno Spatula Volley, raining on the Moon Shot's lines): not on any path —
+    // read off the volley's own clock (stage-03.js spatAt). A CPU that kicks the shot back parries
+    // the one about to come down in front of it, with its own roll per spatula; the others take the
+    // nudge, as they take the shot.
+    const vz = !sh && (bot.powerPlan === 'kick' || bot.powerPlan === 'counter') && m.zones ? m.zones.find((z) => z.k === 'cp' && z.cp === 'volley' && z.own !== index && z.w0 >= 0) : null;
+    if (vz) {
+      for (let i = 0; i < VOLLEY.SPATS; i++) {
+        if (vz.sp & (1 << i)) continue;
+        const q = spatAt(vz, i, volleyClock(vz) + 0.15);
+        if (!q || q.seg !== 'down' || (q.x - p.x) * p.side <= 0 || Math.abs(q.x - p.x) > 50 || q.y < C.GROUND_Y - 110) continue;
+        const ref = vz.own * 100 + i + vz.vid * 1000;
+        if (bot.spatRef !== ref) { bot.spatRef = ref; bot.spatHit = bot.rng() < (d.counterRate ?? 0.6); }
+        out.kick = bot.spatHit && p.kickCd <= 0 && !bot.lastKick;
+        break;
+      }
     }
     bot.lastKick = out.kick;
     out.power = false;
