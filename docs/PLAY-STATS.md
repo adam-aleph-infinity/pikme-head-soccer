@@ -61,13 +61,6 @@ So a day's `players` is exact per device; a reinstall or cleared storage counts 
 
 Dev hosts (localhost, LAN) send nothing unless the URL has `?playstats=send`.
 
-## ⚠️ The data is wiped on every deploy until a disk is added
+## Where the data lives
 
-The live service has **no Render disk and no `DATA_DIR`** (checked 2026-10-13 via the Render API).
-So `./data/league.sqlite` sits on the instance's temporary filesystem and every deploy or restart
-wipes it — the play stats **and the league's trophies/teams**. `docs/TEAMS-ARENA.md` says there is a
-1 GB disk at `/var/data`; there is not, and `render.yaml` never had one.
-
-Fix (Adam's call — it is billable, about $0.25/month for 1 GB): in the Render dashboard add a disk to
-`pikme-headsoccer` mounted at `/var/data`, and set env `DATA_DIR=/var/data`. Note a service with a
-disk restarts instead of doing zero-downtime deploys (a few seconds offline per deploy).
+Since 2026-10-15 a 1 GB Render disk (`league`) is mounted at `/var/data` with `DATA_DIR=/var/data`, so deploys and restarts keep `league.sqlite`.

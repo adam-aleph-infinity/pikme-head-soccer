@@ -14,7 +14,7 @@ Two connected systems:
 | Joining | Picking the Mythic starter picks the team. The starter screen says so and asks before saving. |
 | Switching | One free switch. After that it costs gems, which aren't built yet. **The champion switches with the team.** |
 | Tutorial | After the shop, your own team leader explains the teams in three cards. |
-| Server | A SQLite file on a Render disk. The server decides every trophy, team and result. |
+| Server | A SQLite file on a 1 GB Render disk at `/var/data` (since 2026-10-15; before that every deploy wiped it). The server decides every trophy, team and result. |
 | Player identity | A random device ID for now; the app's user ID later. |
 | Trophies | Elo style: the amount depends on the opponent's trophies. A loss costs some. |
 | No human opponent within ~10 s | A CPU with a made-up player's name. |
