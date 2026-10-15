@@ -84,6 +84,8 @@ The Salties counts how the game is played (modes, matches, trophies, unlocks) th
 | `disconnect` | `mode`, `elapsed_s` | Socket drops during a server-run match (online or arena vs a human) |
 | `item_unlock` | `item_type` (`mythic`, `stat_level`, `arcade_stage`), `item_id`, `level` | Starter pick; team switch; shop level bought; arcade stage unlocked |
 | `trophy_milestone` | `arena` (1–10) | `arenaResult.newArena` |
+| `welcome_popup_seen` | — | The one-time welcome popup opens (`onHome()`) |
+| `feedback_clicked` | `location` (`settings`) | Options → דווחו על באג או שלחו הצעות |
 
 \* Arena only.
 

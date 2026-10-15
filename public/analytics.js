@@ -119,5 +119,7 @@ export function createAnalyticsClient({ store, devHost, params }) {
     disconnect: safe(() => core.disconnect()),
     unlock: safe((type, id, level) => core.track('item_unlock', { item_type: type, item_id: id, level })),
     trophyMilestone: safe((arena) => core.track('trophy_milestone', { arena })),
+    welcomePopupSeen: safe(() => core.track('welcome_popup_seen', {})),
+    feedbackClicked: safe((location) => core.track('feedback_clicked', { location })),
   };
 }

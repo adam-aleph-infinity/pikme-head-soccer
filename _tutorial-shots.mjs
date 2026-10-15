@@ -271,8 +271,15 @@ check('the menu, pointing at PLAY: the arena', await until(() => js(`MENU.screen
 await sleep(900);
 check("…with your team's tile on it", (await js(`document.querySelector('#hmTeam').getAttribute('aria-label')`)) === 'קבוצת נוה');
 await shot('menu-arena');
+const welcomeUp = () => js(`!document.querySelector('#welcomePop').classList.contains('hidden')`);
+check('no welcome popup during the tutorial', !(await welcomeUp()) && !(await js(`localStorage.getItem('hs.welcome.v1')`)));
 await tapOn();
 check('the tutorial is over and remembered', await until(async () => !(await tut('on')), 2000) && (await js(`localStorage.getItem('hs.tutorial.v2')`)) === 'done');
+check('…then the welcome popup, on the home screen', await until(welcomeUp, 2000) && (await js(`MENU.screen`)) === 'menu');
+await sleep(400);
+await shot('welcome-new-player');
+await clickEl('#welcomeGo');
+check('…its button closes it, remembered', await until(async () => !(await welcomeUp()), 1500) && (await js(`localStorage.getItem('hs.welcome.v1')`)) === '1');
 await sleep(300);
 await shot('menu-after');
 
@@ -283,6 +290,8 @@ await until(() => js(`document.querySelector('#title').classList.contains('ld-do
 await shot('loading-done');
 await clickAt(W / 2, H / 2);
 check('a second launch goes to the menu', await until(() => js(`MENU.screen === 'menu'`), 3000) && !(await tut('on')));
+await sleep(800);
+check('…and the welcome popup does not come back', !(await welcomeUp()));
 await js(`MENU.openOptions()`); await sleep(700);
 await shot('options');
 check('OPTIONS has the tutorial', await js(`!!document.querySelector('#oTut') && document.querySelector('#oTut').getBoundingClientRect().width > 0`));
@@ -338,6 +347,7 @@ await clickEl('#stRow .st-card[data-n="2"]'); await clickEl('#stGo'); await slee
 check('…then the tutorial', await until(() => tut('on'), 3000));
 await js(`TUTORIAL.finish()`);
 check('…and when it is over, the room', await until(() => js(`MENU.screen === 'lobby'`), 3000) && (await js(`document.querySelector('#codeInput').value`)) === 'ABCD', await js(`MENU.screen`));
+check('…with no welcome popup over the lobby', !(await welcomeUp()));
 await sleep(500);
 await shot('room-after');
 

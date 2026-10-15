@@ -14,3 +14,14 @@ services:
     healthCheckPath: /
     # GitHub Actions tests, deploys an exact SHA, and verifies /version.
     autoDeployTrigger: off
+    # BUG REPORTS (server/feedback.js): the anonymous Google Form the Options button sends to.
+    # Set in Render's dashboard; until the first three are there the button stays hidden.
+    envVars:
+      - key: FEEDBACK_FORM_ID
+        sync: false
+      - key: FEEDBACK_ENTRY_KIND
+        sync: false
+      - key: FEEDBACK_ENTRY_TEXT
+        sync: false
+      - key: FEEDBACK_ENTRY_VERSION
+        sync: false

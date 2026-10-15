@@ -59,6 +59,8 @@ function world() {
   ok('a trophy loss may be negative', AN.validate('match_end', { trophy_delta: -24 }).props.trophy_delta === -24);
   ok('booleans are booleans', !('ranked' in AN.validate('match_end', { ranked: 'yes' }).props));
   ok('an arena is 1..10', !('arena' in AN.validate('trophy_milestone', { arena: 11 }).props));
+  ok('the welcome popup and the feedback button are on the list', AN.validate('welcome_popup_seen').ok && AN.validate('feedback_clicked', { location: 'settings' }).props.location === 'settings');
+  ok('feedback_clicked carries only a known place', !('location' in AN.validate('feedback_clicked', { location: 'free text' }).props));
   const w = world();
   w.a.setConsent('granted');
   w.a.track('chat_message', { text: 'hi' });

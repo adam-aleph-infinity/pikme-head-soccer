@@ -959,11 +959,44 @@
 @keyframes symRoll { to { transform: rotate(1turn); } }
 @media (prefers-reduced-motion: reduce) { .ring-mid .m-sym > svg, .orbit .ob { animation: none !important; } }
 /* OPTIONS' anonymous-usage switch (analytics.js): small, under the ring, only when the app allows it */
-.opt-anon { position: absolute; left: 50%; bottom: calc(var(--safe-b) + var(--u) * 3); transform: translateX(-50%); padding: calc(var(--u) * 1.2) calc(var(--u) * 3.5);
+/* under the ring, side by side: the bug-report pill (server/feedback.js) and the analytics switch */
+.opt-foot { position: absolute; left: 50%; bottom: calc(var(--safe-b) + var(--u) * 3); transform: translateX(-50%);
+  display: flex; align-items: center; gap: calc(var(--u) * 2.5); direction: rtl; }
+.opt-fb[hidden] { display: none; }
+.opt-anon { padding: calc(var(--u) * 1.2) calc(var(--u) * 3.5);
   border: 1px solid #fff5; border-radius: 999px; background: #0006; color: #fffc; font: inherit; font-size: calc(var(--u) * 3); cursor: pointer; white-space: nowrap; }
 .opt-anon[hidden] { display: none; }
 .opt-anon[aria-pressed="false"] { color: #fff8; border-style: dashed; }
 #optPop { background: #000000c8; backdrop-filter: blur(2px); }   /* the bright menu stays behind, quiet */
+
+/* ─── WELCOME (once per player) · REPORT A BUG ──────────────────────────── */
+/* Hebrew paragraphs: .m-pop runs ltr for the HS art, so the words set their own direction */
+.wc-panel, .fb-panel { width: min(calc(var(--u) * 112), 90vw); box-sizing: border-box;
+  padding: calc(var(--u) * 5) calc(var(--u) * 7) calc(var(--u) * 5); text-align: center;
+  display: flex; flex-direction: column; align-items: center; gap: calc(var(--u) * 3); }
+.fb-panel { gap: calc(var(--u) * 2.4); padding-top: calc(var(--u) * 4); padding-bottom: calc(var(--u) * 4); }
+/* solid gold, not the gradient clipped to the letters: in a popup that opens with the home screen,
+   Chrome sometimes never paints the clipped gradient, leaving only the dark outline */
+.wc-panel .m-title, .fb-panel .m-title { background: none; -webkit-text-fill-color: var(--m-gold); color: var(--m-gold); }
+.wc-sym { width: calc(var(--u) * 13); margin-bottom: calc(var(--u) * -1); }
+.wc-body { direction: rtl; text-align: center; font-weight: 700; font-size: clamp(13px, calc(var(--u) * 4.2), 22px); line-height: 1.45; color: #fff; }
+.wc-body p { margin: 0 0 .5em; }
+.wc-body p:last-child { margin: 0; color: var(--m-gold); }
+.fb-kinds { display: flex; gap: calc(var(--u) * 3); direction: rtl; }
+.fb-kind { font: inherit; font-weight: 900; font-size: clamp(13px, calc(var(--u) * 4.2), 22px); color: #fff; cursor: pointer;
+  padding: calc(var(--u) * 1.6) calc(var(--u) * 5); border-radius: 999px; background: #0007; border: calc(var(--u) * .5) solid #fff5; }
+.fb-kind[aria-checked="true"] { color: #2a0006; background: linear-gradient(180deg, #fffbd0, var(--m-gold) 50%, var(--m-gold-lo)); border-color: #8a4b00; }
+#fbText { direction: rtl; width: 100%; height: calc(var(--u) * 17); box-sizing: border-box; resize: none; font: inherit; font-weight: 500; font-size: max(16px, calc(var(--u) * 4));
+  line-height: 1.35; padding: calc(var(--u) * 2) calc(var(--u) * 3); border-radius: calc(var(--u) * 2.5);
+  color: #fff; background: #0009; border: calc(var(--u) * .5) solid #e8b40088; outline: none; }
+#fbText:focus { border-color: var(--m-gold); }
+#fbText::placeholder { color: #fff8; }
+.fb-note { direction: rtl; margin: 0; font-size: clamp(11px, calc(var(--u) * 3.3), 17px); color: #fffb; }
+.fb-msg { direction: rtl; margin: 0; min-height: 1.2em; font-weight: 700; font-size: clamp(12px, calc(var(--u) * 3.8), 19px); }
+.fb-msg.ok { color: #6dff7a; }
+.fb-msg.err { color: #ff8a7a; }
+/* the phone's keyboard takes the bottom half: the form moves up out of its way */
+#fbPop:has(#fbText:focus) { place-items: start center; padding-top: calc(var(--safe-t) + var(--u) * 4); }
 
 /* ─── TOURNAMENT ────────────────────────────────────────────────────────── */
 /* the tournament's colour on the carousel: royal blue (HS's TOURNAMENT is cyan) */

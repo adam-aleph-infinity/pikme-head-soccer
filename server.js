@@ -14,6 +14,7 @@ import { createRegistry, createRoom, joinRoom, leave, setReady, bothReady, roomO
 import { openStore } from './server/store.js';
 import { createLeague } from './server/league.js';
 import { createPlayStats } from './server/play-stats.js';
+import { createFeedback } from './server/feedback.js';
 import { createInputQueue, ingest, takeNext, unpackInput, packInput, encodeSnapshot, PROTOCOL } from './shared/net.js';
 
 const ROOT = path.dirname(fileURLToPath(import.meta.url));
@@ -64,6 +65,8 @@ const server = http.createServer((req, res) => {
   // How many have the game open right now, any mode — every page holds the socket from boot.
   // PLAY STATS (server/play-stats.js): POST /play counts, GET /stats/history reads the totals
   if (playStats.handle(req, res, rel, new URLSearchParams((req.url || '').split('?')[1] || ''))) return;
+  // PLAYERS' REPORTS (server/feedback.js): passed on to the Google Form, nothing kept here
+  if (feedback.handle(req, res, rel)) return;
   if (rel === '/stats') {
     const rooms = [...reg.rooms.values()];
     res.writeHead(200, { 'content-type': 'application/json', 'cache-control': 'no-store' });
@@ -127,6 +130,8 @@ const send = (ws, msg) => { if (ws && ws.readyState === 1) ws.send(JSON.stringif
 const store = openStore(DATA_DIR === ':memory:' ? ':memory:' : path.join(DATA_DIR, 'league.sqlite'));
 // PLAY STATS: daily totals, no ids (docs/PLAY-STATS.md) — a table in the same file as the league
 const playStats = createPlayStats(store.db);
+// BUG REPORTS AND SUGGESTIONS: on only when the FEEDBACK_* env vars name a Google Form
+const feedback = createFeedback();
 const roomStat = (what, code) => { try { playStats.room(what, code); } catch { /* the stats never stop the game */ } };
 const league = createLeague({ store, reg, send, startMatch: (room, opts) => startMatch(room, opts), createBot, createRoom, seat, leave,
   dev: DEV_TOOLS, live: ARENA_LIVE, botAfter: QUEUE_BOT_MS, vsMs: ARENA_VS_MS, testScore: TEST_SCORE });

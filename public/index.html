@@ -262,7 +262,39 @@
     <button class="m-pill ring-btn ob o6" id="oTut"><i class="m-orb">🎓</i><b>הדרכה</b></button>
     <button class="m-pill ring-btn ob o5" id="oBack"><b>חזרה</b></button>
   </div>
-  <button class="opt-anon" id="oAnon" hidden aria-pressed="false"><b></b></button>
+  <div class="opt-foot">
+    <!-- bug reports and ideas (server/feedback.js): only when the server has a form to send them to -->
+    <button class="m-pill sm opt-fb" id="oFb" hidden><b>🐞 דווחו על באג או שלחו הצעות</b></button>
+    <button class="opt-anon" id="oAnon" hidden aria-pressed="false"><b></b></button>
+  </div>
+</div>
+
+<!-- REPORT A BUG / SEND AN IDEA: over Options. No name, no email — only what they type. -->
+<div class="m-pop hidden" id="fbPop" role="dialog" aria-modal="true" aria-labelledby="fbTitle">
+  <div class="m-panel plain fb-panel"><button class="m-x" id="fbX" aria-label="סגור">✕</button>
+    <b class="m-title sm" id="fbTitle">ספרו לנו!</b>
+    <div class="fb-kinds" role="radiogroup" aria-label="סוג הדיווח">
+      <button class="fb-kind" data-kind="bug" role="radio" aria-checked="false">🐞 באג</button>
+      <button class="fb-kind" data-kind="idea" role="radio" aria-checked="false">💡 הצעה</button>
+    </div>
+    <textarea id="fbText" maxlength="1000" dir="rtl" aria-label="ההודעה" placeholder="מה קרה? או מה הייתם רוצים לראות במשחק?"></textarea>
+    <p class="fb-note">🔒 אל תכתבו שם, טלפון, מייל או כל פרט אישי.</p>
+    <p class="fb-msg" id="fbMsg" role="status" aria-live="polite"></p>
+    <button class="m-pill glint" id="fbSend" disabled><b>שליחה</b></button>
+  </div>
+</div>
+
+<!-- WELCOME: once per player, on the home screen after the tutorial (game.js onHome) -->
+<div class="m-pop hidden" id="welcomePop" role="dialog" aria-modal="true" aria-labelledby="wcTitle">
+  <div class="m-panel plain wc-panel"><button class="m-x" id="welcomeX" aria-label="סגור">✕</button>
+    <span class="m-sym glow wc-sym" id="wcSym"></span>
+    <b class="m-title sm" id="wcTitle">ברוכים הבאים לסולטיז!</b>
+    <div class="wc-body">
+      <p>המשחק בפיתוח מוקדם. אלופים וכוחות חדשים נוספים כל כמה ימים, ובקרוב גם זירות, גביעים ותיבות.</p>
+      <p>עזרו לנו לשפר את המשחק. נתקלתם בבאג? ספרו לנו!</p>
+    </div>
+    <button class="m-pill big glint" id="welcomeGo"><b>יאללה, בואו נשחק!</b></button>
+  </div>
 </div>
 
 <!-- STATS · HS: SINGLE / VICTORY / … -->

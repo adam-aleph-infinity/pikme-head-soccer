@@ -20,7 +20,7 @@ import { TEAM_KEY } from '../shared/play-stats.js';
 
 const $ = (s) => document.querySelector(s);
 export const SCREENS = ['title', 'menu', 'champs', 'modes', 'select', 'shop', 'bracket', 'howto', 'lobby', 'match'];
-const POPS = ['cardsPop', 'statsPop', 'optPop', 'mpPop'];      // the order Esc closes them in
+const POPS = ['welcomePop', 'fbPop', 'cardsPop', 'statsPop', 'optPop', 'mpPop'];      // the order Esc closes them in
 const fmt = (n) => Number(n || 0).toLocaleString('en-US');
 
 // The five stats, in HS's two columns (SPEED KICK JUMP | DASH POWER — HS's third, SURVIVAL, is
@@ -67,7 +67,7 @@ export function createMenus(ctx) {
   let shownPts = null, ptsAnim = 0;
 
   // The symbol, everywhere HS has its own art.
-  for (const id of ['tSym', 'hmPodSym', 'chPodSym', 'oSym', 'pSym', 'vsSym', 'brSym']) { const el = document.getElementById(id); if (el) el.innerHTML = symbolSVG(); }
+  for (const id of ['tSym', 'hmPodSym', 'chPodSym', 'oSym', 'pSym', 'vsSym', 'brSym', 'wcSym']) { const el = document.getElementById(id); if (el) el.innerHTML = symbolSVG(); }
 
   // ── SCREENS AND POPUPS ──────────────────────────────────────────────────
   function show(id) {
@@ -770,7 +770,7 @@ export function createMenus(ctx) {
     for (const id of ['#oSnd', '#pSnd']) $(id)?.querySelector('.m-orb').classList.toggle('off', !ctx.sfxOn());
     for (const id of ['#oMus', '#pMus']) $(id)?.querySelector('.m-orb').classList.toggle('off', !ctx.musicOn());
   }
-  function openOptions() { syncSound(); syncAnon(); openPop('optPop'); }
+  function openOptions() { syncSound(); syncAnon(); syncFb(); openPop('optPop'); }
   // ANONYMOUS USAGE DATA (analytics.js): there only when the Saltiz app has said yes — then the
   // player can turn it off (and on again), never on by themselves
   function syncAnon() {
@@ -805,6 +805,59 @@ export function createMenus(ctx) {
     titleT = setTimeout(() => { title.textContent = 'הגדרות'; }, 2000);
   });
   on('#optPop', (e, el) => { if (e.target === el) closePop('optPop'); });
+  // ── REPORT A BUG / SEND AN IDEA (server/feedback.js → an anonymous Google Form) ──
+  // The pill shows only once the server says a form is set up: no player meets a form that goes
+  // nowhere. "Sent" is said only when the server says Google took it.
+  let fbOn = null, fbKind = null, fbBusy = false;
+  function syncFb() {
+    if (fbOn !== null) { $('#oFb').hidden = !fbOn; return; }
+    fetch('/feedback', { cache: 'no-store' }).then((r) => (r.ok ? r.json() : null))
+      .then((j) => { fbOn = j?.on === true; $('#oFb').hidden = !fbOn; }).catch(() => { /* offline: ask again next time */ });
+  }
+  const fbText = () => $('#fbText').value.trim();
+  function fbSync() { $('#fbSend').disabled = fbBusy || !fbKind || fbText().length < 3; }
+  function fbSay(text, cls = '') { const m = $('#fbMsg'); m.textContent = text; m.className = `fb-msg ${cls}`; }
+  function openFeedback() {
+    ctx.analytics?.feedbackClicked?.('settings');
+    if (!fbBusy) fbSay('');
+    fbSync();
+    openPop('fbPop');
+  }
+  for (const b of document.querySelectorAll('.fb-kind')) {
+    on(b, () => { fbKind = b.dataset.kind; for (const x of document.querySelectorAll('.fb-kind')) x.setAttribute('aria-checked', String(x === b)); fbSync(); });
+  }
+  $('#fbText').addEventListener('input', () => { if (!fbBusy) fbSay(''); fbSync(); });
+  tap('#oFb', openFeedback);
+  on('#fbX', () => closePop('fbPop'));
+  on('#fbPop', (e, el) => { if (e.target === el) closePop('fbPop'); });
+  tap('#fbSend', async () => {
+    if (fbBusy || !fbKind || fbText().length < 3) return;
+    fbBusy = true; fbSync(); fbSay('שולח…');
+    let ok = false;
+    try {
+      const r = await fetch('/feedback', { method: 'POST', headers: { 'content-type': 'text/plain' }, body: JSON.stringify({ kind: fbKind, text: fbText() }) });
+      ok = r.ok && (await r.json())?.ok === true;
+    } catch { /* offline: said below */ }
+    fbBusy = false;
+    if (!ok) { fbSay('לא הצלחנו לשלוח, נסו שוב מאוחר יותר', 'err'); fbSync(); return; }
+    fbSay('תודה! קיבלנו 🙌', 'ok');
+    $('#fbText').value = ''; fbKind = null;
+    for (const x of document.querySelectorAll('.fb-kind')) x.setAttribute('aria-checked', 'false');
+    fbSync();
+    setTimeout(() => closePop('fbPop'), 1600);
+  });
+
+  // ── WELCOME: once per player (game.js onHome decides when, and keeps the flag) ──
+  let welcomeDone = null;
+  function openWelcome(onClose) { welcomeDone = onClose; openPop('welcomePop'); }
+  function closeWelcome() {
+    if (!popOpen('welcomePop')) return;
+    closePop('welcomePop');
+    const f = welcomeDone; welcomeDone = null; f?.();
+  }
+  tap('#welcomeGo', closeWelcome);
+  on('#welcomeX', closeWelcome);
+
   function openStats({ profile = false } = {}) {
     $('#statsH').textContent = profile ? 'הפרופיל שלי' : 'סטטיסטיקה';
     $('#stNameRow').hidden = !profile;
@@ -894,7 +947,7 @@ export function createMenus(ctx) {
     let act = null;
     const pop = topPop();
     if (pop) {
-      if (k === 'Escape') act = () => closePop(pop);
+      if (k === 'Escape') act = () => (pop === 'welcomePop' ? closeWelcome() : closePop(pop));
     } else if (inField) {
       return;
     } else if (screen === 'title') {
@@ -953,6 +1006,7 @@ export function createMenus(ctx) {
     show, get screen() { return screen; },
     openTitle, openMenu, openModes, openSelect, openShop, openChamps, openChamp, openHowTo, openOptions, openMp, openBracket,
     get selMode() { return selMode; },
+    openWelcome, get welcomeOn() { return popOpen('welcomePop'); },
     closePops: () => POPS.forEach(closePop),
     syncSound, renderPoints,
     selectStage: (n) => { if (screen !== 'select') openSelect('arcade', { stage: n }); else reelFoe.select(n - 1); },

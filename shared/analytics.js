@@ -40,6 +40,8 @@ export const SCHEMA = {
   disconnect: { mode: MODE, elapsed_s: INT },
   item_unlock: { item_type: { one: ['mythic', 'stat_level', 'arcade_stage'] }, item_id: ITEM, level: INT },
   trophy_milestone: { arena: { int: [1, 10] } },
+  welcome_popup_seen: {},
+  feedback_clicked: { location: { one: ['settings'] } },
 };
 
 const okValue = (rule, v) => {

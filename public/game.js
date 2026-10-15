@@ -196,9 +196,14 @@ const IS_DEV_HOST = /^(localhost|\[::1\]|[\w-]+\.local|(127|10)(\.\d{1,3}){3}|19
 // ?fresh — see the first launch again from the very start: forgets this device's Mythic starter
 // and the tutorial (nothing else: progress, points and upgrades stay). Dev hosts only, like
 // ?unlockall: on production a URL must never hand anyone a second choice.
+// THE WELCOME POPUP (onHome): '1' once this device has seen it. Device storage, as there are no
+// accounts — a reinstall or cleared app data shows it once more.
+const WELCOME_KEY = 'hs.welcome.v1';
 if (IS_DEV_HOST && new URLSearchParams(location.search).has('fresh')) {
-  try { for (const k of [STARTER_KEY, TUTR.TUT_KEY, TEAM.TEAM_KEY, TEAM.DEVICE_KEY]) STORE?.removeItem(k); } catch { /* private mode */ }
+  try { for (const k of [STARTER_KEY, TUTR.TUT_KEY, TEAM.TEAM_KEY, TEAM.DEVICE_KEY, WELCOME_KEY]) STORE?.removeItem(k); } catch { /* private mode */ }
 }
+// ?welcome — see the welcome popup again (dev hosts only)
+if (IS_DEV_HOST && new URLSearchParams(location.search).has('welcome')) { try { STORE?.removeItem(WELCOME_KEY); } catch { /* private mode */ } }
 // GAMEPLAY ANALYTICS (analytics.js, docs/ANALYTICS.md): off without a key, and nothing kept until the
 // Saltiz app says the player may be counted. Every call below is fire-and-forget.
 // PLAY STATS (play-stats.js, docs/PLAY-STATS.md) count alongside it: daily totals on our own server, no id,
@@ -405,7 +410,7 @@ function profileRows() {
 // Every visit to the home screen: a player who had a starter before teams existed meets their team
 // once (the tutorial's three cards), then any week's prize that is waiting.
 function onHome() {
-  if (TUT.on || !STARTER || TEAMS_UI.introOn) return;
+  if (TUT.on || !STARTER || TEAMS_UI.introOn || MENU.welcomeOn) return;
   if (!TEAM_REC.welcomed && stored(TUTR.TUT_KEY) === 'done') {
     saveTeamRec({ ...TEAM_REC, welcomed: true });
     TEAMS_UI.intro(STARTER, () => onHome());
@@ -422,6 +427,15 @@ function onHome() {
       MENU.paintHome();
       onHome();
     });
+    return;
+  }
+  // WELCOME (once per player): "the game is in early development — tell us about bugs". After the
+  // tutorial and the team's popups, never over a match (onHome runs on the home screen only). The
+  // flag is kept as it opens, so a crash or a closed app cannot bring it back.
+  if (!stored(WELCOME_KEY) && stored(TUTR.TUT_KEY) === 'done' && !TEAMS_UI.prizeOn && MENU.screen === 'menu') {
+    try { STORE?.setItem(WELCOME_KEY, '1'); } catch { /* private mode: it may show again */ }
+    AN.welcomePopupSeen();
+    MENU.openWelcome(() => onHome());
   }
 }
 // A team switch: the server allows it (once free), then the champion goes with the team.
@@ -522,7 +536,8 @@ function paintArenaHome() {
 }
 // The first launch is over: a room link that waited for it goes to its room now.
 function afterFirstLaunch() {
-  if (!PENDING_ROOM) return;
+  // the tutorial ends on the home screen: the welcome popup (onHome) comes up there and then
+  if (!PENDING_ROOM) { setTimeout(() => { if (MENU.screen === 'menu') onHome(); }, 350); return; }
   const code = PENDING_ROOM;
   PENDING_ROOM = null;
   $('#codeInput').value = code;
