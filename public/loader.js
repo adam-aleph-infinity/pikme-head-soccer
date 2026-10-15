@@ -37,6 +37,7 @@ export function createLoader({ paintHead, cardUrl, me, quick = false }) {
   const fill = $('#ldFill'), pct = $('#ldPct'), status = $('#ldStatus');
   let real = 0, shown = 0, done = false, t0 = performance.now(), raf = 0;
   const waiters = [];
+  const KEEP = [];   // the preloaded pictures, held so the browser keeps them decoded
   // The art is up a little before anything has loaded, so it holds for at least this long.
   const MIN = quick ? 0 : 2400;
 
@@ -47,10 +48,15 @@ export function createLoader({ paintHead, cardUrl, me, quick = false }) {
   const jobs = [];
   for (let k = 1; k <= 5; k++) for (const e of EXPR) jobs.push(img(`img/chars/legendary-${k}/${e}.webp`));
   for (const h of document.querySelectorAll('#title .ld-hero')) jobs.push(img(`img/mythic-full/${h.dataset.img}.webp`));   // the four here
-  for (const m of MYTHICS) jobs.push(img(`img/chars/mythic-${m.number}/normal.webp`));   // and the starter pick's
+  for (const m of MYTHICS) for (const e of [...EXPR, 'sad']) jobs.push(img(`img/chars/mythic-${m.number}/${e}.webp`));   // the starter pick's, and the home podium's faces
+  for (let k = 1; k <= 5; k++) jobs.push(img(`img/chars/legendary-${k}/sad.webp`));
+  // THE HOME SCREEN, ready before the tap: its stadium is a CSS background, which a hidden screen
+  // never fetches, so without this the menu opened on a bare orange sunset until it arrived
+  for (const src of ['img/home-bg-sunset.webp', 'img/saltiz-coin.svg', 'img/saltiz-symbol.svg']) jobs.push(img(src));
   jobs.push(fetch('data/head-anchors.json').then((r) => r.ok && r.json()).catch(() => null));
   for (const n of ['applause', 'goal1', 'goal2', 'miss1', 'sad1']) jobs.push(fetch(`audio/crowd/${n}.mp3`).then((r) => r.ok && r.arrayBuffer()).catch(() => null));
-  if (document.fonts?.load) jobs.push(document.fonts.load('900 40px Rubik').catch(() => null));
+  // Rubik's stylesheet loads without blocking the first paint (index.html), so wait for it first
+  if (document.fonts?.load) jobs.push(fontSheet().then(() => document.fonts.load('900 40px Rubik')).catch(() => null));
   if (me && cardUrl) jobs.push(img(cardUrl(me.rarity, me.number)));
   let n = 0;
   // Nothing on a slow line holds the game hostage: after 8 s whatever is left loads in the back.
@@ -58,9 +64,14 @@ export function createLoader({ paintHead, cardUrl, me, quick = false }) {
   all.then(() => { real = 1; });
 
   function img(src) {
-    return new Promise((ok) => { const i = new Image(); i.onload = i.onerror = () => ok(i); i.decoding = 'async'; i.src = src; });
+    // decoded too, and kept, so the first frame that shows it does not wait on the decoder
+    return new Promise((ok) => { const i = new Image(); i.onload = () => (i.decode ? i.decode().catch(() => null) : Promise.resolve()).then(() => ok(i)); i.onerror = () => ok(i); i.decoding = 'async'; i.src = src; KEEP.push(i); });
   }
   function wait(ms) { return new Promise((ok) => setTimeout(ok, ms)); }
+  function fontSheet() {
+    const has = () => [...document.styleSheets].some((sh) => sh.href?.includes('fonts.googleapis.com'));
+    return new Promise((ok) => { const t = performance.now(); (function poll() { if (has() || performance.now() - t > 6000) ok(); else setTimeout(poll, 50); })(); });
+  }
 
   function tick(now) {
     // never ahead of the work, never ahead of the minimum, and eased so it climbs like HB2's

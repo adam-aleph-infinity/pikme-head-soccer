@@ -92,13 +92,18 @@ const server = http.createServer((req, res) => {
     return;
   }
 
-  fs.readFile(safe, (err, buf) => {
-    if (err) { res.writeHead(404, { 'content-type': 'text/plain' }).end('404'); return; }
-    res.writeHead(200, {
-      'content-type': TYPES[path.extname(safe)] || 'application/octet-stream',
-      'cache-control': 'no-cache',
+  // no-cache still asks every time, but an ETag lets the answer be "unchanged" (304, no body),
+  // so opening the game again on a phone does not download every file again
+  fs.stat(safe, (err, st) => {
+    if (err || !st.isFile()) { res.writeHead(404, { 'content-type': 'text/plain' }).end('404'); return; }
+    const etag = `W/"${st.size.toString(36)}-${Math.floor(st.mtimeMs).toString(36)}"`;
+    const head = { 'content-type': TYPES[path.extname(safe)] || 'application/octet-stream', 'cache-control': 'no-cache', etag };
+    if (req.headers['if-none-match'] === etag) { res.writeHead(304, head).end(); return; }
+    fs.readFile(safe, (err2, buf) => {
+      if (err2) { res.writeHead(404, { 'content-type': 'text/plain' }).end('404'); return; }
+      res.writeHead(200, head);
+      res.end(buf);
     });
-    res.end(buf);
   });
 });
 

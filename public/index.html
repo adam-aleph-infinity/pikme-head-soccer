@@ -4,12 +4,19 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
+<!-- THE FIRST FRAME: the Saltiz app's WebView shows its own (orange) colour until the page paints,
+     so the loading screen's dark red is set here, before any file is fetched, and the title
+     (the loading screen) is not hidden in the HTML — the first paint is already the loader. -->
+<meta name="theme-color" content="#1a0206">
+<style>html, body { margin: 0; height: 100%; background: #1a0206; }</style>
 <link rel="icon" href="img/saltiz-symbol.svg" type="image/svg+xml">
 <link rel="apple-touch-icon" href="img/saltiz-sm.jpg">
 <!-- HS is landscape-only and fullscreen (HS-GAP-AUDIT U10/U14) -->
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Rubik:wght@500;700;900&display=swap">
+<!-- the font never holds up the first paint (another server, often the slowest file on a phone);
+     loader.js waits for it before the title says it is ready -->
+<link id="fontCss" rel="preload" as="style" href="https://fonts.googleapis.com/css2?family=Rubik:wght@500;700;900&display=swap" onload="this.onload=null;this.rel='stylesheet'">
 <title>סלטיז ראשים · Head Soccer mock</title>
 <link rel="stylesheet" href="style.css">
 <link rel="stylesheet" href="menus.css">
@@ -26,7 +33,7 @@
 <!-- TITLE = THE LOADING SCREEN (loader.js) · Head Ball 2's first frame: a floodlit night stadium,
      the four Mythic starters lined up either side of the logo, and a status line over a
      "Loading n%" pill. At 100% the pill turns into HS's "TOUCH TO KICK OFF !". -->
-<section id="title" class="screen m-screen ld hidden" aria-label="סלטיז ראשים">
+<section id="title" class="screen m-screen ld" aria-label="סלטיז ראשים">
   <canvas class="ld-stadium" id="ldStadium" aria-hidden="true"></canvas>
   <i class="ld-beam l" aria-hidden="true"></i><i class="ld-beam r" aria-hidden="true"></i>
   <i class="ld-vignette" aria-hidden="true"></i>
