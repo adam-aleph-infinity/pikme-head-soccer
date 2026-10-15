@@ -14,6 +14,13 @@ services:
     healthCheckPath: /
     # GitHub Actions tests, deploys an exact SHA, and verifies /version.
     autoDeployTrigger: off
+    # THE LEAGUE'S FILE (server/store.js): league.sqlite — trophies, teams, play stats. Without a disk
+    # every deploy wiped it. Added 2026-10-15 (Adam; ~$0.25/month). A service with a disk restarts
+    # on deploy instead of zero-downtime (a few seconds offline).
+    disk:
+      name: league
+      mountPath: /var/data
+      sizeGB: 1
     # BUG REPORTS (server/feedback.js): the anonymous Google Form the Options button sends to.
     # Set in Render's dashboard; until the first three are there the button stays hidden.
     envVars:
@@ -25,3 +32,6 @@ services:
         sync: false
       - key: FEEDBACK_ENTRY_VERSION
         sync: false
+      # Where league.sqlite lives: the disk above.
+      - key: DATA_DIR
+        value: /var/data
