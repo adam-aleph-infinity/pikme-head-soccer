@@ -35,8 +35,28 @@ function ctx() {
   // iOS/WKWebView start every context suspended until a gesture; nudging it on each sound
   // is cheaper than tracking whether the unlock already happened. ('interrupted' is Safari's
   // word for a context a phone call or the app going to the background stopped.)
-  if (AC.state === 'suspended' || AC.state === 'interrupted') AC.resume().catch(() => {});
+  if (!away() && (AC.state === 'suspended' || AC.state === 'interrupted')) AC.resume().catch(() => {});
   return AC;
+}
+
+// THE PHONE GOES DARK (Idan, 2026-10-16: lock the screen mid-match and the game kept playing in
+// the pocket). The menu music and the bed loop on their own, so stopping the frame loop is not
+// enough: the whole context is suspended while the page is hidden or the window has lost focus
+// (some WebViews only send the blur on a screen lock), and ctx() above won't wake it until it is
+// back. A tap also counts as back, in case a WebView never sends the focus.
+let hidden = false, blurred = false;
+const away = () => hidden || blurred;
+function sleep() { if (AC && AC.state === 'running') AC.suspend().catch(() => {}); }
+function wake() { if (AC && !away()) AC.resume().catch(() => {}); }
+if (typeof document !== 'undefined') {
+  const vis = () => { hidden = document.hidden; if (hidden) sleep(); else wake(); };
+  document.addEventListener('visibilitychange', vis);
+  document.addEventListener('freeze', () => { hidden = true; sleep(); });
+  addEventListener('pagehide', () => { hidden = true; sleep(); });
+  addEventListener('pageshow', vis);
+  addEventListener('blur', () => { blurred = true; sleep(); });
+  addEventListener('focus', () => { blurred = false; wake(); });
+  addEventListener('pointerdown', () => { if (blurred) { blurred = false; wake(); } }, true);
 }
 
 const now = () => ctx().currentTime;
