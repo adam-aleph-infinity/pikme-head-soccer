@@ -67,10 +67,13 @@ export function createPlayStats({ store, inApp, fresh, devHost, params }) {
       if (!mode(m)) return;
       match = { mode: m, at: performance.now() };
       push({ k: 'start', mode: m });
-      step(m === 'tutorial' ? 'tut_start' : 'first_match');
+      if (m === 'tutorial') step('tut_start');
+      else if (stepDue(seen, 'first_match')) step('first_match');
+      else step('second_match');
     },
     matchOver() { const m = match?.mode; close('end'); if (m) step(m === 'tutorial' ? 'tut_done' : 'first_finish'); },
     unlock(type) { if (type === 'mythic') step('starter'); },
+    step,
     matchQuit() { close('quit'); },
     disconnect() { close('drop'); },
   };
@@ -79,5 +82,5 @@ export function createPlayStats({ store, inApp, fresh, devHost, params }) {
 // the game's AN, with play stats counting alongside it
 export function withPlayStats(an, ps) {
   const tee = (name) => (...a) => { try { ps[name](...a); } catch { /* never into the game */ } return an[name](...a); };
-  return { ...an, modeEnter: tee('modeEnter'), matchStart: tee('matchStart'), matchOver: tee('matchOver'), matchQuit: tee('matchQuit'), disconnect: tee('disconnect'), unlock: tee('unlock') };
+  return { ...an, modeEnter: tee('modeEnter'), matchStart: tee('matchStart'), matchOver: tee('matchOver'), matchQuit: tee('matchQuit'), disconnect: tee('disconnect'), unlock: tee('unlock'), step: (s) => { try { ps.step(s); } catch { /* never into the game */ } } };
 }

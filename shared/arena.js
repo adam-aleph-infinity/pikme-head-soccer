@@ -78,6 +78,9 @@ export const dailyBonus = (winsBefore) => DAILY[winsBefore | 0] || 0;
 // waited longer; it widens every second. After BOT_AFTER nobody human came: a CPU (Idan), named and
 // dressed like a player, at your trophies and your arena's level.
 export const BOT_AFTER = 10000;
+// A player's FIRST arena match waits less for its CPU (2026-10-15: new players were lost between the tutorial
+// and their first real match; 10 s of searching was the last thing in the way)
+export const FIRST_BOT_AFTER = 3000;
 export const VS_MS = 2600;                         // the VS card before kick-off
 export const windowFor = (waitedMs) => 100 + 40 * Math.max(0, waitedMs) / 1000;
 export const canPair = (a, b, now) => Math.abs((a.trophies | 0) - (b.trophies | 0)) <= windowFor(now - Math.min(a.since, b.since));

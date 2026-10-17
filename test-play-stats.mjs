@@ -77,6 +77,8 @@ ok('report: matches by mode', r.days[0].matches === 12 && r.days[0].modes.arcade
   const oc = P.countersFor({ k: 'open', day: true, hour: true, back: true, cohort: true, ret: 7 });
   ok('open counts hour players, back, cohort, ret_7', oc.hour_players === 1 && oc.back === 1 && oc.cohort === 1 && oc.ret_7 === 1, oc);
   ok('ret must be a retention day', !Object.keys(P.countersFor({ k: 'open', day: true, ret: 5 })).some((k) => k.startsWith('ret_')));
+  ok('the new journey steps count: home, shop_done, second_match (2026-10-16)', ['home', 'shop_done', 'second_match'].every((k) => P.countersFor({ k: 'step', s: k })?.[`step:${k}`] === 1));
+  ok('the hour also counts the day\'s first visits, so they add up to the day\'s players', P.hourly(P.countersFor({ k: 'open', day: true, hour: true }), '14')['h:14:day'] === 1 && !P.hourly(P.countersFor({ k: 'open', hour: true }), '14')['h:14:day']);
   ok('step counts a known step only', P.countersFor({ k: 'step', s: 'tut_done' })['step:tut_done'] === 1 && P.countersFor({ k: 'step', s: 'x' }) === null);
   ok('err: a page, and in a match', P.countersFor({ k: 'err', m: true }).err_in_match === 1 && !('err_in_match' in P.countersFor({ k: 'err' })));
   const h = P.hourly(P.countBatch({ ev: [{ k: 'open', day: true, hour: true, fresh: true }, { k: 'start', mode: 'arena' }, { k: 'start', mode: 'arcade' }, { k: 'time', s: 120 }] }), '14');

@@ -18,7 +18,7 @@ import * as C from '../shared/constants.js';
 import * as T from '../shared/teams.js';
 
 export function createLeague({ store, reg, send, startMatch, createBot, createRoom, seat, leave,
-  clock = Date.now, rnd = Math.random, botAfter = A.BOT_AFTER, vsMs = A.VS_MS, dev = false, live = false, testScore = null }) {
+  clock = Date.now, rnd = Math.random, botAfter = A.BOT_AFTER, firstBotAfter = A.FIRST_BOT_AFTER, vsMs = A.VS_MS, dev = false, live = false, testScore = null }) {
   // `live` off (Idan, 2026-10-09, until the arenas are finished): the arena is PRACTICE — real
   // matches against other kids (or the CPU), but no trophies, no daily bonus, no road, no team
   // week. The profile says so and the client labels it "זירת אימון · הגביעים בקרוב".
@@ -86,7 +86,7 @@ export function createLeague({ store, reg, send, startMatch, createBot, createRo
     }
     // your card: your own Mythic or an album card — never somebody else's Mythic
     if (member.card?.rarity === 'mythic' && member.card.number !== p.starter) member.card = { rarity: 'mythic', number: p.starter };
-    queue.set(member.id, { member, pid: p.id, trophies: p.trophies, since: queue.get(member.id)?.since ?? now() });
+    queue.set(member.id, { member, pid: p.id, trophies: p.trophies, since: queue.get(member.id)?.since ?? now(), first: !p.matches });
     send(member.ws, { type: 'queued', trophies: p.trophies });
   }
   function unqueue(member) { queue.delete(member.id); }
@@ -105,7 +105,7 @@ export function createLeague({ store, reg, send, startMatch, createBot, createRo
         if (A.canPair(a, b, t)) { used.add(a); used.add(b); queue.delete(a.member.id); queue.delete(b.member.id); found(a, b); break; }
       }
     }
-    for (const a of [...queue.values()]) if (!used.has(a) && t - a.since >= botAfter) { queue.delete(a.member.id); found(a, null); }
+    for (const a of [...queue.values()]) if (!used.has(a) && t - a.since >= (a.first ? Math.min(botAfter, firstBotAfter) : botAfter)) { queue.delete(a.member.id); found(a, null); }
     if (clock() - lastFinal > 15000) finalizeWeeks();
   }
 
