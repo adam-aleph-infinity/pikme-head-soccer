@@ -245,5 +245,34 @@ ok('…and the road pays nothing', off.got.road.ok === false);
 off.clear(); off.send({ type: 'dev', op: 'endWeek' }); await sleep(600);
 ok('…and no week is decided or paid', !off.all.some((m) => m.type === 'prize'));
 
+// A FIRST ARENA MATCH waits less for its CPU (2026-10-15): the league on its own, with a clock we move
+{
+  const { openStore } = await import('./server/store.js');
+  const { createLeague } = await import('./server/league.js');
+  const { createRegistry, createRoom, seat, leave } = await import('./shared/rooms.js');
+  const { createBot } = await import('./shared/bot.js');
+  let t = Date.parse('2026-10-15T12:00:00Z');
+  const store = openStore(':memory:'), reg = createRegistry(), got = [];
+  const send = (ws, m) => got.push({ ws, m });
+  const lg = createLeague({ store, reg, send, startMatch: () => {}, createBot, createRoom, seat, leave, clock: () => t, rnd: () => 0.5, vsMs: 1e9 });
+  const kid = (id) => ({ id, ws: { readyState: 1, id }, name: 'k', card: { rarity: 'mythic', number: 1 } });
+  const newbie = kid('m1');
+  lg.hello(newbie, { id: 'device-newbie-0000001', starter: 1 });
+  lg.enqueue(newbie);
+  t += A.FIRST_BOT_AFTER - 100; lg.tick();
+  const foundFor = (w) => got.some((g) => g.ws === w && g.m.type === 'found');
+  ok('first arena match: no CPU before FIRST_BOT_AFTER', !foundFor(newbie.ws));
+  t += 200; lg.tick();
+  ok('…a CPU after it, long before BOT_AFTER', foundFor(newbie.ws) && A.FIRST_BOT_AFTER < A.BOT_AFTER);
+  const vet = kid('m2');
+  lg.hello(vet, { id: 'device-veteran-000001', starter: 2 });
+  store.db.prepare('UPDATE players SET matches = 3 WHERE id = ?').run('device-veteran-000001');
+  lg.enqueue(vet);
+  t += A.FIRST_BOT_AFTER + 100; lg.tick();
+  ok('a player who has played waits the usual time', !foundFor(vet.ws));
+  t += A.BOT_AFTER; lg.tick();
+  ok('…and then gets a CPU', foundFor(vet.ws));
+}
+
 console.log(`league: ${pass} passed, ${fail} failed`);
 die(fail ? 1 : 0);

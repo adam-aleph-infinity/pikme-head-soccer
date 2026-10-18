@@ -32,9 +32,9 @@ Still only counters: the device remembers a little more about itself, the server
 | Field | Meaning |
 |---|---|
 | `peakOnline` | Most phones with the game open at the same moment that day (the server's socket count). Weeks, months and all-time take the highest, not the sum |
-| `hours[]` (days only) | Per Israel hour: `players` (phones that opened the game in that hour), `opens`, `newPlayers`, `minutes`, `matches`, `peakOnline`. Compares two days at the same time of day |
+| `hours[]` (days only) | Per Israel hour: `players` (phones that opened the game in that hour), `opens`, `newPlayers`, `minutes`, `matches`, `peakOnline`, `dayPlayers` (phones whose first visit of the day was in that hour: summed to hour H they are the day's players so far; from 2026-10-16). Compares two days at the same time of day |
 | `alsoPlayedDayBefore` | Of the day's players, those who played the day before too |
-| `newPlayerSteps` | The new player's journey, each step once per phone, on the day it happens: `opened` (= newPlayers), `starter` (picked a Mythic), `tut_start` / `tut_done` (the tutorial match), `first_match` / `first_finish` (the first real match) |
+| `newPlayerSteps` | The new player's journey, each step once per phone, on the day it happens: `opened` (= newPlayers), `starter` (picked a Mythic), `tut_start` / `tut_done` (the tutorial match), `first_match` / `first_finish` (the first real match), `home` (back on the home screen, not under a search), `shop_done` (the shop lesson after the first real match), `second_match` (2026-10-16) |
 | `retention[]` (top level) | Per day that new players first played: `newPlayers`, and `day1` `day2` `day3` `day7` `day14` `day30` = how many of them came back that many days later (`null` = that day hasn't come yet) |
 | `friendRooms` | Counted by the server as it happens: `created`, `joined`, `matches` (both ready, kick-off), `failed` by the error the player saw (`not-found`, `full`, `in-match`, `no-codes`, `stale` = an old cached page, `other`) |
 | `errors` | `pages`: game visits that hit an error nothing caught (once per visit); `inMatch`: of those, during a match |

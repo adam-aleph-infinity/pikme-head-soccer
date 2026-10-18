@@ -23,7 +23,7 @@ export const MAX_SECS = 4 * 3600;             // per time / match report
 // "came back N days after the first day": the days retention is told for
 export const RET_DAYS = [1, 2, 3, 7, 14, 30];
 // THE NEW PLAYER'S JOURNEY, each step once per device, in order
-export const STEPS = ['starter', 'tut_start', 'tut_done', 'first_match', 'first_finish'];
+export const STEPS = ['starter', 'tut_start', 'tut_done', 'first_match', 'first_finish', 'home', 'shop_done', 'second_match'];
 // how a friend's room went (counted on the server, which sees it happen)
 export const ROOM_FAILS = ['not-found', 'full', 'in-match', 'no-codes', 'stale', 'other'];
 
@@ -126,6 +126,9 @@ export function hourly(counters, hh) {
   const out = {};
   const put = (k, n) => { if (n) out[`h:${hh}:${k}`] = (out[`h:${hh}:${k}`] || 0) + n; };
   put('players', counters.hour_players);
+  // the day's players whose FIRST visit of the day was in this hour: summed to hour H, the day's players so far
+  // (2026-10-16, for the dashboard's "today to now against the same hours before")
+  put('day', counters.players);
   put('open', counters.open);
   put('new', counters.fresh);
   put('secs', counters.secs);
@@ -169,7 +172,7 @@ export function summarize(rows) {
       out.hours = [];
       for (let h = 0; h < 24; h++) {
         const hh = String(h).padStart(2, '0'), g = (k) => c[`h:${hh}:${k}`] || 0;
-        const row = { hour: hh, players: g('players'), opens: g('open'), newPlayers: g('new'), minutes: Math.round(g('secs') / 60), matches: g('matches'), peakOnline: g('peak') };
+        const row = { hour: hh, players: g('players'), opens: g('open'), newPlayers: g('new'), minutes: Math.round(g('secs') / 60), matches: g('matches'), peakOnline: g('peak'), dayPlayers: g('day') };
         if (row.players || row.opens || row.peakOnline || row.matches) out.hours.push(row);
       }
     }

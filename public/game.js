@@ -351,10 +351,14 @@ const TUT = createTutorial({
   voice: (id) => playVoice(id ? `audio/voice/${id}.mp3` : null),
   voiceLeft: () => voiceLeft(),
   preloadVoice: (ids) => ids.forEach((id) => loadVoice(`audio/voice/${id}.mp3`)),
-  onFinish: () => afterFirstLaunch(),
   arenaLive: () => arenaLive(),
-  // the tutorial's team step: your leader's three cards (team.js)
-  teamIntro: (then) => { saveTeamRec({ ...TEAM_REC, welcomed: true }); TEAMS_UI.intro(STARTER, then); },
+  // the practice match's PLAY: a first arena battle at once, the home screen under its search (2026-10-16)
+  // — or the friend's room a room link was waiting with
+  toPlay: () => {
+    PLAY_AGAIN = true; MENU.openMenu(); PLAY_AGAIN = false;
+    if (PENDING_ROOM) afterFirstLaunch(); else playArena();
+  },
+  step: (s) => AN.step(s),
 });
 const STARTER_PICK = createStarterPick({ paintHead, store: STORE, sfx: (name) => { if (GESTURE && audioEnabled()) SFX[name]?.(); } });
 // THE FIRST LAUNCH, in order: the Mythic starter (once, for good), then the tutorial with it. A
@@ -403,9 +407,16 @@ const ARENA_UI = createArena({
 let CLOCK_SKEW = 0;                  // the server's clock minus ours (the week ends by the server's)
 // Every visit to the home screen: a player who had a starter before teams existed meets their team
 // once (the tutorial's three cards), then any week's prize that is waiting.
+const PLAYED_KEY = 'hs.played.v1';         // '1' once a real match (not the tutorial's) has been played
+let PLAY_AGAIN = false;                    // the arena's "another battle": through the home screen, no stop
 function onHome() {
   if (TUT.on || !STARTER || TEAMS_UI.introOn || MENU.welcomeOn) return;
-  if (!TEAM_REC.welcomed && stored(TUTR.TUT_KEY) === 'done') {
+  if (!PLAY_AGAIN) AN.step('home');            // the journey's "back on the home screen" (not under a search)
+  // the shop lesson: owed since the practice match paid for it, given after a first real match (2026-10-16)
+  if (stored(TUTR.TUT_KEY) === 'paid' && stored(PLAYED_KEY) === '1' && !PLAY_AGAIN && MENU.screen === 'menu') { TUT.shopLesson(); return; }
+  // the team's three cards: after the tutorial AND a first real match, so nothing stands between the
+  // tutorial and PLAY (2026-10-15) — and not on the way into another arena battle
+  if (!TEAM_REC.welcomed && ['done', 'paid'].includes(stored(TUTR.TUT_KEY)) && stored(PLAYED_KEY) === '1' && !PLAY_AGAIN) {
     saveTeamRec({ ...TEAM_REC, welcomed: true });
     TEAMS_UI.intro(STARTER, () => onHome());
     return;
@@ -1263,6 +1274,7 @@ function anArenaEnd(res) {
 let NEXT_SELECT = null;                  // the stage Player Select reopens on (arcade)
 function endMatch({ forfeit = false } = {}) {
   running = false;
+  if (MODE !== 'tutorial') { try { STORE?.setItem(PLAYED_KEY, '1'); } catch { /* private mode */ } }   // a real match played: the team's cards may come
   stopBed();
   const [a, b] = M.score;
   const me = ONLINE ? (NET?.you ?? 0) : 0;
@@ -1291,7 +1303,7 @@ function endMatch({ forfeit = false } = {}) {
   if (ARCADE) arcadeResult(iWon, [mine, theirs]);
   else if (MODE === 'tournament' && TOURNEY) tournamentResult(iWon, [mine, theirs]);
   else if (MODE === 'tutorial') tutorialResult(iWon, draw);
-  const plan = MODE === 'tutorial' ? { buttons: [{ id: 'shop', label: 'לחנות' }], select: null }
+  const plan = MODE === 'tutorial' ? { buttons: [{ id: 'play', label: 'שחק!' }], select: null }
     : MODE === 'arena' ? { buttons: [{ id: 'again', label: 'עוד קרב!' }, { id: 'leave', label: 'בית' }], select: null }
     : MN.afterResult({ mode: MODE, won: iWon, stage: ARCADE?.stage || 1, last: ARC.STAGE_COUNT });
   if (MODE === 'arena') ARENA_UI.resultInto($('#over .ov-panel'), ARENA_RES);
@@ -1360,12 +1372,12 @@ function stopMatchLoop() {
 // the room, which the server has already reset to the lobby.
 $('#again').onclick = () => {
   // the tutorial's result goes on to the shop, where its first upgrade is bought
-  if (MODE === 'tutorial') { $('#over').classList.add('out'); setTimeout(() => { stopMatchLoop(); $('#over').classList.add('hidden'); TUT.toShop(); }, 260); return; }
+  if (MODE === 'tutorial') { $('#over').classList.add('out'); setTimeout(() => { stopMatchLoop(); $('#over').classList.add('hidden'); TUT.toPlay(); }, 260); return; }
   if (MODE === 'online') { stopMatchLoop(); show('lobby'); if (NET?.room) renderLobby(NET.room); return; }
   // the arena: another battle, straight away (the home screen under the search)
   if (MODE === 'arena') {
     $('#over').classList.add('out');
-    setTimeout(() => { stopMatchLoop(); $('#over').classList.add('hidden'); ONLINE = false; MENU.openMenu(); playArena(); }, 260);
+    setTimeout(() => { stopMatchLoop(); $('#over').classList.add('hidden'); ONLINE = false; PLAY_AGAIN = true; MENU.openMenu(); PLAY_AGAIN = false; playArena(); }, 260);
     return;
   }
   const mode = MODE === 'arcade' ? 'arcade' : 'practice', stage = NEXT_SELECT, toBracket = MODE === 'tournament';

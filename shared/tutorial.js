@@ -23,6 +23,8 @@
 // Progress, points and upgrades are untouched. The key holds:
 //   null   — not done        'paid' — the practice match has paid its reward (closing the game
 //   'done' — finished          after that and running it again never pays twice)
+// 2026-10-16: the practice match goes straight on to the first arena match, and the shop lesson waits
+// for the home screen after it (game.js onHome, tutorial.js shopLesson): 'paid' until then, 'done' after.
 
 export const TUT_KEY = 'hs.tutorial.v2';
 export const owesReward = (flag) => flag !== 'paid' && flag !== 'done';
@@ -54,7 +56,9 @@ export function shouldRun({ flag = null, params = null } = {}) {
   const has = (k) => !!(params && params.has && params.has(k));
   if (has('tutorial')) return true;
   if (['nointro', 'notutorial', 'play', 'arcade', 'unlockall', 'resetarcade'].some(has)) return false;
-  return flag !== 'done';
+  // 'paid' = the tutorial match was played to the end: never the whole tutorial again, even if the game
+  // was closed in the steps after it (2026-10-15: 6 of 27 tutorial matches were players made to redo it)
+  return flag !== 'done' && flag !== 'paid';
 }
 
 // THE DRILLS, in order. Each says what the coach says, which buttons are on the pad (`pad`),
@@ -62,12 +66,12 @@ export function shouldRun({ flag = null, params = null } = {}) {
 // 'drop' falls from the sky in front of you, 'ground' sits on the grass), and what passes it:
 //   'mark'  — standing on the marker      'jump' / 'dash' — the sim's own event for you
 //   'goal'  — a goal in the far net (or, after MAX_TRIES balls, a clean strike)
+// 2026-10-16: three drills, not six — move, jump, shoot. 20% of new players left during the six (123 picked a
+// champion, 99 reached the practice match). The dash is taught in the practice match (SAY.dash), the
+// second marker and the high kick are gone.
 export const DRILLS = Object.freeze([
   { id: 'right', say: 'זוזו לאזור המסומן!', pad: ['left', 'right'], ring: 'right', mark: 760, pass: 'mark' },
-  { id: 'left', say: 'זוזו לאזור המסומן!', pad: ['left', 'right'], ring: 'left', mark: 300, pass: 'mark' },
   { id: 'jump', say: 'יופי! עכשיו, קפצו!', pad: ['left', 'right', 'jump'], ring: 'jump', pass: 'jump' },
-  { id: 'dash', say: 'ועכשיו דאש! לחצו פעמיים, מהר, על החץ!', pad: ['left', 'right', 'jump'], ring: 'right', mark: 800, pass: 'dash' },
-  { id: 'high', say: 'הנה כדור! קפצו, ובעטו באוויר. בעיטה גבוהה, לשער!', pad: ['left', 'right', 'jump', 'kick'], ring: 'kick', ball: 'drop', pass: 'goal' },
   { id: 'ground', say: 'וואו! עכשיו, בעטו מהקרקע!', pad: ['left', 'right', 'jump', 'kick'], ring: 'kick', ball: 'ground', pass: 'goal' },
 ]);
 
@@ -91,6 +95,8 @@ export const SAY = Object.freeze({
   shop: 'כל שדרוג משפר את כל הקלפים שלכם.\nלחצו "קנה", על מהירות!',
   stats: 'מהירות, בעיטה, קפיצה, דאש, וכוח.\nהכוח ממלא את מד ה-POWER מהר יותר!',
   bought: 'מעולה! עכשיו אתם מהירים יותר!',
+  // the dash, in the practice match once the lessons are done (it was a drill: its clip is 'dash')
+  dash: 'ועכשיו דאש! לחצו פעמיים, מהר, על החץ!',
   arcade: 'ועכשיו, לארקייד! נצחו את 45 האלופים,\nוכל ניצחון שווה עוד נקודות. בהצלחה!',
   // PLAY is the arena once it is live (Idan, 2026-10-08: Clash Royale's Battle button); until
   // then PLAY opens the modes and the coach says the arcade line above. A new line, so a new
@@ -165,13 +171,13 @@ export const COUNTER_SPOTS = Object.freeze({ me: 170, foe: 860 });
 // recording. A line with no clip just shows.
 export const LINES = Object.freeze({
   hello: SAY.hello,
-  ...Object.fromEntries(DRILLS.map((d) => [d.id === 'left' ? 'right' : d.id, d.say])),
+  ...Object.fromEntries(DRILLS.map((d) => [d.id, d.say])),
   ...Object.fromEntries(SAY.good.map((t, i) => ['good' + i, t])),
   again: SAY.again, kick: 'קדימה, בעטו בכדור!',
   match: SAY.match, power: SAY.power, powerGo: SAY.powerGo, powerAfter: SAY.powerAfter,
   counter: SAY.counter, counterNow: SAY.counterNow, counterOk: SAY.counterOk, counterMiss: SAY.counterMiss,
   won: SAY.won, lost: SAY.lost, draw: SAY.draw, toShop: SAY.toShop,
-  shop: SAY.shop, stats: SAY.stats, bought: SAY.bought, arcade: SAY.arcade, arena: SAY.arena, practice: SAY.practice,
+  dash: SAY.dash, shop: SAY.shop, stats: SAY.stats, bought: SAY.bought, arcade: SAY.arcade, arena: SAY.arena, practice: SAY.practice,
 });
 // The clip for a line of text (the drills share their words, so they share a clip).
 const BY_TEXT = new Map(Object.entries(LINES).map(([id, t]) => [t, id]));

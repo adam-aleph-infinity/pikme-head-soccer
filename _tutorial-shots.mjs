@@ -2,7 +2,8 @@
 // up, a tap opens the Mythic starter pick (closing the game before confirming asks again), the
 // confirmed Mythic is saved and plays the tutorial (closing the game mid-tutorial comes back with
 // it, no second choice), and this plays it through with real key presses — the drills, the
-// practice match and its power lesson, the result, the guided first upgrade, the menu — asserting
+// practice match and its power and dash lessons, the result, PLAY straight into a first arena match,
+// then home and the guided first upgrade, the team's cards — asserting
 // each step and photographing it. Then a reload proves it never comes back, OPTIONS can replay it,
 // only the starter is playable. Last, an EXISTING player (progress, points, upgrades, the old
 // tutorial done) must pick and do it too without losing a thing, and a friend's ROOM link waits
@@ -134,47 +135,24 @@ await shot('drill-right');
 await walkTo(760);
 check('…✓ on the marker', await until(async () => (await tut('drill')) !== 'right', 4000), await tut('drill'));
 await shot('drill-right-ok');
-await until(async () => (await tut('drill')) === 'left', 3000);
-await shot('drill-left');
-await walkTo(300);
-check('drill 2: walk left to the marker', await until(async () => (await say())?.includes('קפצו'), 4000), await say());
+// 2026-10-16: three drills — move, jump, shoot (the dash is taught in the match)
+check('drill 2: jump', await until(async () => (await say())?.includes('קפצו'), 4000), await say());
 await shot('drill-jump');
 await press('Space');
-check('drill 3: jump', await until(async () => (await say())?.includes('דאש'), 4000), await say());
-await shot('drill-dash');
-await press('KeyD', 50); await sleep(60); await press('KeyD', 50);
-check('drill 4: dash (a double tap)', await until(async () => (await say())?.includes('באוויר'), 4000), await say());
-await sleep(500);
-await shot('drill-high');
-check('…a ball comes in, with the arrow on it', await js(`MATCH.ballWait <= 0`));
+check('drill 3: a ground kick', await until(async () => (await say())?.includes('מהקרקע'), 4000), await say());
+check('…the ball comes in, with the arrow on it', await until(() => js(`TUTORIAL.drill === 'ground' && TUTORIAL.ball && MATCH.ballWait <= 0`), 8000));
 check('…and you are back on your start spot, the ball in front of you (Idan)', await js(`Math.round(MATCH.players[0].x) === 221 && MATCH.ball.x > 221`), String(await px()));
-// THE BALL WAITS (Idan: "freeze the ball… it won't run away or I miss"): it hangs in the air,
-// a header or a kick on the grass leaves it where it is, and a jump-kick near it scores
-const ballAt = () => js(`[Math.round(MATCH.ball.x), Math.round(MATCH.ball.y)].join()`);
-const hang = await ballAt();
-await sleep(700);
-check('…the air ball hangs still', (await ballAt()) === hang, `${hang} → ${await ballAt()}`);
-const bx = await js(`MATCH.ball.x`);
-await walkTo(bx - 10);
-await press('Space', 80); await sleep(900);
-check('…a header leaves it where it is', (await ballAt()) === hang, await ballAt());
-await walkTo(bx - 45);
-await press('KeyS', 60); await sleep(700);
-check('…so does a kick on the grass (this one is for the air)', (await ballAt()) === hang && (await tut('drill')) === 'high', await ballAt());
-// a real try: jump and kick
-await down('Space'); await sleep(120); await press('KeyS', 60); await up('Space');
-check('drill 5: a jump-kick under it scores', await until(async () => (await say())?.includes('מהקרקע'), 3000), await say());
-check('…the ground ball comes in, with the arrow on it', await until(() => js(`TUTORIAL.drill === 'ground' && TUTORIAL.ball && MATCH.ballWait <= 0`), 8000));
-check('…you are back on your start spot for it too', await js(`Math.round(MATCH.players[0].x) === 221`), String(await px()));
 await sleep(400);
 await shot('drill-ground');
+// THE BALL WAITS (Idan: "freeze the ball… it won't run away or I miss")
+const ballAt = () => js(`[Math.round(MATCH.ball.x), Math.round(MATCH.ball.y)].join()`);
 const sit = await ballAt();
 const gx = await js(`MATCH.ball.x`);
 await walkTo(gx - 90); await down('KeyD'); await sleep(700); await up('KeyD'); await sleep(300);
 check('…the ground ball stays put when you walk into it', (await ballAt()) === sit, `${sit} → ${await ballAt()}`);
 await walkTo(gx - 50);
 await press('KeyS', 60);
-check('drill 6: a ground kick scores', await until(async () => (await tut('phase')) !== 'drill', 3000));
+check('…a ground kick scores: the drills are done', await until(async () => (await tut('phase')) !== 'drill', 3000));
 
 // ── THE PRACTICE MATCH ──
 check('the coach: a practice match', await until(async () => (await say())?.includes('משחק אימון'), 4000));
@@ -227,6 +205,11 @@ for (let i = 0; i < 12; i++) { await sleep(500); xs.push(await js(`MATCH.players
 await shot('match-play');
 check('the sparring partner never dashes', await js(`EVENTS.slice(${ev0}).every(e => !(e.type === 'dash' && e.player === 1))`));
 check('…and mostly stays in its own half', xs.filter((x) => x > 530).length >= 9, xs.map(Math.round).join(','));
+// THE DASH, taught in the match now (2026-10-16): the coach says it over the arrow, a double tap gets its ✓
+check('the dash tip, over the arrow, while the match plays', await until(async () => (await say())?.includes('דאש'), 8000) && !(await tut('hold')), await say());
+await shot('match-dash-tip');
+await press('KeyD', 50); await sleep(60); await press('KeyD', 50);
+check('…a double tap dashes: ✓', await until(async () => (await say()) === 'יפה מאוד!', 2000), await say());
 // your goal: roll the ball into his net — it counts (no invisible wall)
 const s0 = await js(`MATCH.score.slice()`);
 await js(`Object.assign(MATCH.ball, { x: 1060 - 140, y: 420, vx: 900, vy: -40, power: null })`);
@@ -245,12 +228,29 @@ await sleep(1800);
 await shot('result-points');
 await tapOn();
 await sleep(400);
-check('…the button goes to the shop', (await js(`document.querySelector('#again').textContent`)).includes('לחנות'));
-await shot('result-to-shop');
+check('…the button is PLAY, and the coach points at it', (await js(`document.querySelector('#again').textContent`)).includes('שחק') && (await say())?.includes('לזירה'), await say());
+await shot('result-to-play');
 // a stray click elsewhere is swallowed
 await clickAt(10, 10);
+const welcomeUp = () => js(`!document.querySelector('#welcomePop').classList.contains('hidden')`);
+// THE FIRST REAL MATCH (2026-10-16): PLAY goes straight into it — the arena finds a CPU in FIRST_BOT_AFTER
+const t0 = Date.now();
 await clickEl('#again');
-check('your starter\'s page, for the first upgrade', await until(() => js(`MENU.screen === 'champs' && document.querySelector('#champs').classList.contains('page')`), 3000));
+check('PLAY: a first arena battle starts within a few seconds', await until(() => js(`MODE === 'arena' && !!MATCH && MATCH.phase === 'play'`), 9000), `${((Date.now() - t0) / 1000).toFixed(1)} s`);
+console.log(`   first arena match after ${((Date.now() - t0) / 1000).toFixed(1)} s`);
+check('…nothing on the way: no shop, no team cards, no welcome popup', !(await tut('on')) && !(await js(`TEAMS_UI.introOn`)) && !(await welcomeUp()));
+check('…the practice match is paid, the shop lesson still owed', (await js(`localStorage.getItem('hs.tutorial.v2')`)) === 'paid');
+await shot('first-arena');
+await js(`(() => { MATCH.score = [1, 0]; MATCH.clock = 0.05; return 1; })()`);
+await until(() => js(`!document.querySelector('#over').classList.contains('hidden')`), 4000);
+await sleep(800);
+await clickEl('#back');
+// THE SHOP LESSON, back home after it
+check('back home: the coach, for the shop', await until(async () => (await tut('on')) && (await say())?.includes('בחנות'), 3000), await say());
+await sleep(500);
+await shot('shop-talk');
+await tapOn();
+check('your starter\'s page, for the first upgrade', await until(async () => (await js(`MENU.screen === 'champs' && document.querySelector('#champs').classList.contains('page')`)) && (await tut('phase')) === 'shop', 3000), String(await tut('phase')));
 await sleep(900);
 await shot('shop-guide');
 check('…a click off the Buy button does nothing', await (async () => { await clickEl('#chBack'); await sleep(300); return (await js(`MENU.screen === 'champs' && document.querySelector('#champs').classList.contains('page')`)); })());
@@ -262,19 +262,14 @@ await sleep(1800);
 await until(() => js(`document.querySelector('#tut').style.pointerEvents === 'auto'`), 5000);
 await shot('shop-stats');
 await tapOn();
-// THE TEAM (team.js): your leader's three cards, a tap each
-check('your team\'s leader welcomes you: three cards', await until(() => js(`TUTORIAL.phase === 'team' && TEAMS_UI.introOn`), 3000));
+check('the tutorial is over and remembered', await until(async () => !(await tut('on')), 2000) && (await js(`localStorage.getItem('hs.tutorial.v2')`)) === 'done');
+check('…home, where your team\'s leader welcomes you', await until(() => js(`MENU.screen === 'menu' && TEAMS_UI.introOn`), 3000));
 await sleep(700);
 await shot('team-welcome');
-for (let i = 0; i < 3; i++) { await clickAt(W / 2, H / 2); await sleep(500); }
-check('the menu, pointing at PLAY: the arena', await until(() => js(`MENU.screen === 'menu' && !TEAMS_UI.introOn`), 3000));
-await sleep(900);
-check("…with your team's tile on it", (await js(`document.querySelector('#hmTeam').getAttribute('aria-label')`)) === 'קבוצת נוה');
-await shot('menu-arena');
-const welcomeUp = () => js(`!document.querySelector('#welcomePop').classList.contains('hidden')`);
-check('no welcome popup during the tutorial', !(await welcomeUp()) && !(await js(`localStorage.getItem('hs.welcome.v1')`)));
-await tapOn();
-check('the tutorial is over and remembered', await until(async () => !(await tut('on')), 2000) && (await js(`localStorage.getItem('hs.tutorial.v2')`)) === 'done');
+// a tap each, and only while they are up: on the home screen the middle is your podium (the champion picker)
+let cards = 0;
+for (; cards < 5 && await js(`TEAMS_UI.introOn`); cards++) { await clickAt(W / 2, H / 2); await sleep(500); }
+check('…three cards', cards === 3, `${cards} taps`);
 check('…then the welcome popup, on the home screen', await until(welcomeUp, 2000) && (await js(`MENU.screen`)) === 'menu');
 await sleep(400);
 await shot('welcome-new-player');
@@ -313,9 +308,10 @@ check('your card is your Mythic, first; the other three are not shown', await js
 await shot('mythics-locked');
 await send('Page.navigate', { url: `http://127.0.0.1:${PORT}/?nointro&me=mythic_1` });
 await until(() => js(`MENU && MENU.screen`), 3000);
+await sleep(1500);   // boot() reads the link after the first screen is up: open Player Select once it has
 await js(`MENU.openSelect('practice')`); await sleep(600);
 await clickEl('#reelMe .rl-item.sel'); await sleep(500);
-check('…and a link cannot hand you another one', await until(() => js(yourMythic), 3000));   // (the head's picture loads a moment after the list is drawn)
+check('…and a link cannot hand you another one', await until(() => js(yourMythic), 3000));
 
 // ── AN EXISTING PLAYER: everyone does it once now, and keeps everything ──
 const OLD = { 'hs.arcade.v1': '{"v":1,"cleared":12,"record":{}}', 'hs.stats.v1': '{"v":1,"points":2400,"lv":{"speed":2,"jump":1,"kick":0,"dash":0,"power":3}}', 'hs.tutorial.v1': 'done' };
@@ -328,7 +324,8 @@ await sleep(400);
 await clickEl('#stRow .st-card[data-n="1"]'); await clickEl('#stGo'); await sleep(250); await clickEl('#stYes');
 check('…then does the tutorial, with it', await until(() => tut('on'), 3000) && await until(() => js(`MATCH && MATCH.players[0].char.rarity === 'mythic' && MATCH.players[0].char.number === 1`), 3000));
 check('…and nothing of theirs changed', await js(`localStorage.getItem('hs.arcade.v1') === ${JSON.stringify(OLD['hs.arcade.v1'])} && localStorage.getItem('hs.stats.v1') === ${JSON.stringify(OLD['hs.stats.v1'])}`));
-await js(`TUTORIAL.toShop()`);
+await js(`TUTORIAL.shopLesson()`);
+await tapOn();
 // (each champion has its own levels now: the old ones stay with the card they played with, so the new
 // starter is on level 0 and its first speed level is offered — nothing is spent until they press it)
 check('…on the starter\'s page, its first upgrade is offered and nothing is spent yet', await until(async () => (await tut('phase')) === 'shop', 3000) && (await js(`JSON.parse(localStorage.getItem('hs.stats.v1')).points`)) === 2400, String(await tut('phase')));
@@ -345,7 +342,7 @@ check('…then the starter pick', await until(starterUp, 4000));
 await sleep(300);
 await clickEl('#stRow .st-card[data-n="2"]'); await clickEl('#stGo'); await sleep(250); await clickEl('#stYes');
 check('…then the tutorial', await until(() => tut('on'), 3000));
-await js(`TUTORIAL.finish()`);
+await js(`TUTORIAL.toPlay()`);
 check('…and when it is over, the room', await until(() => js(`MENU.screen === 'lobby'`), 3000) && (await js(`document.querySelector('#codeInput').value`)) === 'ABCD', await js(`MENU.screen`));
 check('…with no welcome popup over the lobby', !(await welcomeUp()));
 await sleep(500);

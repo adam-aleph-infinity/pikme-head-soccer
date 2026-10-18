@@ -22,7 +22,7 @@ ok('a brand-new player gets it', T.shouldRun({ ...fresh, params: P() }));
 ok('…not once it is done', !T.shouldRun({ ...fresh, flag: 'done', params: P() }));
 // 2026-10-08: everyone does it once, with their Mythic starter (Idan) — progress no longer skips it
 ok('a player with arcade progress, points and upgrades gets it too (Idan: every player)', T.shouldRun({ flag: null, params: P() }) && T.TUT_KEY === 'hs.tutorial.v2');
-ok('…a run after the reward was paid still runs, but owes nothing', T.shouldRun({ flag: 'paid', params: P() }) && !T.owesReward('paid') && !T.owesReward('done') && T.owesReward(null));
+ok('…a tutorial whose match was played to the end never runs again, and owes nothing', !T.shouldRun({ flag: 'paid', params: P() }) && T.shouldRun({ flag: 'paid', params: P('tutorial') }) && !T.owesReward('paid') && !T.owesReward('done') && T.owesReward(null));
 ok('?tutorial forces it, even when done', T.shouldRun({ ...fresh, flag: 'done', params: P('?tutorial') }));
 ok('the harnesses (?nointro) and testing links skip it', ['?nointro', '?notutorial', '?play=1', '?arcade=3'].every((q) => !T.shouldRun({ ...fresh, params: P(q) })));
 ok('…but a friend\'s room link does not: the tutorial first, then the room (Idan)', T.shouldRun({ params: P('?room=ABCD') }));
@@ -30,10 +30,11 @@ ok('no storage at all still works', T.shouldRun({ params: P() }));
 
 // ── the drills ──
 const ids = T.DRILLS.map((d) => d.id).join();
-ok('HB2\'s drills in HB2\'s order, plus the dash', ids === 'right,left,jump,dash,high,ground', ids);
+ok('three drills: move, jump, shoot (2026-10-16; the dash is taught in the match)', ids === 'right,jump,ground', ids);
 ok('every drill rings a button that is on the pad', T.DRILLS.every((d) => d.pad.includes(d.ring)));
 ok('a marker drill has a marker on the pitch', T.DRILLS.filter((d) => d.pass === 'mark').every((d) => d.mark > 100 && d.mark < 960));
-ok('the first two send you right, then left', T.DRILLS[0].mark > 530 && T.DRILLS[1].mark < 530);
+ok('the first sends you right', T.DRILLS[0].mark > 530);
+ok('the dash line keeps its clip', T.voiceFor(T.SAY.dash) === 'dash');
 ok('a ball drill passes on a goal', T.DRILLS.filter((d) => d.ball).every((d) => d.pass === 'goal'));
 ok('the buttons arrive one by one and never leave', T.DRILLS.every((d, i) => i === 0 || T.DRILLS[i - 1].pad.every((k) => d.pad.includes(k))));
 ok('POWER is never on the pad in the drills (it is taught in the match)', T.DRILLS.every((d) => !d.pad.includes('power')));
@@ -56,7 +57,7 @@ ok('the practice match pays exactly the first upgrade', T.REWARD === costOf(1), 
 ok('the practice match is short (HB2: 38 s)', T.MATCH_SECONDS >= 30 && T.MATCH_SECONDS <= 60);
 ok('a stuck shot drill gives up on aim after a few balls', T.MAX_TRIES >= 2 && T.MAX_TRIES <= 5 && T.RETRY_IDLE > 1);
 ok('the coach is one of the drawn characters', T.COACH >= 1 && T.COACH <= 5);
-ok('the coach has a line for every moment', ['hello', 'again', 'match', 'power', 'powerGo', 'powerAfter', 'won', 'lost', 'toShop', 'shop', 'stats', 'bought', 'arena'].every((k) => T.SAY[k]) && T.SAY.good.length > 1);
+ok('the coach has a line for every moment', ['hello', 'again', 'match', 'power', 'powerGo', 'powerAfter', 'won', 'lost', 'toShop', 'shop', 'stats', 'bought', 'arena', 'dash'].every((k) => T.SAY[k]) && T.SAY.good.length > 1);
 
 // ── the counter lesson, played in the sim exactly as tutorial.js stages it ──
 // You on your mark, him on his with the ball on his head and his power armed; his shot freezes

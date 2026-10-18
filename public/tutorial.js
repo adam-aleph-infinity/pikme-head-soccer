@@ -9,9 +9,10 @@
 //   MATCH    "let's have a practice match" → the VS finding an opponent → a short match against
 //            the easiest champion. At kick-off it stops, dims everything but POWER, and a glove
 //            taps it: the first power shot is the player's own.
-//   AFTER    the result pays the first upgrade; the coach walks you into the shop to buy it;
-//            your team's leader welcomes you to the team (team.js, three cards); then the main
-//            menu and PLAY, which is the arena.
+//   AFTER    the result pays the first upgrade, and PLAY goes straight into a first arena match
+//            (2026-10-16: 84 finished the practice match, 49 played a real one). Back on the home
+//            screen after it, the coach walks you into the shop to buy the upgrade (shopLesson);
+//            then your team's leader's three cards (game.js onHome).
 //
 // game.js owns the match. It asks this module four things every tick (hold / mask / afterStep /
 // event) and lets it draw on the pitch (drawGround / drawOver). Everything else here is DOM.
@@ -389,12 +390,27 @@ export function createTutorial(ctx) {
       check();
       say(T.SAY.counterOk, { at: '.hud', side: 'down' });
       allow = new Set(['left', 'right', 'jump', 'kick', 'power']);
-      laterV(3200, () => { say(null); botFrozen = false; });
+      laterV(3200, () => { say(null); botFrozen = false; later(2500, dashTip); });
     } else {
       cw = 'retry';
       say(T.SAY.counterMiss, { at: '.hud', side: 'down' });
       laterV(1900, () => { if (cw === 'retry') stageCounter(); });
     }
+  }
+  // THE DASH (2026-10-16: it was a drill): the coach says it over the arrow while the match plays on;
+  // a dash in the next few seconds gets its ✓
+  let dashT = null;
+  function dashTip() {
+    if (phase !== 'match') return;
+    dashT = 'on';
+    const btn = ctx.padBtn('right');
+    ring(btn); say(T.SAY.dash, { at: btn, side: 'up' });
+    laterV(4500, () => { if (dashT === 'on') { dashT = null; ring(null); say(null); } });
+  }
+  function dashDone() {
+    dashT = null; ring(null);
+    check(); say(T.SAY.good[0], { at: '.hud', side: 'down' });
+    laterV(1400, () => { if (phase === 'match' && !dashT) say(null); });
   }
   // THE SPARRING PARTNER (Idan, 2026-10-08): a very weak CPU that lets you learn. It walks slower
   // than you, hangs back near its own goal, defends a little and clears the ball now and then, but
@@ -427,21 +443,38 @@ export function createTutorial(ctx) {
     }
     return { left: spar.move < 0, right: spar.move > 0, kick: spar.kick > 0, jump: spar.jump > 0, power: false };
   }
-  // THE RESULT: the points it paid, then off to the shop
+  // THE RESULT: the points it paid, then PLAY — straight into a first arena match (game.js toPlay)
   function result(won, draw = false) {
-    phase = 'result'; hold = false; pw = 'done'; cw = 'done'; botFrozen = false;
-    say(null); spot(null);
+    phase = 'result'; hold = false; pw = 'done'; cw = 'done'; botFrozen = false; dashT = null;
+    say(null); spot(null); ring(null);
     later(1700, () => {
-      if (phase !== 'result') return;            // already on the way to the shop
+      if (phase !== 'result') return;            // already on the way
       spot('#ovPts');
       say(won ? T.SAY.won : draw ? T.SAY.draw : T.SAY.lost, { at: '#ovPts', side: 'up', next: true });
       waitTap(() => {
         if (phase !== 'result') return;
-        say(T.SAY.toShop, { at: '#again', side: 'up' });
+        say(ctx.arenaLive?.() ? T.SAY.arena : T.SAY.practice, { at: '#again', side: 'up' });
         spot('#again'); ring('#again'); hand('#again');
         guardOk = ['#again'];
       });
     });
+  }
+  function toPlay() {
+    stop();
+    ctx.toPlay?.();
+  }
+  // THE SHOP LESSON, on the home screen after the first real match (game.js onHome): the points
+  // are spent where they were earned for, and the stats explained, then the team's cards
+  function shopLesson() {
+    gen++;
+    timers.forEach(clearTimeout); timers = [];
+    on = true; firstTime = true;
+    root.classList.remove('hidden');
+    document.body.classList.add('tut-on');
+    cancelAnimationFrame(raf); raf = requestAnimationFrame(loop);
+    phase = 'shop-intro'; hold = false; guardOk = ['#tut']; waitTap(null);
+    ctx.preloadVoice?.(['toShop', 'shop', 'stats', 'bought']);
+    talk(T.SAY.toShop, shop);
   }
   // THE FIRST UPGRADE (a replay with no points to spend only explains it) — on your starter's own page
   // now (2026-10-12: each champion has its own levels; the shop sells bundles). The coach's
@@ -465,7 +498,7 @@ export function createTutorial(ctx) {
         guardOk = [buy];
       } else {
         phase = 'shop-talk';
-        talk(T.SAY.stats, teamStep);
+        talk(T.SAY.stats, lessonDone);
       }
     });
   }
@@ -475,7 +508,7 @@ export function createTutorial(ctx) {
     ring(null); hand(null);
     check();
     say(T.SAY.bought, { at: '#chUps', side: 'down' });
-    later(1900, () => talk(T.SAY.stats, teamStep));
+    later(1900, () => talk(T.SAY.stats, lessonDone));
   }
   // the coach, big, in the dark, until a tap (HB2 42 s)
   function talk(text, then) {
@@ -484,35 +517,12 @@ export function createTutorial(ctx) {
     later(300, () => say(text, { at: 'big', next: true }));
     later(600, () => waitTap(() => { fade(null); coach('off'); say(null); then(); }));
   }
-  // THE TEAM (Idan, 2026-10-08): the coach steps aside and your team's leader takes over for three
-  // cards — welcome to my team, the four teams and their week, what you can win (team.js). The
-  // leader is not the narrator, so the cards are not spoken.
-  function teamStep() {
-    phase = 'team'; guardOk = ['#tmIntro'];
-    say(null); spot(null); ring(null); hand(null); coach('off'); fade(null);
-    ctx.voice?.(null);
-    if (!ctx.teamIntro) { toMenu(); return; }
-    ctx.teamIntro(() => { if (on && phase === 'team') toMenu(); });
-  }
-  // THE MENU: PLAY, which is the arena (Idan: Clash Royale's Battle button); your team's chip
-  // under your profile lights up once on the way
-  function toMenu() {
-    phase = 'menu'; guardOk = ['#tut'];
-    say(null); spot(null);
-    ctx.menu.openMenu();
-    const chip = document.querySelector('#hmTeam');
-    if (chip) { chip.classList.remove('pulse'); void chip.offsetWidth; chip.classList.add('pulse'); }
-    later(700, () => {
-      const mode = '#hmPlay';
-      ring(mode);
-      say(ctx.arenaLive?.() ? T.SAY.arena : T.SAY.practice, { at: mode, side: 'up', next: true });
-      waitTap(finish);
-    });
-  }
-  function finish() {
+  // the shop lesson is over: home, where the team's leader takes over (game.js onHome)
+  function lessonDone() {
     write('done');
+    ctx.step?.('shop_done');
     stop();
-    ctx.onFinish?.();
+    ctx.menu.openMenu();
   }
   function stop() {
     gen++;
@@ -618,6 +628,7 @@ export function createTutorial(ctx) {
   function event(e) {
     if (!on) return;
     if (phase === 'match') {
+      if (dashT === 'on' && e.type === 'dash' && e.player === 0) dashDone();
       if (pw === 'armed' && e.player === 0 && (e.type === 'strike' || e.type === 'powerHit' || e.type === 'goal')) later(900, powerDone);
       if ((cw === 'after' || cw === 'fly') && e.player === 0 && e.by === 1) {
         if (e.type === 'blocked') counterDone(true);
@@ -687,12 +698,11 @@ export function createTutorial(ctx) {
     get drill() { return phase === 'drill' ? T.DRILLS[di].id + (dState === 'ok' ? ':ok' : '') : null; },
     afterStep, event, mask, foeInput, drawGround, drawOver,
     get lesson() { return cw; },
-    result, toShop: shop,
+    result, toPlay, shopLesson,
     // the practice match's pay: once, and marked paid at once, so closing the game before the end and
     // running it again never pays twice
     reward: () => { if (!firstTime) return 0; write('paid'); return T.REWARD; },
     firstRun: (prog, stats, params) => T.shouldRun({ flag: read(), prog, stats, params }),
     markDone: () => write('done'),
-    finish: () => { if (on) finish(); },
   };
 }
