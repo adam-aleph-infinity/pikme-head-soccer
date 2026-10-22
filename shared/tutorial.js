@@ -34,9 +34,25 @@ export const COACH = 5;
 // The practice match pays exactly one level-1 upgrade (upgrades.js costOf(1)), win or lose:
 // the shop lesson needs something to buy with.
 export const REWARD = 500;
-// HB2's practice match ran 38 s on its clock. Ours is a little longer: the power lesson stops
-// the clock for a moment, and nobody should finish their first match without a goal in it.
-export const MATCH_SECONDS = 45;
+// HB2's practice match ran 38 s on its clock. Ours was 45 s; 2026-10-22: 30 s (on 21.10, 13 of 60 new players
+// left during it). The lessons stop the clock while they talk, so the 30 s are all play.
+export const MATCH_SECONDS = 30;
+// A REAL-LOOKING SCORE (Idan, 2026-10-22: "make the match score 2-1, more realistic"): once the lessons are over
+// and you lead, the sparring partner goes for one goal of its own (its kick is steered into your net, unless you
+// touch the ball first): with a lead of 2 any time before the last GIFT_LATE seconds, with a lead of 1 only
+// while GIFT_EARLY are left, so there is time to win it back (it stands aside from ASSIST_AT on). And with ASSIST_AT seconds left and you not ahead,
+// it stops defending: a first match ends as a win more often than not (2-1 is the usual).
+export const GIFT_EARLY = 7;
+export const GIFT_LATE = 3;
+export const ASSIST_AT = 8;
+export function giftDue({ mine, his, clock, done }) {
+  if (done || his !== 0) return false;
+  return (mine >= 2 && clock > GIFT_LATE) || (mine === 1 && clock > GIFT_EARLY);
+}
+export const assistDue = ({ mine, his, clock }) => clock <= ASSIST_AT && mine <= his;
+// Where the partner's goal is steered: inside your (the left) net, under the bar, and how long it flies.
+export const giftTarget = (gy) => ({ x: 26, y: gy - 50 });
+export const giftTime = (x) => Math.max(0.6, Math.min(1.1, (x - 26) / 600));
 // How close to a marker counts as "on it", in world px (a head is 53 px across).
 export const MARK_REACH = 30;
 // A shot drill hands out a fresh ball after this long with nothing happening, and after

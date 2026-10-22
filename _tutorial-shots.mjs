@@ -180,6 +180,16 @@ await press('KeyJ');
 check('…POWER arms it', await until(() => js(`MATCH.players[0].armed > 0`), 2000));
 await sleep(300);
 await shot('power-armed');
+// the power shot goes in (a kid's first touch with the glowing head usually does): 1-0
+await js(`Object.assign(MATCH.ball, { x: 1060 - 140, y: 420, vx: 900, vy: -40, power: null })`);
+check('a shot into his net is a goal (no invisible wall)', await until(() => js(`MATCH.score[0] >= 1`), 3000), String(await js(`MATCH.score.join('-')`)));
+// the sparring partner (Idan, 2026-10-08): a weak CPU that hangs back by its goal, never dashes. Watched until
+// the counter lesson, you standing still.
+const ev0 = await js(`EVENTS.length`);
+const xs = [];
+for (let i = 0; i < 40 && (await tut('lesson')) !== 'talk'; i++) { await sleep(400); xs.push(await js(`MATCH.players[1].x`)); }
+await shot('match-play');
+check('the sparring partner mostly stays in its own half', xs.filter((x) => x > 530).length >= xs.length * 0.7, xs.map(Math.round).join(','));
 // ── THE COUNTER LESSON: his power comes at you, a kick sends it back ──
 check('the counter lesson: the coach warns you', await until(async () => (await tut('lesson')) === 'talk', 20000), String(await tut('lesson')));
 await sleep(700);
@@ -194,34 +204,30 @@ check('…the kick blocks it', await until(async () => (await tut('lesson')) ===
 await sleep(500);
 await shot('counter-blocked');
 check('…and it goes back as yours', await js(`EVENTS.some(e => e.type === 'blocked' && e.player === 0)`));
-await sleep(1500);
-await shot('counter-fireback');
-// the sparring partner (Idan, 2026-10-08): a weak CPU that hangs back by its goal, never dashes,
-// and the goals are open both ways. Watch it for a while with you standing still.
-const at = await js(`MATCH.score.slice()`);
-const ev0 = await js(`EVENTS.length`);
-const xs = [];
-for (let i = 0; i < 12; i++) { await sleep(500); xs.push(await js(`MATCH.players[1].x`)); }
-await shot('match-play');
-check('the sparring partner never dashes', await js(`EVENTS.slice(${ev0}).every(e => !(e.type === 'dash' && e.player === 1))`));
-check('…and mostly stays in its own half', xs.filter((x) => x > 530).length >= 9, xs.map(Math.round).join(','));
+console.log(`   after the counter lesson: ${(await js('MATCH.clock')).toFixed(1)} s left, ${await js('MATCH.score.join("-")')}`);
+await js(`MATCH.players[0].x = 600, 1`);                      // out of the way of what comes next
 // THE DASH, taught in the match now (2026-10-16): the coach says it over the arrow, a double tap gets its ✓
 check('the dash tip, over the arrow, while the match plays', await until(async () => (await say())?.includes('דאש'), 8000) && !(await tut('hold')), await say());
 await shot('match-dash-tip');
 await press('KeyD', 50); await sleep(60); await press('KeyD', 50);
 check('…a double tap dashes: ✓', await until(async () => (await say()) === 'יפה מאוד!', 2000), await say());
-// your goal: roll the ball into his net — it counts (no invisible wall)
-const s0 = await js(`MATCH.score.slice()`);
-await js(`Object.assign(MATCH.ball, { x: 1060 - 140, y: 420, vx: 900, vy: -40, power: null })`);
-check('a shot into his net is a goal', await until(async () => (await js(`MATCH.score[0]`)) > s0[0], 3000), String(await js(`MATCH.score.join('-')`)));
-await sleep(3500);
-// …and his way too: the ball into yours counts for him
+// A REAL-LOOKING SCORE (2026-10-22): you lead, so the partner goes for one goal of its own
 const s1 = await js(`MATCH.score.slice()`);
-await js(`MATCH.players[0].x = 600; Object.assign(MATCH.ball, { x: 140, y: 420, vx: -900, vy: -40, power: null })`);
-check('…and one into your net counts for him (both goals are open)', await until(async () => (await js(`MATCH.score[1]`)) > s1[1], 3000), String(await js(`MATCH.score.join('-')`)));
-check('the match runs to full time', await until(() => js(`!document.querySelector('#over').classList.contains('hidden')`), 60000));
+check('the partner scores one of its own (its kick steered into your net)', await until(async () => (await js(`MATCH.score[1]`)) > s1[1], 12000), `${await js(`MATCH.score.join('-')`)} with ${(await js('MATCH.clock')).toFixed(1)} s left`);
+await shot('match-his-goal');
+const s2 = await js(`MATCH.score.slice()`);
+await sleep(1500);
+check('…only one', (await js(`MATCH.score[1]`)) === s2[1], String(await js(`MATCH.score.join('-')`)));
+// the last seconds, and you are not ahead: it stands aside so you can win
+if (s2[0] <= s2[1]) {
+  await until(() => js(`MATCH.clock <= 7.5`), 20000);
+  check('the last seconds, level: it stands aside instead of defending', await until(() => js(`Math.abs(MATCH.players[1].x - 1060 * 0.56) < 40`), 4000), String(Math.round(await js('MATCH.players[1].x'))));
+  await js(`Object.assign(MATCH.ball, { x: 1060 - 140, y: 420, vx: 900, vy: -40, power: null })`);
+}
+check('the sparring partner never dashes', await js(`EVENTS.slice(${ev0}).every(e => !(e.type === 'dash' && e.player === 1))`));
+check('the match runs to full time', await until(() => js(`!document.querySelector('#over').classList.contains('hidden')`), 40000));
 const fin = await js(`MATCH.score.slice()`);
-check('the weak CPU scores little on its own (you stood still the whole match)', fin[1] - 1 <= 2, fin.join('-'));
+check('…a believable first win: 2-1', fin[0] === 2 && fin[1] === 1, fin.join('-'));
 check('the result', await until(() => js(`!document.querySelector('#over').classList.contains('hidden')`), 4000));
 check('…pays 500 points', await until(async () => (await js(`document.querySelector('#ovReward').textContent`)) === '500', 3000));
 await sleep(1800);

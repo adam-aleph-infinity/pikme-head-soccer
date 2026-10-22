@@ -210,6 +210,7 @@ export function createTutorial(ctx) {
     fade('black');
     phase = 'intro'; hold = false; di = 0; dState = 'go'; mark = null; arrow = false; ballWanted = false; placeNext = null;
     landed = false; simT = 0; pw = null; cw = null; botFrozen = false; spar = null; guardOk = null; waitTap(null);
+    gift = null; giftDone = false; extras = false;
     allow = new Set();
     pads([]);
     coach('off'); say(null); ring(null); spot(null); hand(null);
@@ -390,7 +391,7 @@ export function createTutorial(ctx) {
       check();
       say(T.SAY.counterOk, { at: '.hud', side: 'down' });
       allow = new Set(['left', 'right', 'jump', 'kick', 'power']);
-      laterV(3200, () => { say(null); botFrozen = false; later(2500, dashTip); });
+      laterV(3200, () => { say(null); botFrozen = false; extras = true; later(800, dashTip); });
     } else {
       cw = 'retry';
       say(T.SAY.counterMiss, { at: '.hud', side: 'down' });
@@ -399,7 +400,7 @@ export function createTutorial(ctx) {
   }
   // THE DASH (2026-10-16: it was a drill): the coach says it over the arrow while the match plays on;
   // a dash in the next few seconds gets its ✓
-  let dashT = null;
+  let dashT = null, extras = false;           // extras: the lessons are over (the dash tip and the score's turn)
   function dashTip() {
     if (phase !== 'match') return;
     dashT = 'on';
@@ -429,7 +430,17 @@ export function createTutorial(ctx) {
     }
     if (spar.kick > 0) spar.kick--;
     if (spar.jump > 0) spar.jump--;
-    if ((spar.t -= C.TICK) <= 0) {
+    // THE SCORE (scoreMode): the same held decisions, so these never read as a dash either
+    const mode = scoreMode(M), dxb = b.x - q.x;
+    if (mode === 'gift' && b.y > headY(q) - 40 && dxb < 10 && dxb > -90 && !spar.kick) spar.kick = 6;   // its one goal: kick it your way
+    if ((spar.t -= C.TICK) <= 0 && mode) {
+      spar.t = SPAR_THINK;
+      // assist: off to the side of its goal, out of your way; gift: round to the far side of the ball
+      const to = mode === 'assist' ? C.W * 0.56 : b.x + 40;
+      spar.move = Math.abs(to - q.x) > 20 ? Math.sign(to - q.x) : 0;
+      if (mode === 'assist') spar.kick = 0;
+      spar.jump = 0;
+    } else if (spar.t <= 0) {
       spar.t = SPAR_THINK;
       const home = C.W - C.GOAL_W - 110;
       // the ball in its own half and low enough to reach: go stand behind it (its kick then goes
@@ -442,6 +453,25 @@ export function createTutorial(ctx) {
       if (Math.abs(dx) < 60 && b.y < hy - 50 && q.onGround && Math.random() < 0.25) spar.jump = 6;
     }
     return { left: spar.move < 0, right: spar.move > 0, kick: spar.kick > 0, jump: spar.jump > 0, power: false };
+  }
+  // ── THE SCORE (shared/tutorial.js giftDue, assistDue): one goal for the partner once you lead, a way
+  // through for you at the end if you don't ──
+  let gift = null, giftDone = false;
+  function scoreMode(M) {
+    if (phase !== 'match' || M.phase !== 'play' || !extras) return null;
+    const st = { mine: M.score[0], his: M.score[1], clock: M.clock, done: giftDone };
+    if (T.assistDue(st)) return 'assist';
+    return T.giftDue(st) ? 'gift' : null;
+  }
+  // its kick in gift mode: steered into your net on a fresh arc every tick, until you touch the ball or it is in
+  function steerGift(M) {
+    const b = M.ball;
+    if (!gift) return;
+    if (M.events.some((e) => e.player === 0 && e.type === 'strike') || M.afterGoal > 0 || M.phase !== 'play') { gift = null; return; }
+    if ((gift.left -= C.TICK) <= 0 || b.x < C.GOAL_W + 25) { gift = null; return; }      // into the mouth: the sim finishes it
+    gift.t = Math.max(0.12, gift.t - C.TICK);
+    const to = T.giftTarget(C.GROUND_Y), v = T.aimVelocity(b.x, b.y, to.x, to.y, gift.t, C.BALL_GRAV);
+    b.vx = v.vx; b.vy = v.vy; b.power = null;
   }
   // THE RESULT: the points it paid, then PLAY — straight into a first arena match (game.js toPlay)
   function result(won, draw = false) {
@@ -569,6 +599,9 @@ export function createTutorial(ctx) {
       else if (cw === 'fly' && b.power && b.power.owner === 1 && !(M.hitStop > 0) && b.x - p.x < T.COUNTER_GAP) counterFreeze();
       else if (cw === 'after' || cw === 'fly') { cwT += C.TICK; if (cwT > 4) counterDone(false); }
       guardLesson(M);
+      if (!gift && scoreMode(M) === 'gift' && M.events.some((e) => e.type === 'strike' && e.player === 1)) gift = { t: T.giftTime(b.x), left: 2 };
+      steerGift(M);
+      if (M.events.some((e) => e.type === 'goal' && e.player === 1)) { giftDone = true; gift = null; }
       // NO SUDDEN DEATH IN PRACTICE: the match is 45 s, and a draw at the whistle is a draw.
       if (M.golden && M.phase !== 'over') {
         M.golden = false; M.phase = 'over';
