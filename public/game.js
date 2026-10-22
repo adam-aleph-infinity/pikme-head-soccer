@@ -990,7 +990,7 @@ function net() {
     onStart: startOnlineMatch,
     onOver: () => { /* the local sim reaches full time too; endMatch already ran */ },
     onOpponentLeft: () => banner('היריב עזב — בוט נכנס', '#ffb800'),
-    onOpen: () => sendHello(),
+    onOpen: () => { sendHello(); rejoinRoom(); },
     onLeague: (msg) => onLeague(msg),
     onError: (code) => {
       // the arena could not take this player (no id yet / no starter): stop searching
@@ -1048,6 +1048,14 @@ function openLobby(mode, code) {
     const t = setInterval(() => { if (n.connected) { clearInterval(t); go(); } }, 200);
     setTimeout(() => clearInterval(t), 60000);
   }
+}
+
+// A friend's room after the connection dropped (the phone went to the background to send the link): the
+// server kept it (shared/rooms.js ROOM_GRACE_MS), so the lobby still on screen takes its seat back.
+function rejoinRoom() {
+  const r = NET?.room;
+  if (!r?.code || r.phase !== 'lobby' || MENU.screen !== 'lobby' || ONLINE) return;
+  NET.join(r.code);
 }
 
 function renderLobby(room) {

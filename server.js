@@ -10,7 +10,7 @@ import { WebSocketServer } from 'ws';
 import * as C from './shared/constants.js';
 import { createMatch, step, serialize } from './shared/sim.js';
 import { createBot, botInput } from './shared/bot.js';
-import { createRegistry, createRoom, joinRoom, leave, setReady, bothReady, roomOf, seat } from './shared/rooms.js';
+import { createRegistry, createRoom, joinRoom, leave, setReady, bothReady, roomOf, seat, sweep } from './shared/rooms.js';
 import { openStore } from './server/store.js';
 import { createLeague } from './server/league.js';
 import { createPlayStats } from './server/play-stats.js';
@@ -243,6 +243,8 @@ setInterval(() => {
   last = now;
   for (const room of [...reg.rooms.values()]) if (room.phase === 'match') stepRoom(room, dt);
 }, 8);
+// a friend's room whose last player dropped waits ROOM_GRACE_MS for them (shared/rooms.js), then goes
+setInterval(() => sweep(reg), 5000);
 
 // The live player count, pushed to every open page. Coalesced: a burst of connects (a deploy
 // bringing everyone back at once) is one broadcast, not N².
@@ -360,7 +362,7 @@ wss.on('connection', (ws) => {
     if (room.arena) { league.left(room, member); return; }
     const wasMatch = room.phase === 'match';
     const idx = member.index;
-    leave(reg, member.id);
+    leave(reg, member.id, { keepEmpty: true });          // a dropped phone: its lobby waits for it
     if (room.members.length) {
       if (wasMatch) seatBot(room, idx);
       broadcast(room, roomView(room));

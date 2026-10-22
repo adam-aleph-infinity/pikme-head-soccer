@@ -54,6 +54,13 @@ ok('the ball goes in front of you', T.ballSpot('ground', 221).x > 221 && T.ballS
 
 // ── the pay and the match ──
 ok('the practice match pays exactly the first upgrade', T.REWARD === costOf(1), `${T.REWARD} vs ${costOf(1)}`);
+// the score (2026-10-22): one goal for the partner when you lead, and a way through at the end
+ok('a lead of 2: the partner may score its one goal almost to the end', T.giftDue({ mine: 2, his: 0, clock: 4, done: false }) && !T.giftDue({ mine: 2, his: 0, clock: 2, done: false }));
+ok('a lead of 1: only early, so there is time to win it back', T.giftDue({ mine: 1, his: 0, clock: 12, done: false }) && !T.giftDue({ mine: 1, his: 0, clock: 6, done: false }));
+ok('never when you are not ahead, and only one', !T.giftDue({ mine: 0, his: 0, clock: 20, done: false }) && !T.giftDue({ mine: 3, his: 1, clock: 20, done: false }) && !T.giftDue({ mine: 2, his: 0, clock: 20, done: true }));
+ok('the last seconds and not ahead: it stops defending', T.assistDue({ mine: 1, his: 1, clock: 7 }) && T.assistDue({ mine: 0, his: 0, clock: 2 }) && !T.assistDue({ mine: 2, his: 1, clock: 5 }) && !T.assistDue({ mine: 1, his: 1, clock: 12 }));
+ok('a late equaliser still leaves seconds to win it back', T.GIFT_EARLY >= 6 && T.ASSIST_AT >= T.GIFT_EARLY);
+ok('the practice match is 30 s (2026-10-22)', T.MATCH_SECONDS === 30);
 ok('the practice match is short (HB2: 38 s)', T.MATCH_SECONDS >= 30 && T.MATCH_SECONDS <= 60);
 ok('a stuck shot drill gives up on aim after a few balls', T.MAX_TRIES >= 2 && T.MAX_TRIES <= 5 && T.RETRY_IDLE > 1);
 ok('the coach is one of the drawn characters', T.COACH >= 1 && T.COACH <= 5);
