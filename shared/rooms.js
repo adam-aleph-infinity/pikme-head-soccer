@@ -8,6 +8,11 @@
 // No 0/O, 1/I, 5/S — the code gets read aloud, typed by a kid, or screenshotted badly.
 export const CODE_ALPHABET = 'ABCDEFGHJKLMNPQRTUVWXYZ2346789';   // no O/I/S, no 0/1/5
 const ROOM_MAX = 2;
+// A ROOM OUTLIVES ITS LAST PLAYER'S DROPPED CONNECTION for this long (2026-10-22). A phone that goes to the
+// background (the host switching to WhatsApp to send the link) drops its socket, and the room went with it:
+// on 19.10, 29 friends' joins found no room. Now it waits, the friend can join it, and the host's phone takes
+// its seat back when it reconnects (game.js rejoins). Leaving on purpose still closes it at once.
+export const ROOM_GRACE_MS = 5 * 60 * 1000;
 
 export function createRegistry() {
   return {
@@ -48,6 +53,9 @@ export function joinRoom(reg, member, code) {
   const room = reg.rooms.get(normalizeCode(code));
   if (!room) return { error: 'not-found' };
   if (room.phase !== 'lobby') return { error: 'in-match' };
+  // the same phone back on a new connection (its old one may not have closed yet): it takes its own seat
+  const old = member.pid ? room.members.find((m) => m.pid === member.pid && m.id !== member.id) : null;
+  if (old) leave(reg, old.id, { keepEmpty: true });
   if (room.members.length >= ROOM_MAX) return { error: 'full' };
   leave(reg, member.id);
   attach(reg, member, room);
@@ -64,6 +72,8 @@ export function seat(reg, member, room) {
 function attach(reg, member, room) {
   room.members.push(member);
   reg.byMember.set(member.id, { member, room });
+  delete room.emptySince;
+  if (!room.members.some((m) => m.id === room.hostId)) room.hostId = room.members[0].id;
 }
 
 export function roomOf(reg, memberId) {
@@ -84,7 +94,8 @@ export function bothReady(room) {
   return room.members.length === ROOM_MAX && room.members.every((m) => room.ready.has(m.id));
 }
 
-export function leave(reg, memberId) {
+// keepEmpty: a dropped connection, not a choice — a lobby left empty waits ROOM_GRACE_MS (sweep) instead of closing.
+export function leave(reg, memberId, { keepEmpty = false, now = Date.now() } = {}) {
   const entry = reg.byMember.get(memberId);
   if (!entry) return null;
   const { room } = entry;
@@ -94,9 +105,19 @@ export function leave(reg, memberId) {
   room.ready.delete(memberId);
 
   if (room.members.length === 0) {
-    reg.rooms.delete(room.code);
+    if (keepEmpty && room.phase === 'lobby' && !room.arena) room.emptySince = now;
+    else reg.rooms.delete(room.code);
     return room;
   }
   if (room.hostId === memberId) room.hostId = room.members[0].id;
   return room;
+}
+
+// The rooms left empty longer than the grace go (the server calls this every few seconds). Returns their codes.
+export function sweep(reg, now = Date.now(), grace = ROOM_GRACE_MS) {
+  const gone = [];
+  for (const [code, room] of reg.rooms) {
+    if (room.emptySince != null && !room.members.length && now - room.emptySince >= grace) { reg.rooms.delete(code); gone.push(code); }
+  }
+  return gone;
 }

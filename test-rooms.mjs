@@ -1,5 +1,5 @@
 // Room registry tests. Pure — no socket, no timers. Run: node test-rooms.mjs
-import { createRegistry, genCode, createRoom, joinRoom, leave, setReady, bothReady, CODE_ALPHABET }
+import { createRegistry, genCode, createRoom, joinRoom, leave, setReady, bothReady, sweep, ROOM_GRACE_MS, CODE_ALPHABET }
   from './shared/rooms.js';
 
 let pass = 0, fail = 0;
@@ -139,6 +139,53 @@ const member = (id, name = id) => ({ id, name, card: { rarity: 'legendary', numb
 {
   const reg = createRegistry();
   ok('leaving nothing is harmless', leave(reg, 'nobody') === null);
+}
+
+// --- a dropped phone (2026-10-22): the room waits for it ------------------------
+const phone = (id, pid) => ({ ...member(id), pid });
+{
+  const reg = createRegistry();
+  const { room } = createRoom(reg, phone('h', 'dev-h'));
+  leave(reg, 'h', { keepEmpty: true, now: 1000 });
+  ok('a host whose connection dropped keeps the room', reg.rooms.has(room.code) && room.members.length === 0);
+  const r = joinRoom(reg, phone('g', 'dev-g'), room.code);
+  ok('…the friend can still join it', !r.error && room.members.length === 1 && room.hostId === 'g', JSON.stringify(r.error));
+  const back = joinRoom(reg, phone('h2', 'dev-h'), room.code);
+  ok('…and the host comes back to it on a new connection', !back.error && room.members.length === 2 && room.members.map((m) => m.id).join() === 'g,h2');
+}
+{
+  const reg = createRegistry();
+  const { room } = createRoom(reg, phone('h', 'dev-h'));
+  joinRoom(reg, phone('g', 'dev-g'), room.code);
+  // the host's old socket has not closed yet (a phone in the background): its new one takes its own seat
+  const back = joinRoom(reg, phone('h2', 'dev-h'), room.code);
+  ok('the same phone on a new connection replaces its old seat, not "full"', !back.error && room.members.length === 2 && !reg.byMember.has('h') && reg.byMember.has('h2'));
+  ok('…a different phone is still turned away', joinRoom(reg, phone('x', 'dev-x'), room.code).error === 'full');
+}
+{
+  const reg = createRegistry();
+  const { room } = createRoom(reg, phone('h', 'dev-h'));
+  leave(reg, 'h', { keepEmpty: true, now: 1000 });
+  ok('a waiting room is not swept early', sweep(reg, 1000 + ROOM_GRACE_MS - 1).length === 0 && reg.rooms.has(room.code));
+  ok('…and goes after the grace', sweep(reg, 1000 + ROOM_GRACE_MS)[0] === room.code && !reg.rooms.has(room.code));
+  ok('the grace is a few minutes', ROOM_GRACE_MS >= 60000 && ROOM_GRACE_MS <= 10 * 60000);
+}
+{
+  const reg = createRegistry();
+  const { room } = createRoom(reg, phone('h', 'dev-h'));
+  leave(reg, 'h', { keepEmpty: true, now: 1000 });
+  joinRoom(reg, phone('g', 'dev-g'), room.code);
+  ok('a room someone came back to is never swept', sweep(reg, 1000 + 10 * ROOM_GRACE_MS).length === 0 && reg.rooms.has(room.code));
+}
+{
+  const reg = createRegistry();
+  const { room } = createRoom(reg, phone('h', 'dev-h'));
+  leave(reg, 'h');
+  ok('leaving on purpose still closes the room at once', !reg.rooms.has(room.code));
+  const m = createRoom(reg, phone('a', 'dev-a')).room;
+  m.phase = 'match';
+  leave(reg, 'a', { keepEmpty: true });
+  ok('only a lobby waits: a room left empty mid-match closes', !reg.rooms.has(m.code));
 }
 
 // --- code exhaustion --------------------------------------------------------
