@@ -1,5 +1,5 @@
 // Room registry tests. Pure — no socket, no timers. Run: node test-rooms.mjs
-import { createRegistry, genCode, createRoom, joinRoom, leave, setReady, bothReady, sweep, ROOM_GRACE_MS, CODE_ALPHABET }
+import { createRegistry, genCode, createRoom, joinRoom, leave, setReady, bothReady, sweep, ROOM_GRACE_MS, CODE_ALPHABET, GONE_MS, RETRY_MS }
   from './shared/rooms.js';
 
 let pass = 0, fail = 0;
@@ -198,6 +198,60 @@ const phone = (id, pid) => ({ ...member(id), pid });
   ok('genCode gives up rather than looping forever', c === null);
   const r = createRoom(reg, member('h'), () => null);
   ok('createRoom surfaces exhaustion', r.error === 'no-codes', JSON.stringify(r));
+}
+
+// --- why a join found no room (2026-11-20) ---------------------------------
+// Live: 282 not-found joins against 240 rooms. The registry now tells a typo from a room that is gone, and a
+// repeat by the same player from a new failure, so each kid's failure is counted once as its cause.
+{
+  const reg = createRegistry();
+  const t0 = 1e12;
+  const why = (who, code, now = t0) => joinRoom(reg, who, code, now).why;
+  const f = phone('f', 'dev-f'), g = phone('g', 'dev-g');
+  ok('a code nobody ever made is "never"', why(f, 'ZZZZ') === 'never');
+  ok('…the same player with the same code again is a "retry"', why(f, 'ZZZZ', t0 + 1000) === 'retry');
+  ok('…again on a new connection of the same phone, still a "retry"', why({ ...phone('f2', 'dev-f') }, 'zzzz', t0 + 2000) === 'retry');
+  ok('…another player with that code is their own first failure', why(g, 'ZZZZ', t0 + 3000) === 'never');
+  ok('…and long after, the same player\'s try counts fresh', why(f, 'ZZZZ', t0 + 3000 + RETRY_MS + 1) === 'never');
+
+  const closedRoom = createRoom(reg, phone('h', 'dev-h')).room;
+  leave(reg, 'h', { now: t0 });
+  ok('the host left on purpose: a friend\'s join is "closed"', why(phone('k', 'dev-k'), closedRoom.code, t0 + 5000) === 'closed');
+
+  const swept = createRoom(reg, phone('h2', 'dev-h2')).room;
+  leave(reg, 'h2', { keepEmpty: true, now: t0 });
+  ok('within the grace the room is still there', joinRoom(reg, phone('k2', 'dev-k2'), swept.code, t0 + 1000).room === swept);
+  leave(reg, 'k2', { keepEmpty: true, now: t0 + 1000 });
+  sweep(reg, t0 + 1000 + ROOM_GRACE_MS);
+  ok('the grace ran out: the host coming back is "expired"', why(phone('h2b', 'dev-h2'), swept.code, t0 + 1000 + ROOM_GRACE_MS + 10) === 'expired');
+  ok('…and its next return is a "retry", not a second failure', why(phone('h2c', 'dev-h2'), swept.code, t0 + 1000 + ROOM_GRACE_MS + 20) === 'retry');
+
+  // a closed code is not handed out again while it is remembered, then is forgotten
+  const reuse = createRoom(reg, phone('r', 'dev-r'), (rng, taken) => [closedRoom.code, 'NEWW'].find((c) => !taken(c)) || null);
+  ok('a code that just closed is not handed out again', reuse.room?.code === 'NEWW', JSON.stringify(reuse.error));
+  leave(reg, 'r', { now: t0 });
+  sweep(reg, t0 + 2 * GONE_MS);
+  ok('…the closed codes are forgotten after a day', reg.gone.size === 0, [...reg.gone.keys()].join());
+  ok('…and so are the failures', reg.failed.size === 0, String(reg.failed.size));
+  ok('a forgotten code is "never" again', why(phone('z', 'dev-z'), closedRoom.code, t0 + 2 * GONE_MS + 1) === 'never');
+
+  // a re-made code is a live room, not "gone"
+  const reg2 = createRegistry();
+  const a = createRoom(reg2, phone('a', 'dev-a'), () => 'ABCD').room;
+  leave(reg2, 'a');
+  reg2.gone.clear();                                  // as if the day passed
+  createRoom(reg2, phone('b', 'dev-b'), () => 'ABCD');
+  ok('a code made again is a room again', !reg2.gone.has('ABCD') && joinRoom(reg2, phone('c', 'dev-c'), 'ABCD').room?.code === a.code);
+
+  // the arena's rooms are never typed, so they are never remembered
+  const reg3 = createRegistry();
+  const ar = createRoom(reg3, phone('x', 'dev-x'), () => 'arena-1').room;
+  ar.arena = true; leave(reg3, 'x');
+  ok('an arena room leaves nothing behind', reg3.gone.size === 0);
+}
+{
+  const { ROOM_FAILS } = await import('./shared/play-stats.js');
+  ok('the stats know every reason', ['never', 'closed', 'expired', 'retry'].every((w) => ROOM_FAILS.includes(`not-found:${w}`)) && ROOM_FAILS.includes('not-found'));
 }
 
 console.log(`test-rooms: ${pass} passed, ${fail} failed`);

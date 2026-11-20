@@ -244,7 +244,9 @@ setInterval(() => {
   for (const room of [...reg.rooms.values()]) if (room.phase === 'match') stepRoom(room, dt);
 }, 8);
 // a friend's room whose last player dropped waits ROOM_GRACE_MS for them (shared/rooms.js), then goes
-setInterval(() => sweep(reg), 5000);
+// TEST_ROOM_GRACE_MS=2000 — the harnesses' short grace, so a swept room is seconds away. Production never sets it.
+const ROOM_GRACE = Number(process.env.TEST_ROOM_GRACE_MS) || undefined;
+setInterval(() => sweep(reg, Date.now(), ROOM_GRACE), 5000);
 
 // The live player count, pushed to every open page. Coalesced: a burst of connects (a deploy
 // bringing everyone back at once) is one broadcast, not N².
@@ -309,7 +311,8 @@ wss.on('connection', (ws) => {
       case 'join': {
         if (member.v !== PROTOCOL) { roomStat('fail', 'stale'); send(ws, { type: 'error', code: 'stale' }); break; }
         const r = joinRoom(reg, member, msg.code);
-        if (r.error) { roomStat('fail', r.error); send(ws, { type: 'error', code: r.error }); break; }
+        // not-found is counted by why (shared/rooms.js): a code that never was, a room closed or expired, a repeat
+        if (r.error) { roomStat('fail', r.why ? `${r.error}:${r.why}` : r.error); send(ws, { type: 'error', code: r.error, why: r.why }); break; }
         roomStat('join');
         // Seat by position: members[0] defends the left goal, members[1] the right.
         r.room.members.forEach((mm, i) => { mm.index = i; });

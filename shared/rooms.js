@@ -13,11 +13,22 @@ const ROOM_MAX = 2;
 // on 19.10, 29 friends' joins found no room. Now it waits, the friend can join it, and the host's phone takes
 // its seat back when it reconnects (game.js rejoins). Leaving on purpose still closes it at once.
 export const ROOM_GRACE_MS = 5 * 60 * 1000;
+// WHY A JOIN FOUND NO ROOM (2026-11-20). 282 'not-found' joins since 15.10, against 240 rooms: one kid made many
+// (a JOIN tapped again and again, a host's phone retrying its swept room on every return), and nothing told a typo
+// from a room that was there and is gone. So the registry remembers, in memory only and for a while:
+//   gone   — codes of rooms closed (the host left) or expired (the grace ran out), for GONE_MS
+//   failed — "this player already failed with this code", for RETRY_MS, so a repeat is counted as one
+// and joinRoom says which: 'never' | 'closed' | 'expired' | 'retry'. Nothing here is ever stored or reported but
+// the reason's name (server.js counts it); the codes and ids die with the process.
+export const GONE_MS = 24 * 3600 * 1000;
+export const RETRY_MS = 10 * 60 * 1000;
 
 export function createRegistry() {
   return {
     rooms: new Map(),        // code -> room
     byMember: new Map(),     // memberId -> { member, room }
+    gone: new Map(),         // code -> { at, why: 'closed' | 'expired' } — a friend's room that is no more
+    failed: new Map(),       // 'player|code' -> at — a join that already failed
   };
 }
 
@@ -34,8 +45,10 @@ export const normalizeCode = (code) => String(code || '').trim().toUpperCase();
 
 export function createRoom(reg, member, gen = genCode) {
   leave(reg, member.id);      // a player is only ever in one room
-  const code = gen(Math.random, (c) => reg.rooms.has(c));
+  // a code that just closed is not handed out again: a late friend with the old invite must not walk into a stranger's room
+  const code = gen(Math.random, (c) => reg.rooms.has(c) || reg.gone.has(c));
   if (!code) return { error: 'no-codes' };
+  reg.gone.delete(code);
   const room = {
     code,
     hostId: member.id,
@@ -49,9 +62,9 @@ export function createRoom(reg, member, gen = genCode) {
   return { room };
 }
 
-export function joinRoom(reg, member, code) {
+export function joinRoom(reg, member, code, now = Date.now()) {
   const room = reg.rooms.get(normalizeCode(code));
-  if (!room) return { error: 'not-found' };
+  if (!room) return { error: 'not-found', why: notFoundWhy(reg, member, normalizeCode(code), now) };
   if (room.phase !== 'lobby') return { error: 'in-match' };
   // the same phone back on a new connection (its old one may not have closed yet): it takes its own seat
   const old = member.pid ? room.members.find((m) => m.pid === member.pid && m.id !== member.id) : null;
@@ -61,6 +74,19 @@ export function joinRoom(reg, member, code) {
   attach(reg, member, room);
   return { room };
 }
+
+// The first failure of this player with this code says why; the same one again within RETRY_MS is a 'retry'.
+function notFoundWhy(reg, member, code, now) {
+  const key = `${member.pid || member.id}|${code}`;
+  const seen = reg.failed.get(key);
+  reg.failed.set(key, now);
+  if (seen != null && now - seen < RETRY_MS) return 'retry';
+  return reg.gone.get(code)?.why || 'never';
+}
+const closed = (reg, room, why, now) => {
+  reg.rooms.delete(room.code);
+  if (!room.arena) reg.gone.set(room.code, { at: now, why });
+};
 
 // THE ARENA (server/league.js) seats its second player itself: they were matched, not invited, and
 // an arena room's code is not one anybody can type.
@@ -106,7 +132,7 @@ export function leave(reg, memberId, { keepEmpty = false, now = Date.now() } = {
 
   if (room.members.length === 0) {
     if (keepEmpty && room.phase === 'lobby' && !room.arena) room.emptySince = now;
-    else reg.rooms.delete(room.code);
+    else closed(reg, room, 'closed', now);
     return room;
   }
   if (room.hostId === memberId) room.hostId = room.members[0].id;
@@ -117,7 +143,9 @@ export function leave(reg, memberId, { keepEmpty = false, now = Date.now() } = {
 export function sweep(reg, now = Date.now(), grace = ROOM_GRACE_MS) {
   const gone = [];
   for (const [code, room] of reg.rooms) {
-    if (room.emptySince != null && !room.members.length && now - room.emptySince >= grace) { reg.rooms.delete(code); gone.push(code); }
+    if (room.emptySince != null && !room.members.length && now - room.emptySince >= grace) { closed(reg, room, 'expired', now); gone.push(code); }
   }
+  for (const [code, g] of reg.gone) if (now - g.at >= GONE_MS) reg.gone.delete(code);
+  for (const [key, at] of reg.failed) if (now - at >= RETRY_MS) reg.failed.delete(key);
   return gone;
 }
