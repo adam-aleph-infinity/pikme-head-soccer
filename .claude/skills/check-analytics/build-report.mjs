@@ -78,7 +78,7 @@ if (fr.created || fr.joined || Object.keys(fr.failed || {}).length) {
   row('rooms', 'room-created', { label: 'Rooms made', display: fmt(fr.created) });
   row('rooms', 'room-joined', { label: 'A friend joined', display: fmt(fr.joined) });
   row('rooms', 'room-matches', { label: 'Matches started', display: fmt(fr.matches) });
-  const FAIL = { 'not-found': 'Join failed: no room with that code', full: 'Join failed: room full', 'in-match': 'Join failed: match already on', 'no-codes': 'Make failed: no free codes', stale: 'Refused: an old cached version of the game', other: 'Failed: other' };
+  const FAIL = { 'not-found:never': 'Join failed: a code that never existed (typo)', 'not-found:closed': 'Join failed: the host had left the room', 'not-found:expired': 'Join failed: the host\'s phone was away past the 5-min grace', 'not-found:retry': 'Join failed again: same player, same code (a repeat)', 'not-found': 'Join failed: no room with that code (before the 20.11 split)', full: 'Join failed: room full', 'in-match': 'Join failed: match already on', 'no-codes': 'Make failed: no free codes', stale: 'Refused: an old cached version of the game', other: 'Failed: other' };
   for (const [k, n] of Object.entries(fr.failed || {})) row('rooms', `room-fail-${k}`, { label: FAIL[k] || k, display: fmt(n) });
 }
 

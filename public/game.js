@@ -547,6 +547,7 @@ function afterFirstLaunch() {
   PENDING_ROOM = null;
   $('#codeInput').value = code;
   openLobby('join', code);
+  dropRoomParam();
 }
 if (!DEEP) { MENU.openTitle(); LOADER.repaint(); }
 addEventListener('resize', () => { if (MENU.screen === 'title') LOADER.repaint(); });
@@ -992,7 +993,7 @@ function net() {
     onOpponentLeft: () => banner('היריב עזב — בוט נכנס', '#ffb800'),
     onOpen: () => { sendHello(); rejoinRoom(); },
     onLeague: (msg) => onLeague(msg),
-    onError: (code) => {
+    onError: (code, msg) => {
       // the arena could not take this player (no id yet / no starter): stop searching
       if ((code === 'no-id' || code === 'no-starter') && ARENA_UI.on) { ARENA_UI.hide(); MENU.toast('מתחברים…'); sendHello(); return; }
       // `stale`: the server runs a newer protocol than this cached page (see PROTOCOL in
@@ -1002,8 +1003,8 @@ function net() {
         setTimeout(() => location.reload(), 1000);
         return;
       }
+      if (code === 'not-found') { roomNotFound(msg?.why); return; }
       $('#lobbyHint').textContent = {
-        'not-found': 'לא נמצא חדר עם הקוד הזה',
         full: 'החדר מלא',
         'in-match': 'המשחק כבר התחיל',
         'no-codes': 'אין קודים פנויים, נסה שוב',
@@ -1033,6 +1034,8 @@ function openLobby(mode, code) {
   $('#seats').innerHTML = '';
   $('#lobbyHint').textContent = mode === 'host' ? 'שלח את הקישור לחבר' : 'הכנס את הקוד שקיבלת';
   $('#readyBtn').disabled = true;
+  $('#newRoomBtn').classList.add('hidden');
+  FAILED_CODE = null;
   $('#mpConn').classList.toggle('hidden', n.connected);
   paintHead($('#connFace'), pick.me.rarity, pick.me.number, $('#connFace').clientWidth || 40);
 
@@ -1058,8 +1061,39 @@ function rejoinRoom() {
   NET.join(r.code);
 }
 
+// A JOIN THAT FOUND NO ROOM (2026-11-20): said once, plainly, and never sent again by itself. Before, the lobby kept
+// the dead room, so the host's phone re-joined it on every return from the background, and every tap on JOIN with
+// the same code went to the server again — one kid, many failures (live: 19 on a day of 3 lobby visits).
+let FAILED_CODE = null;              // the code that just failed: JOIN with it again only repeats the message
+const KEYBOARD_HE = { '/': 'Q', "'": 'W', 'ק': 'E', 'ר': 'R', 'א': 'T', 'ט': 'Y', 'ו': 'U', 'ן': 'I', 'ם': 'O', 'פ': 'P',
+  'ש': 'A', 'ד': 'S', 'ג': 'D', 'כ': 'F', 'ע': 'G', 'י': 'H', 'ח': 'J', 'ל': 'K', 'ך': 'L',
+  'ז': 'Z', 'ס': 'X', 'ב': 'C', 'ה': 'V', 'נ': 'B', 'מ': 'N', 'צ': 'M' };
+const NOT_FOUND_MSG = {
+  never: 'אין חדר עם הקוד הזה — בדקו את הקוד',
+  closed: 'החדר הזה נסגר — פתחו חדר חדש',
+  expired: 'החדר הזה נסגר — פתחו חדר חדש',
+  retry: 'החדר הזה כבר לא קיים — פתחו חדר חדש',
+};
+function roomNotFound(why) {
+  const code = NET?.room?.code || $('#codeInput').value.trim().toUpperCase();
+  if (NET) NET.room = null;          // no rejoin of a room that is gone
+  FAILED_CODE = code || null;
+  const gone = why !== 'never';      // closed, expired, or an old page that sends no reason
+  if (gone && !$('#codeBox').classList.contains('hidden')) $('#roomCode').textContent = '····';
+  $('#seats').innerHTML = '';
+  $('#readyBtn').disabled = true;
+  $('#lobbyHint').textContent = NOT_FOUND_MSG[why] || NOT_FOUND_MSG.closed;
+  $('#newRoomBtn').classList.toggle('hidden', !gone);
+}
+// The link's ?room= has done its job once the join is sent: a reload or a restored tab must not try it again.
+function dropRoomParam() {
+  try { const u = new URL(location.href); if (!u.searchParams.has('room')) return; u.searchParams.delete('room'); history.replaceState(history.state, '', u); } catch { /* keep the page */ }
+}
+
 function renderLobby(room) {
   $('#roomCode').textContent = room.code;
+  $('#newRoomBtn').classList.add('hidden');
+  FAILED_CODE = null;
   const seats = $('#seats');
   seats.innerHTML = '';
   for (let i = 0; i < 2; i++) {
@@ -1123,9 +1157,14 @@ function startOnlineMatch(msg) {
 
 $('#joinGo').onclick = () => {
   const code = $('#codeInput').value.trim().toUpperCase();
-  if (code.length === 4) net().join(code);
+  if (code.length !== 4) return;
+  if (code === FAILED_CODE) return;    // its message is still on screen
+  $('#newRoomBtn').classList.add('hidden');
+  net().join(code);
 };
-$('#codeInput').oninput = (e) => { e.target.value = e.target.value.toUpperCase(); };
+// a Hebrew keyboard types the letter on the same key (ש is A): the code is Latin, the kid's keyboard often is not
+$('#codeInput').oninput = (e) => { e.target.value = [...e.target.value].map((ch) => KEYBOARD_HE[ch] || ch).join('').toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 4); };
+$('#newRoomBtn').onclick = () => openLobby('host');
 $('#readyBtn').onclick = () => { net().ready(true); $('#readyBtn').disabled = true; $('#lobbyHint').textContent = 'ממתין ליריב…'; };
 $('#lobbyBack').onclick = () => { net().leave(); MENU.openMenu(); };
 $('#copyLink').onclick = async () => {
@@ -3613,6 +3652,7 @@ $('#tunerCopy').onclick = async () => {
     const code = String(q.get('room')).trim().toUpperCase().slice(0, 4);
     $('#codeInput').value = code;
     openLobby('join', code);
+    dropRoomParam();
   } else if (q.has('play')) startMatch();
   // ?arcade opens the board; ?arcade=7 starts stage 7 — if, and only if, it is unlocked.
   else if (q.has('arcade') || q.has('unlockall') || q.has('resetarcade')) {

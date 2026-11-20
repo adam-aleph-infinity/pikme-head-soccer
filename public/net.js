@@ -71,7 +71,7 @@ export function createNet({ onRoom, onStart, onOver, onError, onStatus, onOppone
         net.you = Math.max(0, msg.members.findIndex((m) => m.id === net.id));
         onRoom?.(msg);
         break;
-      case 'error': onError?.(msg.code); break;
+      case 'error': onError?.(msg.code, msg); break;
       case 'start': {
         // an arena match against the CPU is played on the phone (game.js startArenaLocal): no
         // input stream, no snapshots — nothing for this file to do but pass it on

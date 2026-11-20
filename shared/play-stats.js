@@ -25,7 +25,10 @@ export const RET_DAYS = [1, 2, 3, 7, 14, 30];
 // THE NEW PLAYER'S JOURNEY, each step once per device, in order
 export const STEPS = ['starter', 'tut_start', 'tut_done', 'first_match', 'first_finish', 'home', 'shop_done', 'second_match'];
 // how a friend's room went (counted on the server, which sees it happen)
-export const ROOM_FAILS = ['not-found', 'full', 'in-match', 'no-codes', 'stale', 'other'];
+// not-found by why (2026-11-20, shared/rooms.js): never = no such code was ever made (a typo), closed = the host
+// left, expired = the host's phone was away past the grace, retry = the same player and code again (counted once
+// as itself, not as a new failure). Plain 'not-found' is the days before the split.
+export const ROOM_FAILS = ['not-found:never', 'not-found:closed', 'not-found:expired', 'not-found:retry', 'not-found', 'full', 'in-match', 'no-codes', 'stale', 'other'];
 
 const TZ = 'Asia/Jerusalem';
 const dayFmt = new Intl.DateTimeFormat('en-CA', { timeZone: TZ, year: 'numeric', month: '2-digit', day: '2-digit' });
